@@ -306,7 +306,12 @@ final class CumChiSoChinhView: UIControl {
         self.cheDoDoanhThu = cheDo
         capNhatMauNutCheDo()
 
-        if !dt.coDuLieu {
+        let duBaoQD = KhoDuLieu.dungChung.tinhDuBaoQuyDoiTuRealtime(cho: ngay, cheDoDangXem: cheDo)
+        let targetQDHienThi: Double = (cheDo == .luyKe)
+            ? (duBaoQD.mucTieuThang > 0 ? duBaoQD.mucTieuThang : dt.targetQuyDoi)
+            : (duBaoQD.mucTieuMoiNgay > 0 ? duBaoQD.mucTieuMoiNgay : dt.targetQuyDoi)
+
+        if !dt.coDuLieu && duBaoQD.mucTieuThang <= 0 {
             theDTThuc.capNhatNoiDung(chinh: coLon ? "0,00" : "Chạm quét", phu: "TARGET: --", coLon: coLon)
             theDTQD.capNhatNoiDung(chinh: coLon ? "0,00" : "Chạm quét", phu: "TARGET: --", coLon: coLon)
         } else {
@@ -315,9 +320,16 @@ final class CumChiSoChinhView: UIControl {
                 phu: "TARGET: \(dt.targetThuc.chuoiSoVN)",
                 coLon: coLon
             )
+            let nhanPhuDTQD: String
+            if cheDo == .realtime, duBaoQD.mucTieuMoiNgay > 0 {
+                let ptNgay = dt.doanhThuQuyDoi > 0 ? (dt.doanhThuQuyDoi / duBaoQD.mucTieuMoiNgay * 100.0) : 0
+                nhanPhuDTQD = "MT NGÀY: \(duBaoQD.mucTieuMoiNgay.chuoiSoVN) (\(ptNgay.chuoiPhanTram))"
+            } else {
+                nhanPhuDTQD = "TARGET: \(targetQDHienThi.chuoiSoVN)"
+            }
             theDTQD.capNhatNoiDung(
                 chinh: dt.doanhThuQuyDoi.chuoiSoVN,
-                phu: "TARGET: \(dt.targetQuyDoi.chuoiSoVN)",
+                phu: nhanPhuDTQD,
                 coLon: coLon
             )
         }
@@ -334,16 +346,41 @@ final class CumChiSoChinhView: UIControl {
             coLon: coLon
         )
 
-        let dkHienThi = dt.duKienQuyDoi > 0 ? dt.duKienQuyDoi : dt.duKienThuc
+        let dkQDCuoiThang = duBaoQD.duKienQDCuoiThang > 0
+            ? duBaoQD.duKienQDCuoiThang
+            : (dt.duKienQuyDoi > 0 ? dt.duKienQuyDoi : dt.duKienThuc)
+        let ptHTQDDuKien = duBaoQD.phanTramHTQDDuKien > 0
+            ? duBaoQD.phanTramHTQDDuKien
+            : dt.phanTramHTQDDuKienHienThi
+
+        let trangThaiDK: String
+        if duBaoQD.mucTieuThang > 0 && dkQDCuoiThang > 0 {
+            let chenh = dkQDCuoiThang - duBaoQD.mucTieuThang
+            trangThaiDK = chenh >= 0
+                ? "DK: \(dkQDCuoiThang.chuoiSoVN) (ĐẠT +\(chenh.chuoiSoGonVN))"
+                : "DK: \(dkQDCuoiThang.chuoiSoVN) (THIẾU \(abs(chenh).chuoiSoGonVN))"
+        } else if duBaoQD.mucTieuThang > 0 {
+            trangThaiDK = "MT: \(duBaoQD.mucTieuThang.chuoiSoGonVN) (\(duBaoQD.mucTieuMoiNgay.chuoiSoGonVN)/ngày)"
+        } else {
+            trangThaiDK = "DTQĐ DK: \(dkQDCuoiThang.chuoiSoVN)"
+        }
+
         theHTQDDuKien.capNhatNoiDung(
-            chinh: dt.phanTramHTQDDuKienHienThi.chuoiPhanTramVN,
-            phu: "DTQĐ DK: \(dkHienThi.chuoiSoVN)",
+            chinh: ptHTQDDuKien.chuoiPhanTramVN,
+            phu: trangThaiDK,
             coLon: coLon
         )
 
+        let ptQDHienTai = dt.phanTramQuyDoi > 0 ? dt.phanTramQuyDoi : duBaoQD.phanTramQuyDoiDuKien
+        let phuPhanTramQD: String
+        if duBaoQD.phanTramQuyDoiDuKien > 0 {
+            phuPhanTramQD = "QĐ DK: \(duBaoQD.phanTramQuyDoiDuKien.chuoiPhanTramVN) | MT: 50%"
+        } else {
+            phuPhanTramQD = "MỤC TIÊU: 50%"
+        }
         thePhanTramQD.capNhatNoiDung(
-            chinh: dt.phanTramQuyDoi.chuoiPhanTramVN,
-            phu: "MỤC TIÊU: 50%",
+            chinh: ptQDHienTai.chuoiPhanTramVN,
+            phu: phuPhanTramQD,
             coLon: coLon
         )
 
@@ -550,9 +587,12 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
 
     private var danhSachGoc: [DongThiDua] = []
     private var danhSachHienThi: [DongThiDua] = []
+    private(set) var cheDoDoanhThu: LoaiCheDoDoanhThu = .luyKe
     private var boLoc: BoLocThiDua = .tatCa
     private var kieuSapXep: KieuSapXepThiDua = .phanTramCaoThap
     private var soCotTrenDienThoai: Int = 1
+    private let tieuDeTrong = UILabel()
+    private let phuDeTrong = UILabel()
 
     // Chiều rộng 8 cột cho Mẫu 1 (Bảng 8 cột chi tiết)
     private let chieuRongCot: [CGFloat] = [38, 210, 48, 88, 88, 92, 84, 84]
@@ -659,13 +699,11 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         iconTrong.tintColor = .systemBlue
         iconTrong.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 42, weight: .regular)
 
-        let tieuDeTrong = UILabel()
-        tieuDeTrong.text = "Chạm để chọn ảnh chụp màn hình Thi đua"
+        tieuDeTrong.text = "Chạm để chọn ảnh Thi đua (Lũy kế)"
         tieuDeTrong.font = .systemFont(ofSize: 15, weight: .bold)
         tieuDeTrong.textAlignment = .center
 
-        let phuDeTrong = UILabel()
-        phuDeTrong.text = "Chọn cặp ảnh cột TARGET và cột THỰC HIỆN để tự động ghép số liệu.\nBấm vào từng ngành hàng sau khi quét để xem xếp hạng nhân viên."
+        phuDeTrong.text = "Bảng Thi đua Lũy kế và Thi đua Realtime được lưu riêng biệt.\nChạm vào đây hoặc nút Thêm ảnh để tải ảnh Thi đua."
         phuDeTrong.font = .systemFont(ofSize: 12.5, weight: .regular)
         phuDeTrong.textColor = .secondaryLabel
         phuDeTrong.textAlignment = .center
@@ -738,21 +776,14 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         nutSapXep.showsMenuAsPrimaryAction = true
     }
 
-    func ganDanhSach(_ ds: [DongThiDua]) {
+    func ganDanhSach(_ ds: [DongThiDua], cheDo: LoaiCheDoDoanhThu = .luyKe) {
+        cheDoDoanhThu = cheDo
         danhSachGoc = ds
         capNhatDanhSach()
     }
 
-    private func capNhatDanhSach() {
-        let tong = danhSachGoc.count
-        let soDat = danhSachGoc.filter { $0.daDat }.count
-        let soChuaDat = tong - soDat
-
-        chonBoLoc.setTitle("Tất cả (\(tong))", forSegmentAt: 0)
-        chonBoLoc.setTitle("Đạt (\(soDat))", forSegmentAt: 1)
-        chonBoLoc.setTitle("Chưa đạt (\(soChuaDat))", forSegmentAt: 2)
-
-        var tam = danhSachGoc
+    private func locVaSapXep(_ dsGoc: [DongThiDua]) -> [DongThiDua] {
+        var tam = dsGoc
         switch boLoc {
         case .tatCa: break
         case .daDat: tam = tam.filter { $0.daDat }
@@ -771,8 +802,23 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         case .thuTuGoc:
             break
         }
+        return tam
+    }
 
-        danhSachHienThi = tam
+    private func capNhatDanhSach() {
+        let tong = danhSachGoc.count
+        let soDat = danhSachGoc.filter { $0.daDat }.count
+        let soChuaDat = tong - soDat
+
+        chonBoLoc.setTitle("Tất cả (\(tong))", forSegmentAt: 0)
+        chonBoLoc.setTitle("Đạt (\(soDat))", forSegmentAt: 1)
+        chonBoLoc.setTitle("Chưa đạt (\(soChuaDat))", forSegmentAt: 2)
+
+        let nhanCheDo = (cheDoDoanhThu == .luyKe) ? "Lũy kế" : "Realtime"
+        tieuDeTrong.text = "Chạm để chọn ảnh Thi đua (\(nhanCheDo))"
+        phuDeTrong.text = "Bảng Thi đua Lũy kế và Thi đua Realtime được lưu riêng biệt.\nChạm vào đây hoặc nút Thêm ảnh để tải ảnh Thi đua \(nhanCheDo)."
+
+        danhSachHienThi = locVaSapXep(danhSachGoc)
         let kieu = KhoDuLieu.dungChung.caiDat.kieuHienThi
         let trong = danhSachGoc.isEmpty
 
@@ -882,11 +928,13 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         return UISwipeActionsConfiguration(actions: [xoa, sua])
     }
 
-    private func taoDongTieuDeCot() -> UIView {
+    private func taoDongTieuDeCot(cheDo: LoaiCheDoDoanhThu? = nil) -> UIView {
         let khung = UIView(frame: CGRect(x: 0, y: 0, width: tongChieuRongBang, height: 40))
         khung.backgroundColor = UIColor.systemGray5
 
-        let tieuDe = ["STT", "NGÀNH HÀNG (BẤM XEM NV)", "ĐVT", "THỰC HIỆN", "TARGET", "THIẾU/VƯỢT", "% HT THÁNG", "% DỰ BÁO"]
+        let cheDoHienThi = cheDo ?? cheDoDoanhThu
+        let cotHT = (cheDoHienThi == .luyKe) ? "% HT THÁNG" : "% HT NGÀY"
+        let tieuDe = ["STT", "NGÀNH HÀNG (BẤM XEM NV)", "ĐVT", "THỰC HIỆN", "TARGET", "THIẾU/VƯỢT", cotHT, "% DỰ BÁO"]
         var xHienTai: CGFloat = 0
 
         for (i, chu) in tieuDe.enumerated() {
@@ -1008,15 +1056,18 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
     func taoAnhBaoCao(
         ngay: Date,
         doanhThu: ThongTinDoanhThu,
+        danhSach: [DongThiDua]? = nil,
         cheDoDoanhThu: LoaiCheDoDoanhThu = .luyKe,
         thongTinDonVi: String,
         capNhatLuc: String
     ) -> UIImage? {
+        let dsXuat = danhSach.map { locVaSapXep($0) } ?? danhSachHienThi
         switch KhoDuLieu.dungChung.caiDat.kieuHienThi {
         case .bangChiTiet:
-            return taoAnhMẫuBang8Cot(
+            return taoAnhMauBang8Cot(
                 ngay: ngay,
                 doanhThu: doanhThu,
+                danhSach: dsXuat,
                 cheDoDoanhThu: cheDoDoanhThu,
                 thongTinDonVi: thongTinDonVi,
                 capNhatLuc: capNhatLuc
@@ -1025,6 +1076,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
             return taoAnhMauTheGon(
                 ngay: ngay,
                 doanhThu: doanhThu,
+                danhSach: dsXuat,
                 cheDoDoanhThu: cheDoDoanhThu,
                 thongTinDonVi: thongTinDonVi,
                 capNhatLuc: capNhatLuc
@@ -1032,14 +1084,15 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         }
     }
 
-    private func taoAnhMẫuBang8Cot(
+    private func taoAnhMauBang8Cot(
         ngay: Date,
         doanhThu: ThongTinDoanhThu,
+        danhSach: [DongThiDua],
         cheDoDoanhThu: LoaiCheDoDoanhThu,
         thongTinDonVi: String,
         capNhatLuc: String
     ) -> UIImage? {
-        let ds = danhSachHienThi
+        let ds = danhSach
         let soDat = ds.filter { $0.daDat }.count
         let soKhongDat = ds.count - soDat
 
@@ -1103,7 +1156,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         khungBang.clipsToBounds = true
         khungBaoCao.addSubview(khungBang)
 
-        let header = taoDongTieuDeCot()
+        let header = taoDongTieuDeCot(cheDo: cheDoDoanhThu)
         header.frame = CGRect(x: 0, y: 0, width: tongChieuRongBang, height: chieuCaoHeaderCot)
         khungBang.addSubview(header)
 
@@ -1136,11 +1189,12 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
     private func taoAnhMauTheGon(
         ngay: Date,
         doanhThu: ThongTinDoanhThu,
+        danhSach: [DongThiDua],
         cheDoDoanhThu: LoaiCheDoDoanhThu,
         thongTinDonVi: String,
         capNhatLuc: String
     ) -> UIImage? {
-        let ds = danhSachHienThi
+        let ds = danhSach
         let soDat = ds.filter { $0.daDat }.count
         let soKhongDat = ds.count - soDat
 
@@ -1218,9 +1272,10 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
 
     // MARK: - Xuất File Excel (.csv chuẩn UTF-8 BOM mở trực tiếp trên Excel / Numbers)
 
-    func taoChuoiExcelCSV(doanhThu: ThongTinDoanhThu) -> String {
+    func taoChuoiExcelCSV(doanhThu: ThongTinDoanhThu, danhSach: [DongThiDua]? = nil, cheDo: LoaiCheDoDoanhThu? = nil) -> String {
         var cacDong: [String] = []
-        let ds = danhSachHienThi
+        let ds = danhSach.map { locVaSapXep($0) } ?? danhSachHienThi
+        let cheDoCSV = cheDo ?? cheDoDoanhThu
         let soDat = ds.filter { $0.daDat }.count
         if doanhThu.coDuLieu {
             cacDong.append("CHỈ SỐ CHÍNH,GIÁ TRỊ CHÍNH,CHI TIẾT / MỤC TIÊU")
@@ -1236,8 +1291,9 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
             cacDong.append("")
         }
 
-        cacDong.append("STT,Ngành hàng (Chương trình),ĐVT,Thực hiện,Target,Thiếu / Vượt,% HT Tháng,% Dự báo,Trạng thái")
-        for (i, d) in danhSachHienThi.enumerated() {
+        let cotHT = (cheDoCSV == .luyKe) ? "% HT Tháng" : "% HT Ngày"
+        cacDong.append("STT,Ngành hàng (Chương trình),ĐVT,Thực hiện,Target,Thiếu / Vượt,\(cotHT),% Dự báo,Trạng thái")
+        for (i, d) in ds.enumerated() {
             let tenSach = "\"\(d.tenNganhHang.replacingOccurrences(of: "\"", with: "\"\""))\""
             let trangThai = d.daDat ? "Đạt" : "Chưa đạt"
             let dong = "\(i + 1),\(tenSach),\(d.loaiChiTieu.maBang),\(d.thucHien),\(d.target),\(d.chenhLech),\(String(format: "%.2f", d.phanTramHT))%,\(String(format: "%.2f", d.phanTramDuBao))%,\(trangThai)"
@@ -1437,6 +1493,7 @@ private final class VeBieuDoCotRealtimeView: UIView {
 
 final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITableViewDelegate {
     var khiBamSuaDoanhThuLuyKe: (() -> Void)?
+    var khiBamNhapMucTieuQDThang: (() -> Void)?
     var khiChonNgayRealtime: ((DuLieuRealtimeNgayTrongThang) -> Void)?
 
     private var ngayHienTai: Date = Date()
@@ -1504,17 +1561,27 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nhanTieuDeLuyKe.textColor = .secondaryLabel
         nhanTieuDeLuyKe.numberOfLines = 2
 
+        let nutMucTieuThang = UIButton(type: .system)
+        nutMucTieuThang.setTitle("🎯 Mục tiêu QĐ tháng", for: .normal)
+        nutMucTieuThang.titleLabel?.font = .systemFont(ofSize: 11, weight: .bold)
+        nutMucTieuThang.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.14)
+        nutMucTieuThang.tintColor = UIColor(red: 0.08, green: 0.55, blue: 0.25, alpha: 1)
+        nutMucTieuThang.layer.cornerRadius = 7
+        nutMucTieuThang.contentEdgeInsets = UIEdgeInsets(top: 5, left: 7, bottom: 5, right: 7)
+        nutMucTieuThang.addTarget(self, action: #selector(bamNhapMucTieuQD), for: .touchUpInside)
+        nutMucTieuThang.setContentHuggingPriority(.required, for: .horizontal)
+
         let nutSuaLK = UIButton(type: .system)
-        nutSuaLK.setTitle("✏️ Nhập / Quét Lũy kế", for: .normal)
-        nutSuaLK.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
+        nutSuaLK.setTitle("✏️ Lũy kế", for: .normal)
+        nutSuaLK.titleLabel?.font = .systemFont(ofSize: 11, weight: .bold)
         nutSuaLK.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
         nutSuaLK.tintColor = .systemBlue
         nutSuaLK.layer.cornerRadius = 7
-        nutSuaLK.contentEdgeInsets = UIEdgeInsets(top: 5, left: 8, bottom: 5, right: 8)
+        nutSuaLK.contentEdgeInsets = UIEdgeInsets(top: 5, left: 7, bottom: 5, right: 7)
         nutSuaLK.addTarget(self, action: #selector(bamSuaLuyKe), for: .touchUpInside)
         nutSuaLK.setContentHuggingPriority(.required, for: .horizontal)
 
-        let hangDauLK = UIStackView(arrangedSubviews: [nhanTieuDeLuyKe, nutSuaLK])
+        let hangDauLK = UIStackView(arrangedSubviews: [nhanTieuDeLuyKe, nutMucTieuThang, nutSuaLK])
         hangDauLK.axis = .horizontal
         hangDauLK.spacing = 6
         hangDauLK.alignment = .center
@@ -1658,6 +1725,14 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         khiBamSuaDoanhThuLuyKe?()
     }
 
+    @objc private func bamNhapMucTieuQD() {
+        if let khiBamNhapMucTieuQDThang {
+            khiBamNhapMucTieuQDThang()
+        } else {
+            khiBamSuaDoanhThuLuyKe?()
+        }
+    }
+
     @objc private func doiCheDoLocNgay() {
         chiHienNgayCoSo = (chonCheDoNgay.selectedSegmentIndex == 1)
         capNhatDuLieuHienThi()
@@ -1697,9 +1772,18 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             danhSachBieuDo = tatCaNgayTrongThang
         }
 
-        let tongRTThuc = dsCoSo.reduce(0.0) { $0 + $1.doanhThuThuc }
+                let tongRTThuc = dsCoSo.reduce(0.0) { $0 + $1.doanhThuThuc }
         let tongRTQD = dsCoSo.reduce(0.0) { $0 + $1.doanhThuQuyDoi }
-        nhanTomTatRT.text = "🟦 Cột xanh dương: DT Thực (Tổng \(dsCoSo.count) ngày: \(tongRTThuc.chuoiSoVN))   •   🟩 Cột xanh lá: DT Quy đổi (Tổng: \(tongRTQD.chuoiSoVN))"
+        let duBao = KhoDuLieu.dungChung.tinhDuBaoQuyDoiTuRealtime(cho: ngayHienTai, cheDoDangXem: .luyKe)
+        nhanTomTatRT.numberOfLines = 0
+        if duBao.mucTieuThang > 0 {
+            let kq = duBao.daHoanThanhDuKien ? "✅ ĐẠT MỤC TIÊU" : "⚠️ CHƯA ĐẠT"
+            nhanTomTatRT.text = "🟦 DT Thực (\(dsCoSo.count) ngày): \(tongRTThuc.chuoiSoVN)  •  🟩 DT QĐ: \(tongRTQD.chuoiSoVN)
+🎯 Mục tiêu QĐ tháng (\(duBao.soNgayTrongThang) ngày): \(duBao.mucTieuThang.chuoiSoVN) → \(duBao.mucTieuMoiNgay.chuoiSoVN)/ngày  •  DK cuối tháng: \(duBao.duKienQDCuoiThang.chuoiSoVN) (\(duBao.phanTramHTQDDuKien.chuoiPhanTramVN) - \(kq))  •  % QĐ DK: \(duBao.phanTramQuyDoiDuKien.chuoiPhanTramVN)"
+        } else {
+            nhanTomTatRT.text = "🟦 Cột xanh dương: DT Thực (Tổng \(dsCoSo.count) ngày: \(tongRTThuc.chuoiSoVN))   •   🟩 Cột xanh lá: DT Quy đổi (Tổng: \(tongRTQD.chuoiSoVN))
+💡 Bấm "🎯 Mục tiêu QĐ tháng" để chia cho \(duBao.soNgayTrongThang) ngày và tính % HT QĐ dự kiến cuối tháng."
+        }
 
         veBieuDo.ngayDangChon = ngayChon
         veBieuDo.danhSachNgay = danhSachBieuDo
@@ -1929,8 +2013,10 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         let fmt = UIGraphicsImageRendererFormat()
         fmt.scale = 2.0
-        return UIGraphicsImageRenderer(size: khung.bounds.size, format: fmt).image { ctx in
+        let anh = UIGraphicsImageRenderer(size: khung.bounds.size, format: fmt).image { ctx in
             khung.layer.render(in: ctx.cgContext)
         }
+        bangNgay.reloadData()
+        return anh
     }
 }
