@@ -797,6 +797,43 @@ final class KhoDuLieu {
         return ThongTinDoanhThu()
     }
 
+    /// Lấy Doanh thu Lũy kế Nhân viên của tháng (khi nhập mới sẽ thay thế dữ liệu cũ)
+    func doanhThuNhanVienLuyKeThang(cho ngay: Date) -> [DoanhThuNhanVienItem] {
+        let khoa = TienIchNgay.khoa.string(from: ngay)
+        let tienTo = String(khoa.prefix(7))
+        if let hienTai = cacNgay[khoa]?.doanhThuNhanVien, !hienTai.isEmpty {
+            return hienTai
+        }
+        for k in cacNgay.keys.filter({ $0.hasPrefix(tienTo) }).sorted(by: >) {
+            if let ds = cacNgay[k]?.doanhThuNhanVien, !ds.isEmpty {
+                return ds
+            }
+        }
+        return []
+    }
+
+    /// Xoá Doanh thu Lũy kế Nhân viên của tháng (để dữ liệu cũ không còn tồn đọng)
+    func xoaDoanhThuNhanVienLuyKeThang(cho ngay: Date, xoaCaThiDuaNV: Bool = false) {
+        let khoa = TienIchNgay.khoa.string(from: ngay)
+        let tienTo = String(khoa.prefix(7))
+        for k in cacNgay.keys where k.hasPrefix(tienTo) {
+            cacNgay[k]?.doanhThuNhanVien = []
+            if xoaCaThiDuaNV {
+                cacNgay[k]?.thiDuaNhanVien = [:]
+            }
+        }
+        xoaBoNhoDem()
+        var dl = duLieu(cho: ngay)
+        dl.doanhThuNhanVien = []
+        if xoaCaThiDuaNV {
+            dl.thiDuaNhanVien = [:]
+        }
+        cacNgay[khoa] = dl
+        xoaBoNhoDem()
+        ThuMucDuLieu.dungChung.ghi(cacNgay, vao: ThuMucDuLieu.dungChung.tepNgay)
+        DichVuDongBo.dungChung.dayDuLieuNgay(dl)
+    }
+
     /// Xoá Doanh thu Lũy kế cố định của tháng
     func xoaDoanhThuLuyKeThang(cho ngay: Date) {
         let khoa = TienIchNgay.khoa.string(from: ngay)
@@ -878,7 +915,6 @@ final class KhoDuLieu {
     }
 
     /// Tính toán Dự báo Doanh thu QĐ cuối tháng, % HT QĐ dự kiến & % Quy đổi dự kiến tự động từ Doanh thu Realtime các ngày đã nhập.
-    /// Ví dụ: Ngày 1 được 450, Ngày 2 được 500 -> Trung bình 475/ngày -> Nhân với số ngày thực tế của tháng để dự báo cuối tháng có đạt mục tiêu không.
     func tinhDuBaoQuyDoiTuRealtime(cho ngay: Date, cheDoDangXem: LoaiCheDoDoanhThu = .realtime) -> DuBaoQuyDoiThang {
         let soNgay = max(1, soNgayTrongThang(cho: ngay))
         let mucTieuThang = mucTieuDoanhThuQDThang(cho: ngay)
@@ -995,6 +1031,7 @@ final class KhoDuLieu {
 
         let tienTo = String(khoa.prefix(7))
         let luyKeThang = doanhThuLuyKeThang(cho: ngay)
+        let dtNVLuyKeThang = doanhThuNhanVienLuyKeThang(cho: ngay)
 
         // Tìm target Lũy kế & Realtime gần nhất trong tháng (tách biệt hoàn toàn giữa Lũy kế và Realtime)
         var targetTheoKhoaTrongThang: [String: Double] = [:]
@@ -1023,6 +1060,9 @@ final class KhoDuLieu {
         if var coSan = cacNgay[khoa] {
             if !coSan.doanhThu.coDuLieu && luyKeThang.coDuLieu {
                 coSan.doanhThu = luyKeThang
+            }
+            if coSan.doanhThuNhanVien.isEmpty && !dtNVLuyKeThang.isEmpty {
+                coSan.doanhThuNhanVien = dtNVLuyKeThang
             }
             // Với Lũy kế: giữ nguyên 100% số thực từ ảnh; chỉ điền targetQuyDoi từ Cài đặt nếu ảnh chưa có
             if coSan.doanhThu.targetQuyDoi <= 0 && mucTieuCaiDat > 0 {
@@ -1076,7 +1116,8 @@ final class KhoDuLieu {
             doanhThu: dtLK,
             doanhThuRealtime: dtRT,
             danhSachThiDua: [],
-            danhSachThiDuaRealtime: []
+            danhSachThiDuaRealtime: [],
+            doanhThuNhanVien: dtNVLuyKeThang
         )
         boNhoDemDuLieuNgay[khoa] = moi
         return moi
@@ -1118,6 +1159,20 @@ final class KhoDuLieu {
             for k in cacNgay.keys.filter({ $0.hasPrefix(tienTo) && $0 != banLuu.khoaNgay }).sorted(by: >) {
                 if let dtCu = cacNgay[k]?.doanhThu, dtCu.coDuLieu {
                     banLuu.doanhThu = dtCu
+                    break
+                }
+            }
+        }
+
+        // Doanh thu Lũy kế nhân viên: mỗi khi nhập mới sẽ thay thế hoàn toàn dữ liệu cũ của tháng
+        if !banLuu.doanhThuNhanVien.isEmpty {
+            for k in cacNgay.keys where k.hasPrefix(tienTo) {
+                cacNgay[k]?.doanhThuNhanVien = banLuu.doanhThuNhanVien
+            }
+        } else {
+            for k in cacNgay.keys.filter({ $0.hasPrefix(tienTo) && $0 != banLuu.khoaNgay }).sorted(by: >) {
+                if let dsCu = cacNgay[k]?.doanhThuNhanVien, !dsCu.isEmpty {
+                    banLuu.doanhThuNhanVien = dsCu
                     break
                 }
             }
@@ -1342,7 +1397,8 @@ final class KhoDuLieu {
         }
     }
 
-    /// Bảng tổng hợp nhân viên (chia theo Lũy kế hoặc Realtime)
+    /// Bảng tổng hợp nhân viên (chia theo Lũy kế hoặc Realtime).
+    /// Với Doanh thu Lũy kế nhân viên: chỉ lấy từ bảng vừa nhập (thay thế hoàn toàn dữ liệu cũ, không cộng dồn hay lấy rải rác từ dữ liệu cũ).
     func tongHopNhanVien(
         den ngay: Date,
         sapXep: KieuSapXepNhanVien = .soMonHoanThanh,
@@ -1351,17 +1407,13 @@ final class KhoDuLieu {
         let matHang = danhSachMatHangThang(den: ngay, cheDo: cheDo)
         let thucHienTheoNganh = thucHienNhanVienTheoMatHangThang(den: ngay, cheDo: cheDo)
         let dlHienTai = duLieu(cho: ngay)
-        let dtNVList = dlHienTai.doanhThuNhanVien(theo: cheDo)
-
-        var dtFallbackTheoMa: [String: DoanhThuNhanVienItem] = [:]
+        let dtNVList: [DoanhThuNhanVienItem]
         if cheDo == .luyKe {
-            let khoaDen = TienIchNgay.khoa.string(from: ngay)
-            let tienTo = String(khoaDen.prefix(7))
-            for khoa in cacNgay.keys.sorted() where khoa.hasPrefix(tienTo) && khoa <= khoaDen {
-                for item in cacNgay[khoa]?.doanhThuNhanVien ?? [] {
-                    dtFallbackTheoMa[Self.chuanHoaMaNV(item.maNV)] = item
-                }
-            }
+            dtNVList = !dlHienTai.doanhThuNhanVien.isEmpty
+                ? dlHienTai.doanhThuNhanVien
+                : doanhThuNhanVienLuyKeThang(cho: ngay)
+        } else {
+            dtNVList = dlHienTai.doanhThuNhanVienRealtime
         }
 
         let dsNV = caiDat.danhSachNhanVien
@@ -1398,7 +1450,7 @@ final class KhoDuLieu {
             let dtCaNhan = dtNVList.first(where: {
                 Self.chuanHoaMaNV($0.maNV) == nv.maNV ||
                 Self.khopNhanVienQuetVoiQuanLy(maQuet: $0.maNV, tenQuet: $0.hoTen, dsQuanLy: [nv]) != nil
-            }) ?? dtFallbackTheoMa[nv.maNV]
+            })
 
             return TongHopNhanVien(
                 nhanVien: nv,

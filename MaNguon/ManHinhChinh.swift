@@ -65,6 +65,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         taoGiaoDien()
         napDuLieu()
         NotificationCenter.default.addObserver(self, selector: #selector(duLieuDaDongBo), name: .duLieuDMXDaDongBo, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(taiKhoanBiDangXuat), name: .taiKhoanDMXBiDangXuat, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(ungDungTroLai), name: UIApplication.willEnterForegroundNotification, object: nil)
         DichVuDongBo.dungChung.taiDuLieu()
     }
@@ -80,6 +81,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         dsThiDuaDaNapUI = nil
         napDuLieu()
     }
+
+    @objc private func taiKhoanBiDangXuat() {
+        (UIApplication.shared.delegate as? UyQuyenUngDung)?.hienThiDangNhap()
+    }
+
     @objc private func ungDungTroLai() { DichVuDongBo.dungChung.taiDuLieu() }
 
     // MARK: - Thanh điều hướng trên cùng (Cố định kích thước để nút Chia sẻ & Cài đặt không bao giờ bị co nhỏ)
@@ -602,22 +608,30 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         if tabHienTai == .nhanVien {
             let hoiNV = UIAlertController(
                 title: "Xoá dữ liệu Nhân viên (\(tenCheDo))?",
-                message: "Chọn phần dữ liệu Nhân viên (\(tenCheDo)) của ngày đang chọn mà bạn muốn xoá:",
+                message: "Chọn phần dữ liệu Nhân viên (\(tenCheDo)) muốn xoá:",
                 preferredStyle: .actionSheet
             )
             hoiNV.addAction(UIAlertAction(title: "🗑️ Xoá bảng Doanh thu hợp nhất NV (\(tenCheDo))", style: .destructive) { [weak self] _ in
                 guard let self = self else { return }
-                var moi = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
-                moi.ganDoanhThuNhanVien([], theo: cheDoXoa)
-                KhoDuLieu.dungChung.luu(moi)
+                if cheDoXoa == .luyKe {
+                    KhoDuLieu.dungChung.xoaDoanhThuNhanVienLuyKeThang(cho: self.ngayHienTai, xoaCaThiDuaNV: false)
+                } else {
+                    var moi = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
+                    moi.ganDoanhThuNhanVien([], theo: cheDoXoa)
+                    KhoDuLieu.dungChung.luu(moi)
+                }
                 self.napDuLieu()
             })
             hoiNV.addAction(UIAlertAction(title: "🗑️ Xoá cả Doanh thu NV & Thực hiện môn NV (\(tenCheDo))", style: .destructive) { [weak self] _ in
                 guard let self = self else { return }
-                var moi = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
-                moi.ganDoanhThuNhanVien([], theo: cheDoXoa)
-                moi.ganThiDuaNhanVien([:], theo: cheDoXoa)
-                KhoDuLieu.dungChung.luu(moi)
+                if cheDoXoa == .luyKe {
+                    KhoDuLieu.dungChung.xoaDoanhThuNhanVienLuyKeThang(cho: self.ngayHienTai, xoaCaThiDuaNV: true)
+                } else {
+                    var moi = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
+                    moi.ganDoanhThuNhanVien([], theo: cheDoXoa)
+                    moi.ganThiDuaNhanVien([:], theo: cheDoXoa)
+                    KhoDuLieu.dungChung.luu(moi)
+                }
                 self.napDuLieu()
             })
             hoiNV.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
@@ -971,9 +985,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
                 if !kq.doanhThuNhanVien.isEmpty {
                     let dsQuanLy = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
                     var mapDTNV: [String: DoanhThuNhanVienItem] = [:]
-                    for item in dl.doanhThuNhanVien(theo: cheDoTab) {
-                        let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
-                        if !ma.isEmpty { mapDTNV[ma] = item }
+                    // Với Doanh thu Lũy kế Nhân viên: khi nhập sẽ THAY THẾ hoàn toàn dữ liệu cũ (không gộp với dữ liệu cũ)
+                    if cheDoTab == .realtime {
+                        for item in dl.doanhThuNhanVien(theo: cheDoTab) {
+                            let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
+                            if !ma.isEmpty { mapDTNV[ma] = item }
+                        }
                     }
                     for item in kq.doanhThuNhanVien {
                         let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsQuanLy)
@@ -986,7 +1003,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
                         mapDTNV[ma] = capNhat
                     }
                     dl.ganDoanhThuNhanVien(Array(mapDTNV.values), theo: cheDoTab)
-                    cacMucDaDien.append("• Doanh thu Nhân viên \(tenCheDo) (\(kq.soAnhDoanhThuNV) ảnh): \(kq.doanhThuNhanVien.count) dòng NV")
+                    cacMucDaDien.append("• Doanh thu Nhân viên \(tenCheDo) (\(kq.soAnhDoanhThuNV) ảnh): \(mapDTNV.count) NV (Đã thay thế dữ liệu cũ)")
                 }
 
                 if !kq.thiDuaNhanVien.isEmpty {
@@ -1090,9 +1107,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
                 var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
                 let dsQuanLy = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
                 var mapDTNV: [String: DoanhThuNhanVienItem] = [:]
-                for item in dl.doanhThuNhanVien(theo: loai) {
-                    let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
-                    if !ma.isEmpty { mapDTNV[ma] = item }
+                // Khi nhập Doanh thu Lũy kế Nhân viên: thay thế hoàn toàn dữ liệu cũ (không lấy lại dữ liệu cũ)
+                if loai == .realtime {
+                    for item in dl.doanhThuNhanVien(theo: loai) {
+                        let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
+                        if !ma.isEmpty { mapDTNV[ma] = item }
+                    }
                 }
                 for item in dsQuet {
                     let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsQuanLy)
@@ -1380,7 +1400,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
 
         let menu = UIAlertController(
             title: "Chia sẻ ảnh & Xuất báo cáo",
-            message: "Chọn loại ảnh báo cáo bạn muốn chia sẻ hoặc lưu về máy:",
+            message: "Chọn loại ảnh hoặc file dữ liệu báo cáo bạn muốn chia sẻ hoặc lưu về máy:",
             preferredStyle: .actionSheet
         )
 
@@ -1426,7 +1446,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             self?.moChonNhanVienChiaSeAnh(cheDo: cheDoNV)
         })
 
-        menu.addAction(UIAlertAction(title: "📈 Ảnh Biểu Đồ & Tổng Hợp Realtime Tháng", style: .default) { [weak self] _ in
+        menu.addAction(UIAlertAction(title: "📈 Ảnh Biểu Đồ & Tổng Hợp Realtime Tháng (Toàn bộ bảng)", style: .default) { [weak self] _ in
             guard let self = self,
                   let anh = self.bangRealtimeThang.taoAnhBaoCaoRealtimeThang(
                       ngay: self.ngayHienTai,
@@ -1436,16 +1456,35 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             self.chiaSe([anh])
         })
 
+        menu.addAction(UIAlertAction(title: "📑 Xuất file Biểu Đồ & Realtime Tháng (.csv)", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            let csv = self.bangRealtimeThang.taoChuoiExcelCSVBieuDoThang(
+                ngay: self.ngayHienTai,
+                thongTinDonVi: dl.thongTinDonVi,
+                capNhatLuc: dl.capNhatLuc
+            )
+            let tenTep = "BieuDo-RealtimeThang-\(dl.khoaNgay.prefix(7)).csv"
+            let duongDan = FileManager.default.temporaryDirectory.appendingPathComponent(tenTep)
+            try? csv.write(to: duongDan, atomically: true, encoding: .utf8)
+            self.chiaSe([duongDan])
+        })
+
         let cheDoCSV = cheDoDoanhThu
         let dtDangChon = (cheDoCSV == .luyKe) ? dl.doanhThu : dl.doanhThuRealtime
         let dsDangChon = dl.danhSachThiDua(theo: cheDoCSV)
-        menu.addAction(UIAlertAction(title: "📄 Xuất file Excel (.csv) (\(cheDoCSV.tieuDe))", style: .default) { [weak self] _ in
+        menu.addAction(UIAlertAction(title: "📄 Xuất file Excel (.csv) (\(cheDoCSV.tieuDe) + Biểu đồ)", style: .default) { [weak self] _ in
             guard let self = self else { return }
-            let csv = self.bangThiDua.taoChuoiExcelCSV(doanhThu: dtDangChon, danhSach: dsDangChon, cheDo: cheDoCSV)
+            let csvThiDua = self.bangThiDua.taoChuoiExcelCSV(doanhThu: dtDangChon, danhSach: dsDangChon, cheDo: cheDoCSV, ngay: self.ngayHienTai)
+            let csvBieuDo = self.bangRealtimeThang.taoChuoiExcelCSVBieuDoThang(
+                ngay: self.ngayHienTai,
+                thongTinDonVi: dl.thongTinDonVi,
+                capNhatLuc: dl.capNhatLuc
+            ).replacingOccurrences(of: "\u{FEFF}", with: "")
+            let csvGop = csvThiDua + "\n\n" + csvBieuDo
             let hauTo = (cheDoCSV == .luyKe) ? "LuyKe" : "Realtime"
             let tenTep = "TongHopDMX-\(dl.khoaNgay)-\(hauTo).csv"
             let duongDan = FileManager.default.temporaryDirectory.appendingPathComponent(tenTep)
-            try? csv.write(to: duongDan, atomically: true, encoding: .utf8)
+            try? csvGop.write(to: duongDan, atomically: true, encoding: .utf8)
             self.chiaSe([duongDan])
         })
 
