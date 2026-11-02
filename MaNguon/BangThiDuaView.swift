@@ -157,6 +157,7 @@ final class CumChiSoChinhView: UIControl {
     private let nutLuyKe = UIButton(type: .custom)
     private let nutRealtime = UIButton(type: .custom)
     private let nutBieuDo = UIButton(type: .custom)
+    private var luoiThe: UIStackView!
 
     private let theDTThuc = TheDoanhThuView(
         tieuDe: "💵 DOANH THU THỰC",
@@ -232,7 +233,6 @@ final class CumChiSoChinhView: UIControl {
         nutRealtime.layer.borderWidth = 1
         nutRealtime.addTarget(self, action: #selector(bamChonCheDo(_:)), for: .touchUpInside)
 
-        // Yêu cầu 3: Đưa nút Realtime tháng lên cùng hàng với Doanh thu Lũy kế, Doanh thu Realtime và đổi tên thành Biểu đồ
         nutBieuDo.setTitle("📈 Biểu đồ", for: .normal)
         nutBieuDo.titleLabel?.font = .systemFont(ofSize: coLon ? 14 : 12, weight: .bold)
         nutBieuDo.titleLabel?.adjustsFontSizeToFitWidth = true
@@ -268,7 +268,7 @@ final class CumChiSoChinhView: UIControl {
         hang2.distribution = .fillEqually
         hang2.isUserInteractionEnabled = false
 
-        let luoiThe = UIStackView(arrangedSubviews: [hang1, hang2])
+        luoiThe = UIStackView(arrangedSubviews: [hang1, hang2])
         luoiThe.axis = .vertical
         luoiThe.spacing = khoangCach
         luoiThe.distribution = .fillEqually
@@ -339,6 +339,7 @@ final class CumChiSoChinhView: UIControl {
             nutBieuDo.setTitleColor(.label, for: .normal)
             nutBieuDo.layer.borderColor = UIColor.separator.cgColor
         }
+        luoiThe?.isHidden = dangXemBieuDo
     }
 
     func capNhat(
@@ -1449,7 +1450,7 @@ private final class VeBieuDoCotRealtimeView: UIView {
         ctx.setLineDash(phase: 0, lengths: [])
 
         guard !danhSachNgay.isEmpty else {
-            let thongBao = "Chưa có dữ liệu Realtime ngày nào trong tháng — chạm nút Thêm ảnh hoặc Nhập/Mẫu để thêm."
+            let thongBao = "Chưa có dữ liệu Realtime ngày nào trong tháng — chạm vào ngày bên dưới để thêm."
             let attr: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: 12, weight: .medium),
                 .foregroundColor: mauChuPhu
