@@ -73,10 +73,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     private func capNhatThongTinTaiKhoanUI() {
         let ten = DichVuDongBo.dungChung.tenDangNhap.isEmpty ? "Chưa đăng nhập" : DichVuDongBo.dungChung.tenDangNhap
         let laAdmin = DichVuDongBo.dungChung.laAdmin
-        let laAdminGoc = (ten.lowercased() == DichVuDongBo.taiKhoanAdminGoc)
-        let vaiTro = laAdminGoc
-            ? "👑 ADMIN GỐC (Bảo vệ vĩnh viễn)"
-            : (laAdmin ? "🛡️ QUẢN TRỊ VIÊN (ADMIN)" : "👤 Tài khoản thường")
+        let vaiTro = laAdmin ? "🛡️ Quản trị viên (Admin)" : "👤 Tài khoản thường"
         nhanThongTinTaiKhoan.text = "Tài khoản: \(ten)   •   \(vaiTro)"
         nutMoAdminTaiKhoan.isHidden = !laAdmin
     }
@@ -203,7 +200,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             preferredStyle: .actionSheet
         )
         if laAdmin {
-            menu.addAction(UIAlertAction(title: "🛡️ Quản lý tất cả tài khoản & Phân quyền Admin", style: .default) { [weak self] _ in
+            menu.addAction(UIAlertAction(title: "🛡️ Quản lý tài khoản & Phân quyền Admin", style: .default) { [weak self] _ in
                 self?.bamMoManHinhAdminTaiKhoan()
             })
         }
@@ -272,8 +269,8 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nganTong.translatesAutoresizingMaskIntoConstraints = false
         cuon.addSubview(nganTong)
 
-        // Khối Tài khoản & Quản trị Admin (duongnt)
-        let tieuDeTK = taoTieuDeNhom("👤 TÀI KHOẢN & QUẢN TRỊ VIÊN (ADMIN)")
+        // Khối Tài khoản & Quản trị Admin
+        let tieuDeTK = taoTieuDeNhom("👤 TÀI KHOẢN & QUẢN TRỊ HỆ THỐNG")
         let khungTK = UIView()
         khungTK.backgroundColor = .secondarySystemGroupedBackground
         khungTK.layer.cornerRadius = 12
@@ -284,7 +281,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nhanThongTinTaiKhoan.textColor = .label
         nhanThongTinTaiKhoan.numberOfLines = 0
 
-        nutMoAdminTaiKhoan.setTitle("🛡️ Quản lý Tài khoản, Đổi MK, Set Admin & Xoá TK cũ ▸", for: .normal)
+        nutMoAdminTaiKhoan.setTitle("🛡️ Quản lý Tài khoản (Thêm mới, Đổi mật khẩu, Set quyền Admin) ▸", for: .normal)
         nutMoAdminTaiKhoan.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
         nutMoAdminTaiKhoan.contentHorizontalAlignment = .left
         nutMoAdminTaiKhoan.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
@@ -591,19 +588,18 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     }
 }
 
-// MARK: - Màn hình Quản trị Tài khoản (Dành cho Admin: duongnt và các tài khoản được cấp quyền Admin)
+// MARK: - Màn hình Quản trị Tài khoản (Dành cho Admin)
 
 final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITableViewDelegate {
     private var danhSach: [ThongTinTaiKhoanDMX] = []
     private let nhanTomTat = UILabel()
     private let nutThemTaiKhoan = UIButton(type: .system)
-    private let nutXoaTatCaKhac = UIButton(type: .system)
     private let bang = UITableView(frame: .zero, style: .insetGrouped)
     private let vongQuay = UIActivityIndicatorView(style: .medium)
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Quản trị Tài khoản (Admin)"
+        title = "Quản lý Tài khoản"
         view.backgroundColor = .systemGroupedBackground
 
         navigationItem.rightBarButtonItems = [
@@ -625,7 +621,7 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
         nhanTomTat.font = .systemFont(ofSize: 13, weight: .semibold)
         nhanTomTat.textColor = .label
         nhanTomTat.numberOfLines = 0
-        nhanTomTat.text = "👑 Tài khoản Admin gốc: duongnt (Không bao giờ bị xoá).\nChạm vào từng tài khoản bên dưới để Đổi mật khẩu, Set/Gỡ quyền Admin hoặc Xoá."
+        nhanTomTat.text = "Chạm vào từng tài khoản bên dưới để Đổi mật khẩu, Set/Gỡ quyền Admin hoặc Xoá."
 
         nutThemTaiKhoan.setImage(UIImage(systemName: "person.badge.plus"), for: .normal)
         nutThemTaiKhoan.setTitle(" Thêm tài khoản mới", for: .normal)
@@ -636,20 +632,7 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
         nutThemTaiKhoan.contentEdgeInsets = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 10)
         nutThemTaiKhoan.addTarget(self, action: #selector(bamThemTaiKhoanMoi), for: .touchUpInside)
 
-        nutXoaTatCaKhac.setImage(UIImage(systemName: "trash.slash.fill"), for: .normal)
-        nutXoaTatCaKhac.setTitle(" Xoá tất cả TK khác (Giữ duongnt)", for: .normal)
-        nutXoaTatCaKhac.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
-        nutXoaTatCaKhac.backgroundColor = UIColor.systemRed.withAlphaComponent(0.12)
-        nutXoaTatCaKhac.tintColor = .systemRed
-        nutXoaTatCaKhac.layer.cornerRadius = 9
-        nutXoaTatCaKhac.contentEdgeInsets = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 10)
-        nutXoaTatCaKhac.addTarget(self, action: #selector(bamXoaTatCaTaiKhoanKhac), for: .touchUpInside)
-
-        let hangNut = UIStackView(arrangedSubviews: [nutThemTaiKhoan, nutXoaTatCaKhac])
-        hangNut.axis = .vertical
-        hangNut.spacing = 8
-
-        let nganDau = UIStackView(arrangedSubviews: [nhanTomTat, hangNut, vongQuay])
+        let nganDau = UIStackView(arrangedSubviews: [nhanTomTat, nutThemTaiKhoan, vongQuay])
         nganDau.axis = .vertical
         nganDau.spacing = 8
         nganDau.translatesAutoresizingMaskIntoConstraints = false
@@ -691,7 +674,7 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
                 self.danhSach = ds
                 let soAdmin = ds.filter(\.laAdmin).count
                 let soThuong = ds.count - soAdmin
-                self.nhanTomTat.text = "👑 Admin gốc: duongnt (Không xoá)   •   Tổng: \(ds.count) tài khoản (\(soAdmin) Admin, \(soThuong) TK thường).\nChạm vào bất kỳ tài khoản nào bên dưới để Đổi mật khẩu, Set quyền Admin hoặc Xoá."
+                self.nhanTomTat.text = "Tổng: \(ds.count) tài khoản (\(soAdmin) Admin, \(soThuong) tài khoản thường).\nChạm vào tài khoản bên dưới để Đổi mật khẩu, Set quyền Admin hoặc Xoá."
                 self.bang.reloadData()
             case .failure(let loi):
                 self.hienThongBao(tieuDe: "Lỗi tải danh sách", noiDung: loi.localizedDescription)
@@ -706,7 +689,7 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
             preferredStyle: .alert
         )
         hop.addTextField { tf in
-            tf.placeholder = "Tên đăng nhập (VD: nhanvien1)"
+            tf.placeholder = "Tên đăng nhập"
             tf.autocapitalizationType = .none
             tf.autocorrectionType = .no
         }
@@ -745,41 +728,12 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
         }
     }
 
-    @objc private func bamXoaTatCaTaiKhoanKhac() {
-        let cacTKKhac = danhSach.filter { !$0.laAdminGoc }
-        let hoi = UIAlertController(
-            title: "🧹 Xoá tất cả tài khoản khác?",
-            message: "Hệ thống sẽ giữ nguyên tài khoản Admin gốc \"duongnt\" và XOÁ SẠCH toàn bộ \(cacTKKhac.count) tài khoản khác hiện có trong dự án (mọi thiết bị đang đăng nhập các tài khoản đó sẽ tự động bị đăng xuất).",
-            preferredStyle: .alert
-        )
-        hoi.addAction(UIAlertAction(title: "Xoá tất cả (Chỉ giữ lại duongnt)", style: .destructive) { [weak self] _ in
-            guard let self else { return }
-            self.vongQuay.startAnimating()
-            DichVuDongBo.dungChung.adminXoaTatCaTaiKhoanKhacGiuDuongnt { [weak self] kq in
-                guard let self else { return }
-                self.vongQuay.stopAnimating()
-                switch kq {
-                case .success(let soDaXoa):
-                    self.taiDanhSach()
-                    self.hienThongBao(
-                        tieuDe: "✅ Đã dọn dẹp tài khoản",
-                        noiDung: "Đã xoá \(soDaXoa) tài khoản khác và giữ lại duy nhất tài khoản Admin gốc \"duongnt\"."
-                    )
-                case .failure(let loi):
-                    self.hienThongBao(tieuDe: "Lỗi", noiDung: loi.localizedDescription)
-                }
-            }
-        })
-        hoi.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
-        present(hoi, animated: true)
-    }
-
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         max(1, danhSach.count)
     }
 
     func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        "DANH SÁCH TÀI KHOẢN TRONG DỰ ÁN (\(danhSach.count))"
+        "DANH SÁCH TÀI KHOẢN (\(danhSach.count))"
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -793,20 +747,11 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
         }
 
         let tk = danhSach[indexPath.row]
-        let nhanVaiTro: String
-        if tk.laAdminGoc {
-            nhanVaiTro = "👑 ADMIN GỐC (Không xoá)"
-        } else if tk.laAdmin {
-            nhanVaiTro = "🛡️ ADMIN"
-        } else {
-            nhanVaiTro = "👤 Tài khoản thường"
-        }
+        let nhanVaiTro = tk.laAdmin ? "🛡️ ADMIN" : "👤 Tài khoản thường"
 
         cell.textLabel?.text = "\(tk.tenDangNhap)   •   \(nhanVaiTro)"
         cell.textLabel?.font = .systemFont(ofSize: 15, weight: .bold)
-        cell.textLabel?.textColor = tk.laAdminGoc
-            ? UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
-            : (tk.laAdmin ? .systemBlue : .label)
+        cell.textLabel?.textColor = tk.laAdmin ? .systemBlue : .label
 
         cell.detailTextLabel?.text = "Tạo: \(tk.ngayTao)   •   Đăng nhập cuối: \(tk.dangNhapCuoi)"
         cell.detailTextLabel?.font = .systemFont(ofSize: 12)
@@ -840,7 +785,7 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
     }
 
     private func moMenuTacVuChoTaiKhoan(_ tk: ThongTinTaiKhoanDMX) {
-        let vaiTro = tk.laAdminGoc ? "Admin gốc (Cố định)" : (tk.laAdmin ? "Admin" : "Tài khoản thường")
+        let vaiTro = tk.laAdmin ? "Admin" : "Tài khoản thường"
         let sheet = UIAlertController(
             title: "Tài khoản: \(tk.tenDangNhap)",
             message: "Quyền hiện tại: \(vaiTro)",
@@ -925,16 +870,13 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
     }
 
     private func xacNhanXoaTaiKhoan(_ tk: ThongTinTaiKhoanDMX) {
-        guard !tk.laAdminGoc else {
-            hienThongBao(tieuDe: "Được bảo vệ", noiDung: "Tài khoản \"duongnt\" là Admin gốc, không thể xoá.")
-            return
-        }
+        guard !tk.laAdminGoc else { return }
         let hoi = UIAlertController(
             title: "Xoá tài khoản \"\(tk.tenDangNhap)\"?",
-            message: "Tài khoản này và phiên đăng nhập của nó sẽ bị xoá vĩnh viễn khỏi dự án.",
+            message: "Tài khoản này và phiên đăng nhập của nó sẽ bị xoá khỏi hệ thống.",
             preferredStyle: .alert
         )
-        hoi.addAction(UIAlertAction(title: "Xoá vĩnh viễn", style: .destructive) { [weak self] _ in
+        hoi.addAction(UIAlertAction(title: "Xoá tài khoản", style: .destructive) { [weak self] _ in
             guard let self else { return }
             self.vongQuay.startAnimating()
             DichVuDongBo.dungChung.adminXoaTaiKhoan(taiKhoan: tk) { [weak self] kq in

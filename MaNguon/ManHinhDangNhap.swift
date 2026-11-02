@@ -15,7 +15,6 @@ final class ManHinhDangNhap: UIViewController, UITextFieldDelegate {
         view.backgroundColor = .systemGroupedBackground
         taoGiaoDien()
         dangKySuKienBanPhim()
-        // Tự động đảm bảo duongnt là Admin gốc & dọn dẹp các tài khoản cũ đã đăng nhập trước đây (trừ duongnt)
         DichVuDongBo.dungChung.thucHienKhoiTaoAdminVaXoaTaiKhoanCuNeuCan()
     }
 
@@ -45,14 +44,14 @@ final class ManHinhDangNhap: UIViewController, UITextFieldDelegate {
         nhanTieuDe.textColor = .label
         nhanTieuDe.textAlignment = .center
 
-        nhanPhuDe.text = "Đăng nhập bằng tài khoản Admin (duongnt) hoặc tài khoản được Admin cấp phép."
+        nhanPhuDe.text = "Đăng nhập tài khoản để đồng bộ dữ liệu báo cáo."
         nhanPhuDe.font = .systemFont(ofSize: 13, weight: .medium)
         nhanPhuDe.textColor = .secondaryLabel
         nhanPhuDe.textAlignment = .center
         nhanPhuDe.numberOfLines = 0
 
-        cauHinhO(oTen, placeholder: "Tên đăng nhập (VD: duongnt)", secure: false, returnKey: .next)
-        cauHinhO(oMatKhau, placeholder: "Mật khẩu (tối thiểu 6 ký tự)", secure: true, returnKey: .go)
+        cauHinhO(oTen, placeholder: "Tên đăng nhập", secure: false, returnKey: .next)
+        cauHinhO(oMatKhau, placeholder: "Mật khẩu", secure: true, returnKey: .go)
 
         oTen.textContentType = .username
         oTen.autocapitalizationType = .none
