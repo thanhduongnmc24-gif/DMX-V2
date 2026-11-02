@@ -354,36 +354,67 @@ final class CumChiSoChinhView: UIControl {
         capNhatMauNutCheDo()
 
         let duBaoQD = KhoDuLieu.dungChung.tinhDuBaoQuyDoiTuRealtime(cho: ngay, cheDoDangXem: cheDo)
-        let targetQDHienThi: Double = (cheDo == .luyKe)
-            ? (duBaoQD.mucTieuThang > 0 ? duBaoQD.mucTieuThang : dt.targetQuyDoi)
-            : (duBaoQD.mucTieuMoiNgay > 0 ? duBaoQD.mucTieuMoiNgay : dt.targetQuyDoi)
 
-        if !dt.coDuLieu && duBaoQD.mucTieuThang <= 0 {
+        if !dt.coDuLieu && (cheDo == .luyKe || duBaoQD.mucTieuThang <= 0) {
             theDTThuc.capNhatNoiDung(chinh: coLon ? "0,00" : "Chạm quét", phu: "TARGET: --", coLon: coLon)
             theDTQD.capNhatNoiDung(chinh: coLon ? "0,00" : "Chạm quét", phu: "TARGET: --", coLon: coLon)
-        } else {
+        } else if cheDo == .luyKe {
+            // Ở Tab Lũy kế: lấy đúng y nguyên toàn bộ con số thực và % hoàn thành từ ảnh đính kèm
+            let phuThuc: String
+            if dt.phanTramHTThuc > 0 && dt.targetThuc > 0 {
+                phuThuc = "TARGET: \(dt.targetThuc.chuoiSoGonVN) (\(dt.phanTramHTThuc.chuoiPhanTram))"
+            } else {
+                phuThuc = "TARGET: \(dt.targetThuc.chuoiSoGonVN)"
+            }
             theDTThuc.capNhatNoiDung(
-                chinh: dt.doanhThuThuc.chuoiSoVN,
-                phu: "TARGET: \(dt.targetThuc.chuoiSoVN)",
+                chinh: dt.doanhThuThuc.chuoiSoGonVN,
+                phu: phuThuc,
                 coLon: coLon
             )
-            let nhanPhuDTQD: String
-            if cheDo == .realtime, duBaoQD.mucTieuMoiNgay > 0 {
-                let ptNgay = dt.doanhThuQuyDoi > 0 ? (dt.doanhThuQuyDoi / duBaoQD.mucTieuMoiNgay * 100.0) : 0
-                nhanPhuDTQD = "MT NGÀY: \(duBaoQD.mucTieuMoiNgay.chuoiSoVN) (\(ptNgay.chuoiPhanTram))"
+
+            let phuQD: String
+            if dt.phanTramHTQuyDoi > 0 && dt.targetQuyDoi > 0 {
+                phuQD = "TARGET: \(dt.targetQuyDoi.chuoiSoGonVN) (\(dt.phanTramHTQuyDoi.chuoiPhanTram))"
             } else {
-                nhanPhuDTQD = "TARGET: \(targetQDHienThi.chuoiSoVN)"
+                phuQD = "TARGET: \(dt.targetQuyDoi.chuoiSoGonVN)"
             }
             theDTQD.capNhatNoiDung(
-                chinh: dt.doanhThuQuyDoi.chuoiSoVN,
+                chinh: dt.doanhThuQuyDoi.chuoiSoGonVN,
+                phu: phuQD,
+                coLon: coLon
+            )
+        } else {
+            // Ở Tab Realtime: lấy số thực ngày từ ảnh, Target ngày lấy từ mục tiêu tháng chia số ngày (hoặc Target ngày trên ảnh)
+            let phuThucRT: String
+            if dt.phanTramHTThuc > 0 && dt.targetThuc > 0 {
+                phuThucRT = "TARGET: \(dt.targetThuc.chuoiSoGonVN) (\(dt.phanTramHTThuc.chuoiPhanTram))"
+            } else {
+                phuThucRT = "TARGET: \(dt.targetThuc.chuoiSoGonVN)"
+            }
+            theDTThuc.capNhatNoiDung(
+                chinh: dt.doanhThuThuc.chuoiSoGonVN,
+                phu: phuThucRT,
+                coLon: coLon
+            )
+
+            let targetNgayQD = duBaoQD.mucTieuMoiNgay > 0 ? duBaoQD.mucTieuMoiNgay : dt.targetQuyDoi
+            let nhanPhuDTQD: String
+            if targetNgayQD > 0 {
+                let ptNgay = dt.doanhThuQuyDoi > 0 ? (dt.doanhThuQuyDoi / targetNgayQD * 100.0) : 0
+                nhanPhuDTQD = "MT NGÀY: \(targetNgayQD.chuoiSoGonVN) (\(ptNgay.chuoiPhanTram))"
+            } else {
+                nhanPhuDTQD = "TARGET: 0,00"
+            }
+            theDTQD.capNhatNoiDung(
+                chinh: dt.doanhThuQuyDoi.chuoiSoGonVN,
                 phu: nhanPhuDTQD,
                 coLon: coLon
             )
         }
 
         theTraGop.capNhatNoiDung(
-            chinh: dt.phanTramTraGop.chuoiPhanTramVN,
-            phu: "DT: \(dt.doanhThuTraGop.chuoiSoVN)",
+            chinh: dt.phanTramTraGop.chuoiPhanTram,
+            phu: "DT: \(dt.doanhThuTraGop.chuoiSoGonVN)",
             coLon: coLon
         )
 
@@ -393,51 +424,41 @@ final class CumChiSoChinhView: UIControl {
             coLon: coLon
         )
 
-        // Yêu cầu 1: Với Realtime, không lấy con số % HT QĐ dự kiến từ ảnh mà tự tính từ TB các ngày Realtime × số ngày trong tháng so với Mục tiêu tháng
-        let dkQDCuoiThang: Double
-        let ptHTQDDuKien: Double
-        if cheDo == .realtime {
-            dkQDCuoiThang = duBaoQD.duKienQDCuoiThang
-            ptHTQDDuKien = duBaoQD.phanTramHTQDDuKien
+        // Thẻ 5: 📈 % HT QĐ DỰ KIẾN
+        if cheDo == .luyKe {
+            // Tab Lũy kế: lấy đúng y nguyên % HT target (101.6%) và DT dự kiến (15,780) từ ảnh Lũy kế
+            let ptGoc = dt.phanTramHTQDDuKienHienThi
+            let dkGoc = dt.duKienQuyDoi > 0 ? dt.duKienQuyDoi : dt.duKienThuc
+            theHTQDDuKien.capNhatNoiDung(
+                chinh: ptGoc.chuoiPhanTram,
+                phu: "DTQĐ DK: \(dkGoc.chuoiSoGonVN)",
+                coLon: coLon
+            )
         } else {
-            dkQDCuoiThang = duBaoQD.duKienQDCuoiThang > 0
-                ? duBaoQD.duKienQDCuoiThang
-                : (dt.duKienQuyDoi > 0 ? dt.duKienQuyDoi : dt.duKienThuc)
-            ptHTQDDuKien = duBaoQD.phanTramHTQDDuKien > 0
-                ? duBaoQD.phanTramHTQDDuKien
-                : dt.phanTramHTQDDuKienHienThi
+            // Tab Realtime: KHÔNG đọc từ ảnh; tự tính dự kiến đến cuối tháng có hoàn thành mục tiêu tháng không
+            let dkQDCuoiThang = duBaoQD.duKienQDCuoiThang
+            let ptHTQDDuKien = duBaoQD.phanTramHTQDDuKien
+            let trangThaiDK: String
+            if duBaoQD.mucTieuThang > 0 && dkQDCuoiThang > 0 {
+                let chenh = dkQDCuoiThang - duBaoQD.mucTieuThang
+                trangThaiDK = chenh >= -0.005
+                    ? "ĐẠT MT (DK: \(dkQDCuoiThang.chuoiSoGonVN))"
+                    : "CHƯA ĐẠT (DK: \(dkQDCuoiThang.chuoiSoGonVN))"
+            } else if duBaoQD.mucTieuThang > 0 {
+                trangThaiDK = "MT: \(duBaoQD.mucTieuThang.chuoiSoGonVN) (\(duBaoQD.mucTieuMoiNgay.chuoiSoGonVN)/ngày)"
+            } else {
+                trangThaiDK = "Đặt MT tháng ở Cài đặt"
+            }
+            theHTQDDuKien.capNhatNoiDung(
+                chinh: ptHTQDDuKien.chuoiPhanTram,
+                phu: trangThaiDK,
+                coLon: coLon
+            )
         }
 
-        let trangThaiDK: String
-        if duBaoQD.mucTieuThang > 0 && dkQDCuoiThang > 0 {
-            let chenh = dkQDCuoiThang - duBaoQD.mucTieuThang
-            trangThaiDK = chenh >= -0.005
-                ? "ĐẠT MT (DK: \(dkQDCuoiThang.chuoiSoGonVN))"
-                : "CHƯA ĐẠT (DK: \(dkQDCuoiThang.chuoiSoGonVN))"
-        } else if duBaoQD.mucTieuThang > 0 {
-            trangThaiDK = "MT: \(duBaoQD.mucTieuThang.chuoiSoGonVN) (\(duBaoQD.mucTieuMoiNgay.chuoiSoGonVN)/ngày)"
-        } else if cheDo == .realtime {
-            trangThaiDK = "Đặt MT tháng ở Cài đặt"
-        } else {
-            trangThaiDK = "DTQĐ DK: \(dkQDCuoiThang.chuoiSoVN)"
-        }
-
-        theHTQDDuKien.capNhatNoiDung(
-            chinh: ptHTQDDuKien.chuoiPhanTramVN,
-            phu: trangThaiDK,
-            coLon: coLon
-        )
-
-        let ptQDHienTai = dt.phanTramQuyDoi > 0 ? dt.phanTramQuyDoi : duBaoQD.phanTramQuyDoiDuKien
-        let phuPhanTramQD: String
-        if duBaoQD.phanTramQuyDoiDuKien > 0 {
-            phuPhanTramQD = "QĐ DK: \(duBaoQD.phanTramQuyDoiDuKien.chuoiPhanTramVN) | MT: 50%"
-        } else {
-            phuPhanTramQD = "MỤC TIÊU: 50%"
-        }
         thePhanTramQD.capNhatNoiDung(
-            chinh: ptQDHienTai.chuoiPhanTramVN,
-            phu: phuPhanTramQD,
+            chinh: dt.phanTramQuyDoi.chuoiPhanTramVN,
+            phu: "MỤC TIÊU: 50%",
             coLon: coLon
         )
 
@@ -449,18 +470,7 @@ final class CumChiSoChinhView: UIControl {
         )
 
         let dauTG = dt.tangGiamCungKy > 0 ? "+" : ""
-        let phuTG: String
-        if dt.tb3Thang > 0 {
-            let goc = dt.doanhThuThuc > 0 ? dt.doanhThuThuc : dt.doanhThuQuyDoi
-            if goc > 0 {
-                let chenh = goc - dt.tb3Thang
-                phuTG = chenh >= 0 ? "TĂNG \(abs(chenh).chuoiSoVN)" : "GIẢM \(abs(chenh).chuoiSoVN)"
-            } else {
-                phuTG = "TB3T: \(dt.tb3Thang.chuoiSoVN)"
-            }
-        } else {
-            phuTG = "TB3T: 0,00"
-        }
+        let phuTG = dt.tb3Thang > 0 ? "TB3T: \(dt.tb3Thang.chuoiSoGonVN)" : "TB3T: 0"
         theTangGiam.capNhatNoiDung(
             chinh: "\(dauTG)\(dt.tangGiamCungKy.chuoiPhanTram)",
             phu: phuTG,
@@ -651,7 +661,6 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
     private let tieuDeTrong = UILabel()
     private let phuDeTrong = UILabel()
 
-    // Chiều rộng 8 cột cho Mẫu 1 (Bảng 8 cột chi tiết)
     private let chieuRongCot: [CGFloat] = [38, 210, 48, 88, 88, 92, 84, 84]
     private var tongChieuRongBang: CGFloat { chieuRongCot.reduce(0, +) }
 
@@ -659,11 +668,9 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
     private let nutSapXep = UIButton(type: .system)
     private let nutSoCot = UIButton(type: .system)
 
-    // Mẫu 1: Bảng 8 cột
     private let cuonNgang = UIScrollView()
     private let bang8Cot = UITableView(frame: .zero, style: .plain)
 
-    // Mẫu 2: Lưới thẻ tiến độ
     private lazy var luoi: UICollectionView = {
         let boCuc = UICollectionViewFlowLayout()
         boCuc.minimumLineSpacing = 8
@@ -726,7 +733,6 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         nutSoCot.setContentHuggingPriority(.required, for: .horizontal)
         nutSoCot.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
 
-        // Khởi tạo Mẫu 1 (Bảng 8 cột)
         cuonNgang.showsHorizontalScrollIndicator = true
         cuonNgang.showsVerticalScrollIndicator = false
         cuonNgang.bounces = false
@@ -747,7 +753,6 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         bang8Cot.translatesAutoresizingMaskIntoConstraints = false
         cuonNgang.addSubview(bang8Cot)
 
-        // Khung trống khi chưa có dữ liệu
         khungTrong.backgroundColor = .secondarySystemGroupedBackground
         khungTrong.layer.cornerRadius = 14
         khungTrong.addTarget(self, action: #selector(bamQuet), for: .touchUpInside)
@@ -936,7 +941,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         return CGSize(width: rong, height: 76)
     }
 
-    // MARK: - Mẫu 1: UITableView (Bảng 8 cột chi tiết giống ảnh 1)
+    // MARK: - Mẫu 1: UITableView (Bảng 8 cột chi tiết)
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         danhSachHienThi.count
@@ -1108,7 +1113,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         return khung
     }
 
-    // MARK: - Xuất Ảnh Báo Cáo Thi Đua (Theo Doanh thu Lũy kế hoặc Realtime & theo mẫu trong Cài đặt)
+    // MARK: - Xuất Ảnh Báo Cáo Thi Đua
 
     func taoAnhBaoCao(
         ngay: Date,
@@ -1327,7 +1332,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         }
     }
 
-    // MARK: - Xuất File Excel (.csv chuẩn UTF-8 BOM mở trực tiếp trên Excel / Numbers)
+    // MARK: - Xuất File Excel (.csv chuẩn UTF-8 BOM)
 
     func taoChuoiExcelCSV(doanhThu: ThongTinDoanhThu, danhSach: [DongThiDua]? = nil, cheDo: LoaiCheDoDoanhThu? = nil) -> String {
         var cacDong: [String] = []
@@ -1362,10 +1367,6 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
 
 
 // MARK: - 4. Màn hình / Khung Tổng Hợp Biểu Đồ Realtime Theo Tháng (Nút Biểu đồ)
-// Bao gồm:
-// 1. Hai thẻ Doanh thu Lũy kế Thực & Quy đổi (cố định trong tháng, nhập ngày mới tự thay thế ngày hôm trước)
-// 2. Đồ thị cột (Grouped Bar Chart) Doanh thu Thực & Doanh thu Quy đổi theo từng ngày trong tháng
-// 3. Bảng tổng hợp số liệu Realtime theo từng ngày trong tháng (chạm vào ngày bất kỳ để nhập/sửa)
 
 private final class VeBieuDoCotRealtimeView: UIView {
     var danhSachNgay: [DuLieuRealtimeNgayTrongThang] = [] {
@@ -1417,7 +1418,6 @@ private final class VeBieuDoCotRealtimeView: UIView {
         let mauChuPhu = UIColor.secondaryLabel
         let mauLuoi = UIColor.separator.withAlphaComponent(0.45)
 
-        // 1. Vẽ 4 đường lưới ngang & nhãn trục tung (Y)
         let soMucLuoi = 4
         for i in 0...soMucLuoi {
             let tyLe = CGFloat(i) / CGFloat(soMucLuoi)
@@ -1486,7 +1486,6 @@ private final class VeBieuDoCotRealtimeView: UIView {
                 pathNen.fill()
             }
 
-            // Cột 1: Doanh thu Thực (màu xanh dương)
             let caoThuc = item.doanhThuThuc > 0 ? max(4, CGFloat(item.doanhThuThuc / maxVal) * caoVe) : 0
             let xThuc = xTam - khoangCach2Cot / 2 - rongCot
             if caoThuc > 0 {
@@ -1508,7 +1507,6 @@ private final class VeBieuDoCotRealtimeView: UIView {
                 )
             }
 
-            // Cột 2: Doanh thu Quy đổi (màu xanh lá)
             let caoQD = item.doanhThuQuyDoi > 0 ? max(4, CGFloat(item.doanhThuQuyDoi / maxVal) * caoVe) : 0
             let xQD = xTam + khoangCach2Cot / 2
             if caoQD > 0 {
@@ -1560,7 +1558,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     private let cuonDoc = UIScrollView()
     private let nganNoiDung = UIStackView()
 
-    // Khối 1: Doanh thu Lũy kế Thực & Quy đổi (Cố định của tháng)
     private let nhanTieuDeLuyKe = UILabel()
     private let theLuyKeThuc = TheDoanhThuView(
         tieuDe: "💵 DT LŨY KẾ THỰC (THÁNG)",
@@ -1574,14 +1571,12 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         hienChamTron: true
     )
 
-    // Khối 2: Đồ thị cột Doanh thu Thực & Quy đổi theo ngày
     private let chonCheDoNgay = UISegmentedControl(items: ["Cả tháng", "Ngày có số"])
     private let nhanTomTatRT = UILabel()
     private let cuonBieuDo = UIScrollView()
     private let veBieuDo = VeBieuDoCotRealtimeView()
     private var rangBuocRongBieuDo: NSLayoutConstraint?
 
-    // Khối 3: Bảng tổng hợp Realtime theo ngày
     private let bangNgay = UITableView(frame: .zero, style: .plain)
     private var rangBuocCaoBang: NSLayoutConstraint?
 
@@ -1606,7 +1601,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nganNoiDung.translatesAutoresizingMaskIntoConstraints = false
         cuonDoc.addSubview(nganNoiDung)
 
-        // --- KHỐI 1: DOANH THU LŨY KẾ THÁNG (THỰC & QUY ĐỔI) ---
         let khungLuyKe = UIView()
         khungLuyKe.backgroundColor = .secondarySystemGroupedBackground
         khungLuyKe.layer.cornerRadius = 12
@@ -1663,7 +1657,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             nganLK.bottomAnchor.constraint(equalTo: khungLuyKe.bottomAnchor, constant: -10)
         ])
 
-        // --- KHỐI 2: ĐỒ THỊ CỘT DOANH THU THỰC & QUY ĐỔI THEO NGÀY ---
         let khungBieuDo = UIView()
         khungBieuDo.backgroundColor = .secondarySystemGroupedBackground
         khungBieuDo.layer.cornerRadius = 12
@@ -1722,7 +1715,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             nganBD.bottomAnchor.constraint(equalTo: khungBieuDo.bottomAnchor, constant: -10)
         ])
 
-        // --- KHỐI 3: BẢNG TỔNG HỢP REALTIME THEO NGÀY TRONG THÁNG ---
         let khungBang = UIView()
         khungBang.backgroundColor = .secondarySystemGroupedBackground
         khungBang.layer.cornerRadius = 12
@@ -1808,12 +1800,12 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         if doanhThuLuyKe.coDuLieu {
             theLuyKeThuc.capNhatNoiDung(
-                chinh: doanhThuLuyKe.doanhThuThuc.chuoiSoVN,
-                phu: "TARGET: \(doanhThuLuyKe.targetThuc.chuoiSoVN) | HT: \(doanhThuLuyKe.phanTramHTThucHienThi.chuoiPhanTram)"
+                chinh: doanhThuLuyKe.doanhThuThuc.chuoiSoGonVN,
+                phu: "TARGET: \(doanhThuLuyKe.targetThuc.chuoiSoGonVN) | HT: \(doanhThuLuyKe.phanTramHTThucHienThi.chuoiPhanTram)"
             )
             theLuyKeQD.capNhatNoiDung(
-                chinh: doanhThuLuyKe.doanhThuQuyDoi.chuoiSoVN,
-                phu: "TARGET: \(doanhThuLuyKe.targetQuyDoi.chuoiSoVN) | % QĐ: \(doanhThuLuyKe.phanTramQuyDoi.chuoiPhanTram)"
+                chinh: doanhThuLuyKe.doanhThuQuyDoi.chuoiSoGonVN,
+                phu: "TARGET: \(doanhThuLuyKe.targetQuyDoi.chuoiSoGonVN) | HT: \(doanhThuLuyKe.phanTramHTQDDuKienHienThi.chuoiPhanTram)"
             )
         } else {
             theLuyKeThuc.capNhatNoiDung(chinh: "Chạm nhập", phu: "TARGET: --")
@@ -1985,15 +1977,14 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         var y = le + caoHeader + 10
 
-        // 1. Hai thẻ Doanh thu Lũy kế Thực & Quy đổi
         let the1 = TheDoanhThuView(
             tieuDe: "💵 DOANH THU LŨY KẾ THỰC (THÁNG)",
             mauBatDau: UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1),
             mauKetThuc: UIColor(red: 0.23, green: 0.25, blue: 0.89, alpha: 1)
         )
         the1.capNhatNoiDung(
-            chinh: doanhThuLuyKe.doanhThuThuc.chuoiSoVN,
-            phu: "TARGET: \(doanhThuLuyKe.targetThuc.chuoiSoVN) | HT: \(doanhThuLuyKe.phanTramHTThucHienThi.chuoiPhanTram)",
+            chinh: doanhThuLuyKe.doanhThuThuc.chuoiSoGonVN,
+            phu: "TARGET: \(doanhThuLuyKe.targetThuc.chuoiSoGonVN) | HT: \(doanhThuLuyKe.phanTramHTThucHienThi.chuoiPhanTram)",
             coLon: true
         )
         the1.frame = CGRect(x: le, y: y, width: (rongBieuDo - 12) / 2, height: caoLuyKe)
@@ -2007,8 +1998,8 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             hienChamTron: true
         )
         the2.capNhatNoiDung(
-            chinh: doanhThuLuyKe.doanhThuQuyDoi.chuoiSoVN,
-            phu: "TARGET: \(doanhThuLuyKe.targetQuyDoi.chuoiSoVN) | % QĐ: \(doanhThuLuyKe.phanTramQuyDoi.chuoiPhanTram)",
+            chinh: doanhThuLuyKe.doanhThuQuyDoi.chuoiSoGonVN,
+            phu: "TARGET: \(doanhThuLuyKe.targetQuyDoi.chuoiSoGonVN) | HT: \(doanhThuLuyKe.phanTramHTQDDuKienHienThi.chuoiPhanTram)",
             coLon: true
         )
         the2.frame = CGRect(x: le + (rongBieuDo - 12) / 2 + 12, y: y, width: (rongBieuDo - 12) / 2, height: caoLuyKe)
@@ -2017,7 +2008,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         y += caoLuyKe + 12
 
-        // 2. Đồ thị cột Doanh thu Thực & Quy đổi theo ngày
         let hopBD = UIView(frame: CGRect(x: le, y: y, width: rongBieuDo, height: caoBieuDo))
         hopBD.backgroundColor = UIColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 1)
         hopBD.layer.cornerRadius = 10
@@ -2039,7 +2029,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         y += caoBieuDo + 12
 
-        // 3. Bảng chi tiết các ngày
         let khungBang = UIView(frame: CGRect(x: le, y: y, width: rongBieuDo, height: caoBang))
         khungBang.layer.borderWidth = 1
         khungBang.layer.borderColor = UIColor.systemGray4.cgColor
