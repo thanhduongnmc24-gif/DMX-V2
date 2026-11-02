@@ -37,7 +37,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = dong.tenNganhHang
+        title = "\(dong.tenNganhHang) (\(cheDo.tieuDe))"
         view.backgroundColor = .systemGroupedBackground
 
         let nutSua = UIBarButtonItem(
@@ -82,7 +82,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
 
         let nutQuetAnhNV = UIButton(type: .system)
         nutQuetAnhNV.setImage(UIImage(systemName: "camera.viewfinder"), for: .normal)
-        nutQuetAnhNV.setTitle(" Nhập ảnh thực hiện NV", for: .normal)
+        nutQuetAnhNV.setTitle(" Nhập ảnh thực hiện NV (\(cheDo.tieuDe))", for: .normal)
         nutQuetAnhNV.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
         nutQuetAnhNV.backgroundColor = .systemBlue
         nutQuetAnhNV.tintColor = .white
@@ -241,20 +241,20 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
             $0.id == dong.id || KhoDuLieu.chuanHoaKhoaSoSanh($0.tenNganhHang) == KhoDuLieu.chuanHoaKhoaSoSanh(dong.tenNganhHang)
         }) {
             dong = capNhatDong
-            title = dong.tenNganhHang
+            title = "\(dong.tenNganhHang) (\(cheDo.tieuDe))"
         }
 
-        danhSachXepHang = KhoDuLieu.dungChung.danhSachXepHangNhanVien(cho: dong, den: ngay)
+        danhSachXepHang = KhoDuLieu.dungChung.danhSachXepHangNhanVien(cho: dong, den: ngay, cheDo: cheDo)
         let soNV = danhSachXepHang.count
         let targetMoiNV = soNV > 0 ? dong.target / Double(soNV) : 0
         let donVi = dl.thongTinDonVi.isEmpty ? "ĐIỆN MÁY XANH" : dl.thongTinDonVi
 
-        nhanPhuDe.text = "\(donVi) • Ngày \(TienIchNgay.hienThiNgay.string(from: ngay))"
+        nhanPhuDe.text = "\(donVi) • \(cheDo.tieuDe) • Ngày \(TienIchNgay.hienThiNgay.string(from: ngay))"
         nhanThongTinTarget.text = "Target ST: \(dong.target.chuoiSoGonVN) (\(dong.loaiChiTieu.maBang))  •  Chia đều \(soNV) NV: \(soNV > 0 ? targetMoiNV.chuoiSoGonVN : "--")/NV"
 
         let tongTH = danhSachXepHang.reduce(0.0) { $0 + $1.thucHien }
         let tyLeChung = dong.target > 0 ? Int(round(tongTH / dong.target * 100.0)) : 0
-        nhanTongCongTrai.text = "TỔNG: \(tongTH.chuoiSoGonVN) / \(dong.target.chuoiSoGonVN) • \(soNV) NV"
+        nhanTongCongTrai.text = "TỔNG (\(cheDo.tieuDe)): \(tongTH.chuoiSoGonVN) / \(dong.target.chuoiSoGonVN) • \(soNV) NV"
         nhanTongCongPhai.text = "Tỷ lệ HT: \(tyLeChung)%"
 
         khungTrong.isHidden = !danhSachXepHang.isEmpty
@@ -297,7 +297,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
             let cacAnh = danhSach.compactMap { $0 }
             guard !cacAnh.isEmpty else { return }
 
-            self.nhanTienTrinh.text = "Đang đọc \(cacAnh.count) ảnh Thực hiện NV..."
+            self.nhanTienTrinh.text = "Đang đọc \(cacAnh.count) ảnh Thực hiện NV (\(self.cheDo.tieuDe))..."
             self.lopPhuTai.isHidden = false
             self.vongQuay.startAnimating()
 
@@ -325,12 +325,14 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
                     }
 
                     var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
-                    dl.thiDuaNhanVien = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
-                        hienTai: dl.thiDuaNhanVien,
+                    let bangMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
+                        hienTai: dl.thiDuaNhanVien(theo: self.cheDo),
                         mangKhoiNV: cacKhoi,
                         ngay: self.ngay,
+                        cheDo: self.cheDo,
                         khoaNganhMacDinh: khoaMacDinh
                     )
+                    dl.ganThiDuaNhanVien(bangMoi, theo: self.cheDo)
                     KhoDuLieu.dungChung.luu(dl)
                     self.napDuLieu()
                     self.khiCapNhatDuLieu?()
@@ -360,7 +362,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         header.backgroundColor = .tertiarySystemGroupedBackground
 
         let nhanTrai = UILabel()
-        nhanTrai.text = "#   NHÂN VIÊN (Chạm để sửa TH)"
+        nhanTrai.text = "#   NHÂN VIÊN (Chạm để sửa TH \(cheDo.tieuDe))"
         nhanTrai.font = .systemFont(ofSize: 11, weight: .bold)
         nhanTrai.textColor = .secondaryLabel
 
@@ -498,7 +500,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         let item = danhSachXepHang[indexPath.row]
         let hop = UIAlertController(
             title: "\(item.hoTen) (\(item.maNV))",
-            message: "Nhập số Thực hiện cho mặt hàng \(dong.tenNganhHang):",
+            message: "Nhập số Thực hiện (\(cheDo.tieuDe)) cho mặt hàng \(dong.tenNganhHang):",
             preferredStyle: .alert
         )
         hop.addTextField { tf in
@@ -516,7 +518,9 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
             let giaTri = Double(chu) ?? 0
             let khoa = KhoDuLieu.chuanHoaKhoaSoSanh(self.dong.tenNganhHang)
             var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
-            dl.thiDuaNhanVien[khoa, default: [:]][item.maNV] = giaTri
+            var bangNV = dl.thiDuaNhanVien(theo: self.cheDo)
+            bangNV[khoa, default: [:]][item.maNV] = giaTri
+            dl.ganThiDuaNhanVien(bangNV, theo: self.cheDo)
             KhoDuLieu.dungChung.luu(dl)
             self.napDuLieu()
             self.khiCapNhatDuLieu?()
@@ -566,7 +570,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
             let pRight = NSMutableParagraphStyle(); pRight.alignment = .right
             let pCenter = NSMutableParagraphStyle(); pCenter.alignment = .center
 
-            (donVi as NSString).draw(at: CGPoint(x: le, y: le + 4), withAttributes: [
+            ("\(donVi) • \(cheDo.tieuDe.uppercased())" as NSString).draw(at: CGPoint(x: le, y: le + 4), withAttributes: [
                 .font: UIFont.systemFont(ofSize: 11.5, weight: .bold),
                 .foregroundColor: UIColor.darkGray
             ])
@@ -660,7 +664,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
     }
 }
 
-// MARK: - 2. BangNhanVienView (Tab Nhân viên trên màn hình chính: Sắp xếp + Nút Nhập ảnh DT hợp nhất + Bảng 8 cột)
+// MARK: - 2. BangNhanVienView (Tab Nhân viên trên màn hình chính: Sắp xếp + Nút Nhập ảnh DT hợp nhất + Bảng 8 cột, chia theo Lũy kế & Realtime)
 
 final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate {
     var khiChonNhanVien: ((TongHopNhanVien) -> Void)?
@@ -668,8 +672,11 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
     var khiBamMoCaiDatNV: (() -> Void)?
 
     private var ngayHienTai = Date()
+    private(set) var cheDoDoanhThu: LoaiCheDoDoanhThu = .luyKe
     private var kieuSapXep: KieuSapXepNhanVien = .soMonHoanThanh
     private var danhSach: [TongHopNhanVien] = []
+    private var danhSachDaNapUI: [TongHopNhanVien]?
+    private var cheDoDaNapUI: LoaiCheDoDoanhThu?
 
     private let chieuRongCot: [CGFloat] = [44, 175, 86, 82, 74, 88, 92, 92]
     private var tongChieuRongBang: CGFloat { chieuRongCot.reduce(0, +) }
@@ -708,7 +715,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         cauHinhMenuSapXep()
 
         nutQuetDTNV.setImage(UIImage(systemName: "camera.fill"), for: .normal)
-        nutQuetDTNV.setTitle(" Nhập ảnh DT", for: .normal)
+        nutQuetDTNV.setTitle(" Nhập DT (Lũy kế)", for: .normal)
         nutQuetDTNV.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
         nutQuetDTNV.backgroundColor = .secondarySystemGroupedBackground
         nutQuetDTNV.tintColor = .systemBlue
@@ -802,7 +809,8 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
                 self.kieuSapXep = kieu
                 self.nutSapXep.setTitle(" ⇅ \(kieu.nhanNgan)", for: .normal)
                 self.cauHinhMenuSapXep()
-                self.capNhat(cho: self.ngayHienTai)
+                self.danhSachDaNapUI = nil
+                self.capNhat(cho: self.ngayHienTai, cheDo: self.cheDoDoanhThu)
             }
         }
         nutSapXep.menu = UIMenu(title: "Sắp xếp nhân viên", children: actions)
@@ -817,20 +825,29 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         khiBamMoCaiDatNV?()
     }
 
-    func capNhat(cho ngay: Date) {
+    func capNhat(cho ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) {
         ngayHienTai = ngay
-        danhSach = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: kieuSapXep)
-        let soMonThang = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay).count
-        nhanTieuDe.text = "🏆 Xếp Hạng (\(danhSach.count) NV • \(soMonThang) môn)"
+        cheDoDoanhThu = cheDo
+        let moi = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: kieuSapXep, cheDo: cheDo)
+        let soMonThang = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay, cheDo: cheDo).count
+        nhanTieuDe.text = "🏆 Xếp Hạng \(cheDo.tieuDe) (\(moi.count) NV • \(soMonThang) môn)"
+        nutQuetDTNV.setTitle(" Nhập DT (\(cheDo.tieuDe))", for: .normal)
 
-        let trong = danhSach.isEmpty
+        let trong = moi.isEmpty
         khungTrong.isHidden = !trong
         cuonNgang.isHidden = trong
-        bang.reloadData()
+
+        if danhSachDaNapUI != moi || cheDoDaNapUI != cheDo {
+            danhSach = moi
+            danhSachDaNapUI = moi
+            cheDoDaNapUI = cheDo
+            bang.reloadData()
+        }
     }
 
     func gan(_ moi: [TongHopNhanVien]) {
         danhSach = moi
+        danhSachDaNapUI = moi
         let trong = danhSach.isEmpty
         khungTrong.isHidden = !trong
         cuonNgang.isHidden = trong
@@ -969,12 +986,18 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
 
     // MARK: - Xuất Ảnh Bảng Xếp Hạng Tổng Hợp Nhân Viên
 
-    func taoAnhBaoCaoNhanVien(ngay: Date, thongTinDonVi: String = "", capNhatLuc: String = "") -> UIImage? {
-        let ds = danhSach.isEmpty ? KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: kieuSapXep) : danhSach
+    func taoAnhBaoCaoNhanVien(
+        ngay: Date,
+        cheDo: LoaiCheDoDoanhThu? = nil,
+        thongTinDonVi: String = "",
+        capNhatLuc: String = ""
+    ) -> UIImage? {
+        let cheDoXuat = cheDo ?? cheDoDoanhThu
+        let ds = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: kieuSapXep, cheDo: cheDoXuat)
         let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
         let donVi = !thongTinDonVi.isEmpty ? thongTinDonVi : (dl.thongTinDonVi.isEmpty ? "ĐIỆN MÁY XANH" : dl.thongTinDonVi)
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
-        let soMonThang = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay).count
+        let soMonThang = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay, cheDo: cheDoXuat).count
 
         let tongDTQD = ds.reduce(0.0) { $0 + $1.doanhThuQD }
         let tongDon = ds.reduce(0.0) { $0 + $1.soLuongDon }
@@ -997,13 +1020,13 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         khungBaoCao.overrideUserInterfaceStyle = .light
 
         let lbPhu = UILabel(frame: CGRect(x: le, y: le, width: rongBang, height: 18))
-        lbPhu.text = "\(donVi)  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
+        lbPhu.text = "\(donVi)  •  \(cheDoXuat.tieuDe.uppercased())  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
         lbPhu.font = .systemFont(ofSize: 12, weight: .bold)
         lbPhu.textColor = .darkGray
         khungBaoCao.addSubview(lbPhu)
 
         let lbChinh = UILabel(frame: CGRect(x: le, y: le + 20, width: rongBang, height: 28))
-        lbChinh.text = "🏆 BẢNG XẾP HẠNG TỔNG HỢP NHÂN VIÊN (\(ds.count) NV • \(soMonThang) MÔN)"
+        lbChinh.text = "🏆 BẢNG XẾP HẠNG NHÂN VIÊN - \(cheDoXuat.tieuDe.uppercased()) (\(ds.count) NV • \(soMonThang) MÔN)"
         lbChinh.font = .systemFont(ofSize: 18.5, weight: .heavy)
         lbChinh.textColor = .black
         khungBaoCao.addSubview(lbChinh)
@@ -1014,7 +1037,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         hopTomTat.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.08)
         hopTomTat.layer.cornerRadius = 8
         let lbTomTat = UILabel(frame: CGRect(x: 12, y: 0, width: rongBang - 24, height: caoTomTat))
-        lbTomTat.text = "Tổng DT Quy đổi: \(tongDTQD.chuoiSoGonVN)   •   Tổng đơn: \(tongDon.chuoiSoNguyenVN)   •   DT Khoản vay: \(tongVay.chuoiSoGonVN)   •   % HT TB: \(String(format: "%.1f%%", tbHT))"
+        lbTomTat.text = "Tổng DT Quy đổi (\(cheDoXuat.tieuDe)): \(tongDTQD.chuoiSoGonVN)   •   Tổng đơn: \(tongDon.chuoiSoNguyenVN)   •   DT Khoản vay: \(tongVay.chuoiSoGonVN)   •   % HT TB: \(String(format: "%.1f%%", tbHT))"
         lbTomTat.font = .systemFont(ofSize: 12.5, weight: .bold)
         lbTomTat.textColor = .systemBlue
         hopTomTat.addSubview(lbTomTat)
@@ -1066,12 +1089,13 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
     }
 }
 
-// MARK: - 3. Màn hình Chi tiết Sức khoẻ Cá nhân Nhân viên
+// MARK: - 3. Màn hình Chi tiết Sức khoẻ Cá nhân Nhân viên (chia theo Lũy kế & Realtime)
 // (Tương đương ModalChiTietNhanVien trong dmx-modals.tsx: Thanh tiến độ tháng, 4 thẻ KPI, Bộ lọc Đạt/Chưa đạt, Bảng 8 cột môn thi đua)
 
 final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UITableViewDelegate {
     private let tongHop: TongHopNhanVien
     private let ngay: Date
+    private let cheDo: LoaiCheDoDoanhThu
     private var boLoc: BoLocThiDua = .tatCa
     private var danhSachMonLoc: [MonThiDuaNhanVien] = []
 
@@ -1081,9 +1105,10 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
     private let chieuRongCot: [CGFloat] = [36, 190, 82, 82, 78, 86, 82, 92]
     private var tongChieuRongBang: CGFloat { chieuRongCot.reduce(0, +) }
 
-    init(_ tongHop: TongHopNhanVien, ngay: Date = Date()) {
+    init(_ tongHop: TongHopNhanVien, ngay: Date = Date(), cheDo: LoaiCheDoDoanhThu = .luyKe) {
         self.tongHop = tongHop
         self.ngay = ngay
+        self.cheDo = cheDo
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -1093,7 +1118,7 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Sức khoẻ \(tongHop.nhanVien.hoTen)"
+        title = "Sức khoẻ \(tongHop.nhanVien.hoTen) (\(cheDo.tieuDe))"
         view.backgroundColor = .systemGroupedBackground
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             image: UIImage(systemName: "square.and.arrow.up"),
@@ -1121,7 +1146,7 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
         khungTienDo.layer.borderColor = UIColor.systemGray5.cgColor
 
         let lbTDTrai = UILabel()
-        lbTDTrai.text = "Tiến độ tháng   Ngày \(soNgayQua) / \(tongNgayThang)"
+        lbTDTrai.text = "Chế độ: \(cheDo.tieuDe)  •  Tiến độ tháng: Ngày \(soNgayQua) / \(tongNgayThang)"
         lbTDTrai.font = .systemFont(ofSize: 11.5, weight: .bold)
         let lbTDPhai = UILabel()
         lbTDPhai.text = String(format: "%.1f%%", ptTienDo)
@@ -1400,9 +1425,9 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
     // MARK: - Xuất / Chia sẻ ảnh Sức khoẻ chi tiết (Tuỳ chọn 1 nhân viên hoặc TẤT CẢ nhân viên đang quản lý)
 
     @objc private func bamChiaSeAnhSucKhoe() {
-        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh)
+        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: cheDo)
         let menu = UIAlertController(
-            title: "Xuất ảnh Sức khoẻ Nhân viên",
+            title: "Xuất ảnh Sức khoẻ Nhân viên (\(cheDo.tieuDe))",
             message: "Chọn xuất riêng nhân viên đang xem hoặc xuất tất cả \(dsNV.count) nhân viên đang quản lý:",
             preferredStyle: .actionSheet
         )
@@ -1415,13 +1440,13 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
         if !dsNV.isEmpty {
             menu.addAction(UIAlertAction(title: "📚 Xuất TẤT CẢ \(dsNV.count) NV đang quản lý (Bộ \(dsNV.count) ảnh rời)", style: .default) { [weak self] _ in
                 guard let self = self else { return }
-                let cacAnh = Self.taoTatCaAnhSucKhoe(cho: self.ngay)
+                let cacAnh = Self.taoTatCaAnhSucKhoe(cho: self.ngay, cheDo: self.cheDo)
                 guard !cacAnh.isEmpty else { return }
                 self.hienChiaSe(cacAnh)
             })
 
             menu.addAction(UIAlertAction(title: "🖼️ Xuất TẤT CẢ \(dsNV.count) NV đang quản lý (Gộp 1 ảnh tổng hợp)", style: .default) { [weak self] _ in
-                guard let self = self, let anhGop = Self.taoAnhGopTatCaSucKhoe(cho: self.ngay) else { return }
+                guard let self = self, let anhGop = Self.taoAnhGopTatCaSucKhoe(cho: self.ngay, cheDo: self.cheDo) else { return }
                 self.hienChiaSe([anhGop])
             })
         }
@@ -1441,21 +1466,21 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
         present(vc, animated: true)
     }
 
-    static func taoAnhSucKhoe(cho tongHop: TongHopNhanVien, ngay: Date) -> UIImage? {
-        let vc = ManHinhChiTietNhanVien(tongHop, ngay: ngay)
+    static func taoAnhSucKhoe(cho tongHop: TongHopNhanVien, ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) -> UIImage? {
+        let vc = ManHinhChiTietNhanVien(tongHop, ngay: ngay, cheDo: cheDo)
         vc.loadViewIfNeeded()
         return vc.taoAnhSucKhoeNhanVien()
     }
 
-    /// Tạo mảng ảnh Sức khoẻ cho toàn bộ nhân viên đang quản lý
-    static func taoTatCaAnhSucKhoe(cho ngay: Date) -> [UIImage] {
-        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh)
-        return dsNV.compactMap { taoAnhSucKhoe(cho: $0, ngay: ngay) }
+    /// Tạo mảng ảnh Sức khoẻ cho toàn bộ nhân viên đang quản lý (theo Lũy kế hoặc Realtime)
+    static func taoTatCaAnhSucKhoe(cho ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) -> [UIImage] {
+        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: cheDo)
+        return dsNV.compactMap { taoAnhSucKhoe(cho: $0, ngay: ngay, cheDo: cheDo) }
     }
 
     /// Ghép ảnh Sức khoẻ của toàn bộ nhân viên đang quản lý thành 1 ảnh dọc duy nhất
-    static func taoAnhGopTatCaSucKhoe(cho ngay: Date) -> UIImage? {
-        let cacAnh = taoTatCaAnhSucKhoe(cho: ngay)
+    static func taoAnhGopTatCaSucKhoe(cho ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) -> UIImage? {
+        let cacAnh = taoTatCaAnhSucKhoe(cho: ngay, cheDo: cheDo)
         guard !cacAnh.isEmpty else { return nil }
         if cacAnh.count == 1 { return cacAnh[0] }
 
@@ -1505,13 +1530,13 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
 
         // 1. Tiêu đề nhân viên & siêu thị
         let lbPhu = UILabel(frame: CGRect(x: le, y: le, width: rongBang, height: 18))
-        lbPhu.text = "\(donVi)  •  Mã NV: \(tongHop.nhanVien.maNV)  •  Ngày \(ngayStr)"
+        lbPhu.text = "\(donVi)  •  \(cheDo.tieuDe.uppercased())  •  Mã NV: \(tongHop.nhanVien.maNV)  •  Ngày \(ngayStr)"
         lbPhu.font = .systemFont(ofSize: 12, weight: .bold)
         lbPhu.textColor = .darkGray
         khungBaoCao.addSubview(lbPhu)
 
         let lbChinh = UILabel(frame: CGRect(x: le, y: le + 20, width: rongBang, height: 28))
-        lbChinh.text = "SỨC KHOẺ CHI TIẾT: \(tongHop.nhanVien.hoTen.uppercased())"
+        lbChinh.text = "SỨC KHOẺ CHI TIẾT (\(cheDo.tieuDe.uppercased())): \(tongHop.nhanVien.hoTen.uppercased())"
         lbChinh.font = .systemFont(ofSize: 19, weight: .heavy)
         lbChinh.textColor = .black
         khungBaoCao.addSubview(lbChinh)
