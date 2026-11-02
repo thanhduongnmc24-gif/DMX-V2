@@ -18,11 +18,14 @@ enum LoaiTabMuc: Int, CaseIterable {
     case duPhong2 = 2
     case duPhong3 = 3
 
+    /// Danh sách 3 nút ở cụm dưới (sau khi đưa nút Biểu đồ lên cùng hàng với Doanh thu Lũy kế & Realtime)
+    static let cacTabCumDuoi: [LoaiTabMuc] = [.thiDua, .nhanVien, .duPhong3]
+
     var tieuDe: String {
         switch self {
         case .thiDua: return "Thi đua"
         case .nhanVien: return "Nhân viên"
-        case .duPhong2: return "Realtime tháng"
+        case .duPhong2: return "Biểu đồ"
         case .duPhong3: return "Dự phòng 3"
         }
     }
@@ -353,17 +356,25 @@ struct ThongTinDoanhThu: Codable, Hashable {
     }
 
     /// Gộp dữ liệu từ ảnh mới quét (ví dụ quét ảnh DT thực rồi quét tiếp ảnh DT quy đổi)
-    func gop(voi moi: ThongTinDoanhThu) -> ThongTinDoanhThu {
+    func gop(voi moi: ThongTinDoanhThu, laRealtime: Bool = false) -> ThongTinDoanhThu {
         var kq = self
         if moi.doanhThuThuc > 0 { kq.doanhThuThuc = moi.doanhThuThuc }
         if moi.targetThuc > 0 { kq.targetThuc = moi.targetThuc }
-        if moi.duKienThuc > 0 { kq.duKienThuc = moi.duKienThuc }
-        if moi.phanTramHTThuc > 0 { kq.phanTramHTThuc = moi.phanTramHTThuc }
+        if !laRealtime {
+            if moi.duKienThuc > 0 { kq.duKienThuc = moi.duKienThuc }
+            if moi.phanTramHTThuc > 0 { kq.phanTramHTThuc = moi.phanTramHTThuc }
+        }
 
         if moi.doanhThuQuyDoi > 0 { kq.doanhThuQuyDoi = moi.doanhThuQuyDoi }
         if moi.targetQuyDoi > 0 { kq.targetQuyDoi = moi.targetQuyDoi }
-        if moi.duKienQuyDoi > 0 { kq.duKienQuyDoi = moi.duKienQuyDoi }
-        if moi.phanTramHTQuyDoi > 0 { kq.phanTramHTQuyDoi = moi.phanTramHTQuyDoi }
+        if laRealtime {
+            // Với Realtime: không lấy % HT QĐ dự kiến và DT QĐ dự kiến từ ảnh mà để app tự tính theo mục tiêu tháng
+            kq.duKienQuyDoi = 0
+            kq.phanTramHTQuyDoi = 0
+        } else {
+            if moi.duKienQuyDoi > 0 { kq.duKienQuyDoi = moi.duKienQuyDoi }
+            if moi.phanTramHTQuyDoi > 0 { kq.phanTramHTQuyDoi = moi.phanTramHTQuyDoi }
+        }
 
         if moi.phanTramTraGop > 0 { kq.phanTramTraGop = moi.phanTramTraGop }
         if moi.doanhThuTraGop > 0 { kq.doanhThuTraGop = moi.doanhThuTraGop }
@@ -764,7 +775,7 @@ final class KhoDuLieu {
         TienIchNgay.lich.range(of: .day, in: .month, for: ngay)?.count ?? 30
     }
 
-    /// Lấy Mục tiêu Doanh thu Quy đổi tháng (ưu tiên mục tiêu tháng người dùng nhập, dự phòng từ Target QĐ Lũy kế tháng)
+    /// Lấy Mục tiêu Doanh thu Quy đổi tháng (ưu tiên mục tiêu tháng đặt trong Cài đặt, dự phòng từ Target QĐ Lũy kế tháng)
     func mucTieuDoanhThuQDThang(cho ngay: Date) -> Double {
         let kt = khoaThang(cho: ngay)
         if let daNhap = caiDat.mucTieuDoanhThuQDThang[kt], daNhap > 0 {
@@ -777,7 +788,7 @@ final class KhoDuLieu {
         return 0
     }
 
-    /// Lưu Mục tiêu Doanh thu Quy đổi tháng và tự động chia đều cho tất cả các ngày trong tháng (30 hoặc 31 ngày)
+    /// Lưu Mục tiêu Doanh thu Quy đổi tháng và tự động chia đều cho số ngày thực tế của tháng hiện tại (28, 29, 30 hoặc 31 ngày)
     func luuMucTieuDoanhThuQDThang(_ mucTieu: Double, cho ngay: Date) {
         let kt = khoaThang(cho: ngay)
         let soNgay = Double(max(1, soNgayTrongThang(cho: ngay)))
@@ -795,6 +806,8 @@ final class KhoDuLieu {
                 cacNgay[k]?.doanhThu.targetQuyDoi = mucTieu
                 cacNgay[k]?.doanhThuRealtime.targetQuyDoi = targetMoiNgay
             }
+            cacNgay[k]?.doanhThuRealtime.phanTramHTQuyDoi = 0
+            cacNgay[k]?.doanhThuRealtime.duKienQuyDoi = 0
         }
 
         var dlHienTai = duLieu(cho: ngay)
@@ -802,12 +815,15 @@ final class KhoDuLieu {
             dlHienTai.doanhThu.targetQuyDoi = mucTieu
             dlHienTai.doanhThuRealtime.targetQuyDoi = targetMoiNgay
         }
+        dlHienTai.doanhThuRealtime.phanTramHTQuyDoi = 0
+        dlHienTai.doanhThuRealtime.duKienQuyDoi = 0
         cacNgay[dlHienTai.khoaNgay] = dlHienTai
         luuCaiDat(cd)
         DichVuDongBo.dungChung.dayDuLieuNgay(dlHienTai)
     }
 
-    /// Tính toán Dự báo Doanh thu QĐ cuối tháng, % HT QĐ dự kiến & % Quy đổi dự kiến dựa trên Doanh thu Realtime từng ngày
+    /// Tính toán Dự báo Doanh thu QĐ cuối tháng, % HT QĐ dự kiến & % Quy đổi dự kiến tự động từ Doanh thu Realtime các ngày đã nhập.
+    /// Ví dụ: Ngày 1 được 450, Ngày 2 được 500 -> Trung bình 475/ngày -> Nhân với số ngày thực tế của tháng để dự báo cuối tháng có đạt mục tiêu không.
     func tinhDuBaoQuyDoiTuRealtime(cho ngay: Date, cheDoDangXem: LoaiCheDoDoanhThu = .luyKe) -> DuBaoQuyDoiThang {
         let soNgay = max(1, soNgayTrongThang(cho: ngay))
         let mucTieuThang = mucTieuDoanhThuQDThang(cho: ngay)
@@ -815,10 +831,11 @@ final class KhoDuLieu {
 
         let khoaDen = TienIchNgay.khoa.string(from: ngay)
         let tatCaNgay = danhSachRealtimeTheoNgayTrongThang(cho: ngay)
-        let cacNgayCoRT = tatCaNgay.filter { $0.khoaNgay <= khoaDen && ($0.doanhThuQuyDoi > 0 || $0.doanhThuThuc > 0) }
+        let cacNgayCoRTDenNgay = tatCaNgay.filter { $0.khoaNgay <= khoaDen && ($0.doanhThuQuyDoi > 0 || $0.doanhThuThuc > 0) }
+        let cacNgayCoRTTrongThang = tatCaNgay.filter { $0.doanhThuQuyDoi > 0 || $0.doanhThuThuc > 0 }
+        let cacNgayCoRT = !cacNgayCoRTDenNgay.isEmpty ? cacNgayCoRTDenNgay : cacNgayCoRTTrongThang
 
         let dlNgayChon = duLieu(cho: ngay)
-        let rtNgayChon = dlNgayChon.doanhThuRealtime
 
         var soNgayTinh = cacNgayCoRT.count
         var tongQD = cacNgayCoRT.reduce(0.0) { $0 + $1.doanhThuQuyDoi }
@@ -827,21 +844,21 @@ final class KhoDuLieu {
         let tbQDMoiNgay: Double
         let tbThucMoiNgay: Double
 
-        if cheDoDangXem == .realtime, (rtNgayChon.doanhThuQuyDoi > 0 || rtNgayChon.doanhThuThuc > 0) {
-            tbQDMoiNgay = rtNgayChon.doanhThuQuyDoi
-            tbThucMoiNgay = rtNgayChon.doanhThuThuc
-            if soNgayTinh == 0 { soNgayTinh = 1 }
-        } else if soNgayTinh > 0 {
+        if soNgayTinh > 0 {
+            // Tự động cộng lũy kế các ngày Realtime đã nhập (VD: ngày 1 = 450, ngày 2 = 500 -> TB = 475/ngày)
             tbQDMoiNgay = tongQD / Double(soNgayTinh)
             tbThucMoiNgay = tongThuc / Double(soNgayTinh)
-        } else {
+        } else if cheDoDangXem == .luyKe {
             let lk = dlNgayChon.doanhThu
             let ngayDaQua = lk.soNgayDaQua > 0 ? lk.soNgayDaQua : max(1, TienIchNgay.lich.component(.day, from: ngay))
-            soNgayTinh = ngayDaQua
+            soNgayTinh = lk.coDuLieu ? ngayDaQua : 0
             tongQD = lk.doanhThuQuyDoi
             tongThuc = lk.doanhThuThuc
             tbQDMoiNgay = ngayDaQua > 0 ? (lk.doanhThuQuyDoi / Double(ngayDaQua)) : 0
             tbThucMoiNgay = ngayDaQua > 0 ? (lk.doanhThuThuc / Double(ngayDaQua)) : 0
+        } else {
+            tbQDMoiNgay = 0
+            tbThucMoiNgay = 0
         }
 
         let duKienQDCuoiThang = tbQDMoiNgay * Double(soNgay)
@@ -850,9 +867,12 @@ final class KhoDuLieu {
         let phanTramHTQDDuKien: Double
         if mucTieuThang > 0, duKienQDCuoiThang > 0 {
             phanTramHTQDDuKien = (duKienQDCuoiThang / mucTieuThang) * 100.0
+        } else if cheDoDangXem == .luyKe {
+            phanTramHTQDDuKien = dlNgayChon.doanhThu.phanTramHTQDDuKienHienThi
+        } else if dlNgayChon.doanhThuRealtime.targetQuyDoi > 0, tbQDMoiNgay > 0 {
+            phanTramHTQDDuKien = (tbQDMoiNgay / dlNgayChon.doanhThuRealtime.targetQuyDoi) * 100.0
         } else {
-            let dt = (cheDoDangXem == .luyKe) ? dlNgayChon.doanhThu : dlNgayChon.doanhThuRealtime
-            phanTramHTQDDuKien = dt.phanTramHTQDDuKienHienThi
+            phanTramHTQDDuKien = 0
         }
 
         let phanTramQDDuKien: Double
@@ -900,6 +920,8 @@ final class KhoDuLieu {
             if targetQDMoiNgay > 0 {
                 rt.targetQuyDoi = targetQDMoiNgay
             }
+            rt.phanTramHTQuyDoi = 0
+            rt.duKienQuyDoi = 0
             ketQua.append(
                 DuLieuRealtimeNgayTrongThang(
                     ngay: ngayD,
@@ -948,6 +970,8 @@ final class KhoDuLieu {
                 coSan.doanhThu.targetQuyDoi = mucTieuQDThang
                 coSan.doanhThuRealtime.targetQuyDoi = targetQDMoiNgay
             }
+            coSan.doanhThuRealtime.phanTramHTQuyDoi = 0
+            coSan.doanhThuRealtime.duKienQuyDoi = 0
             for i in coSan.danhSachThiDua.indices {
                 let goc = coSan.danhSachThiDua[i].tenNganhHangGoc
                 coSan.danhSachThiDua[i].tenNganhHang = KhoDuLieu.apDungLocTuCaiDat(goc)
@@ -995,6 +1019,17 @@ final class KhoDuLieu {
     func luu(_ duLieu: DuLieuNgayDMX) {
         var banLuu = duLieu
         let tienTo = String(banLuu.khoaNgay.prefix(7))
+        // Không lưu % HT QĐ dự kiến từ OCR cho Realtime để hệ thống luôn tự tính từ các ngày Realtime và mục tiêu tháng
+        banLuu.doanhThuRealtime.phanTramHTQuyDoi = 0
+        banLuu.doanhThuRealtime.duKienQuyDoi = 0
+        if let ngayD = TienIchNgay.khoa.date(from: banLuu.khoaNgay) {
+            let mtThang = mucTieuDoanhThuQDThang(cho: ngayD)
+            let soNgay = Double(max(1, soNgayTrongThang(cho: ngayD)))
+            if mtThang > 0 {
+                banLuu.doanhThuRealtime.targetQuyDoi = mtThang / soNgay
+            }
+        }
+
         for i in banLuu.danhSachThiDua.indices {
             let goc = banLuu.danhSachThiDua[i].tenNganhHangGoc
             banLuu.danhSachThiDua[i].tenNganhHang = Self.apDungLocTuCaiDat(goc)
@@ -1418,7 +1453,7 @@ final class KhoDuLieu {
     }
 
     static func chuanHoaMaNV(_ raw: String) -> String {
-        if let range = raw.range(of: "\\d{3,10}", options: .regularExpression) {
+        if let range = raw.range(of: "\\b\\d{3,10}\\b", options: .regularExpression) {
             return String(raw[range])
         }
         return raw.trimmingCharacters(in: .whitespacesAndNewlines)

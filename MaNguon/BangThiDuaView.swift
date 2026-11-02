@@ -149,11 +149,14 @@ final class TheDoanhThuView: UIControl {
 
 final class CumChiSoChinhView: UIControl {
     var khiDoiCheDoDoanhThu: ((LoaiCheDoDoanhThu) -> Void)?
+    var khiBamBieuDo: (() -> Void)?
     var khiBamVungThe: (() -> Void)?
 
     private var cheDoDoanhThu: LoaiCheDoDoanhThu = .luyKe
+    private var dangXemBieuDo: Bool = false
     private let nutLuyKe = UIButton(type: .custom)
     private let nutRealtime = UIButton(type: .custom)
+    private let nutBieuDo = UIButton(type: .custom)
 
     private let theDTThuc = TheDoanhThuView(
         tieuDe: "💵 DOANH THU THỰC",
@@ -213,22 +216,41 @@ final class CumChiSoChinhView: UIControl {
     private func taoGiaoDien() {
         nutLuyKe.tag = LoaiCheDoDoanhThu.luyKe.rawValue
         nutLuyKe.setTitle("📊 Doanh thu Lũy kế", for: .normal)
-        nutLuyKe.titleLabel?.font = .systemFont(ofSize: coLon ? 14 : 13, weight: .bold)
+        nutLuyKe.titleLabel?.font = .systemFont(ofSize: coLon ? 14 : 12, weight: .bold)
+        nutLuyKe.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutLuyKe.titleLabel?.minimumScaleFactor = 0.8
         nutLuyKe.layer.cornerRadius = 10
         nutLuyKe.layer.borderWidth = 1
         nutLuyKe.addTarget(self, action: #selector(bamChonCheDo(_:)), for: .touchUpInside)
 
         nutRealtime.tag = LoaiCheDoDoanhThu.realtime.rawValue
         nutRealtime.setTitle("⚡ Doanh thu Realtime", for: .normal)
-        nutRealtime.titleLabel?.font = .systemFont(ofSize: coLon ? 14 : 13, weight: .bold)
+        nutRealtime.titleLabel?.font = .systemFont(ofSize: coLon ? 14 : 12, weight: .bold)
+        nutRealtime.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutRealtime.titleLabel?.minimumScaleFactor = 0.8
         nutRealtime.layer.cornerRadius = 10
         nutRealtime.layer.borderWidth = 1
         nutRealtime.addTarget(self, action: #selector(bamChonCheDo(_:)), for: .touchUpInside)
 
-        let hangHaiNut = UIStackView(arrangedSubviews: [nutLuyKe, nutRealtime])
-        hangHaiNut.axis = .horizontal
-        hangHaiNut.spacing = 6
-        hangHaiNut.distribution = .fillEqually
+        // Yêu cầu 3: Đưa nút Realtime tháng lên cùng hàng với Doanh thu Lũy kế, Doanh thu Realtime và đổi tên thành Biểu đồ
+        nutBieuDo.setTitle("📈 Biểu đồ", for: .normal)
+        nutBieuDo.titleLabel?.font = .systemFont(ofSize: coLon ? 14 : 12, weight: .bold)
+        nutBieuDo.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutBieuDo.titleLabel?.minimumScaleFactor = 0.8
+        nutBieuDo.layer.cornerRadius = 10
+        nutBieuDo.layer.borderWidth = 1
+        nutBieuDo.isHidden = coLon
+        nutBieuDo.addTarget(self, action: #selector(bamNutBieuDo), for: .touchUpInside)
+
+        let cacNutTren: [UIView] = coLon ? [nutLuyKe, nutRealtime] : [nutLuyKe, nutRealtime, nutBieuDo]
+        let hangBaNut = UIStackView(arrangedSubviews: cacNutTren)
+        hangBaNut.axis = .horizontal
+        hangBaNut.spacing = 6
+        hangBaNut.distribution = .fillProportionally
+        if !coLon {
+            nutLuyKe.widthAnchor.constraint(equalTo: nutRealtime.widthAnchor).isActive = true
+            nutBieuDo.widthAnchor.constraint(equalTo: nutLuyKe.widthAnchor, multiplier: 0.72).isActive = true
+        }
 
         let tatCaThe = [theDTThuc, theDTQD, theTraGop, theLuotKhach, theHTQDDuKien, thePhanTramQD, theThiDuaHT, theTangGiam]
         tatCaThe.forEach { $0.isUserInteractionEnabled = false }
@@ -255,7 +277,7 @@ final class CumChiSoChinhView: UIControl {
         let tapLuoiThe = UITapGestureRecognizer(target: self, action: #selector(bamVaoLuoiThe))
         luoiThe.addGestureRecognizer(tapLuoiThe)
 
-        let nganChinh = UIStackView(arrangedSubviews: [hangHaiNut, luoiThe])
+        let nganChinh = UIStackView(arrangedSubviews: [hangBaNut, luoiThe])
         nganChinh.axis = .vertical
         nganChinh.spacing = coLon ? 8 : 6
         nganChinh.isUserInteractionEnabled = true
@@ -263,7 +285,7 @@ final class CumChiSoChinhView: UIControl {
         addSubview(nganChinh)
 
         NSLayoutConstraint.activate([
-            hangHaiNut.heightAnchor.constraint(equalToConstant: coLon ? 38 : 34),
+            hangBaNut.heightAnchor.constraint(equalToConstant: coLon ? 38 : 34),
             nganChinh.topAnchor.constraint(equalTo: topAnchor),
             nganChinh.leadingAnchor.constraint(equalTo: leadingAnchor),
             nganChinh.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -274,10 +296,18 @@ final class CumChiSoChinhView: UIControl {
     }
 
     @objc private func bamChonCheDo(_ sender: UIButton) {
-        guard let moi = LoaiCheDoDoanhThu(rawValue: sender.tag), moi != cheDoDoanhThu else { return }
+        guard let moi = LoaiCheDoDoanhThu(rawValue: sender.tag) else { return }
+        if moi == cheDoDoanhThu && !dangXemBieuDo { return }
         cheDoDoanhThu = moi
+        dangXemBieuDo = false
         capNhatMauNutCheDo()
         khiDoiCheDoDoanhThu?(moi)
+    }
+
+    @objc private func bamNutBieuDo() {
+        dangXemBieuDo = true
+        capNhatMauNutCheDo()
+        khiBamBieuDo?()
     }
 
     @objc private func bamVaoLuoiThe() {
@@ -290,20 +320,37 @@ final class CumChiSoChinhView: UIControl {
 
     private func capNhatMauNutCheDo() {
         for (nut, loai) in [(nutLuyKe, LoaiCheDoDoanhThu.luyKe), (nutRealtime, LoaiCheDoDoanhThu.realtime)] {
-            if cheDoDoanhThu == loai {
+            if !dangXemBieuDo && cheDoDoanhThu == loai {
                 nut.backgroundColor = .systemBlue
                 nut.setTitleColor(.white, for: .normal)
                 nut.layer.borderColor = UIColor.systemBlue.cgColor
             } else {
-                nut.backgroundColor = .secondarySystemGroupedBackground
+                nut.backgroundColor = .systemBackground
                 nut.setTitleColor(.label, for: .normal)
                 nut.layer.borderColor = UIColor.separator.cgColor
             }
         }
+        if dangXemBieuDo {
+            nutBieuDo.backgroundColor = .systemBlue
+            nutBieuDo.setTitleColor(.white, for: .normal)
+            nutBieuDo.layer.borderColor = UIColor.systemBlue.cgColor
+        } else {
+            nutBieuDo.backgroundColor = .systemBackground
+            nutBieuDo.setTitleColor(.label, for: .normal)
+            nutBieuDo.layer.borderColor = UIColor.separator.cgColor
+        }
     }
 
-    func capNhat(doanhThu dt: ThongTinDoanhThu, soNganhDat: Int, tongSoNganh: Int, ngay: Date = Date(), cheDo: LoaiCheDoDoanhThu = .luyKe) {
+    func capNhat(
+        doanhThu dt: ThongTinDoanhThu,
+        soNganhDat: Int,
+        tongSoNganh: Int,
+        ngay: Date = Date(),
+        cheDo: LoaiCheDoDoanhThu = .luyKe,
+        dangXemBieuDo: Bool = false
+    ) {
         self.cheDoDoanhThu = cheDo
+        self.dangXemBieuDo = dangXemBieuDo
         capNhatMauNutCheDo()
 
         let duBaoQD = KhoDuLieu.dungChung.tinhDuBaoQuyDoiTuRealtime(cho: ngay, cheDoDangXem: cheDo)
@@ -346,21 +393,31 @@ final class CumChiSoChinhView: UIControl {
             coLon: coLon
         )
 
-        let dkQDCuoiThang = duBaoQD.duKienQDCuoiThang > 0
-            ? duBaoQD.duKienQDCuoiThang
-            : (dt.duKienQuyDoi > 0 ? dt.duKienQuyDoi : dt.duKienThuc)
-        let ptHTQDDuKien = duBaoQD.phanTramHTQDDuKien > 0
-            ? duBaoQD.phanTramHTQDDuKien
-            : dt.phanTramHTQDDuKienHienThi
+        // Yêu cầu 1: Với Realtime, không lấy con số % HT QĐ dự kiến từ ảnh mà tự tính từ TB các ngày Realtime × số ngày trong tháng so với Mục tiêu tháng
+        let dkQDCuoiThang: Double
+        let ptHTQDDuKien: Double
+        if cheDo == .realtime {
+            dkQDCuoiThang = duBaoQD.duKienQDCuoiThang
+            ptHTQDDuKien = duBaoQD.phanTramHTQDDuKien
+        } else {
+            dkQDCuoiThang = duBaoQD.duKienQDCuoiThang > 0
+                ? duBaoQD.duKienQDCuoiThang
+                : (dt.duKienQuyDoi > 0 ? dt.duKienQuyDoi : dt.duKienThuc)
+            ptHTQDDuKien = duBaoQD.phanTramHTQDDuKien > 0
+                ? duBaoQD.phanTramHTQDDuKien
+                : dt.phanTramHTQDDuKienHienThi
+        }
 
         let trangThaiDK: String
         if duBaoQD.mucTieuThang > 0 && dkQDCuoiThang > 0 {
             let chenh = dkQDCuoiThang - duBaoQD.mucTieuThang
-            trangThaiDK = chenh >= 0
-                ? "DK: \(dkQDCuoiThang.chuoiSoVN) (ĐẠT +\(chenh.chuoiSoGonVN))"
-                : "DK: \(dkQDCuoiThang.chuoiSoVN) (THIẾU \(abs(chenh).chuoiSoGonVN))"
+            trangThaiDK = chenh >= -0.005
+                ? "ĐẠT MT (DK: \(dkQDCuoiThang.chuoiSoGonVN))"
+                : "CHƯA ĐẠT (DK: \(dkQDCuoiThang.chuoiSoGonVN))"
         } else if duBaoQD.mucTieuThang > 0 {
             trangThaiDK = "MT: \(duBaoQD.mucTieuThang.chuoiSoGonVN) (\(duBaoQD.mucTieuMoiNgay.chuoiSoGonVN)/ngày)"
+        } else if cheDo == .realtime {
+            trangThaiDK = "Đặt MT tháng ở Cài đặt"
         } else {
             trangThaiDK = "DTQĐ DK: \(dkQDCuoiThang.chuoiSoVN)"
         }
@@ -1304,7 +1361,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
 }
 
 
-// MARK: - 4. Màn hình / Khung Tổng Hợp Realtime Theo Tháng (Nút Dự phòng 2 -> Realtime tháng)
+// MARK: - 4. Màn hình / Khung Tổng Hợp Biểu Đồ Realtime Theo Tháng (Nút Biểu đồ)
 // Bao gồm:
 // 1. Hai thẻ Doanh thu Lũy kế Thực & Quy đổi (cố định trong tháng, nhập ngày mới tự thay thế ngày hôm trước)
 // 2. Đồ thị cột (Grouped Bar Chart) Doanh thu Thực & Doanh thu Quy đổi theo từng ngày trong tháng
@@ -1417,7 +1474,6 @@ private final class VeBieuDoCotRealtimeView: UIView {
             let xTam = leTrai + CGFloat(i) * chieuRongMoiNgay + chieuRongMoiNgay / 2
             let yDay = leTren + caoVe
 
-            // Tô nền nhẹ nếu là ngày đang chọn
             if item.ngayTrongThang == ngayDangChon {
                 let khungChon = CGRect(
                     x: xTam - chieuRongMoiNgay / 2 + 2,
@@ -1475,7 +1531,6 @@ private final class VeBieuDoCotRealtimeView: UIView {
                 )
             }
 
-            // Nhãn ngày dưới trục X
             let chuNgay = String(format: "%02d/%02d", item.ngayTrongThang, TienIchNgay.lich.component(.month, from: item.ngay))
             let laChon = (item.ngayTrongThang == ngayDangChon)
             let attrNgay: [NSAttributedString.Key: Any] = [
@@ -1614,7 +1669,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         khungBieuDo.layer.cornerRadius = 12
 
         let lbTieuDeBD = UILabel()
-        lbTieuDeBD.text = "📊 ĐỒ THỊ CỘT DOANH THU THỰC & QUY ĐỔI THEO NGÀY"
+        lbTieuDeBD.text = "📊 BIỂU ĐỒ DOANH THU THỰC & QUY ĐỔI THEO NGÀY"
         lbTieuDeBD.font = .systemFont(ofSize: 12, weight: .bold)
         lbTieuDeBD.textColor = .label
         lbTieuDeBD.numberOfLines = 2
@@ -1774,13 +1829,13 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         let tongRTThuc = dsCoSo.reduce(0.0) { $0 + $1.doanhThuThuc }
         let tongRTQD = dsCoSo.reduce(0.0) { $0 + $1.doanhThuQuyDoi }
-        let duBao = KhoDuLieu.dungChung.tinhDuBaoQuyDoiTuRealtime(cho: ngayHienTai, cheDoDangXem: .luyKe)
+        let duBao = KhoDuLieu.dungChung.tinhDuBaoQuyDoiTuRealtime(cho: ngayHienTai, cheDoDangXem: .realtime)
         nhanTomTatRT.numberOfLines = 0
         if duBao.mucTieuThang > 0 {
             let kq = duBao.daHoanThanhDuKien ? "✅ ĐẠT MỤC TIÊU" : "⚠️ CHƯA ĐẠT"
-            nhanTomTatRT.text = "🟦 DT Thực (\(dsCoSo.count) ngày): \(tongRTThuc.chuoiSoVN)  •  🟩 DT QĐ: \(tongRTQD.chuoiSoVN)\n🎯 Mục tiêu QĐ tháng (\(duBao.soNgayTrongThang) ngày): \(duBao.mucTieuThang.chuoiSoVN) → \(duBao.mucTieuMoiNgay.chuoiSoVN)/ngày  •  DK cuối tháng: \(duBao.duKienQDCuoiThang.chuoiSoVN) (\(duBao.phanTramHTQDDuKien.chuoiPhanTramVN) - \(kq))  •  % QĐ DK: \(duBao.phanTramQuyDoiDuKien.chuoiPhanTramVN)"
+            nhanTomTatRT.text = "🟦 DT Thực (\(dsCoSo.count) ngày): \(tongRTThuc.chuoiSoVN)  •  🟩 DT QĐ: \(tongRTQD.chuoiSoVN) (TB \(duBao.trungBinhQDMoiNgay.chuoiSoVN)/ngày)\n🎯 MT QĐ tháng (\(duBao.soNgayTrongThang) ngày): \(duBao.mucTieuThang.chuoiSoVN) → \(duBao.mucTieuMoiNgay.chuoiSoVN)/ngày  •  DK cuối tháng: \(duBao.duKienQDCuoiThang.chuoiSoVN) (\(duBao.phanTramHTQDDuKien.chuoiPhanTramVN) - \(kq))"
         } else {
-            nhanTomTatRT.text = "🟦 Cột xanh dương: DT Thực (Tổng \(dsCoSo.count) ngày: \(tongRTThuc.chuoiSoVN))   •   🟩 Cột xanh lá: DT Quy đổi (Tổng: \(tongRTQD.chuoiSoVN))\n💡 Bấm \"🎯 Mục tiêu QĐ tháng\" để chia cho \(duBao.soNgayTrongThang) ngày và tính % HT QĐ dự kiến cuối tháng."
+            nhanTomTatRT.text = "🟦 Cột xanh dương: DT Thực (Tổng \(dsCoSo.count) ngày: \(tongRTThuc.chuoiSoVN))   •   🟩 Cột xanh lá: DT Quy đổi (Tổng: \(tongRTQD.chuoiSoVN))\n💡 Bấm \"🎯 Mục tiêu QĐ tháng\" (hoặc vào Cài đặt) để chia cho \(duBao.soNgayTrongThang) ngày và tính % HT QĐ dự kiến cuối tháng."
         }
 
         veBieuDo.ngayDangChon = ngayChon
@@ -1923,7 +1978,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         khung.addSubview(lbPhu)
 
         let lbChinh = UILabel(frame: CGRect(x: le, y: le + 20, width: rongBieuDo, height: 28))
-        lbChinh.text = "📊 BẢNG TỔNG HỢP REALTIME & DOANH THU LŨY KẾ THÁNG \(String(format: "%02d/%04d", thang, nam))"
+        lbChinh.text = "📊 BIỂU ĐỒ & TỔNG HỢP REALTIME THÁNG \(String(format: "%02d/%04d", thang, nam))"
         lbChinh.font = .systemFont(ofSize: 19, weight: .heavy)
         lbChinh.textColor = .black
         khung.addSubview(lbChinh)
@@ -1970,7 +2025,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         hopBD.layer.borderColor = UIColor.systemGray4.cgColor
 
         let lbLegend = UILabel(frame: CGRect(x: 12, y: 8, width: rongBieuDo - 24, height: 18))
-        lbLegend.text = "ĐỒ THỊ CỘT REALTIME THEO NGÀY:   🟦 Doanh thu Thực     🟩 Doanh thu Quy đổi"
+        lbLegend.text = "BIỂU ĐỒ CỘT REALTIME THEO NGÀY:   🟦 Doanh thu Thực     🟩 Doanh thu Quy đổi"
         lbLegend.font = .systemFont(ofSize: 12, weight: .bold)
         lbLegend.textColor = .black
         hopBD.addSubview(lbLegend)

@@ -2,6 +2,8 @@ import UIKit
 
 final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
     private let ngay: Date
+    private let oNhapMucTieuQDThang = UITextField()
+    private let nhanChiTietMucTieuThang = UILabel()
     private let chonKieuHienThi = UISegmentedControl(items: ["Bảng 8 cột (Chi tiết)", "Thẻ tiến độ (Gọn)"])
     private let chonSoCotXuat = UISegmentedControl(items: ["1 cột", "2 cột", "3 cột", "4 cột"])
     private let nutChiaTarget = UIButton(type: .system)
@@ -45,13 +47,20 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let chiSoCot = max(0, min(3, cd.soCotXuatAnh - 1))
         chonSoCotXuat.selectedSegmentIndex = chiSoCot
 
+        let mtHienTai = KhoDuLieu.dungChung.mucTieuDoanhThuQDThang(cho: ngay)
+        if mtHienTai > 0 {
+            oNhapMucTieuQDThang.text = String(format: "%.2f", mtHienTai).replacingOccurrences(of: ".00", with: "")
+        }
+
         taoGiaoDien()
         capNhatTieuDeNutNhanVien()
+        capNhatThongTinChiaMucTieuThang()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         capNhatTieuDeNutNhanVien()
+        capNhatThongTinChiaMucTieuThang()
     }
 
     private func capNhatTieuDeNutNhanVien() {
@@ -59,6 +68,52 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let soMH = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay).count
         nutChiaTarget.setTitle("🎯 1. Chia Target mặt hàng (\(soMH) mặt hàng) ▸", for: .normal)
         nutQuanLyNV.setTitle("👥 2. Danh sách nhân viên quản lý (\(cd.danhSachNhanVien.count) NV) ▸", for: .normal)
+    }
+
+    private func docSoMucTieuTuO() -> Double {
+        let raw = (oNhapMucTieuQDThang.text ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: " ", with: "")
+        guard !raw.isEmpty else { return 0 }
+        let chuan = raw.replacingOccurrences(of: ",", with: ".")
+        return Double(chuan) ?? 0
+    }
+
+    @objc private func khiThayDoiMucTieuThang() {
+        capNhatThongTinChiaMucTieuThang()
+    }
+
+    private func capNhatThongTinChiaMucTieuThang() {
+        let soNgay = KhoDuLieu.dungChung.soNgayTrongThang(cho: ngay)
+        let thang = TienIchNgay.lich.component(.month, from: ngay)
+        let nam = TienIchNgay.lich.component(.year, from: ngay)
+        let mucTieu = docSoMucTieuTuO()
+
+        if mucTieu > 0 {
+            let moiNgay = mucTieu / Double(max(1, soNgay))
+            let duBao = KhoDuLieu.dungChung.tinhDuBaoQuyDoiTuRealtime(cho: ngay, cheDoDangXem: .realtime)
+            var chuoi = "📅 Tháng \(String(format: "%02d/%04d", thang, nam)) có \(soNgay) ngày thực tế  →  Tự chia: \(moiNgay.chuoiSoVN) / ngày."
+            if duBao.soNgayCoRealtime > 0 {
+                let dkCuoiThang = duBao.trungBinhQDMoiNgay * Double(soNgay)
+                let ptDK = (dkCuoiThang / mucTieu) * 100.0
+                let kq = ptDK >= 99.995 ? "✅ ĐẠT MỤC TIÊU" : "⚠️ CHƯA ĐẠT"
+                chuoi += "\n📊 Đã nhập \(duBao.soNgayCoRealtime) ngày RT (TB \(duBao.trungBinhQDMoiNgay.chuoiSoVN)/ngày) → Cuối tháng dự kiến: \(dkCuoiThang.chuoiSoVN) (\(ptDK.chuoiPhanTramVN) - \(kq))"
+            } else {
+                chuoi += "\n💡 Khi nhập 2 ảnh Realtime mỗi ngày, app sẽ tự lấy TB các ngày × \(soNgay) ngày để tính % HT QĐ dự kiến cuối tháng."
+            }
+            nhanChiTietMucTieuThang.text = chuoi
+            nhanChiTietMucTieuThang.textColor = UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
+        } else {
+            nhanChiTietMucTieuThang.text = "📅 Tháng \(String(format: "%02d/%04d", thang, nam)) có \(soNgay) ngày thực tế.\nNhập mục tiêu DT quy đổi tháng để app tự chia cho \(soNgay) ngày và tự tính % HT QĐ dự kiến cuối tháng từ các ngày Realtime."
+            nhanChiTietMucTieuThang.textColor = .secondaryLabel
+        }
+    }
+
+    @objc private func bamApDungMucTieuThang() {
+        oNhapMucTieuQDThang.resignFirstResponder()
+        let mucTieu = docSoMucTieuTuO()
+        KhoDuLieu.dungChung.luuMucTieuDoanhThuQDThang(mucTieu, cho: ngay)
+        capNhatThongTinChiaMucTieuThang()
     }
 
     @objc private func moQuanLyTaiKhoan() {
@@ -89,6 +144,9 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             }
             oNhapCumTu.text = ""
         }
+        let mucTieuThang = docSoMucTieuTuO()
+        KhoDuLieu.dungChung.luuMucTieuDoanhThuQDThang(mucTieuThang, cho: ngay)
+
         let kieu = KieuHienThiBaoCao(rawValue: chonKieuHienThi.selectedSegmentIndex) ?? .bangChiTiet
         let soCot = chonSoCotXuat.selectedSegmentIndex + 1
         var moi = KhoDuLieu.dungChung.caiDat
@@ -109,6 +167,59 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     }
 
     private func taoGiaoDien() {
+        let cuon = UIScrollView()
+        cuon.alwaysBounceVertical = true
+        cuon.keyboardDismissMode = .interactive
+        cuon.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(cuon)
+
+        let nganTong = UIStackView()
+        nganTong.axis = .vertical
+        nganTong.spacing = 10
+        nganTong.translatesAutoresizingMaskIntoConstraints = false
+        cuon.addSubview(nganTong)
+
+        // Khối 0: Mục tiêu Doanh thu Quy đổi Tháng (Tự chia theo số ngày thực tế của tháng hiện tại)
+        let thang = TienIchNgay.lich.component(.month, from: ngay)
+        let nam = TienIchNgay.lich.component(.year, from: ngay)
+        let soNgayThang = KhoDuLieu.dungChung.soNgayTrongThang(cho: ngay)
+        let tieuDeMucTieu = taoTieuDeNhom("🎯 DOANH THU QUY ĐỔI MỤC TIÊU THÁNG \(String(format: "%02d/%04d", thang, nam)) (\(soNgayThang) NGÀY)")
+        let khungMucTieu = UIView()
+        khungMucTieu.backgroundColor = .secondarySystemGroupedBackground
+        khungMucTieu.layer.cornerRadius = 12
+        khungMucTieu.layer.borderWidth = 1
+        khungMucTieu.layer.borderColor = UIColor.systemGreen.withAlphaComponent(0.35).cgColor
+
+        oNhapMucTieuQDThang.placeholder = "Nhập mục tiêu DT quy đổi tháng (VD: 15000)..."
+        oNhapMucTieuQDThang.borderStyle = .roundedRect
+        oNhapMucTieuQDThang.font = .systemFont(ofSize: 15, weight: .bold)
+        oNhapMucTieuQDThang.keyboardType = .decimalPad
+        oNhapMucTieuQDThang.clearButtonMode = .whileEditing
+        oNhapMucTieuQDThang.addTarget(self, action: #selector(khiThayDoiMucTieuThang), for: .editingChanged)
+
+        let nutLuuMT = UIButton(type: .system)
+        nutLuuMT.setTitle(" Áp dụng ", for: .normal)
+        nutLuuMT.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutLuuMT.backgroundColor = UIColor(red: 0.09, green: 0.61, blue: 0.27, alpha: 1)
+        nutLuuMT.tintColor = .white
+        nutLuuMT.layer.cornerRadius = 8
+        nutLuuMT.contentEdgeInsets = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+        nutLuuMT.setContentHuggingPriority(.required, for: .horizontal)
+        nutLuuMT.addTarget(self, action: #selector(bamApDungMucTieuThang), for: .touchUpInside)
+
+        let hangNhapMT = UIStackView(arrangedSubviews: [oNhapMucTieuQDThang, nutLuuMT])
+        hangNhapMT.axis = .horizontal
+        hangNhapMT.spacing = 8
+
+        nhanChiTietMucTieuThang.font = .systemFont(ofSize: 12.5, weight: .semibold)
+        nhanChiTietMucTieuThang.numberOfLines = 0
+
+        let nganMT = UIStackView(arrangedSubviews: [hangNhapMT, nhanChiTietMucTieuThang])
+        nganMT.axis = .vertical
+        nganMT.spacing = 6
+        nganMT.translatesAutoresizingMaskIntoConstraints = false
+        khungMucTieu.addSubview(nganMT)
+
         // Khối 1 & 2: Chia Target mặt hàng & Quản lý danh sách nhân viên
         let tieuDeNV = taoTieuDeNhom("1 & 2. CHIA TARGET MẶT HÀNG & QUẢN LÝ NHÂN VIÊN")
         let khungNV = UIView()
@@ -200,46 +311,36 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             khungLoc.addSubview($0)
         }
 
-        [tieuDeNV, khungNV, tieuDeKieu, khungKieu, tieuDeLoc, khungLoc].forEach {
-            $0.translatesAutoresizingMaskIntoConstraints = false
-            view.addSubview($0)
+        [tieuDeMucTieu, khungMucTieu, tieuDeNV, khungNV, tieuDeKieu, khungKieu, tieuDeLoc, khungLoc].forEach {
+            nganTong.addArrangedSubview($0)
         }
 
         NSLayoutConstraint.activate([
-            tieuDeNV.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
-            tieuDeNV.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            tieuDeNV.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            cuon.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            cuon.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            cuon.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            cuon.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
 
-            khungNV.topAnchor.constraint(equalTo: tieuDeNV.bottomAnchor, constant: 6),
-            khungNV.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            khungNV.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
+            nganTong.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 10),
+            nganTong.leadingAnchor.constraint(equalTo: cuon.contentLayoutGuide.leadingAnchor, constant: 14),
+            nganTong.trailingAnchor.constraint(equalTo: cuon.contentLayoutGuide.trailingAnchor, constant: -14),
+            nganTong.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -16),
+            nganTong.widthAnchor.constraint(equalTo: cuon.frameLayoutGuide.widthAnchor, constant: -28),
+
+            nganMT.topAnchor.constraint(equalTo: khungMucTieu.topAnchor, constant: 10),
+            nganMT.leadingAnchor.constraint(equalTo: khungMucTieu.leadingAnchor, constant: 12),
+            nganMT.trailingAnchor.constraint(equalTo: khungMucTieu.trailingAnchor, constant: -12),
+            nganMT.bottomAnchor.constraint(equalTo: khungMucTieu.bottomAnchor, constant: -10),
 
             nganNV.topAnchor.constraint(equalTo: khungNV.topAnchor, constant: 10),
             nganNV.leadingAnchor.constraint(equalTo: khungNV.leadingAnchor, constant: 10),
             nganNV.trailingAnchor.constraint(equalTo: khungNV.trailingAnchor, constant: -10),
             nganNV.bottomAnchor.constraint(equalTo: khungNV.bottomAnchor, constant: -10),
 
-            tieuDeKieu.topAnchor.constraint(equalTo: khungNV.bottomAnchor, constant: 12),
-            tieuDeKieu.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            tieuDeKieu.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-
-            khungKieu.topAnchor.constraint(equalTo: tieuDeKieu.bottomAnchor, constant: 6),
-            khungKieu.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            khungKieu.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
-
             nganKieu.topAnchor.constraint(equalTo: khungKieu.topAnchor, constant: 10),
             nganKieu.leadingAnchor.constraint(equalTo: khungKieu.leadingAnchor, constant: 12),
             nganKieu.trailingAnchor.constraint(equalTo: khungKieu.trailingAnchor, constant: -12),
             nganKieu.bottomAnchor.constraint(equalTo: khungKieu.bottomAnchor, constant: -10),
-
-            tieuDeLoc.topAnchor.constraint(equalTo: khungKieu.bottomAnchor, constant: 12),
-            tieuDeLoc.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            tieuDeLoc.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-
-            khungLoc.topAnchor.constraint(equalTo: tieuDeLoc.bottomAnchor, constant: 6),
-            khungLoc.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            khungLoc.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
-            khungLoc.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
 
             hangNhap.topAnchor.constraint(equalTo: khungLoc.topAnchor, constant: 10),
             hangNhap.leadingAnchor.constraint(equalTo: khungLoc.leadingAnchor, constant: 12),
@@ -253,7 +354,8 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             bangCumTu.topAnchor.constraint(equalTo: vachNgan.bottomAnchor),
             bangCumTu.leadingAnchor.constraint(equalTo: khungLoc.leadingAnchor),
             bangCumTu.trailingAnchor.constraint(equalTo: khungLoc.trailingAnchor),
-            bangCumTu.bottomAnchor.constraint(equalTo: khungLoc.bottomAnchor)
+            bangCumTu.bottomAnchor.constraint(equalTo: khungLoc.bottomAnchor),
+            bangCumTu.heightAnchor.constraint(equalToConstant: 210)
         ])
     }
 
@@ -268,6 +370,10 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        if textField == oNhapMucTieuQDThang {
+            bamApDungMucTieuThang()
+            return true
+        }
         bamThemCumTu()
         textField.resignFirstResponder()
         return true
