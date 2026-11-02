@@ -1772,17 +1772,15 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             danhSachBieuDo = tatCaNgayTrongThang
         }
 
-                let tongRTThuc = dsCoSo.reduce(0.0) { $0 + $1.doanhThuThuc }
+        let tongRTThuc = dsCoSo.reduce(0.0) { $0 + $1.doanhThuThuc }
         let tongRTQD = dsCoSo.reduce(0.0) { $0 + $1.doanhThuQuyDoi }
         let duBao = KhoDuLieu.dungChung.tinhDuBaoQuyDoiTuRealtime(cho: ngayHienTai, cheDoDangXem: .luyKe)
         nhanTomTatRT.numberOfLines = 0
         if duBao.mucTieuThang > 0 {
             let kq = duBao.daHoanThanhDuKien ? "✅ ĐẠT MỤC TIÊU" : "⚠️ CHƯA ĐẠT"
-            nhanTomTatRT.text = "🟦 DT Thực (\(dsCoSo.count) ngày): \(tongRTThuc.chuoiSoVN)  •  🟩 DT QĐ: \(tongRTQD.chuoiSoVN)
-🎯 Mục tiêu QĐ tháng (\(duBao.soNgayTrongThang) ngày): \(duBao.mucTieuThang.chuoiSoVN) → \(duBao.mucTieuMoiNgay.chuoiSoVN)/ngày  •  DK cuối tháng: \(duBao.duKienQDCuoiThang.chuoiSoVN) (\(duBao.phanTramHTQDDuKien.chuoiPhanTramVN) - \(kq))  •  % QĐ DK: \(duBao.phanTramQuyDoiDuKien.chuoiPhanTramVN)"
+            nhanTomTatRT.text = "🟦 DT Thực (\(dsCoSo.count) ngày): \(tongRTThuc.chuoiSoVN)  •  🟩 DT QĐ: \(tongRTQD.chuoiSoVN)\n🎯 Mục tiêu QĐ tháng (\(duBao.soNgayTrongThang) ngày): \(duBao.mucTieuThang.chuoiSoVN) → \(duBao.mucTieuMoiNgay.chuoiSoVN)/ngày  •  DK cuối tháng: \(duBao.duKienQDCuoiThang.chuoiSoVN) (\(duBao.phanTramHTQDDuKien.chuoiPhanTramVN) - \(kq))  •  % QĐ DK: \(duBao.phanTramQuyDoiDuKien.chuoiPhanTramVN)"
         } else {
-            nhanTomTatRT.text = "🟦 Cột xanh dương: DT Thực (Tổng \(dsCoSo.count) ngày: \(tongRTThuc.chuoiSoVN))   •   🟩 Cột xanh lá: DT Quy đổi (Tổng: \(tongRTQD.chuoiSoVN))
-💡 Bấm "🎯 Mục tiêu QĐ tháng" để chia cho \(duBao.soNgayTrongThang) ngày và tính % HT QĐ dự kiến cuối tháng."
+            nhanTomTatRT.text = "🟦 Cột xanh dương: DT Thực (Tổng \(dsCoSo.count) ngày: \(tongRTThuc.chuoiSoVN))   •   🟩 Cột xanh lá: DT Quy đổi (Tổng: \(tongRTQD.chuoiSoVN))\n💡 Bấm \"🎯 Mục tiêu QĐ tháng\" để chia cho \(duBao.soNgayTrongThang) ngày và tính % HT QĐ dự kiến cuối tháng."
         }
 
         veBieuDo.ngayDangChon = ngayChon

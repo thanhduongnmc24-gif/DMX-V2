@@ -828,16 +828,13 @@ final class KhoDuLieu {
         let tbThucMoiNgay: Double
 
         if cheDoDangXem == .realtime, (rtNgayChon.doanhThuQuyDoi > 0 || rtNgayChon.doanhThuThuc > 0) {
-            // Ở tab Realtime của ngày đang chọn: tính theo nhịp độ Realtime của ngày đó (hoặc trung bình các ngày nếu xem ở Lũy kế)
             tbQDMoiNgay = rtNgayChon.doanhThuQuyDoi
             tbThucMoiNgay = rtNgayChon.doanhThuThuc
             if soNgayTinh == 0 { soNgayTinh = 1 }
         } else if soNgayTinh > 0 {
-            // Tính trung bình từ các ngày đã có số liệu Realtime trong tháng
             tbQDMoiNgay = tongQD / Double(soNgayTinh)
             tbThucMoiNgay = tongThuc / Double(soNgayTinh)
         } else {
-            // Dự phòng khi chưa có ngày Realtime nào nhưng đã có Lũy kế tháng
             let lk = dlNgayChon.doanhThu
             let ngayDaQua = lk.soNgayDaQua > 0 ? lk.soNgayDaQua : max(1, TienIchNgay.lich.component(.day, from: ngay))
             soNgayTinh = ngayDaQua
