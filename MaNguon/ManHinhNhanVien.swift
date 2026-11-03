@@ -388,7 +388,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         let rongTen = max(100, tableView.bounds.width - 230)
         let fontTen = UIFont.systemFont(ofSize: 12, weight: .bold)
         let rect = (chuoiTen as NSString).boundingRect(
-            with: CGSize(width: rongTen, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTen],
             context: nil
@@ -620,7 +620,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         let fontTen = UIFont.systemFont(ofSize: 12.5, weight: .bold)
 
         let caoTenNganh = max(26, ceil((dong.tenNganhHang as NSString).boundingRect(
-            with: CGSize(width: rong - le * 2 - 280, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rong - le * 2 - 280, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTieuDe],
             context: nil
@@ -630,7 +630,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         let cacCaoDong: [CGFloat] = danhSachXepHang.map { item in
             let chuoiTen = "\(item.hoTen) - \(item.maNV)"
             let rect = (chuoiTen as NSString).boundingRect(
-                with: CGSize(width: 340, height: .greatestFiniteMagnitude),
+                with: CGSize(width: CGFloat(340), height: CGFloat.greatestFiniteMagnitude),
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
                 attributes: [.font: fontTen],
                 context: nil
@@ -936,14 +936,14 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         let fontTen = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let fontMa = UIFont.systemFont(ofSize: 12.0, weight: .medium)
         let rectTen = (row.nhanVien.hoTen as NSString).boundingRect(
-            with: CGSize(width: rongTen, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTen],
             context: nil
         )
         let chuoiMa = "Mã NV: \(row.nhanVien.maNV)"
         let rectMa = (chuoiMa as NSString).boundingRect(
-            with: CGSize(width: rongTen, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontMa],
             context: nil
@@ -1023,7 +1023,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
             case 1:
                 let rongTen = w - 16
                 let rectTen = (row.nhanVien.hoTen as NSString).boundingRect(
-                    with: CGSize(width: rongTen, height: .greatestFiniteMagnitude),
+                    with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
                     options: [.usesLineFragmentOrigin, .usesFontLeading],
                     attributes: [.font: fontChuDongNhat],
                     context: nil
@@ -1157,7 +1157,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         let chuPhu = "\(donVi)  •  \(cheDoXuat.tieuDe.uppercased())  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
         let fontPhu = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let caoPhu = max(20, ceil((chuPhu as NSString).boundingRect(
-            with: CGSize(width: rongBang, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongBang, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontPhu],
             context: nil
@@ -1166,7 +1166,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         let chuChinh = "🏆 BẢNG XẾP HẠNG NHÂN VIÊN - \(cheDoXuat.tieuDe.uppercased()) (\(ds.count) NV • \(soMonThang) MÔN)"
         let fontChinh = UIFont.systemFont(ofSize: 18.5, weight: .heavy)
         let caoChinh = max(28, ceil((chuChinh as NSString).boundingRect(
-            with: CGSize(width: rongBang, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongBang, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontChinh],
             context: nil
@@ -1175,7 +1175,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         let chuTomTat = "Tổng DT Quy đổi (\(cheDoXuat.tieuDe)): \(tongDTQD.chuoiSoGonVN)   •   Tổng đơn: \(tongDon.chuoiSoNguyenVN)   •   DT Khoản vay: \(tongVay.chuoiSoGonVN)   •   % HT TB: \(String(format: "%.1f%%", tbHT))"
         let fontTomTat = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let caoTextTomTat = max(24, ceil((chuTomTat as NSString).boundingRect(
-            with: CGSize(width: rongBang - 24, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongBang - 24, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTomTat],
             context: nil
@@ -1516,7 +1516,7 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
         let rongTen = chieuRongCot[1] - 12
         let fontTen = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let rectTen = (chuoiTen as NSString).boundingRect(
-            with: CGSize(width: rongTen, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTen],
             context: nil
@@ -1751,7 +1751,7 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
         let chuPhu = "\(donVi)  •  \(cheDo.tieuDe.uppercased())  •  Mã NV: \(tongHop.nhanVien.maNV)  •  Ngày \(ngayStr)"
         let fontPhu = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let caoPhu = max(20, ceil((chuPhu as NSString).boundingRect(
-            with: CGSize(width: rongBang, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongBang, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontPhu],
             context: nil
@@ -1760,7 +1760,7 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
         let chuChinh = "SỨC KHOẺ CHI TIẾT (\(cheDo.tieuDe.uppercased())): \(tongHop.nhanVien.hoTen.uppercased())"
         let fontChinh = UIFont.systemFont(ofSize: 19, weight: .heavy)
         let caoChinh = max(28, ceil((chuChinh as NSString).boundingRect(
-            with: CGSize(width: rongBang, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongBang, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontChinh],
             context: nil

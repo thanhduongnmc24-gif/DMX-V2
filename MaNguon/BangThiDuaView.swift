@@ -582,7 +582,7 @@ final class OTheThiDuaCell: UICollectionViewCell {
 
         let rongTen = max(60, rongThe - 20 - rongPT - 8)
         let rectTen = (dong.tenNganhHang as NSString).boundingRect(
-            with: CGSize(width: rongTen, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font],
             context: nil
@@ -599,7 +599,7 @@ final class OTheThiDuaCell: UICollectionViewCell {
         let rongPhai = ceil((chuoiPhai as NSString).size(withAttributes: [.font: font]).width) + 6
         let rongTrai = max(60, rongThe - 20 - rongPhai - 8)
         let rectTrai = (chuoiTrai as NSString).boundingRect(
-            with: CGSize(width: rongTrai, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongTrai, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font],
             context: nil
@@ -1083,7 +1083,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let rongTen = chieuRongCot[1] - 12
         let fontTen = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let rectTen = (dong.tenNganhHang as NSString).boundingRect(
-            with: CGSize(width: rongTen, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTen],
             context: nil
@@ -1094,7 +1094,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
             let moiNV = soNVGiao > 0 ? (dong.target / Double(soNVGiao)) : 0
             let chuoiNV = "👥 \(soNVGiao) NV (\(String(format: "%.1f", moiNV))/NV)"
             let rectNV = (chuoiNV as NSString).boundingRect(
-                with: CGSize(width: rongTen, height: .greatestFiniteMagnitude),
+                with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
                 attributes: [.font: fontTen],
                 context: nil
@@ -1226,7 +1226,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
             } else if i == 1 && hienNhanNV {
                 let chuoiNV = "👥 \(soNVGiao) NV (\(String(format: "%.1f", moiNV))/NV)"
                 let rectNV = (chuoiNV as NSString).boundingRect(
-                    with: CGSize(width: rong - 12, height: .greatestFiniteMagnitude),
+                    with: CGSize(width: rong - 12, height: CGFloat.greatestFiniteMagnitude),
                     options: [.usesLineFragmentOrigin, .usesFontLeading],
                     attributes: [.font: fontChuDongNhat],
                     context: nil
@@ -1356,7 +1356,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let chuPhu = "\(donVi)  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
         let fontPhu = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let caoPhu = max(20, ceil((chuPhu as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontPhu],
             context: nil
@@ -1365,7 +1365,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let chuTieuDe = "BẢNG TỔNG HỢP THI ĐUA — \(nhanCheDo)"
         let fontTieuDe = UIFont.systemFont(ofSize: 18.0, weight: .heavy)
         let caoTieuDeChinh = max(26, ceil((chuTieuDe as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTieuDe],
             context: nil
@@ -1376,7 +1376,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let chuThongKe = "Tổng: \(ds.count) ngành hàng   •   \(nhanDat): \(soDat)   •   \(nhanChuaDat): \(soKhongDat)"
         let fontThongKe = UIFont.systemFont(ofSize: 12.5, weight: .semibold)
         let caoThongKe = max(22, ceil((chuThongKe as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontThongKe],
             context: nil
@@ -1519,7 +1519,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let chuPhu = "\(donVi)  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
         let fontPhu = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let caoPhu = max(20, ceil((chuPhu as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontPhu],
             context: nil
@@ -1528,7 +1528,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let chuDau = "BẢNG TỔNG HỢP THI ĐUA — \(nhanCheDo)"
         let fontDau = UIFont.systemFont(ofSize: 18.0, weight: .heavy)
         let caoDau = max(26, ceil((chuDau as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontDau],
             context: nil
@@ -1539,7 +1539,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let chuThongKe = "Tổng: \(ds.count) ngành hàng   •   \(nhanDat): \(soDat)   •   \(nhanChuaDat): \(soKhongDat)"
         let fontThongKe = UIFont.systemFont(ofSize: 12.5, weight: .semibold)
         let caoThongKe = max(22, ceil((chuThongKe as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontThongKe],
             context: nil
@@ -2410,13 +2410,13 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         let fontTomTat1 = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let fontTomTat2 = UIFont.systemFont(ofSize: 12.5, weight: .heavy)
         let caoD1 = max(20, ceil((tomTat.dong1 as NSString).boundingRect(
-            with: CGSize(width: rongBieuDo - 24, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongBieuDo - 24, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTomTat1],
             context: nil
         ).height))
         let caoD2 = max(20, ceil((tomTat.dong2 as NSString).boundingRect(
-            with: CGSize(width: rongBieuDo - 24, height: .greatestFiniteMagnitude),
+            with: CGSize(width: rongBieuDo - 24, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTomTat2],
             context: nil
