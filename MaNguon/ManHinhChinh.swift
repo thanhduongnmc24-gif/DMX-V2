@@ -91,14 +91,19 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
     // MARK: - Thanh điều hướng trên cùng (Cố định kích thước để nút Chia sẻ & Cài đặt không bao giờ bị co nhỏ)
 
     private func cauHinhThanhDieuHuong() {
-        nutNgay.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutNgay.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
+        nutNgay.titleLabel?.numberOfLines = 0
+        nutNgay.titleLabel?.lineBreakMode = .byWordWrapping
         nutNgay.addTarget(self, action: #selector(moLichSuNgay), for: .touchUpInside)
         navigationItem.leftBarButtonItem = UIBarButtonItem(customView: nutNgay)
 
         // Nút Nhập tất cả cố định kích thước gọn đẹp
         nutNhapTatCa.setImage(UIImage(systemName: "photo.stack.fill"), for: .normal)
         nutNhapTatCa.setTitle(" Nhập tất cả", for: .normal)
-        nutNhapTatCa.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutNhapTatCa.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        nutNhapTatCa.titleLabel?.numberOfLines = 0
+        nutNhapTatCa.titleLabel?.lineBreakMode = .byWordWrapping
+        nutNhapTatCa.titleLabel?.textAlignment = .center
         nutNhapTatCa.backgroundColor = .systemBlue
         nutNhapTatCa.tintColor = .white
         nutNhapTatCa.layer.cornerRadius = 15
@@ -184,9 +189,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             let nut = UIButton(type: .custom)
             nut.tag = loai.rawValue
             nut.setTitle(loai.tieuDe, for: .normal)
-            nut.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
-            nut.titleLabel?.adjustsFontSizeToFitWidth = true
-            nut.titleLabel?.minimumScaleFactor = 0.8
+            nut.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+            nut.titleLabel?.numberOfLines = 0
+            nut.titleLabel?.lineBreakMode = .byWordWrapping
+            nut.titleLabel?.textAlignment = .center
+            nut.titleLabel?.adjustsFontSizeToFitWidth = false
+            nut.contentEdgeInsets = UIEdgeInsets(top: 5, left: 6, bottom: 5, right: 6)
             nut.layer.cornerRadius = 10
             nut.layer.borderWidth = 1
             nut.addTarget(self, action: #selector(bamChonMuc(_:)), for: .touchUpInside)
@@ -198,32 +206,44 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         hangBaNut.spacing = 6
         hangBaNut.distribution = .fillEqually
 
-        // 3. Thanh nút Quét (Thêm ảnh lần lượt - Cách 1) & Xoá (Quét lại từ đầu) nằm dưới cụm nút mục
+        // 3. Thanh nút Quét (Thêm ảnh lần lượt) & Xoá (Quét lại từ đầu) nằm dưới cụm nút mục (chữ tự xuống dòng, không bao giờ "...")
         nutThemAnhMoi.setImage(UIImage(systemName: "camera.viewfinder"), for: .normal)
         nutThemAnhMoi.setTitle(" Thêm ảnh", for: .normal)
-        nutThemAnhMoi.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutThemAnhMoi.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        nutThemAnhMoi.titleLabel?.numberOfLines = 0
+        nutThemAnhMoi.titleLabel?.lineBreakMode = .byWordWrapping
+        nutThemAnhMoi.titleLabel?.textAlignment = .center
+        nutThemAnhMoi.titleLabel?.adjustsFontSizeToFitWidth = false
         nutThemAnhMoi.backgroundColor = .systemBlue
         nutThemAnhMoi.tintColor = .white
         nutThemAnhMoi.layer.cornerRadius = 10
-        nutThemAnhMoi.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        nutThemAnhMoi.contentEdgeInsets = UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
         nutThemAnhMoi.addTarget(self, action: #selector(bamThemAnhMoi), for: .touchUpInside)
 
         nutXoaQuetLai.setTitle(" Xoá", for: .normal)
         nutXoaQuetLai.setImage(UIImage(systemName: "trash.fill"), for: .normal)
-        nutXoaQuetLai.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutXoaQuetLai.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        nutXoaQuetLai.titleLabel?.numberOfLines = 0
+        nutXoaQuetLai.titleLabel?.lineBreakMode = .byWordWrapping
+        nutXoaQuetLai.titleLabel?.textAlignment = .center
+        nutXoaQuetLai.titleLabel?.adjustsFontSizeToFitWidth = false
         nutXoaQuetLai.backgroundColor = UIColor.systemRed.withAlphaComponent(0.12)
         nutXoaQuetLai.tintColor = .systemRed
         nutXoaQuetLai.layer.cornerRadius = 10
-        nutXoaQuetLai.contentEdgeInsets = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+        nutXoaQuetLai.contentEdgeInsets = UIEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
         nutXoaQuetLai.addTarget(self, action: #selector(bamXoaQuetLai), for: .touchUpInside)
 
         nutThemThuCong.setImage(UIImage(systemName: "plus.circle.fill"), for: .normal)
         nutThemThuCong.setTitle(" Nhập/Mẫu", for: .normal)
-        nutThemThuCong.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .semibold)
+        nutThemThuCong.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        nutThemThuCong.titleLabel?.numberOfLines = 0
+        nutThemThuCong.titleLabel?.lineBreakMode = .byWordWrapping
+        nutThemThuCong.titleLabel?.textAlignment = .center
+        nutThemThuCong.titleLabel?.adjustsFontSizeToFitWidth = false
         nutThemThuCong.backgroundColor = .tertiarySystemGroupedBackground
         nutThemThuCong.tintColor = .label
         nutThemThuCong.layer.cornerRadius = 10
-        nutThemThuCong.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        nutThemThuCong.contentEdgeInsets = UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
         nutThemThuCong.addTarget(self, action: #selector(moMenuNhapThuCong), for: .touchUpInside)
 
         hangNutQuet = UIStackView(arrangedSubviews: [nutThemAnhMoi, nutXoaQuetLai, nutThemThuCong])
@@ -306,7 +326,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             view.addSubview($0)
         }
 
-        let rgCaoCum = cumChiSoChinh.heightAnchor.constraint(equalToConstant: 154)
+        let rgCaoCum = cumChiSoChinh.heightAnchor.constraint(equalToConstant: 168)
         rangBuocCaoCumChiSo = rgCaoCum
 
         NSLayoutConstraint.activate([
@@ -333,12 +353,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             hangBaNut.topAnchor.constraint(equalTo: khungCumDuoi.topAnchor, constant: 8),
             hangBaNut.leadingAnchor.constraint(equalTo: khungCumDuoi.leadingAnchor, constant: 8),
             hangBaNut.trailingAnchor.constraint(equalTo: khungCumDuoi.trailingAnchor, constant: -8),
-            hangBaNut.heightAnchor.constraint(equalToConstant: 36),
+            hangBaNut.heightAnchor.constraint(greaterThanOrEqualToConstant: 36),
 
             hangNutQuet.topAnchor.constraint(equalTo: hangBaNut.bottomAnchor, constant: 6),
             hangNutQuet.leadingAnchor.constraint(equalTo: khungCumDuoi.leadingAnchor, constant: 8),
             hangNutQuet.trailingAnchor.constraint(equalTo: khungCumDuoi.trailingAnchor, constant: -8),
-            hangNutQuet.heightAnchor.constraint(equalToConstant: 36),
+            hangNutQuet.heightAnchor.constraint(greaterThanOrEqualToConstant: 38),
 
             bangThiDua.topAnchor.constraint(equalTo: hangNutQuet.bottomAnchor, constant: 8),
             bangThiDua.leadingAnchor.constraint(equalTo: khungCumDuoi.leadingAnchor, constant: 6),
@@ -376,6 +396,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
 
         nhanTieuDeDuPhong.font = .systemFont(ofSize: 16, weight: .bold)
         nhanTieuDeDuPhong.textAlignment = .center
+        nhanTieuDeDuPhong.numberOfLines = 0
 
         nhanMoTaDuPhong.text = "Mục dự phòng đang để trống cho các tính năng tiếp theo."
         nhanMoTaDuPhong.font = .systemFont(ofSize: 13)
@@ -517,8 +538,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         let laNhanVien = (tabHienTai == .nhanVien)
         let laBieuDo = (tabHienTai == .duPhong2)
 
-        // Khi ở tab Biểu đồ: ẩn cụm 8 thẻ chỉ số trên (chỉ giữ hàng 3 nút 34pt), ẩn hàng 3 nút Thi đua/Nhân viên/Dự phòng 3 và ẩn hàng nút Quét/Xoá/Nhập
-        rangBuocCaoCumChiSo?.constant = laBieuDo ? 34 : 154
+        // Khi ở tab Biểu đồ: ẩn cụm 8 thẻ chỉ số trên (chỉ giữ hàng 3 nút), ẩn hàng 3 nút Thi đua/Nhân viên/Dự phòng 3 và ẩn hàng nút Quét/Xoá/Nhập
+        rangBuocCaoCumChiSo?.constant = laBieuDo ? 40 : 168
         hangBaNut.isHidden = laBieuDo
         hangNutQuet.isHidden = laBieuDo
 
@@ -1398,13 +1419,28 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             preferredStyle: .actionSheet
         )
 
-        menu.addAction(UIAlertAction(title: "📊 Ảnh Thi đua — Doanh thu Lũy kế (\(moTaKieu))", style: .default) { [weak self] _ in
+        menu.addAction(UIAlertAction(title: "📊 Ảnh Thi đua Lũy kế — Thực hiện & Target (\(moTaKieu))", style: .default) { [weak self] _ in
             guard let self = self,
                   let anh = self.bangThiDua.taoAnhBaoCao(
                       ngay: self.ngayHienTai,
                       doanhThu: dl.doanhThu,
                       danhSach: dl.danhSachThiDua,
                       cheDoDoanhThu: .luyKe,
+                      xemDuKien: false,
+                      thongTinDonVi: dl.thongTinDonVi,
+                      capNhatLuc: dl.capNhatLuc
+                  ) else { return }
+            self.chiaSe([anh])
+        })
+
+        menu.addAction(UIAlertAction(title: "📈 Ảnh Thi đua Lũy kế — % Dự kiến cuối tháng (\(moTaKieu))", style: .default) { [weak self] _ in
+            guard let self = self,
+                  let anh = self.bangThiDua.taoAnhBaoCao(
+                      ngay: self.ngayHienTai,
+                      doanhThu: dl.doanhThu,
+                      danhSach: dl.danhSachThiDua,
+                      cheDoDoanhThu: .luyKe,
+                      xemDuKien: true,
                       thongTinDonVi: dl.thongTinDonVi,
                       capNhatLuc: dl.capNhatLuc
                   ) else { return }
@@ -1418,6 +1454,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
                       doanhThu: dl.doanhThuRealtime,
                       danhSach: dl.danhSachThiDuaRealtime,
                       cheDoDoanhThu: .realtime,
+                      xemDuKien: false,
                       thongTinDonVi: dl.thongTinDonVi,
                       capNhatLuc: dl.capNhatLuc
                   ) else { return }

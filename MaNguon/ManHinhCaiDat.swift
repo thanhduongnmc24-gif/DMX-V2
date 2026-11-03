@@ -269,7 +269,10 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         khungNV.layer.cornerRadius = 12
 
         [nutChiaTarget, nutQuanLyNV].forEach { nut in
-            nut.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+            nut.titleLabel?.numberOfLines = 0
+        nut.titleLabel?.lineBreakMode = .byWordWrapping
+        nut.titleLabel?.textAlignment = .center
+        nut.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
             nut.contentHorizontalAlignment = .left
             nut.backgroundColor = .systemBackground
             nut.tintColor = .systemBlue
