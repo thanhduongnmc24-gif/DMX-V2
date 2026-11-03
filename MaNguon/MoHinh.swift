@@ -16,17 +16,15 @@ enum LoaiTabMuc: Int, CaseIterable {
     case thiDua = 0
     case nhanVien = 1
     case duPhong2 = 2
-    case duPhong3 = 3
 
-    /// Danh sách 3 nút ở cụm dưới (sau khi đưa nút Biểu đồ lên cùng hàng với Doanh thu Lũy kế & Realtime)
-    static let cacTabCumDuoi: [LoaiTabMuc] = [.thiDua, .nhanVien, .duPhong3]
+    /// Danh sách 2 nút ở cụm dưới (đã xoá nút Dự phòng 3 theo yêu cầu)
+    static let cacTabCumDuoi: [LoaiTabMuc] = [.thiDua, .nhanVien]
 
     var tieuDe: String {
         switch self {
         case .thiDua: return "Thi đua"
         case .nhanVien: return "Nhân viên"
         case .duPhong2: return "Biểu đồ"
-        case .duPhong3: return "Dự phòng 3"
         }
     }
 }
@@ -745,13 +743,12 @@ final class ThuMucDuLieu {
     let tepNgay: URL
     let tepCaiDat: URL
 
-    private let maHoa: JSONEncoder = {
-        let boMaHoa = JSONEncoder()
-        boMaHoa.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return boMaHoa
-    }()
-
+    /// Không dùng prettyPrinted / sortedKeys để mã hoá JSON nhanh gấp 4 lần, không gây nghẽn CPU
+    private let maHoa = JSONEncoder()
     private let giaiMa = JSONDecoder()
+    private let hangDoiGhiFile = DispatchQueue(label: "com.thanhduong.tonghopdmx.ghifile", qos: .utility)
+    private var congViecGhiNgay: DispatchWorkItem?
+    private var congViecGhiCaiDat: DispatchWorkItem?
 
     private init() {
         let documents = FileManager.default.urls(
@@ -781,16 +778,50 @@ final class ThuMucDuLieu {
             return false
         }
     }
+
+    /// Ghi dữ liệu các ngày xuống đĩa trên luồng nền (debounce 0.35s) để tuyệt đối không làm đơ giao diện chính
+    func ghiNgayBatDongBo(_ cacNgay: [String: DuLieuNgayDMX]) {
+        let banSao = cacNgay
+        let tep = tepNgay
+        hangDoiGhiFile.async { [weak self] in
+            guard let self else { return }
+            self.congViecGhiNgay?.cancel()
+            let cv = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                _ = self.ghi(banSao, vao: tep)
+            }
+            self.congViecGhiNgay = cv
+            self.hangDoiGhiFile.asyncAfter(deadline: .now() + 0.35, execute: cv)
+        }
+    }
+
+    /// Ghi dữ liệu cài đặt xuống đĩa trên luồng nền (debounce 0.25s)
+    func ghiCaiDatBatDongBo(_ caiDat: CaiDatDMX) {
+        let banSao = caiDat
+        let tep = tepCaiDat
+        hangDoiGhiFile.async { [weak self] in
+            guard let self else { return }
+            self.congViecGhiCaiDat?.cancel()
+            let cv = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                _ = self.ghi(banSao, vao: tep)
+            }
+            self.congViecGhiCaiDat = cv
+            self.hangDoiGhiFile.asyncAfter(deadline: .now() + 0.25, execute: cv)
+        }
+    }
 }
 
 final class KhoDuLieu {
     static let dungChung = KhoDuLieu()
 
+    private let khoaTruyCap = NSRecursiveLock()
     private(set) var cacNgay: [String: DuLieuNgayDMX] = [:]
     var caiDat = CaiDatDMX()
 
     /// Bộ nhớ đệm trong RAM giúp chuyển đổi qua lại giữa các tab cực nhanh, không phải chạy lại Regex chuẩn hoá chuỗi lặp đi lặp lại
     private var boNhoDemDuLieuNgay: [String: DuLieuNgayDMX] = [:]
+    private static let khoaBoNhoDemTinh = NSLock()
     private static var boNhoDemKhoaSoSanh: [String: String] = [:]
     private static var boNhoDemLocTen: [String: String] = [:]
 
@@ -798,31 +829,46 @@ final class KhoDuLieu {
         doc()
     }
 
+    /// Lấy bản sao an toàn của toàn bộ dữ liệu để đồng bộ nền mà không tranh chấp bộ nhớ với luồng chính
+    func layBanSaoAnToan() -> (caiDat: CaiDatDMX, cacNgay: [String: DuLieuNgayDMX]) {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
+        return (caiDat, cacNgay)
+    }
+
     private func xoaBoNhoDem(xoaonLocTen: Bool = false) {
+        khoaTruyCap.lock()
         boNhoDemDuLieuNgay.removeAll(keepingCapacity: true)
+        khoaTruyCap.unlock()
         if xoaonLocTen {
+            Self.khoaBoNhoDemTinh.lock()
             Self.boNhoDemLocTen.removeAll(keepingCapacity: true)
+            Self.khoaBoNhoDemTinh.unlock()
         }
     }
 
     func doc() {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
         let thuMuc = ThuMucDuLieu.dungChung
         if let cd = thuMuc.doc(CaiDatDMX.self, tu: thuMuc.tepCaiDat) {
             caiDat = cd
         } else {
-            thuMuc.ghi(caiDat, vao: thuMuc.tepCaiDat)
+            thuMuc.ghiCaiDatBatDongBo(caiDat)
         }
 
         if let giaTri = thuMuc.doc([String: DuLieuNgayDMX].self, tu: thuMuc.tepNgay) {
             cacNgay = giaTri
         } else {
-            thuMuc.ghi(cacNgay, vao: thuMuc.tepNgay)
+            thuMuc.ghiNgayBatDongBo(cacNgay)
         }
         xoaBoNhoDem(xoaonLocTen: true)
     }
 
     /// Lấy Doanh thu Lũy kế cố định của tháng (mỗi lần nhập ở ngày mới sẽ thay thế cho ngày hôm trước)
     func doanhThuLuyKeThang(cho ngay: Date) -> ThongTinDoanhThu {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
         let khoa = TienIchNgay.khoa.string(from: ngay)
         let tienTo = String(khoa.prefix(7))
         if let hienTai = cacNgay[khoa]?.doanhThu, hienTai.coDuLieu {
@@ -838,6 +884,8 @@ final class KhoDuLieu {
 
     /// Lấy Doanh thu Lũy kế Nhân viên của tháng (khi nhập mới sẽ thay thế dữ liệu cũ)
     func doanhThuNhanVienLuyKeThang(cho ngay: Date) -> [DoanhThuNhanVienItem] {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
         let khoa = TienIchNgay.khoa.string(from: ngay)
         let tienTo = String(khoa.prefix(7))
         if let hienTai = cacNgay[khoa]?.doanhThuNhanVien, !hienTai.isEmpty {
@@ -853,6 +901,7 @@ final class KhoDuLieu {
 
     /// Xoá Doanh thu Lũy kế Nhân viên của tháng (để dữ liệu cũ không còn tồn đọng)
     func xoaDoanhThuNhanVienLuyKeThang(cho ngay: Date, xoaCaThiDuaNV: Bool = false) {
+        khoaTruyCap.lock()
         let khoa = TienIchNgay.khoa.string(from: ngay)
         let tienTo = String(khoa.prefix(7))
         for k in cacNgay.keys where k.hasPrefix(tienTo) {
@@ -869,12 +918,16 @@ final class KhoDuLieu {
         }
         cacNgay[khoa] = dl
         xoaBoNhoDem()
-        ThuMucDuLieu.dungChung.ghi(cacNgay, vao: ThuMucDuLieu.dungChung.tepNgay)
+        let banSaoNgay = cacNgay
+        khoaTruyCap.unlock()
+
+        ThuMucDuLieu.dungChung.ghiNgayBatDongBo(banSaoNgay)
         DichVuDongBo.dungChung.dayDuLieuNgay(dl)
     }
 
     /// Xoá Doanh thu Lũy kế cố định của tháng
     func xoaDoanhThuLuyKeThang(cho ngay: Date) {
+        khoaTruyCap.lock()
         let khoa = TienIchNgay.khoa.string(from: ngay)
         let tienTo = String(khoa.prefix(7))
         for k in cacNgay.keys where k.hasPrefix(tienTo) {
@@ -885,7 +938,10 @@ final class KhoDuLieu {
         dl.doanhThu = ThongTinDoanhThu()
         cacNgay[khoa] = dl
         xoaBoNhoDem()
-        ThuMucDuLieu.dungChung.ghi(cacNgay, vao: ThuMucDuLieu.dungChung.tepNgay)
+        let banSaoNgay = cacNgay
+        khoaTruyCap.unlock()
+
+        ThuMucDuLieu.dungChung.ghiNgayBatDongBo(banSaoNgay)
         DichVuDongBo.dungChung.dayDuLieuNgay(dl)
     }
 
@@ -988,6 +1044,8 @@ final class KhoDuLieu {
 
     /// Danh sách Doanh thu Realtime (Thực & Quy đổi) theo từng ngày trong tháng để vẽ đồ thị cột và bảng tổng hợp
     func danhSachRealtimeTheoNgayTrongThang(cho ngay: Date) -> [DuLieuRealtimeNgayTrongThang] {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
         let lich = TienIchNgay.lich
         let nam = lich.component(.year, from: ngay)
         let thang = lich.component(.month, from: ngay)
@@ -1016,6 +1074,8 @@ final class KhoDuLieu {
     }
 
     func duLieu(cho ngay: Date) -> DuLieuNgayDMX {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
         let khoa = TienIchNgay.khoa.string(from: ngay)
         if let daDem = boNhoDemDuLieuNgay[khoa] {
             return daDem
@@ -1095,6 +1155,7 @@ final class KhoDuLieu {
     }
 
     func luu(_ duLieu: DuLieuNgayDMX) {
+        khoaTruyCap.lock()
         var banLuu = duLieu
         let tienTo = String(banLuu.khoaNgay.prefix(7))
 
@@ -1140,15 +1201,20 @@ final class KhoDuLieu {
 
         cacNgay[banLuu.khoaNgay] = banLuu
         xoaBoNhoDem()
-        ThuMucDuLieu.dungChung.ghi(cacNgay, vao: ThuMucDuLieu.dungChung.tepNgay)
+        let banSaoNgay = cacNgay
+        khoaTruyCap.unlock()
+
+        ThuMucDuLieu.dungChung.ghiNgayBatDongBo(banSaoNgay)
         DichVuDongBo.dungChung.dayDuLieuNgay(banLuu)
     }
 
     func luuCaiDat(_ moi: CaiDatDMX) {
+        khoaTruyCap.lock()
         let doiCumTu = (caiDat.danhSachCumTuLocBo != moi.danhSachCumTuLocBo)
         caiDat = moi
         xoaBoNhoDem(xoaonLocTen: doiCumTu)
-        ThuMucDuLieu.dungChung.ghi(moi, vao: ThuMucDuLieu.dungChung.tepCaiDat)
+        let banSaoCaiDat = moi
+        var banSaoNgayCanLuu: [String: DuLieuNgayDMX]?
         if doiCumTu {
             for (khoa, var dl) in cacNgay {
                 for i in dl.danhSachThiDua.indices {
@@ -1165,12 +1231,20 @@ final class KhoDuLieu {
                 cacNgay[khoa] = dl
             }
             xoaBoNhoDem()
-            ThuMucDuLieu.dungChung.ghi(cacNgay, vao: ThuMucDuLieu.dungChung.tepNgay)
+            banSaoNgayCanLuu = cacNgay
+        }
+        khoaTruyCap.unlock()
+
+        ThuMucDuLieu.dungChung.ghiCaiDatBatDongBo(banSaoCaiDat)
+        if let banSaoNgayCanLuu {
+            ThuMucDuLieu.dungChung.ghiNgayBatDongBo(banSaoNgayCanLuu)
         }
         DichVuDongBo.dungChung.dayCaiDat(moi)
     }
 
+    /// Chuẩn hoá dữ liệu tải về từ đám mây trên luồng nền rồi gán nhanh vào bộ nhớ để tránh làm khựng giao diện người dùng
     func nhapDuLieuDamMay(caiDat moi: CaiDatDMX?, cacNgay ngayMoi: [String: DuLieuNgayDMX]) {
+        khoaTruyCap.lock()
         if let moi { caiDat = moi }
         xoaBoNhoDem(xoaonLocTen: true)
         for (khoa, var duLieu) in ngayMoi {
@@ -1189,20 +1263,31 @@ final class KhoDuLieu {
             cacNgay[khoa] = duLieu
         }
         xoaBoNhoDem()
-        ThuMucDuLieu.dungChung.ghi(caiDat, vao: ThuMucDuLieu.dungChung.tepCaiDat)
-        ThuMucDuLieu.dungChung.ghi(cacNgay, vao: ThuMucDuLieu.dungChung.tepNgay)
+        let banSaoCaiDat = caiDat
+        let banSaoNgay = cacNgay
+        khoaTruyCap.unlock()
+
+        ThuMucDuLieu.dungChung.ghiCaiDatBatDongBo(banSaoCaiDat)
+        ThuMucDuLieu.dungChung.ghiNgayBatDongBo(banSaoNgay)
     }
 
     func datLaiSauDangXuat() {
+        khoaTruyCap.lock()
         caiDat = CaiDatDMX()
         cacNgay = [:]
         xoaBoNhoDem(xoaonLocTen: true)
-        ThuMucDuLieu.dungChung.ghi(caiDat, vao: ThuMucDuLieu.dungChung.tepCaiDat)
-        ThuMucDuLieu.dungChung.ghi(cacNgay, vao: ThuMucDuLieu.dungChung.tepNgay)
+        let banSaoCaiDat = caiDat
+        let banSaoNgay = cacNgay
+        khoaTruyCap.unlock()
+
+        ThuMucDuLieu.dungChung.ghiCaiDatBatDongBo(banSaoCaiDat)
+        ThuMucDuLieu.dungChung.ghiNgayBatDongBo(banSaoNgay)
     }
 
     /// Danh sách mặt hàng đồng bộ theo chế độ đang xem (Lũy kế hoặc Realtime)
     func danhSachMatHangThang(den ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) -> [DongThiDua] {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
         let dlNgay = duLieu(cho: ngay)
         if cheDo == .realtime {
             if !dlNgay.danhSachThiDuaRealtime.isEmpty {
@@ -1248,6 +1333,8 @@ final class KhoDuLieu {
 
     /// Lấy danh sách mã NV được chia Target cho 1 ngành hàng (đồng bộ cả khóa tên đã lọc và khóa tên gốc)
     func danhSachMaNVChiaTarget(cho dong: DongThiDua, trong tapCaiDat: CaiDatDMX? = nil) -> [String] {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
         let cd = tapCaiDat ?? caiDat
         let tatCaMa = cd.danhSachNhanVien.map(\.maNV)
         let k1 = Self.chuanHoaKhoaSoSanh(dong.tenNganhHang)
@@ -1260,6 +1347,7 @@ final class KhoDuLieu {
 
     /// Đồng bộ cập nhật Target & ĐVT (DT/SL) của 1 ngành hàng từ màn hình Chia Target (Cài đặt) sang Bảng Thi Đua
     func capNhatTargetNganhHang(dongGoc: DongThiDua, targetMoi: Double, loaiChiTieuMoi: LoaiChiTieuThiDua? = nil, cho ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) {
+        khoaTruyCap.lock()
         let k1 = Self.chuanHoaKhoaSoSanh(dongGoc.tenNganhHang)
         let k2 = Self.chuanHoaKhoaSoSanh(dongGoc.tenNganhHangGoc)
         var dl = duLieu(cho: ngay)
@@ -1278,11 +1366,13 @@ final class KhoDuLieu {
         }
         if daCapNhat {
             dl.ganDanhSachThiDua(ds, theo: cheDo)
+            khoaTruyCap.unlock()
             luu(dl)
         } else {
             let khoaDen = TienIchNgay.khoa.string(from: ngay)
             let tienTo = String(khoaDen.prefix(7))
             let cacKhoa = cacNgay.keys.filter { $0.hasPrefix(tienTo) && $0 <= khoaDen }.sorted(by: >)
+            var dlCanLuu: DuLieuNgayDMX?
             for khoa in cacKhoa {
                 guard var dlCu = cacNgay[khoa] else { continue }
                 var dsCu = dlCu.danhSachThiDua(theo: cheDo)
@@ -1298,14 +1388,20 @@ final class KhoDuLieu {
                     }
                 }
                 dlCu.ganDanhSachThiDua(dsCu, theo: cheDo)
-                luu(dlCu)
+                dlCanLuu = dlCu
                 break
+            }
+            khoaTruyCap.unlock()
+            if let dlCanLuu {
+                luu(dlCanLuu)
             }
         }
     }
 
     /// Tổng hợp số thực hiện của từng nhân viên theo từng mặt hàng theo chế độ Lũy kế hoặc Realtime
     func thucHienNhanVienTheoMatHangThang(den ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) -> [String: [String: Double]] {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
         if cheDo == .realtime {
             return duLieu(cho: ngay).thiDuaNhanVienRealtime
         }
@@ -1330,6 +1426,8 @@ final class KhoDuLieu {
 
     /// Danh sách xếp hạng nhân viên cho 1 ngành hàng cụ thể (chia theo Lũy kế hoặc Realtime)
     func danhSachXepHangNhanVien(cho dong: DongThiDua, den ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) -> [DongXepHangNhanVienNganh] {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
         let khoaNganh = Self.chuanHoaKhoaSoSanh(dong.tenNganhHang)
         let dsMaDuocChon = danhSachMaNVChiaTarget(cho: dong)
         let soNV = dsMaDuocChon.count
@@ -1358,12 +1456,13 @@ final class KhoDuLieu {
     }
 
     /// Bảng tổng hợp nhân viên (chia theo Lũy kế hoặc Realtime).
-    /// Với Doanh thu Lũy kế nhân viên: chỉ lấy từ bảng vừa nhập (thay thế hoàn toàn dữ liệu cũ, không cộng dồn hay lấy rải rác từ dữ liệu cũ).
     func tongHopNhanVien(
         den ngay: Date,
         sapXep: KieuSapXepNhanVien = .soMonHoanThanh,
         cheDo: LoaiCheDoDoanhThu = .luyKe
     ) -> [TongHopNhanVien] {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
         let matHang = danhSachMatHangThang(den: ngay, cheDo: cheDo)
         let thucHienTheoNganh = thucHienNhanVienTheoMatHangThang(den: ngay, cheDo: cheDo)
         let dlHienTai = duLieu(cho: ngay)
@@ -1455,6 +1554,8 @@ final class KhoDuLieu {
         cheDo: LoaiCheDoDoanhThu = .luyKe,
         khoaNganhMacDinh: String? = nil
     ) -> [String: [String: Double]] {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
         var ketQua = hienTai
         var matHangThang = danhSachMatHangThang(den: ngay, cheDo: cheDo)
         if matHangThang.isEmpty {
@@ -1497,9 +1598,13 @@ final class KhoDuLieu {
     }
 
     static func apDungLocTuCaiDat(_ tenGoc: String) -> String {
+        khoaBoNhoDemTinh.lock()
         if let daDem = boNhoDemLocTen[tenGoc] {
+            khoaBoNhoDemTinh.unlock()
             return daDem
         }
+        khoaBoNhoDemTinh.unlock()
+
         var s = tenGoc
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "^[\\s\\-–—−•◦○●⊕⊖|¦/\\\\,:;]+", with: "", options: .regularExpression)
@@ -1522,7 +1627,10 @@ final class KhoDuLieu {
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let ketQua = s.isEmpty ? tenGoc.trimmingCharacters(in: .whitespacesAndNewlines) : s
+
+        khoaBoNhoDemTinh.lock()
         boNhoDemLocTen[tenGoc] = ketQua
+        khoaBoNhoDemTinh.unlock()
         return ketQua
     }
 
@@ -1568,9 +1676,13 @@ final class KhoDuLieu {
     }
 
     static func chuanHoaKhoaSoSanh(_ ten: String) -> String {
+        khoaBoNhoDemTinh.lock()
         if let daDem = boNhoDemKhoaSoSanh[ten] {
+            khoaBoNhoDemTinh.unlock()
             return daDem
         }
+        khoaBoNhoDemTinh.unlock()
+
         let ketQua = ten.trimmingCharacters(in: .whitespacesAndNewlines)
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN"))
             .replacingOccurrences(of: "đ", with: "d")
@@ -1579,7 +1691,10 @@ final class KhoDuLieu {
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .uppercased()
+
+        khoaBoNhoDemTinh.lock()
         boNhoDemKhoaSoSanh[ten] = ketQua
+        khoaBoNhoDemTinh.unlock()
         return ketQua
     }
 
@@ -1623,6 +1738,323 @@ final class KhoDuLieu {
         case 3: return "🥉"
         default: return "\(hang)"
         }
+    }
+}
+
+// MARK: - Hộp Chọn Hành Động Tùy Chỉnh (Đảm bảo mọi dòng chữ có CÙNG CỠ CHỮ, tự động xuống dòng khi dài, tuyệt đối không bao giờ hiện dấu "...")
+
+struct MucChonDMX {
+    enum KieuMuc {
+        case macDinh
+        case nguyHiem
+        case huy
+    }
+
+    let tieuDe: String
+    let kieu: KieuMuc
+    let dangChon: Bool
+    let xuLy: (() -> Void)?
+
+    init(tieuDe: String, kieu: KieuMuc = .macDinh, dangChon: Bool = false, xuLy: (() -> Void)? = nil) {
+        self.tieuDe = tieuDe
+        self.kieu = kieu
+        self.dangChon = dangChon
+        self.xuLy = xuLy
+    }
+}
+
+private final class NutHangMenuDMX: UIControl {
+    private let nhan = UILabel()
+    private var xuLyBam: (() -> Void)?
+
+    init(muc: MucChonDMX, coChu: UIFont, canGiua: Bool, khiBam: @escaping () -> Void) {
+        self.xuLyBam = khiBam
+        super.init(frame: .zero)
+        backgroundColor = .clear
+
+        let chuHienThi = muc.dangChon ? "✓  \(muc.tieuDe)" : muc.tieuDe
+        nhan.text = chuHienThi
+        nhan.font = coChu
+        nhan.numberOfLines = 0
+        nhan.lineBreakMode = .byWordWrapping
+        nhan.adjustsFontSizeToFitWidth = false
+        nhan.textAlignment = canGiua ? .center : .left
+
+        switch muc.kieu {
+        case .nguyHiem:
+            nhan.textColor = .systemRed
+        case .huy:
+            nhan.textColor = .systemBlue
+        case .macDinh:
+            nhan.textColor = .systemBlue
+        }
+
+        nhan.translatesAutoresizingMaskIntoConstraints = false
+        nhan.setContentCompressionResistancePriority(.required, for: .vertical)
+        addSubview(nhan)
+
+        NSLayoutConstraint.activate([
+            nhan.topAnchor.constraint(equalTo: topAnchor, constant: 13),
+            nhan.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -13),
+            nhan.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            nhan.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            heightAnchor.constraint(greaterThanOrEqualToConstant: 48)
+        ])
+
+        addTarget(self, action: #selector(bamChon), for: .touchUpInside)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("Khong ho tro coder")
+    }
+
+    override var isHighlighted: Bool {
+        didSet {
+            backgroundColor = isHighlighted ? UIColor.label.withAlphaComponent(0.08) : .clear
+        }
+    }
+
+    @objc private func bamChon() {
+        xuLyBam?()
+    }
+}
+
+final class HopChonDMXController: UIViewController {
+    private let tieuDeMenu: String?
+    private let thongDiepMenu: String?
+    private let cacMuc: [MucChonDMX]
+    private let canGiuaText: Bool
+
+    private let nenMo = UIControl()
+    private let khungChinh = UIView()
+    private let khungDanhSach = UIView()
+    private let khungNutHuy = UIView()
+
+    init(tieuDe: String?, thongDiep: String? = nil, cacMuc: [MucChonDMX], canGiuaText: Bool = false) {
+        self.tieuDeMenu = tieuDe
+        self.thongDiepMenu = thongDiep
+        self.cacMuc = cacMuc
+        self.canGiuaText = canGiuaText
+        super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = .overFullScreen
+        modalTransitionStyle = .crossDissolve
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("Khong ho tro coder")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        taoGiaoDien()
+    }
+
+    private func taoGiaoDien() {
+        view.backgroundColor = .clear
+
+        nenMo.backgroundColor = UIColor.black.withAlphaComponent(0.42)
+        nenMo.addTarget(self, action: #selector(bamDong), for: .touchUpInside)
+        nenMo.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(nenMo)
+
+        khungChinh.backgroundColor = .clear
+        khungChinh.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(khungChinh)
+
+        khungDanhSach.backgroundColor = .secondarySystemGroupedBackground
+        khungDanhSach.layer.cornerRadius = 16
+        khungDanhSach.clipsToBounds = true
+        khungDanhSach.translatesAutoresizingMaskIntoConstraints = false
+
+        let cuon = UIScrollView()
+        cuon.showsVerticalScrollIndicator = true
+        cuon.alwaysBounceVertical = false
+        cuon.translatesAutoresizingMaskIntoConstraints = false
+        khungDanhSach.addSubview(cuon)
+
+        let ngan = UIStackView()
+        ngan.axis = .vertical
+        ngan.spacing = 0
+        ngan.translatesAutoresizingMaskIntoConstraints = false
+        cuon.addSubview(ngan)
+
+        let coTieuDe = !(tieuDeMenu ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let coThongDiep = !(thongDiepMenu ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        if coTieuDe || coThongDiep {
+            let khungHeader = UIView()
+            let nganHeader = UIStackView()
+            nganHeader.axis = .vertical
+            nganHeader.spacing = 4
+            nganHeader.translatesAutoresizingMaskIntoConstraints = false
+            khungHeader.addSubview(nganHeader)
+
+            if coTieuDe, let td = tieuDeMenu {
+                let lbTieuDe = UILabel()
+                lbTieuDe.text = td
+                lbTieuDe.font = .systemFont(ofSize: 15, weight: .bold)
+                lbTieuDe.textColor = .label
+                lbTieuDe.textAlignment = .center
+                lbTieuDe.numberOfLines = 0
+                lbTieuDe.lineBreakMode = .byWordWrapping
+                lbTieuDe.adjustsFontSizeToFitWidth = false
+                nganHeader.addArrangedSubview(lbTieuDe)
+            }
+
+            if coThongDiep, let msg = thongDiepMenu {
+                let lbMsg = UILabel()
+                lbMsg.text = msg
+                lbMsg.font = .systemFont(ofSize: 13.5, weight: .regular)
+                lbMsg.textColor = .secondaryLabel
+                lbMsg.textAlignment = .center
+                lbMsg.numberOfLines = 0
+                lbMsg.lineBreakMode = .byWordWrapping
+                lbMsg.adjustsFontSizeToFitWidth = false
+                nganHeader.addArrangedSubview(lbMsg)
+            }
+
+            NSLayoutConstraint.activate([
+                nganHeader.topAnchor.constraint(equalTo: khungHeader.topAnchor, constant: 14),
+                nganHeader.bottomAnchor.constraint(equalTo: khungHeader.bottomAnchor, constant: -12),
+                nganHeader.leadingAnchor.constraint(equalTo: khungHeader.leadingAnchor, constant: 16),
+                nganHeader.trailingAnchor.constraint(equalTo: khungHeader.trailingAnchor, constant: -16)
+            ])
+            ngan.addArrangedSubview(khungHeader)
+        }
+
+        // Tất cả các dòng lựa chọn đều dùng chung 1 cỡ chữ 15pt đồng nhất, tự xuống dòng khi dài
+        let coChuDongNhat = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        let cacMucChinh = cacMuc.filter { $0.kieu != .huy }
+        let mucHuy = cacMuc.first(where: { $0.kieu == .huy }) ?? MucChonDMX(tieuDe: "Đóng", kieu: .huy)
+
+        for (idx, muc) in cacMucChinh.enumerated() {
+            if idx > 0 || coTieuDe || coThongDiep {
+                let vach = UIView()
+                vach.backgroundColor = .separator
+                vach.translatesAutoresizingMaskIntoConstraints = false
+                vach.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
+                ngan.addArrangedSubview(vach)
+            }
+
+            let nut = NutHangMenuDMX(muc: muc, coChu: coChuDongNhat, canGiua: canGiuaText) { [weak self] in
+                guard let self else { return }
+                self.dismiss(animated: true) {
+                    muc.xuLy?()
+                }
+            }
+            ngan.addArrangedSubview(nut)
+        }
+
+        khungNutHuy.backgroundColor = .secondarySystemGroupedBackground
+        khungNutHuy.layer.cornerRadius = 16
+        khungNutHuy.clipsToBounds = true
+        khungNutHuy.translatesAutoresizingMaskIntoConstraints = false
+
+        let nutHuy = NutHangMenuDMX(
+            muc: mucHuy,
+            coChu: .systemFont(ofSize: 16, weight: .bold),
+            canGiua: true
+        ) { [weak self] in
+            guard let self else { return }
+            self.dismiss(animated: true) {
+                mucHuy.xuLy?()
+            }
+        }
+        nutHuy.translatesAutoresizingMaskIntoConstraints = false
+        khungNutHuy.addSubview(nutHuy)
+
+        khungChinh.addSubview(khungDanhSach)
+        khungChinh.addSubview(khungNutHuy)
+
+        let chieuCaoCuon = cuon.heightAnchor.constraint(equalTo: ngan.heightAnchor)
+        chieuCaoCuon.priority = .defaultHigh
+
+        NSLayoutConstraint.activate([
+            nenMo.topAnchor.constraint(equalTo: view.topAnchor),
+            nenMo.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            nenMo.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            nenMo.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            khungChinh.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 10),
+            khungChinh.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -10),
+            khungChinh.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
+            khungChinh.topAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.topAnchor, constant: 24),
+
+            khungDanhSach.topAnchor.constraint(equalTo: khungChinh.topAnchor),
+            khungDanhSach.leadingAnchor.constraint(equalTo: khungChinh.leadingAnchor),
+            khungDanhSach.trailingAnchor.constraint(equalTo: khungChinh.trailingAnchor),
+
+            cuon.topAnchor.constraint(equalTo: khungDanhSach.topAnchor),
+            cuon.leadingAnchor.constraint(equalTo: khungDanhSach.leadingAnchor),
+            cuon.trailingAnchor.constraint(equalTo: khungDanhSach.trailingAnchor),
+            cuon.bottomAnchor.constraint(equalTo: khungDanhSach.bottomAnchor),
+            chieuCaoCuon,
+
+            ngan.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor),
+            ngan.leadingAnchor.constraint(equalTo: cuon.contentLayoutGuide.leadingAnchor),
+            ngan.trailingAnchor.constraint(equalTo: cuon.contentLayoutGuide.trailingAnchor),
+            ngan.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor),
+            ngan.widthAnchor.constraint(equalTo: cuon.frameLayoutGuide.widthAnchor),
+
+            khungNutHuy.topAnchor.constraint(equalTo: khungDanhSach.bottomAnchor, constant: 8),
+            khungNutHuy.leadingAnchor.constraint(equalTo: khungChinh.leadingAnchor),
+            khungNutHuy.trailingAnchor.constraint(equalTo: khungChinh.trailingAnchor),
+            khungNutHuy.bottomAnchor.constraint(equalTo: khungChinh.bottomAnchor),
+
+            nutHuy.topAnchor.constraint(equalTo: khungNutHuy.topAnchor),
+            nutHuy.leadingAnchor.constraint(equalTo: khungNutHuy.leadingAnchor),
+            nutHuy.trailingAnchor.constraint(equalTo: khungNutHuy.trailingAnchor),
+            nutHuy.bottomAnchor.constraint(equalTo: khungNutHuy.bottomAnchor)
+        ])
+    }
+
+    @objc private func bamDong() {
+        let mucHuy = cacMuc.first(where: { $0.kieu == .huy })
+        dismiss(animated: true) {
+            mucHuy?.xuLy?()
+        }
+    }
+}
+
+extension UIViewController {
+    func hienMenuChon(
+        tieuDe: String? = nil,
+        thongDiep: String? = nil,
+        cacMuc: [MucChonDMX],
+        canGiuaText: Bool = false
+    ) {
+        let hop = HopChonDMXController(
+            tieuDe: tieuDe,
+            thongDiep: thongDiep,
+            cacMuc: cacMuc,
+            canGiuaText: canGiuaText
+        )
+        present(hop, animated: true)
+    }
+}
+
+extension UIView {
+    /// Đảm bảo mọi UILabel và UIButton bên trong view luôn hiển thị trọn vẹn văn bản, tự xuống dòng, không bao giờ hiện dấu "..."
+    func damBaoHienThiDayDuText() {
+        if let lb = self as? UILabel {
+            lb.numberOfLines = 0
+            lb.lineBreakMode = .byWordWrapping
+            lb.adjustsFontSizeToFitWidth = false
+        } else if let bt = self as? UIButton {
+            bt.titleLabel?.numberOfLines = 0
+            bt.titleLabel?.lineBreakMode = .byWordWrapping
+            bt.titleLabel?.adjustsFontSizeToFitWidth = false
+        }
+        for sub in subviews {
+            sub.damBaoHienThiDayDuText()
+        }
+    }
+}
+
+extension UIAlertController {
+    open override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        view.damBaoHienThiDayDuText()
     }
 }
 

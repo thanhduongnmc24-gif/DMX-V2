@@ -43,12 +43,17 @@ final class ManHinhDangNhap: UIViewController, UITextFieldDelegate {
         nhanTieuDe.font = .systemFont(ofSize: 21, weight: .heavy)
         nhanTieuDe.textColor = .label
         nhanTieuDe.textAlignment = .center
+        nhanTieuDe.numberOfLines = 0
+        nhanTieuDe.lineBreakMode = .byWordWrapping
+        nhanTieuDe.adjustsFontSizeToFitWidth = false
 
         nhanPhuDe.text = "Đăng nhập tài khoản để đồng bộ dữ liệu báo cáo."
         nhanPhuDe.font = .systemFont(ofSize: 13, weight: .medium)
         nhanPhuDe.textColor = .secondaryLabel
         nhanPhuDe.textAlignment = .center
         nhanPhuDe.numberOfLines = 0
+        nhanPhuDe.lineBreakMode = .byWordWrapping
+        nhanPhuDe.adjustsFontSizeToFitWidth = false
 
         cauHinhO(oTen, placeholder: "Tên đăng nhập", secure: false, returnKey: .next)
         cauHinhO(oMatKhau, placeholder: "Mật khẩu", secure: true, returnKey: .go)
@@ -60,15 +65,22 @@ final class ManHinhDangNhap: UIViewController, UITextFieldDelegate {
 
         nutThucHien.setTitle("Đăng nhập vào hệ thống", for: .normal)
         nutThucHien.titleLabel?.font = .systemFont(ofSize: 16.5, weight: .bold)
+        nutThucHien.titleLabel?.numberOfLines = 0
+        nutThucHien.titleLabel?.lineBreakMode = .byWordWrapping
+        nutThucHien.titleLabel?.textAlignment = .center
+        nutThucHien.titleLabel?.adjustsFontSizeToFitWidth = false
         nutThucHien.backgroundColor = .systemBlue
         nutThucHien.tintColor = .white
         nutThucHien.layer.cornerRadius = 12
-        nutThucHien.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        nutThucHien.contentEdgeInsets = UIEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
+        nutThucHien.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
         nutThucHien.addTarget(self, action: #selector(thucHien), for: .touchUpInside)
 
         nhanThongBao.font = .systemFont(ofSize: 13, weight: .semibold)
         nhanThongBao.textColor = .systemRed
         nhanThongBao.numberOfLines = 0
+        nhanThongBao.lineBreakMode = .byWordWrapping
+        nhanThongBao.adjustsFontSizeToFitWidth = false
         nhanThongBao.textAlignment = .center
 
         let hangNut = UIStackView(arrangedSubviews: [nutThucHien, vongQuay])
@@ -182,7 +194,7 @@ final class ManHinhDangNhap: UIViewController, UITextFieldDelegate {
         nutThucHien.isEnabled = !dangTai
         dangTai ? vongQuay.startAnimating() : vongQuay.stopAnimating()
         if dangTai {
-            nhanThongBao.text = "Đang kết nối tài khoản ĐMX..."
+            nhanThongBao.text = "Đang kết nối tài khoản ĐMX"
             nhanThongBao.textColor = .secondaryLabel
         } else {
             nhanThongBao.textColor = .systemRed
