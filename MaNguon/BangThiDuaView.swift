@@ -34,20 +34,7 @@ enum KieuSapXepThiDua: Int, CaseIterable {
     }
 }
 
-extension UIView {
-    func timViewControllerCha() -> UIViewController? {
-        var phanHoi: UIResponder? = self
-        while let tiep = phanHoi?.next {
-            if let vc = tiep as? UIViewController {
-                return vc
-            }
-            phanHoi = tiep
-        }
-        return nil
-    }
-}
-
-// MARK: - Thẻ Chỉ Số Gradient & Cụm 8 Thẻ "Chỉ Số Chính" (Chữ đồng nhất kích cỡ, tự xuống dòng, không bao giờ "...")
+// MARK: - Thẻ Chỉ Số Gradient & Cụm 8 Thẻ "Chỉ Số Chính" (Chữ đồng nhất kích cỡ, tự xuống dòng, không "...")
 
 final class TheDoanhThuView: UIControl {
     private let lopGradient = CAGradientLayer()
@@ -56,14 +43,6 @@ final class TheDoanhThuView: UIControl {
     private let vachKe = UIView()
     private let nhanTarget = UILabel()
     private let chamTron = UIView()
-
-    override var frame: CGRect {
-        didSet { capNhatBoCucThe() }
-    }
-
-    override var bounds: CGRect {
-        didSet { capNhatBoCucThe() }
-    }
 
     init(tieuDe: String, mauBatDau: UIColor, mauKetThuc: UIColor, hienChamTron: Bool = false) {
         super.init(frame: .zero)
@@ -84,14 +63,14 @@ final class TheDoanhThuView: UIControl {
         nhanTieuDe.adjustsFontSizeToFitWidth = false
 
         nhanGiaTriChinh.text = "0,00"
-        nhanGiaTriChinh.font = .systemFont(ofSize: 13.0, weight: .heavy)
+        nhanGiaTriChinh.font = .systemFont(ofSize: 13.5, weight: .heavy)
         nhanGiaTriChinh.textColor = .white
         nhanGiaTriChinh.textAlignment = .center
         nhanGiaTriChinh.numberOfLines = 0
         nhanGiaTriChinh.lineBreakMode = .byWordWrapping
         nhanGiaTriChinh.adjustsFontSizeToFitWidth = false
 
-        vachKe.backgroundColor = UIColor.white.withAlphaComponent(0.28)
+        vachKe.backgroundColor = UIColor.white.withAlphaComponent(0.26)
 
         nhanTarget.text = "TARGET: 0,00"
         nhanTarget.font = .systemFont(ofSize: 8.0, weight: .bold)
@@ -102,13 +81,40 @@ final class TheDoanhThuView: UIControl {
         nhanTarget.adjustsFontSizeToFitWidth = false
 
         chamTron.backgroundColor = .white
-        chamTron.layer.cornerRadius = 2.5
+        chamTron.layer.cornerRadius = 3.5
         chamTron.isHidden = !hienChamTron
 
         [nhanTieuDe, nhanGiaTriChinh, vachKe, nhanTarget, chamTron].forEach {
             $0.isUserInteractionEnabled = false
+            $0.translatesAutoresizingMaskIntoConstraints = false
             addSubview($0)
         }
+
+        let trailingTieuDe: CGFloat = hienChamTron ? -12 : -3
+        NSLayoutConstraint.activate([
+            nhanTieuDe.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+            nhanTieuDe.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            nhanTieuDe.trailingAnchor.constraint(equalTo: trailingAnchor, constant: trailingTieuDe),
+
+            chamTron.centerYAnchor.constraint(equalTo: nhanTieuDe.centerYAnchor),
+            chamTron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            chamTron.widthAnchor.constraint(equalToConstant: 6),
+            chamTron.heightAnchor.constraint(equalToConstant: 6),
+
+            nhanGiaTriChinh.topAnchor.constraint(equalTo: nhanTieuDe.bottomAnchor, constant: 2),
+            nhanGiaTriChinh.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            nhanGiaTriChinh.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -3),
+
+            vachKe.topAnchor.constraint(equalTo: nhanGiaTriChinh.bottomAnchor, constant: 3),
+            vachKe.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+            vachKe.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            vachKe.heightAnchor.constraint(equalToConstant: 1),
+
+            nhanTarget.topAnchor.constraint(equalTo: vachKe.bottomAnchor, constant: 2),
+            nhanTarget.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            nhanTarget.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -3),
+            nhanTarget.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -4)
+        ])
     }
 
     required init?(coder: NSCoder) {
@@ -117,39 +123,15 @@ final class TheDoanhThuView: UIControl {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        capNhatBoCucThe()
-    }
-
-    private func capNhatBoCucThe() {
         lopGradient.frame = bounds
-        let w = bounds.width
-        let h = bounds.height
-        guard w > 10, h > 10 else { return }
-
-        // Cố định toạ độ Y của vùng tiêu đề, số chính và đường gạch ngang theo chiều cao thẻ H
-        // để mọi thẻ trên cùng 1 hàng có số chính và đường gạch ngang thẳng hàng ngang tuyệt đối
-        let yTieuDe = round(h * 0.03)
-        let caoTieuDe = round(h * 0.31)
-        let yGiaTri = yTieuDe + caoTieuDe
-        let caoGiaTri = round(h * 0.27)
-        let yVachKe = yGiaTri + caoGiaTri + 1
-        let yTarget = yVachKe + 2
-        let caoTarget = max(12, h - yTarget - 2)
-
-        nhanTieuDe.frame = CGRect(x: 2, y: yTieuDe, width: max(8, w - 4), height: caoTieuDe)
-        chamTron.frame = CGRect(x: max(2, w - 8), y: max(3, yTieuDe + 2), width: 5, height: 5)
-        nhanGiaTriChinh.frame = CGRect(x: 2, y: yGiaTri, width: max(8, w - 4), height: caoGiaTri)
-        vachKe.frame = CGRect(x: 5, y: yVachKe, width: max(8, w - 10), height: 1)
-        nhanTarget.frame = CGRect(x: 2, y: yTarget, width: max(8, w - 4), height: caoTarget)
     }
 
     func capNhatNoiDung(chinh: String, phu: String, coLon: Bool = false) {
         nhanGiaTriChinh.text = chinh
         nhanTarget.text = phu
         nhanTieuDe.font = .systemFont(ofSize: coLon ? 11.0 : 8.5, weight: .bold)
-        nhanGiaTriChinh.font = .systemFont(ofSize: coLon ? 17.0 : 13.0, weight: .heavy)
+        nhanGiaTriChinh.font = .systemFont(ofSize: coLon ? 17.5 : 13.5, weight: .heavy)
         nhanTarget.font = .systemFont(ofSize: coLon ? 10.5 : 8.0, weight: .bold)
-        capNhatBoCucThe()
     }
 
     func capNhat(doanhThu: Double, target: Double) {
@@ -165,7 +147,6 @@ final class TheDoanhThuView: UIControl {
                 nhanTarget.text = "TARGET: 0,00"
             }
         }
-        capNhatBoCucThe()
     }
 }
 
@@ -238,24 +219,23 @@ final class CumChiSoChinhView: UIControl {
 
     private func cauHinhNutCheDo(_ nut: UIButton, tieuDe: String) {
         nut.setTitle(tieuDe, for: .normal)
-        nut.titleLabel?.font = .systemFont(ofSize: coLon ? 13.5 : 12.0, weight: .bold)
+        nut.titleLabel?.font = .systemFont(ofSize: coLon ? 13.5 : 11.5, weight: .bold)
         nut.titleLabel?.numberOfLines = 0
         nut.titleLabel?.lineBreakMode = .byWordWrapping
         nut.titleLabel?.textAlignment = .center
         nut.titleLabel?.adjustsFontSizeToFitWidth = false
-        nut.contentEdgeInsets = UIEdgeInsets(top: 5, left: 6, bottom: 5, right: 6)
+        nut.contentEdgeInsets = UIEdgeInsets(top: 4, left: 6, bottom: 4, right: 6)
         nut.layer.cornerRadius = 10
         nut.layer.borderWidth = 1
     }
 
     private func taoGiaoDien() {
-        // Yêu cầu 1: Bỏ chữ "Doanh thu" ra khỏi 2 nút trên đầu, chỉ còn "Lũy kế" và "Realtime"
         nutLuyKe.tag = LoaiCheDoDoanhThu.luyKe.rawValue
-        cauHinhNutCheDo(nutLuyKe, tieuDe: "📊 Lũy kế")
+        cauHinhNutCheDo(nutLuyKe, tieuDe: "📊 Doanh thu Lũy kế")
         nutLuyKe.addTarget(self, action: #selector(bamChonCheDo(_:)), for: .touchUpInside)
 
         nutRealtime.tag = LoaiCheDoDoanhThu.realtime.rawValue
-        cauHinhNutCheDo(nutRealtime, tieuDe: "⚡ Realtime")
+        cauHinhNutCheDo(nutRealtime, tieuDe: "⚡ Doanh thu Realtime")
         nutRealtime.addTarget(self, action: #selector(bamChonCheDo(_:)), for: .touchUpInside)
 
         cauHinhNutCheDo(nutBieuDo, tieuDe: "📈 Biểu đồ")
@@ -301,7 +281,7 @@ final class CumChiSoChinhView: UIControl {
         addSubview(nganChinh)
 
         NSLayoutConstraint.activate([
-            hangBaNut.heightAnchor.constraint(greaterThanOrEqualToConstant: coLon ? 38 : 34),
+            hangBaNut.heightAnchor.constraint(greaterThanOrEqualToConstant: coLon ? 40 : 38),
             nganChinh.topAnchor.constraint(equalTo: topAnchor),
             nganChinh.leadingAnchor.constraint(equalTo: leadingAnchor),
             nganChinh.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -411,6 +391,7 @@ final class CumChiSoChinhView: UIControl {
             coLon: coLon
         )
 
+        // Thẻ 5: 📈 % HT QĐ DỰ KIẾN — hiển thị trực tiếp con số % hoàn thành dự kiến và DT dự kiến quét từ ảnh
         let ptGoc = dt.phanTramHTQDDuKienHienThi
         let dkGoc = dt.duKienQuyDoi > 0 ? dt.duKienQuyDoi : dt.duKienThuc
         theHTQDDuKien.capNhatNoiDung(
@@ -445,21 +426,10 @@ final class CumChiSoChinhView: UIControl {
     }
 }
 
-// MARK: - Ô Thẻ Tiến Độ Gọn (Mẫu hiển thị 2 — bố cục frame chính xác tuyệt đối, 2 ô cùng hàng bằng nhau, hiện đầy đủ 100% tên ngành hàng & số liệu)
+// MARK: - Ô Thẻ Tiến Độ Gọn (Mẫu hiển thị 2 — chữ đồng nhất cỡ, tự xuống dòng không bao giờ bị "...")
 
 final class OTheThiDuaCell: UICollectionViewCell {
     static let ma = "OTheThiDuaCell"
-
-    private struct BoCucThe {
-        let coChu: CGFloat
-        let khungTen: CGRect
-        let khungPhanTram: CGRect
-        let khungThucHien: CGRect
-        let khungConThieu: CGRect
-        let canPhaiConThieu: Bool
-        let khungThanhTienDo: CGRect
-        let tongChieuCao: CGFloat
-    }
 
     private let khungThe = UIView()
     private let nhanTen = UILabel()
@@ -468,15 +438,10 @@ final class OTheThiDuaCell: UICollectionViewCell {
     private let nhanConThieu = UILabel()
     private let thanhNenTienDo = UIView()
     private let thanhMauTienDo = UIView()
-
-    private var dongHienTai: DongThiDua?
-    private var xemDuKienHienTai: Bool = false
-    private var tyLeTienDoHienTai: CGFloat = 0
+    private var rangBuocRongTienDo: NSLayoutConstraint?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        contentView.frame = bounds
-        contentView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         taoGiaoDien()
     }
 
@@ -489,71 +454,107 @@ final class OTheThiDuaCell: UICollectionViewCell {
         khungThe.layer.cornerRadius = 12
         khungThe.layer.borderWidth = 1
         khungThe.layer.borderColor = UIColor.systemGray5.cgColor
+        khungThe.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(khungThe)
 
+        nhanTen.font = .systemFont(ofSize: 13, weight: .bold)
         nhanTen.textColor = .label
         nhanTen.numberOfLines = 0
         nhanTen.lineBreakMode = .byWordWrapping
         nhanTen.adjustsFontSizeToFitWidth = false
 
+        nhanPhanTram.font = .systemFont(ofSize: 12.5, weight: .bold)
         nhanPhanTram.textAlignment = .center
-        nhanPhanTram.numberOfLines = 1
-        nhanPhanTram.layer.cornerRadius = 10
+        nhanPhanTram.layer.cornerRadius = 11
         nhanPhanTram.clipsToBounds = true
         nhanPhanTram.adjustsFontSizeToFitWidth = false
+        nhanPhanTram.setContentHuggingPriority(.required, for: .horizontal)
+        nhanPhanTram.setContentCompressionResistancePriority(.required, for: .horizontal)
 
+        nhanThucHienTarget.font = .systemFont(ofSize: 12, weight: .bold)
         nhanThucHienTarget.textColor = .label
         nhanThucHienTarget.numberOfLines = 0
         nhanThucHienTarget.lineBreakMode = .byWordWrapping
         nhanThucHienTarget.adjustsFontSizeToFitWidth = false
 
+        nhanConThieu.font = .systemFont(ofSize: 12, weight: .semibold)
         nhanConThieu.textColor = .secondaryLabel
+        nhanConThieu.textAlignment = .right
         nhanConThieu.numberOfLines = 0
         nhanConThieu.lineBreakMode = .byWordWrapping
         nhanConThieu.adjustsFontSizeToFitWidth = false
+        nhanConThieu.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         thanhNenTienDo.backgroundColor = UIColor.systemGray5
         thanhNenTienDo.layer.cornerRadius = 2.5
         thanhNenTienDo.clipsToBounds = true
 
         thanhMauTienDo.layer.cornerRadius = 2.5
+        thanhMauTienDo.translatesAutoresizingMaskIntoConstraints = false
         thanhNenTienDo.addSubview(thanhMauTienDo)
 
         [nhanTen, nhanPhanTram, nhanThucHienTarget, nhanConThieu, thanhNenTienDo].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
             khungThe.addSubview($0)
         }
+
+        let rgRong = thanhMauTienDo.widthAnchor.constraint(equalToConstant: 0)
+        rangBuocRongTienDo = rgRong
+
+        NSLayoutConstraint.activate([
+            khungThe.topAnchor.constraint(equalTo: contentView.topAnchor),
+            khungThe.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            khungThe.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            khungThe.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+
+            nhanTen.topAnchor.constraint(equalTo: khungThe.topAnchor, constant: 10),
+            nhanTen.leadingAnchor.constraint(equalTo: khungThe.leadingAnchor, constant: 10),
+            nhanTen.trailingAnchor.constraint(lessThanOrEqualTo: nhanPhanTram.leadingAnchor, constant: -6),
+
+            nhanPhanTram.topAnchor.constraint(equalTo: khungThe.topAnchor, constant: 8),
+            nhanPhanTram.trailingAnchor.constraint(equalTo: khungThe.trailingAnchor, constant: -10),
+            nhanPhanTram.widthAnchor.constraint(greaterThanOrEqualToConstant: 66),
+            nhanPhanTram.heightAnchor.constraint(equalToConstant: 22),
+
+            thanhNenTienDo.leadingAnchor.constraint(equalTo: khungThe.leadingAnchor, constant: 10),
+            thanhNenTienDo.trailingAnchor.constraint(equalTo: khungThe.trailingAnchor, constant: -10),
+            thanhNenTienDo.bottomAnchor.constraint(equalTo: khungThe.bottomAnchor, constant: -9),
+            thanhNenTienDo.heightAnchor.constraint(equalToConstant: 5),
+
+            thanhMauTienDo.leadingAnchor.constraint(equalTo: thanhNenTienDo.leadingAnchor),
+            thanhMauTienDo.topAnchor.constraint(equalTo: thanhNenTienDo.topAnchor),
+            thanhMauTienDo.bottomAnchor.constraint(equalTo: thanhNenTienDo.bottomAnchor),
+            rgRong,
+
+            nhanThucHienTarget.topAnchor.constraint(greaterThanOrEqualTo: nhanTen.bottomAnchor, constant: 6),
+            nhanThucHienTarget.bottomAnchor.constraint(equalTo: thanhNenTienDo.topAnchor, constant: -6),
+            nhanThucHienTarget.leadingAnchor.constraint(equalTo: khungThe.leadingAnchor, constant: 10),
+            nhanThucHienTarget.trailingAnchor.constraint(lessThanOrEqualTo: nhanConThieu.leadingAnchor, constant: -6),
+
+            nhanConThieu.centerYAnchor.constraint(equalTo: nhanThucHienTarget.centerYAnchor),
+            nhanConThieu.trailingAnchor.constraint(equalTo: khungThe.trailingAnchor, constant: -10)
+        ])
     }
 
-    private static func tinhBoCuc(
-        cho dong: DongThiDua,
-        rongThe: CGFloat,
-        chieuCaoKhung: CGFloat? = nil,
-        xemDuKien: Bool
-    ) -> BoCucThe {
-        let laTheHep = (rongThe < 240)
-        let coChu: CGFloat = laTheHep ? 11.5 : 12.5
-        let le: CGFloat = laTheHep ? 8 : 10
-        let rongTrong = max(80, rongThe - le * 2)
+    private var tyLeTienDoHienTai: CGFloat = 0
 
-        let fontDam = UIFont.systemFont(ofSize: coChu, weight: .bold)
-        let fontVua = UIFont.systemFont(ofSize: coChu, weight: .semibold)
-        let pWrap = NSMutableParagraphStyle()
-        pWrap.lineBreakMode = .byWordWrapping
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        contentView.layoutIfNeeded()
+        let rongToiDa = thanhNenTienDo.bounds.width
+        rangBuocRongTienDo?.constant = rongToiDa * min(1.0, max(0.0, tyLeTienDoHienTai))
+    }
 
-        let pt = xemDuKien ? dong.phanTramDuBao : dong.phanTramHT
-        let chuoiPT = " \(pt.chuoiPhanTramVN) "
-        let rongPT = max(laTheHep ? 56 : 66, ceil((chuoiPT as NSString).size(withAttributes: [.font: fontDam]).width) + 8)
-        let caoPT: CGFloat = 21
-
-        // Tên ngành hàng luôn có khung đo chính xác để hiển thị trọn vẹn 100% các dòng
-        let rongTen = max(56, rongTrong - rongPT - 6)
+    static func tinhChieuCaoThe(cho dong: DongThiDua, rongThe: CGFloat, xemDuKien: Bool) -> CGFloat {
+        let rongTen = max(80, rongThe - 96)
+        let fontTen = UIFont.systemFont(ofSize: 13, weight: .bold)
         let rectTen = (dong.tenNganhHang as NSString).boundingRect(
-            with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
+            with: CGSize(width: rongTen, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: fontDam, .paragraphStyle: pWrap],
+            attributes: [.font: fontTen],
             context: nil
         )
-        let caoTen = max(caoPT, ceil(rectTen.height) + 2)
+        let caoTen = max(20, ceil(rectTen.height))
 
         let chuoiTrai = xemDuKien
             ? "DK: \(dong.duKien.chuoiSoVN) / \(dong.target.chuoiSoVN) \(dong.loaiChiTieu.maThe)"
@@ -562,130 +563,23 @@ final class OTheThiDuaCell: UICollectionViewCell {
             ? (dong.conThieuDuKien > 0.005 ? "Còn DK: \(dong.conThieuDuKien.chuoiSoVN)" : "Vượt DK: \(dong.vuotMucDuKien.chuoiSoVN)")
             : (dong.conThieu > 0.005 ? "Còn: \(dong.conThieu.chuoiSoVN)" : "Vượt: \(dong.vuotMuc.chuoiSoVN)")
 
-        let rongTrai1Dong = ceil((chuoiTrai as NSString).size(withAttributes: [.font: fontDam]).width) + 2
-        let rongPhai1Dong = ceil((chuoiPhai as NSString).size(withAttributes: [.font: fontVua]).width) + 2
-
-        let xepChong2DongSo = laTheHep || (rongTrai1Dong + 6 + rongPhai1Dong > rongTrong)
-        let caoTrai: CGFloat
-        let caoPhai: CGFloat
-        let caoKhuVucSo: CGFloat
-
-        if xepChong2DongSo {
-            let rectTrai = (chuoiTrai as NSString).boundingRect(
-                with: CGSize(width: rongTrong, height: CGFloat.greatestFiniteMagnitude),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: [.font: fontDam, .paragraphStyle: pWrap],
-                context: nil
-            )
-            let rectPhai = (chuoiPhai as NSString).boundingRect(
-                with: CGSize(width: rongTrong, height: CGFloat.greatestFiniteMagnitude),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: [.font: fontVua, .paragraphStyle: pWrap],
-                context: nil
-            )
-            caoTrai = max(17, ceil(rectTrai.height) + 1)
-            caoPhai = max(17, ceil(rectPhai.height) + 1)
-            caoKhuVucSo = caoTrai + 3 + caoPhai
-        } else {
-            caoTrai = 19
-            caoPhai = 19
-            caoKhuVucSo = 19
-        }
-
-        let caoToiThieu = 8 + caoTen + 8 + caoKhuVucSo + 6 + 5 + 8
-        let tongCao = max(caoToiThieu, chieuCaoKhung ?? caoToiThieu)
-
-        let khungTen = CGRect(x: le, y: 8, width: rongTen, height: caoTen)
-        let khungPhanTram = CGRect(x: rongThe - le - rongPT, y: 8, width: rongPT, height: caoPT)
-        let khungThanh = CGRect(x: le, y: tongCao - 8 - 5, width: rongTrong, height: 5)
-
-        let yDaySo = khungThanh.minY - 6
-        let khungThucHien: CGRect
-        let khungConThieu: CGRect
-
-        if xepChong2DongSo {
-            khungConThieu = CGRect(x: le, y: yDaySo - caoPhai, width: rongTrong, height: caoPhai)
-            khungThucHien = CGRect(x: le, y: khungConThieu.minY - 3 - caoTrai, width: rongTrong, height: caoTrai)
-        } else {
-            khungThucHien = CGRect(x: le, y: yDaySo - caoTrai, width: max(50, rongTrong - rongPhai1Dong - 6), height: caoTrai)
-            khungConThieu = CGRect(x: rongThe - le - rongPhai1Dong, y: yDaySo - caoPhai, width: rongPhai1Dong, height: caoPhai)
-        }
-
-        return BoCucThe(
-            coChu: coChu,
-            khungTen: khungTen,
-            khungPhanTram: khungPhanTram,
-            khungThucHien: khungThucHien,
-            khungConThieu: khungConThieu,
-            canPhaiConThieu: !xepChong2DongSo,
-            khungThanhTienDo: khungThanh,
-            tongChieuCao: tongCao
+        let fontSo = UIFont.systemFont(ofSize: 12, weight: .bold)
+        let rongPhai = ceil((chuoiPhai as NSString).size(withAttributes: [.font: fontSo]).width) + 8
+        let rongTrai = max(80, rongThe - 20 - rongPhai - 6)
+        let rectTrai = (chuoiTrai as NSString).boundingRect(
+            with: CGSize(width: rongTrai, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: fontSo],
+            context: nil
         )
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        contentView.frame = bounds
-        khungThe.frame = contentView.bounds
-        guard let dong = dongHienTai, bounds.width > 20 else { return }
-
-        let bc = Self.tinhBoCuc(
-            cho: dong,
-            rongThe: bounds.width,
-            chieuCaoKhung: bounds.height,
-            xemDuKien: xemDuKienHienTai
-        )
-        nhanTen.font = .systemFont(ofSize: bc.coChu, weight: .bold)
-        nhanPhanTram.font = .systemFont(ofSize: bc.coChu, weight: .bold)
-        nhanConThieu.font = .systemFont(ofSize: bc.coChu, weight: .semibold)
-        nhanConThieu.textAlignment = bc.canPhaiConThieu ? .right : .left
-        capNhatChuoiThucHien(dong: dong, xemDuKien: xemDuKienHienTai, coChu: bc.coChu)
-
-        nhanTen.frame = bc.khungTen
-        nhanPhanTram.frame = bc.khungPhanTram
-        nhanThucHienTarget.frame = bc.khungThucHien
-        nhanConThieu.frame = bc.khungConThieu
-        thanhNenTienDo.frame = bc.khungThanhTienDo
-
-        let rongTienDo = bc.khungThanhTienDo.width * min(1.0, max(0.0, tyLeTienDoHienTai))
-        thanhMauTienDo.frame = CGRect(x: 0, y: 0, width: rongTienDo, height: bc.khungThanhTienDo.height)
-    }
-
-    static func tinhChieuCaoThe(cho dong: DongThiDua, rongThe: CGFloat, xemDuKien: Bool) -> CGFloat {
-        tinhBoCuc(cho: dong, rongThe: rongThe, chieuCaoKhung: nil, xemDuKien: xemDuKien).tongChieuCao
-    }
-
-    private func capNhatChuoiThucHien(dong: DongThiDua, xemDuKien: Bool, coChu: CGFloat) {
-        let pWrap = NSMutableParagraphStyle()
-        pWrap.lineBreakMode = .byWordWrapping
-        let chuoiDam = xemDuKien ? "DK: \(dong.duKien.chuoiSoVN)" : dong.thucHien.chuoiSoVN
-        let chuoiMo = " / \(dong.target.chuoiSoVN) \(dong.loaiChiTieu.maThe)"
-        let attr = NSMutableAttributedString(
-            string: chuoiDam,
-            attributes: [
-                .font: UIFont.systemFont(ofSize: coChu, weight: .bold),
-                .foregroundColor: UIColor.label,
-                .paragraphStyle: pWrap
-            ]
-        )
-        attr.append(NSAttributedString(
-            string: chuoiMo,
-            attributes: [
-                .font: UIFont.systemFont(ofSize: coChu, weight: .semibold),
-                .foregroundColor: UIColor.secondaryLabel,
-                .paragraphStyle: pWrap
-            ]
-        ))
-        nhanThucHienTarget.attributedText = attr
+        let caoSo = max(18, ceil(rectTrai.height))
+        return max(84, 10 + caoTen + 10 + caoSo + 6 + 5 + 10)
     }
 
     func gan(_ dong: DongThiDua, xemDuKien: Bool = false) {
-        self.dongHienTai = dong
-        self.xemDuKienHienTai = xemDuKien
-
         nhanTen.text = dong.tenNganhHang
         let pt = xemDuKien ? dong.phanTramDuBao : dong.phanTramHT
-        nhanPhanTram.text = " \(pt.chuoiPhanTramVN) "
+        nhanPhanTram.text = "  \(pt.chuoiPhanTramVN)  "
 
         if pt >= 99.995 {
             nhanPhanTram.backgroundColor = UIColor(red: 0.86, green: 0.99, blue: 0.90, alpha: 1)
@@ -702,6 +596,24 @@ final class OTheThiDuaCell: UICollectionViewCell {
                 ? UIColor(red: 0.96, green: 0.62, blue: 0.04, alpha: 1)
                 : UIColor(red: 0.86, green: 0.15, blue: 0.15, alpha: 1)
         }
+
+        let chuoiDam = xemDuKien ? "DK: \(dong.duKien.chuoiSoVN)" : dong.thucHien.chuoiSoVN
+        let chuoiMo = " / \(dong.target.chuoiSoVN) \(dong.loaiChiTieu.maThe)"
+        let attr = NSMutableAttributedString(
+            string: chuoiDam,
+            attributes: [
+                .font: UIFont.systemFont(ofSize: 12, weight: .bold),
+                .foregroundColor: UIColor.label
+            ]
+        )
+        attr.append(NSAttributedString(
+            string: chuoiMo,
+            attributes: [
+                .font: UIFont.systemFont(ofSize: 12, weight: .semibold),
+                .foregroundColor: UIColor.secondaryLabel
+            ]
+        ))
+        nhanThucHienTarget.attributedText = attr
 
         if xemDuKien {
             if dong.conThieuDuKien > 0.005 {
@@ -723,7 +635,6 @@ final class OTheThiDuaCell: UICollectionViewCell {
 
         tyLeTienDoHienTai = CGFloat(min(1.0, max(0.03, pt / 100.0)))
         setNeedsLayout()
-        layoutIfNeeded()
     }
 }
 
@@ -815,7 +726,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         nutSapXep.backgroundColor = .secondarySystemGroupedBackground
         nutSapXep.tintColor = .systemBlue
         nutSapXep.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.25).cgColor
-        nutSapXep.addTarget(self, action: #selector(bamMoMenuSapXep), for: .touchUpInside)
+        cauHinhMenuSapXep()
 
         nutSoCot.setTitle(" 1 cột", for: .normal)
         nutSoCot.setImage(UIImage(systemName: "rectangle.grid.1x2"), for: .normal)
@@ -825,6 +736,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         nutSoCot.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.25).cgColor
         nutSoCot.addTarget(self, action: #selector(doiSoCot), for: .touchUpInside)
 
+        // Tách thành 2 hàng rõ ràng để các nút và bộ lọc hiển thị trọn vẹn chữ, không bao giờ bị "..."
         let hangNutPhu = UIStackView(arrangedSubviews: [nutPhanTramDuKien, nutSapXep, nutSoCot])
         hangNutPhu.axis = .horizontal
         hangNutPhu.spacing = 6
@@ -844,7 +756,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         bang8Cot.dataSource = self
         bang8Cot.delegate = self
         bang8Cot.rowHeight = 56
-        bang8Cot.sectionHeaderHeight = 42
+        bang8Cot.sectionHeaderHeight = 40
         bang8Cot.separatorStyle = .singleLine
         bang8Cot.separatorInset = .zero
         bang8Cot.backgroundColor = .systemBackground
@@ -866,14 +778,12 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         tieuDeTrong.font = .systemFont(ofSize: 15, weight: .bold)
         tieuDeTrong.textAlignment = .center
         tieuDeTrong.numberOfLines = 0
-        tieuDeTrong.lineBreakMode = .byWordWrapping
 
         phuDeTrong.text = "Bảng Thi đua Lũy kế và Thi đua Realtime được lưu riêng biệt.\nChạm vào đây hoặc nút Thêm ảnh để tải ảnh Thi đua."
         phuDeTrong.font = .systemFont(ofSize: 12.5, weight: .regular)
         phuDeTrong.textColor = .secondaryLabel
         phuDeTrong.textAlignment = .center
         phuDeTrong.numberOfLines = 0
-        phuDeTrong.lineBreakMode = .byWordWrapping
 
         let nganTrong = UIStackView(arrangedSubviews: [iconTrong, tieuDeTrong, phuDeTrong])
         nganTrong.axis = .vertical
@@ -928,6 +838,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
     }
 
     private func capNhatGiaoDienNutDuKien() {
+        // Chỉ ở phần Lũy kế mới có nút "% dự kiến", ở Realtime ẩn hoàn toàn
         nutPhanTramDuKien.isHidden = (cheDoDoanhThu != .luyKe)
         if hieuLucXemDuKien {
             let mauXanh = UIColor(red: 0.08, green: 0.56, blue: 0.26, alpha: 1)
@@ -949,18 +860,21 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         khiDoiCheDoDuKien?(hieuLucXemDuKien)
     }
 
-    @objc private func bamMoMenuSapXep() {
-        guard let vc = timViewControllerCha() else { return }
-        var cacMuc: [MucChonDMX] = KieuSapXepThiDua.allCases.map { kieu in
-            MucChonDMX(tieuDe: kieu.nhan, dangChon: kieu == kieuSapXep) { [weak self] in
-                guard let self else { return }
+    private func cauHinhMenuSapXep() {
+        let hanhDong = KieuSapXepThiDua.allCases.map { kieu in
+            UIAction(
+                title: kieu.nhan,
+                state: (kieu == kieuSapXep) ? .on : .off
+            ) { [weak self] _ in
+                guard let self = self else { return }
                 self.kieuSapXep = kieu
                 self.nutSapXep.setTitle("⇅ \(kieu.nhanNgan)", for: .normal)
+                self.cauHinhMenuSapXep()
                 self.capNhatDanhSach()
             }
         }
-        cacMuc.append(MucChonDMX(tieuDe: "Đóng", kieu: .huy))
-        vc.hienMenuChon(tieuDe: "Sắp xếp ngành hàng", cacMuc: cacMuc)
+        nutSapXep.menu = UIMenu(title: "Sắp xếp ngành hàng", children: hanhDong)
+        nutSapXep.showsMenuAsPrimaryAction = true
     }
 
     func ganDanhSach(_ ds: [DongThiDua], cheDo: LoaiCheDoDoanhThu = .luyKe) {
@@ -1004,7 +918,6 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         chonBoLoc.setTitle("Tất cả (\(tong))", forSegmentAt: 0)
         chonBoLoc.setTitle("Đạt (\(soDat))", forSegmentAt: 1)
         chonBoLoc.setTitle("Chưa đạt (\(soChuaDat))", forSegmentAt: 2)
-        chonBoLoc.damBaoHienThiDayDuText()
 
         let nhanCheDo = (cheDoDoanhThu == .luyKe) ? "Lũy kế" : "Realtime"
         tieuDeTrong.text = "Chạm để chọn ảnh Thi đua (\(nhanCheDo))"
@@ -1068,18 +981,14 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let xemDK = hieuLucXemDuKien
         if soCotTrenDienThoai == 2 {
             let rongCot = floor((rong - 8) / 2.0)
-            // Hai ô cùng 1 hàng luôn có kích thước (chiều rộng & chiều cao) bằng nhau theo ô cao hơn trong hàng
-            let chiSoDauHang = (indexPath.item / 2) * 2
-            let chiSoCuoiHang = min(danhSachHienThi.count - 1, chiSoDauHang + 1)
-            let cao1 = OTheThiDuaCell.tinhChieuCaoThe(cho: danhSachHienThi[chiSoDauHang], rongThe: rongCot, xemDuKien: xemDK)
-            let cao2 = OTheThiDuaCell.tinhChieuCaoThe(cho: danhSachHienThi[chiSoCuoiHang], rongThe: rongCot, xemDuKien: xemDK)
-            return CGSize(width: rongCot, height: max(cao1, cao2))
+            let caoCot = OTheThiDuaCell.tinhChieuCaoThe(cho: dong, rongThe: rongCot, xemDuKien: xemDK)
+            return CGSize(width: rongCot, height: caoCot)
         }
         let cao = OTheThiDuaCell.tinhChieuCaoThe(cho: dong, rongThe: rong, xemDuKien: xemDK)
         return CGSize(width: rong, height: cao)
     }
 
-    // MARK: - Mẫu 1: UITableView (Bảng 8 cột chi tiết — tự mở rộng chiều cao dòng khi chữ nhiều, cỡ chữ đồng nhất, không bao giờ "...")
+    // MARK: - Mẫu 1: UITableView (Bảng 8 cột chi tiết — tự mở rộng chiều cao dòng khi chữ nhiều, không bao giờ "...")
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         danhSachHienThi.count
@@ -1142,28 +1051,18 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
 
     private func tinhChieuCaoDong8Cot(dong: DongThiDua, hienNhanNV: Bool) -> CGFloat {
         let rongTen = chieuRongCot[1] - 12
-        let fontTen = UIFont.systemFont(ofSize: 12.5, weight: .bold)
+        let fontTen = UIFont.systemFont(ofSize: 13, weight: .bold)
         let rectTen = (dong.tenNganhHang as NSString).boundingRect(
-            with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
+            with: CGSize(width: rongTen, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTen],
             context: nil
         )
         let caoTen = ceil(rectTen.height)
         if hienNhanNV {
-            let soNVGiao = KhoDuLieu.dungChung.danhSachMaNVChiaTarget(cho: dong).count
-            let moiNV = soNVGiao > 0 ? (dong.target / Double(soNVGiao)) : 0
-            let chuoiNV = "👥 \(soNVGiao) NV (\(String(format: "%.1f", moiNV))/NV)"
-            let rectNV = (chuoiNV as NSString).boundingRect(
-                with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: [.font: fontTen],
-                context: nil
-            )
-            let caoNV = max(18, ceil(rectNV.height))
-            return max(58, caoTen + caoNV + 16)
+            return max(56, caoTen + 28)
         } else {
-            return max(52, caoTen + 18)
+            return max(50, caoTen + 16)
         }
     }
 
@@ -1257,9 +1156,8 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let soNVGiao = KhoDuLieu.dungChung.danhSachMaNVChiaTarget(cho: dong).count
         let moiNV = soNVGiao > 0 ? (dong.target / Double(soNVGiao)) : 0
 
-        // Tất cả các cột dùng đúng cùng một cỡ chữ 12.5pt đồng nhất, tự xuống dòng, không bao giờ "..."
-        let fontDongNhat = UIFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .bold)
-        let fontChuDongNhat = UIFont.systemFont(ofSize: 12.5, weight: .bold)
+        // Tất cả các cột dùng đúng cùng một cỡ chữ 13pt đồng nhất, tự xuống dòng, không bao giờ "..."
+        let fontDongNhat = UIFont.monospacedDigitSystemFont(ofSize: 13, weight: .bold)
 
         var xHienTai: CGFloat = 0
         for i in 0..<giaTriCot.count {
@@ -1267,7 +1165,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
             let khungO = CGRect(x: xHienTai, y: 0, width: rong, height: chieuCao)
 
             if i == 6 || i == 7 {
-                let badge = UILabel(frame: khungO.insetBy(dx: 5, dy: max(4, (chieuCao - 32) / 2)))
+                let badge = UILabel(frame: khungO.insetBy(dx: 5, dy: (chieuCao - 30) / 2))
                 badge.text = giaTriCot[i]
                 badge.font = fontDongNhat
                 badge.textAlignment = .center
@@ -1285,30 +1183,20 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
                 badge.clipsToBounds = true
                 khung.addSubview(badge)
             } else if i == 1 && hienNhanNV {
-                let chuoiNV = "👥 \(soNVGiao) NV (\(String(format: "%.1f", moiNV))/NV)"
-                let rectNV = (chuoiNV as NSString).boundingRect(
-                    with: CGSize(width: rong - 12, height: CGFloat.greatestFiniteMagnitude),
-                    options: [.usesLineFragmentOrigin, .usesFontLeading],
-                    attributes: [.font: fontChuDongNhat],
-                    context: nil
-                )
-                let caoNV = max(18, ceil(rectNV.height))
-                let caoTen = max(20, chieuCao - caoNV - 10)
-
-                let lbTen = UILabel(frame: CGRect(x: xHienTai + 6, y: 4, width: rong - 12, height: caoTen))
+                let caoTen = chieuCao - 24
+                let lbTen = UILabel(frame: CGRect(x: xHienTai + 6, y: 5, width: rong - 12, height: caoTen))
                 lbTen.text = dong.tenNganhHang
-                lbTen.font = fontChuDongNhat
+                lbTen.font = .systemFont(ofSize: 13, weight: .bold)
                 lbTen.textColor = mauChuChinh
                 lbTen.numberOfLines = 0
                 lbTen.lineBreakMode = .byWordWrapping
                 lbTen.adjustsFontSizeToFitWidth = false
 
-                let lbNV = UILabel(frame: CGRect(x: xHienTai + 6, y: chieuCao - caoNV - 4, width: rong - 12, height: caoNV))
-                lbNV.text = chuoiNV
-                lbNV.font = fontChuDongNhat
+                let lbNV = UILabel(frame: CGRect(x: xHienTai + 6, y: chieuCao - 19, width: rong - 12, height: 15))
+                lbNV.text = "👥 \(soNVGiao) NV (\(String(format: "%.1f", moiNV))/NV)"
+                lbNV.font = .systemFont(ofSize: 11, weight: .semibold)
                 lbNV.textColor = .systemBlue
-                lbNV.numberOfLines = 0
-                lbNV.lineBreakMode = .byWordWrapping
+                lbNV.numberOfLines = 1
                 lbNV.adjustsFontSizeToFitWidth = false
 
                 khung.addSubview(lbTen)
@@ -1320,7 +1208,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
                 nhan.lineBreakMode = .byWordWrapping
                 nhan.adjustsFontSizeToFitWidth = false
                 if i == 1 {
-                    nhan.font = fontChuDongNhat
+                    nhan.font = .systemFont(ofSize: 13, weight: .bold)
                     nhan.textAlignment = .left
                     nhan.textColor = mauChuChinh
                 } else if i == 0 || i == 2 {
@@ -1349,7 +1237,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         return khung
     }
 
-    // MARK: - Xuất Ảnh Báo Cáo Thi Đua (Các dòng text có cùng cỡ chữ, tự xuống dòng đầy đủ, không có dấu "...")
+    // MARK: - Xuất Ảnh Báo Cáo Thi Đua (Có tuỳ chọn xuất cả Thực hiện & Target lẫn % Dự kiến cuối tháng)
 
     func taoAnhBaoCao(
         ngay: Date,
@@ -1402,91 +1290,59 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let donVi = thongTinDonVi.isEmpty ? "ĐIỆN MÁY XANH" : thongTinDonVi
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
         let nhanCheDo = (cheDoDoanhThu == .luyKe)
-            ? (xemDuKien ? "LŨY KẾ (% DỰ KIẾN CUỐI THÁNG)" : "LŨY KẾ (THỰC HIỆN & TARGET)")
-            : "REALTIME"
+            ? (xemDuKien ? "DOANH THU LŨY KẾ (% DỰ KIẾN CUỐI THÁNG)" : "DOANH THU LŨY KẾ (THỰC HIỆN & TARGET)")
+            : "DOANH THU REALTIME"
 
         let le: CGFloat = 16
         let chieuRongAnh = tongChieuRongBang + le * 2
-        let rongNoiDung = chieuRongAnh - le * 2
         let chieuCaoHeaderCot: CGFloat = 42
         let cacChieuCaoDong: [CGFloat] = ds.isEmpty
-            ? [52]
+            ? [50]
             : ds.map { tinhChieuCaoDong8Cot(dong: $0, hienNhanNV: false) }
         let tongCaoCacDong = cacChieuCaoDong.reduce(0, +)
 
-        let chuPhu = "\(donVi)  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
-        let fontPhu = UIFont.systemFont(ofSize: 12.5, weight: .bold)
-        let caoPhu = max(20, ceil((chuPhu as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: fontPhu],
-            context: nil
-        ).height))
-
-        let chuTieuDe = "BẢNG TỔNG HỢP THI ĐUA — \(nhanCheDo)"
-        let fontTieuDe = UIFont.systemFont(ofSize: 18.0, weight: .heavy)
-        let caoTieuDeChinh = max(26, ceil((chuTieuDe as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: fontTieuDe],
-            context: nil
-        ).height))
-
-        let nhanDat = xemDuKien ? "Đạt dự kiến" : "Đạt"
-        let nhanChuaDat = xemDuKien ? "Chưa đạt dự kiến" : "Không đạt"
-        let chuThongKe = "Tổng: \(ds.count) ngành hàng   •   \(nhanDat): \(soDat)   •   \(nhanChuaDat): \(soKhongDat)"
-        let fontThongKe = UIFont.systemFont(ofSize: 12.5, weight: .semibold)
-        let caoThongKe = max(22, ceil((chuThongKe as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: fontThongKe],
-            context: nil
-        ).height))
-
-        let chieuCaoTieuDe = caoPhu + 4 + caoTieuDeChinh + 8
-        let chieuCaoDoanhThu: CGFloat = 272
-        let chieuCaoDongThongKe = caoThongKe + 8
+        let chieuCaoTieuDe: CGFloat = 56
+        let chieuCaoDoanhThu: CGFloat = 258
+        let chieuCaoDongThongKe: CGFloat = 28
         let chieuCaoAnh = chieuCaoTieuDe + chieuCaoDoanhThu + chieuCaoDongThongKe + chieuCaoHeaderCot + tongCaoCacDong + le * 2
 
         let khungBaoCao = UIView(frame: CGRect(x: 0, y: 0, width: chieuRongAnh, height: chieuCaoAnh))
         khungBaoCao.backgroundColor = .white
         khungBaoCao.overrideUserInterfaceStyle = .light
 
-        let lbPhu = UILabel(frame: CGRect(x: le, y: le, width: rongNoiDung, height: caoPhu))
-        lbPhu.text = chuPhu
-        lbPhu.font = fontPhu
+        let lbPhu = UILabel(frame: CGRect(x: le, y: le, width: chieuRongAnh - le * 2, height: 20))
+        lbPhu.text = "\(donVi)  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
+        lbPhu.font = .systemFont(ofSize: 12.5, weight: .bold)
         lbPhu.textColor = .darkGray
         lbPhu.numberOfLines = 0
         lbPhu.lineBreakMode = .byWordWrapping
-        lbPhu.adjustsFontSizeToFitWidth = false
         khungBaoCao.addSubview(lbPhu)
 
-        let tieuDe = UILabel(frame: CGRect(x: le, y: le + caoPhu + 4, width: rongNoiDung, height: caoTieuDeChinh))
-        tieuDe.text = chuTieuDe
-        tieuDe.font = fontTieuDe
+        let tieuDe = UILabel(frame: CGRect(x: le, y: le + 22, width: chieuRongAnh - le * 2, height: 30))
+        tieuDe.text = "BẢNG TỔNG HỢP THI ĐUA — \(nhanCheDo)"
+        tieuDe.font = .systemFont(ofSize: 18.5, weight: .heavy)
         tieuDe.textColor = .black
         tieuDe.numberOfLines = 0
         tieuDe.lineBreakMode = .byWordWrapping
-        tieuDe.adjustsFontSizeToFitWidth = false
         khungBaoCao.addSubview(tieuDe)
 
         var yHienTai = le + chieuCaoTieuDe
 
         let cumChiSo = CumChiSoChinhView(coLon: true)
         cumChiSo.overrideUserInterfaceStyle = .light
-        cumChiSo.frame = CGRect(x: le, y: yHienTai, width: rongNoiDung, height: 260)
+        cumChiSo.frame = CGRect(x: le, y: yHienTai, width: chieuRongAnh - le * 2, height: 244)
         cumChiSo.capNhat(doanhThu: doanhThu, soNganhDat: soDat, tongSoNganh: ds.count, ngay: ngay, cheDo: cheDoDoanhThu)
         cumChiSo.layoutIfNeeded()
         khungBaoCao.addSubview(cumChiSo)
         yHienTai += chieuCaoDoanhThu
 
-        let dongThongKe = UILabel(frame: CGRect(x: le, y: yHienTai, width: rongNoiDung, height: caoThongKe))
-        dongThongKe.text = chuThongKe
-        dongThongKe.font = fontThongKe
+        let dongThongKe = UILabel(frame: CGRect(x: le, y: yHienTai, width: chieuRongAnh - le * 2, height: 22))
+        let nhanDat = xemDuKien ? "Đạt dự kiến" : "Đạt"
+        let nhanChuaDat = xemDuKien ? "Chưa đạt dự kiến" : "Không đạt"
+        dongThongKe.text = "Tổng: \(ds.count) ngành hàng   •   \(nhanDat): \(soDat)   •   \(nhanChuaDat): \(soKhongDat)"
+        dongThongKe.font = .systemFont(ofSize: 13.5, weight: .semibold)
         dongThongKe.textColor = .darkGray
         dongThongKe.numberOfLines = 0
-        dongThongKe.lineBreakMode = .byWordWrapping
-        dongThongKe.adjustsFontSizeToFitWidth = false
         khungBaoCao.addSubview(dongThongKe)
 
         yHienTai += chieuCaoDongThongKe
@@ -1508,13 +1364,11 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         khungBang.addSubview(header)
 
         if ds.isEmpty {
-            let lbTrong = UILabel(frame: CGRect(x: 0, y: chieuCaoHeaderCot, width: tongChieuRongBang, height: 52))
+            let lbTrong = UILabel(frame: CGRect(x: 0, y: chieuCaoHeaderCot, width: tongChieuRongBang, height: 50))
             lbTrong.text = "Chưa có ngành hàng thi đua nào trong danh sách."
-            lbTrong.font = .systemFont(ofSize: 12.5, weight: .medium)
+            lbTrong.font = .systemFont(ofSize: 13, weight: .medium)
             lbTrong.textColor = .gray
             lbTrong.textAlignment = .center
-            lbTrong.numberOfLines = 0
-            lbTrong.lineBreakMode = .byWordWrapping
             khungBang.addSubview(lbTrong)
         } else {
             var yDong = chieuCaoHeaderCot
@@ -1553,15 +1407,14 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let donVi = thongTinDonVi.isEmpty ? "ĐIỆN MÁY XANH" : thongTinDonVi
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
         let nhanCheDo = (cheDoDoanhThu == .luyKe)
-            ? (xemDuKien ? "LŨY KẾ (% DỰ KIẾN CUỐI THÁNG)" : "LŨY KẾ (THỰC HIỆN & TARGET)")
-            : "REALTIME"
+            ? (xemDuKien ? "DOANH THU LŨY KẾ (% DỰ KIẾN CUỐI THÁNG)" : "DOANH THU LŨY KẾ (THỰC HIỆN & TARGET)")
+            : "DOANH THU REALTIME"
 
         let soCot = max(1, min(4, KhoDuLieu.dungChung.caiDat.soCotXuatAnh))
         let le: CGFloat = 16
         let khoangCachO: CGFloat = 12
         let rongO: CGFloat = 330
         let rongAnh = max(780, le * 2 + CGFloat(soCot) * rongO + CGFloat(soCot - 1) * khoangCachO)
-        let rongNoiDung = rongAnh - le * 2
 
         let soHang = Int(ceil(Double(ds.count) / Double(soCot)))
         var chieuCaoTungHang: [CGFloat] = []
@@ -1577,38 +1430,9 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
             chieuCaoTungHang.append(maxH)
         }
 
-        let chuPhu = "\(donVi)  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
-        let fontPhu = UIFont.systemFont(ofSize: 12.5, weight: .bold)
-        let caoPhu = max(20, ceil((chuPhu as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: fontPhu],
-            context: nil
-        ).height))
-
-        let chuDau = "BẢNG TỔNG HỢP THI ĐUA — \(nhanCheDo)"
-        let fontDau = UIFont.systemFont(ofSize: 18.0, weight: .heavy)
-        let caoDau = max(26, ceil((chuDau as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: fontDau],
-            context: nil
-        ).height))
-
-        let nhanDat = xemDuKien ? "Đạt dự kiến" : "Đạt"
-        let nhanChuaDat = xemDuKien ? "Chưa đạt dự kiến" : "Không đạt"
-        let chuThongKe = "Tổng: \(ds.count) ngành hàng   •   \(nhanDat): \(soDat)   •   \(nhanChuaDat): \(soKhongDat)"
-        let fontThongKe = UIFont.systemFont(ofSize: 12.5, weight: .semibold)
-        let caoThongKe = max(22, ceil((chuThongKe as NSString).boundingRect(
-            with: CGSize(width: rongNoiDung, height: CGFloat.greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: fontThongKe],
-            context: nil
-        ).height))
-
-        let caoTieuDe = caoPhu + 4 + caoDau + 8
-        let caoPhanDoanhThu: CGFloat = 272
-        let caoDongThongKe = caoThongKe + 8
+        let caoTieuDe: CGFloat = 56
+        let caoPhanDoanhThu: CGFloat = 258
+        let caoDongThongKe: CGFloat = 28
         let caoLuoi = soHang > 0
             ? (chieuCaoTungHang.reduce(0, +) + CGFloat(max(0, soHang - 1)) * khoangCachO)
             : 48
@@ -1618,41 +1442,37 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         khung.backgroundColor = UIColor(red: 0.97, green: 0.97, blue: 0.98, alpha: 1)
         khung.overrideUserInterfaceStyle = .light
 
-        let lbPhu = UILabel(frame: CGRect(x: le, y: le, width: rongNoiDung, height: caoPhu))
-        lbPhu.text = chuPhu
-        lbPhu.font = fontPhu
+        let lbPhu = UILabel(frame: CGRect(x: le, y: le, width: rongAnh - le * 2, height: 20))
+        lbPhu.text = "\(donVi)  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
+        lbPhu.font = .systemFont(ofSize: 12.5, weight: .bold)
         lbPhu.textColor = .darkGray
         lbPhu.numberOfLines = 0
-        lbPhu.lineBreakMode = .byWordWrapping
-        lbPhu.adjustsFontSizeToFitWidth = false
         khung.addSubview(lbPhu)
 
-        let nhanDau = UILabel(frame: CGRect(x: le, y: le + caoPhu + 4, width: rongNoiDung, height: caoDau))
-        nhanDau.text = chuDau
-        nhanDau.font = fontDau
+        let nhanDau = UILabel(frame: CGRect(x: le, y: le + 22, width: rongAnh - le * 2, height: 30))
+        nhanDau.text = "BẢNG TỔNG HỢP THI ĐUA — \(nhanCheDo)"
+        nhanDau.font = .systemFont(ofSize: 18.5, weight: .heavy)
         nhanDau.textColor = .black
         nhanDau.numberOfLines = 0
-        nhanDau.lineBreakMode = .byWordWrapping
-        nhanDau.adjustsFontSizeToFitWidth = false
         khung.addSubview(nhanDau)
 
         var yHienTai: CGFloat = le + caoTieuDe
 
         let cumChiSo = CumChiSoChinhView(coLon: true)
         cumChiSo.overrideUserInterfaceStyle = .light
-        cumChiSo.frame = CGRect(x: le, y: yHienTai, width: rongNoiDung, height: 260)
+        cumChiSo.frame = CGRect(x: le, y: yHienTai, width: rongAnh - le * 2, height: 244)
         cumChiSo.capNhat(doanhThu: doanhThu, soNganhDat: soDat, tongSoNganh: ds.count, ngay: ngay, cheDo: cheDoDoanhThu)
         cumChiSo.layoutIfNeeded()
         khung.addSubview(cumChiSo)
         yHienTai += caoPhanDoanhThu
 
-        let dongThongKe = UILabel(frame: CGRect(x: le, y: yHienTai, width: rongNoiDung, height: caoThongKe))
-        dongThongKe.text = chuThongKe
-        dongThongKe.font = fontThongKe
+        let dongThongKe = UILabel(frame: CGRect(x: le, y: yHienTai, width: rongAnh - le * 2, height: 22))
+        let nhanDat = xemDuKien ? "Đạt dự kiến" : "Đạt"
+        let nhanChuaDat = xemDuKien ? "Chưa đạt dự kiến" : "Không đạt"
+        dongThongKe.text = "Tổng: \(ds.count) ngành hàng   •   \(nhanDat): \(soDat)   •   \(nhanChuaDat): \(soKhongDat)"
+        dongThongKe.font = .systemFont(ofSize: 13.5, weight: .semibold)
         dongThongKe.textColor = .darkGray
         dongThongKe.numberOfLines = 0
-        dongThongKe.lineBreakMode = .byWordWrapping
-        dongThongKe.adjustsFontSizeToFitWidth = false
         khung.addSubview(dongThongKe)
 
         yHienTai += caoDongThongKe
@@ -1724,7 +1544,209 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         }
         return "\u{FEFF}" + cacDong.joined(separator: "\n")
     }
+
+    // MARK: - Xuất Ảnh Biểu Đồ Sức Khỏe 16 Nhân Viên & Cảnh Báo 5 Nhân Viên Yếu Nhiều Ngày Liên Tục
+
+    func taoAnhBaoCaoSucKhoeNhanVien(ngay: Date, thongTinDonVi: String = "", capNhatLuc: String = "") -> UIImage? {
+        capNhat(cho: ngay)
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
+        let donVi = !thongTinDonVi.isEmpty ? thongTinDonVi : (dl.thongTinDonVi.isEmpty ? "ĐIỆN MÁY XANH" : dl.thongTinDonVi)
+        let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
+        let kq = ketQuaSucKhoe
+        let dsHienThi = sapXepSucKhoeTheoCanhBao ? kq.danhSachTheoCanhBao : kq.danhSachTheoDiemCaoThap
+        let tongNV = dsHienThi.count
+
+        let le: CGFloat = 18
+        let rongNoiDung = max(920, 64 + CGFloat(max(1, tongNV)) * 56)
+        let rongAnh = rongNoiDung + le * 2
+
+        let caoHeader: CGFloat = 56
+        let cao4The: CGFloat = 76
+        let caoTieuDeCB: CGFloat = 46
+        let caoMoiTheCB: CGFloat = 68
+        let caoKhungCB: CGFloat = 16 + caoTieuDeCB + CGFloat(kq.top5CanhBaoYeu.count) * (caoMoiTheCB + 6)
+        let caoBieuDoCot: CGFloat = 264
+        let caoTieuDeBang: CGFloat = 28
+        let caoMoiDongNV: CGFloat = 62
+        let caoBangNV: CGFloat = CGFloat(max(1, tongNV)) * (caoMoiDongNV + 6)
+
+        let caoAnh = le * 2 + caoHeader + 10 + cao4The + 12 + caoKhungCB + 12 + caoBieuDoCot + 12 + caoTieuDeBang + 6 + caoBangNV
+
+        let khung = UIView(frame: CGRect(x: 0, y: 0, width: rongAnh, height: caoAnh))
+        khung.backgroundColor = .white
+        khung.overrideUserInterfaceStyle = .light
+
+        let lbPhu = UILabel(frame: CGRect(x: le, y: le, width: rongNoiDung, height: 20))
+        lbPhu.text = "\(donVi)  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
+        lbPhu.font = .systemFont(ofSize: 12.5, weight: .bold)
+        lbPhu.textColor = .darkGray
+        lbPhu.numberOfLines = 0
+        khung.addSubview(lbPhu)
+
+        let lbChinh = UILabel(frame: CGRect(x: le, y: le + 22, width: rongNoiDung, height: 30))
+        lbChinh.text = "🩺 BIỂU ĐỒ SỨC KHỎE \(tongNV) NHÂN VIÊN & CẢNH BÁO 5 NV YẾU LIÊN TỤC"
+        lbChinh.font = .systemFont(ofSize: 19, weight: .heavy)
+        lbChinh.textColor = .black
+        lbChinh.numberOfLines = 0
+        khung.addSubview(lbChinh)
+
+        var y = le + caoHeader + 10
+
+        // 1. 4 thẻ tóm tắt
+        let kcThe: CGFloat = 10
+        let rongMoiThe = (rongNoiDung - kcThe * 3) / 4
+        let duLieu4The: [(tieuDe: String, chinh: String, phu: String, m1: UIColor, m2: UIColor)] = [
+            ("🟢 KHỎE (≥80%)", "\(kq.soNVKhoe) NV", "ĐIỂM SK ≥ 80% / \(tongNV) NV", UIColor(red: 0.08, green: 0.61, blue: 0.27, alpha: 1), UIColor(red: 0.06, green: 0.48, blue: 0.22, alpha: 1)),
+            ("🔵 KHÁ (65–79%)", "\(kq.soNVKha) NV", "ĐIỂM SK 65–79% / \(tongNV) NV", UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1), UIColor(red: 0.22, green: 0.27, blue: 0.88, alpha: 1)),
+            ("🟠 CẦN CHÚ Ý", "\(kq.soNVCanChuY) NV", "ĐIỂM SK 50–64% / \(tongNV) NV", UIColor(red: 0.95, green: 0.55, blue: 0.06, alpha: 1), UIColor(red: 0.86, green: 0.42, blue: 0.02, alpha: 1)),
+            ("🔴 CẢNH BÁO YẾU LT", "\(kq.top5CanhBaoYeu.count) NV", "YẾU LIÊN TỤC CẦN KÈM CẶP", UIColor(red: 0.88, green: 0.16, blue: 0.16, alpha: 1), UIColor(red: 0.72, green: 0.10, blue: 0.14, alpha: 1))
+        ]
+        for (i, t) in duLieu4The.enumerated() {
+            let vThe = TheDoanhThuView(tieuDe: t.tieuDe, mauBatDau: t.m1, mauKetThuc: t.m2)
+            vThe.capNhatNoiDung(chinh: t.chinh, phu: t.phu, coLon: true)
+            vThe.frame = CGRect(x: le + CGFloat(i) * (rongMoiThe + kcThe), y: y, width: rongMoiThe, height: cao4The)
+            vThe.layoutIfNeeded()
+            khung.addSubview(vThe)
+        }
+
+        y += cao4The + 12
+
+        // 2. Khung Cảnh báo 5 nhân viên yếu liên tục
+        let hopCB = UIView(frame: CGRect(x: le, y: y, width: rongNoiDung, height: caoKhungCB))
+        hopCB.backgroundColor = UIColor(red: 1.0, green: 0.95, blue: 0.95, alpha: 1)
+        hopCB.layer.cornerRadius = 10
+        hopCB.layer.borderWidth = 1.5
+        hopCB.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.55).cgColor
+        khung.addSubview(hopCB)
+
+        let lbCBHeader = UILabel(frame: CGRect(x: 12, y: 8, width: rongNoiDung - 24, height: 22))
+        lbCBHeader.text = "🚨 CẢNH BÁO 5 NHÂN VIÊN YẾU NHIỀU NGÀY LIÊN TỤC"
+        lbCBHeader.font = .systemFont(ofSize: 14, weight: .heavy)
+        lbCBHeader.textColor = UIColor(red: 0.78, green: 0.08, blue: 0.08, alpha: 1)
+        hopCB.addSubview(lbCBHeader)
+
+        let lbCBSub = UILabel(frame: CGRect(x: 12, y: 30, width: rongNoiDung - 24, height: 18))
+        lbCBSub.text = "Điểm SK tổng hợp = 60% Doanh thu QĐ + 40% Môn thi đua  •  Điểm SK TB đội: \(kq.trungBinhDiemSucKhoe.chuoiPhanTram)  •  DT QĐ TB đội: \(kq.trungBinhDoiDTQD.chuoiSoGonVN)tr"
+        lbCBSub.font = .systemFont(ofSize: 12, weight: .semibold)
+        lbCBSub.textColor = .darkGray
+        hopCB.addSubview(lbCBSub)
+
+        var yCB: CGFloat = 54
+        for item in kq.top5CanhBaoYeu {
+            let oCB = UIView(frame: CGRect(x: 12, y: yCB, width: rongNoiDung - 24, height: caoMoiTheCB))
+            oCB.backgroundColor = .white
+            oCB.layer.cornerRadius = 8
+            oCB.layer.borderWidth = 1
+            oCB.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.4).cgColor
+
+            let lbTen = UILabel(frame: CGRect(x: 10, y: 6, width: rongNoiDung - 290, height: 22))
+            lbTen.text = "⚠️ #\(item.thuHangCanhBao). \(item.nhanVien.hoTen) — Mã NV: \(item.nhanVien.maNV)"
+            lbTen.font = .systemFont(ofSize: 13, weight: .heavy)
+            lbTen.textColor = UIColor(red: 0.72, green: 0.08, blue: 0.08, alpha: 1)
+            oCB.addSubview(lbTen)
+
+            let badge = UILabel(frame: CGRect(x: rongNoiDung - 270, y: 6, width: 236, height: 22))
+            badge.text = "🔥 Yếu \(item.soNgayYeuLienTuc) ngày LT • Điểm SK: \(item.diemSucKhoe.chuoiPhanTram)"
+            badge.font = .monospacedDigitSystemFont(ofSize: 11.5, weight: .bold)
+            badge.textColor = .white
+            badge.backgroundColor = UIColor(red: 0.84, green: 0.14, blue: 0.14, alpha: 1)
+            badge.textAlignment = .center
+            badge.layer.cornerRadius = 6
+            badge.clipsToBounds = true
+            oCB.addSubview(badge)
+
+            let chuoiCham = item.lichSuNgay.map { "N\($0.ngayTrongThang)\($0.laNgayYeu ? "🔴" : ($0.diemSucKhoe >= 80 ? "🟢" : "🟡"))" }.joined(separator: " → ")
+            let lbLyDo = UILabel(frame: CGRect(x: 10, y: 32, width: rongNoiDung - 44, height: 30))
+            lbLyDo.text = "📊 \(item.lyDoCanhBao)   |   📅 Chuỗi ngày: \(chuoiCham)"
+            lbLyDo.font = .systemFont(ofSize: 12, weight: .semibold)
+            lbLyDo.textColor = .black
+            lbLyDo.numberOfLines = 0
+            oCB.addSubview(lbLyDo)
+
+            hopCB.addSubview(oCB)
+            yCB += caoMoiTheCB + 6
+        }
+
+        y += caoKhungCB + 12
+
+        // 3. Khung Biểu đồ cột 16 NV
+        let hopBD = UIView(frame: CGRect(x: le, y: y, width: rongNoiDung, height: caoBieuDoCot))
+        hopBD.backgroundColor = UIColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 1)
+        hopBD.layer.cornerRadius = 10
+        hopBD.layer.borderWidth = 1
+        hopBD.layer.borderColor = UIColor.systemGray4.cgColor
+        khung.addSubview(hopBD)
+
+        let lbLegend = UILabel(frame: CGRect(x: 12, y: 8, width: rongNoiDung - 24, height: 20))
+        lbLegend.text = "📊 BIỂU ĐỒ CỘT TRỰC QUAN SỨC KHỎE \(tongNV) NHÂN VIÊN:   🟢 Khỏe (≥80%)   🔵 Khá (65–79%)   🟠 Cần chú ý (50–64%)   🔴/🔥 Top 5 Yếu liên tục"
+        lbLegend.font = .systemFont(ofSize: 12.5, weight: .bold)
+        lbLegend.textColor = .black
+        hopBD.addSubview(lbLegend)
+
+        let chart = VeBieuDoSucKhoe16NVView(frame: CGRect(x: 4, y: 30, width: rongNoiDung - 8, height: caoBieuDoCot - 34))
+        chart.overrideUserInterfaceStyle = .light
+        chart.danhSach = dsHienThi
+        hopBD.addSubview(chart)
+
+        y += caoBieuDoCot + 12
+
+        // 4. Bảng Thanh Ngang Sức Khỏe 16 NV
+        let lbTieuDeBang = UILabel(frame: CGRect(x: le, y: y, width: rongNoiDung, height: caoTieuDeBang))
+        lbTieuDeBang.text = "📋 BẢNG THANH NGANG ĐỐI CHIẾU SỨC KHỎE & CHUỖI NGÀY TOÀN BỘ \(tongNV) NHÂN VIÊN"
+        lbTieuDeBang.font = .systemFont(ofSize: 13.5, weight: .heavy)
+        lbTieuDeBang.textColor = .black
+        khung.addSubview(lbTieuDeBang)
+
+        y += caoTieuDeBang + 6
+
+        for (idx, item) in dsHienThi.enumerated() {
+            let oDong = UIView(frame: CGRect(x: le, y: y, width: rongNoiDung, height: caoMoiDongNV))
+            oDong.backgroundColor = item.laTop5CanhBao ? UIColor(red: 1.0, green: 0.96, blue: 0.96, alpha: 1) : .white
+            oDong.layer.cornerRadius = 8
+            oDong.layer.borderWidth = item.laTop5CanhBao ? 1.2 : 0.8
+            oDong.layer.borderColor = (item.laTop5CanhBao ? UIColor.systemRed.withAlphaComponent(0.5) : UIColor.systemGray4).cgColor
+
+            let mauThanh: UIColor = item.laTop5CanhBao
+                ? UIColor(red: 0.84, green: 0.14, blue: 0.14, alpha: 1)
+                : (item.mucDo == .khoe ? UIColor(red: 0.08, green: 0.58, blue: 0.26, alpha: 1) : (item.mucDo == .kha ? UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1) : UIColor(red: 0.90, green: 0.46, blue: 0.04, alpha: 1)))
+
+            let chuCB = item.laTop5CanhBao ? "🔥 Cảnh báo #\(item.thuHangCanhBao): Yếu \(item.soNgayYeuLienTuc) ngày liên tục" : "\(item.mucDo.bieuTuong) \(item.mucDo.tenNgan)"
+            let lb1 = UILabel(frame: CGRect(x: 10, y: 6, width: rongNoiDung - 20, height: 18))
+            lb1.text = "\(idx + 1). \(item.nhanVien.hoTen) (Mã NV: \(item.nhanVien.maNV))   •   \(chuCB)"
+            lb1.font = .systemFont(ofSize: 12.5, weight: .bold)
+            lb1.textColor = item.laTop5CanhBao ? UIColor(red: 0.72, green: 0.08, blue: 0.08, alpha: 1) : .black
+            oDong.addSubview(lb1)
+
+            let track = UIView(frame: CGRect(x: 10, y: 27, width: rongNoiDung - 20, height: 9))
+            track.backgroundColor = UIColor.systemGray5
+            track.layer.cornerRadius = 4.5
+            let tyLe = CGFloat(min(1.0, max(0.04, item.diemSucKhoe / 100.0)))
+            let fill = UIView(frame: CGRect(x: 0, y: 0, width: (rongNoiDung - 20) * tyLe, height: 9))
+            fill.backgroundColor = mauThanh
+            fill.layer.cornerRadius = 4.5
+            track.addSubview(fill)
+            oDong.addSubview(track)
+
+            let chuoiCham = item.lichSuNgay.map { $0.laNgayYeu ? "🔴" : ($0.diemSucKhoe >= 80 ? "🟢" : "🟡") }.joined()
+            let lb2 = UILabel(frame: CGRect(x: 10, y: 39, width: rongNoiDung - 20, height: 18))
+            lb2.text = "Điểm SK: \(item.diemSucKhoe.chuoiPhanTram)   •   DT QĐ: \(item.tongHopLuyKe.doanhThuQD.chuoiSoGonVN)tr   •   Môn đạt: \(item.tongHopLuyKe.soMonDat)/\(item.tongHopLuyKe.tongMonGiao) (TB \(item.tongHopLuyKe.phanTramHTTB.chuoiPhanTram))   •   Chuỗi ngày: \(chuoiCham)"
+            lb2.font = .monospacedDigitSystemFont(ofSize: 11.5, weight: .semibold)
+            lb2.textColor = .darkGray
+            oDong.addSubview(lb2)
+
+            khung.addSubview(oDong)
+            y += caoMoiDongNV + 6
+        }
+
+        let fmt = UIGraphicsImageRendererFormat()
+        fmt.scale = 2.0
+        return UIGraphicsImageRenderer(size: khung.bounds.size, format: fmt).image { ctx in
+            khung.layer.render(in: ctx.cgContext)
+        }
+    }
+
 }
+
 
 // MARK: - 4. Màn hình / Khung Tổng Hợp Biểu Đồ Realtime Theo Tháng (Nút Biểu đồ)
 
@@ -1809,17 +1831,14 @@ private final class VeBieuDoCotRealtimeView: UIView {
         ctx.setLineDash(phase: 0, lengths: [])
 
         guard !danhSachNgay.isEmpty else {
-            let pCenter = NSMutableParagraphStyle()
-            pCenter.alignment = .center
-            pCenter.lineBreakMode = .byWordWrapping
             let thongBao = "Chưa có dữ liệu Realtime ngày nào trong tháng — chạm vào ngày bên dưới để thêm."
             let attr: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: 12, weight: .medium),
-                .foregroundColor: mauChuPhu,
-                .paragraphStyle: pCenter
+                .foregroundColor: mauChuPhu
             ]
+            let sz = (thongBao as NSString).size(withAttributes: attr)
             (thongBao as NSString).draw(
-                in: CGRect(x: leTrai + 8, y: leTren + caoVe / 2 - 20, width: max(100, rongVe - 16), height: 44),
+                at: CGPoint(x: max(leTrai + 8, (rect.width - sz.width) / 2), y: leTren + caoVe / 2 - sz.height / 2),
                 withAttributes: attr
             )
             return
@@ -1907,9 +1926,232 @@ private final class VeBieuDoCotRealtimeView: UIView {
     }
 }
 
+// MARK: - 4B. Biểu Đồ Trực Quan Sức Khỏe 16 Nhân Viên (Cột màu phân tầng + Huy hiệu cảnh báo chuỗi ngày yếu)
+
+private final class VeBieuDoSucKhoe16NVView: UIView {
+    var danhSach: [ChiSoSucKhoeNhanVien] = [] {
+        didSet { setNeedsDisplay() }
+    }
+    var khiChonNhanVien: ((ChiSoSucKhoeNhanVien) -> Void)?
+
+    private let leTrai: CGFloat = 44
+    private let lePhai: CGFloat = 14
+    private let leTren: CGFloat = 34
+    private let leDuoi: CGFloat = 54
+    let chieuRongMoiNV: CGFloat = 56
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        let tap = UITapGestureRecognizer(target: self, action: #selector(xuLyCham(_:)))
+        addGestureRecognizer(tap)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("Khong ho tro coder")
+    }
+
+    @objc private func xuLyCham(_ g: UITapGestureRecognizer) {
+        guard !danhSach.isEmpty else { return }
+        let diem = g.location(in: self)
+        guard diem.x >= leTrai else { return }
+        let idx = Int((diem.x - leTrai) / chieuRongMoiNV)
+        if idx >= 0 && idx < danhSach.count {
+            khiChonNhanVien?(danhSach[idx])
+        }
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        let caoVe = max(50, rect.height - leTren - leDuoi)
+        let rongVe = max(60, rect.width - leTrai - lePhai)
+
+        let maxDiem = max(110.0, (danhSach.map(\.diemSucKhoe).max() ?? 100.0) * 1.12)
+        let fontTruc = UIFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .bold)
+        let mauChuPhu = UIColor.secondaryLabel
+
+        // Vẽ các đường chuẩn: 0%, 50%, 65% (Ngưỡng yếu), 80% (Khỏe), 100% (Mục tiêu)
+        let cacMuc: [(giaTri: Double, nhan: String, mau: UIColor, netDut: Bool)] = [
+            (0, "0%", UIColor.separator.withAlphaComponent(0.5), false),
+            (50, "50%", UIColor.systemRed.withAlphaComponent(0.35), true),
+            (65, "65% Yếu", UIColor.systemOrange.withAlphaComponent(0.55), true),
+            (80, "80% Khỏe", UIColor.systemGreen.withAlphaComponent(0.55), true),
+            (100, "100%", UIColor.systemBlue.withAlphaComponent(0.45), true)
+        ]
+
+        for muc in cacMuc where muc.giaTri <= maxDiem {
+            let tyLe = CGFloat(muc.giaTri / maxDiem)
+            let y = leTren + caoVe * (1.0 - tyLe)
+
+            ctx.setStrokeColor(muc.mau.cgColor)
+            ctx.setLineWidth(muc.giaTri == 0 ? 1.0 : 0.8)
+            ctx.setLineDash(phase: 0, lengths: muc.netDut ? [4, 3] : [])
+            ctx.move(to: CGPoint(x: leTrai, y: y))
+            ctx.addLine(to: CGPoint(x: leTrai + rongVe, y: y))
+            ctx.strokePath()
+
+            let chuY = "\(Int(muc.giaTri))%"
+            let attrY: [NSAttributedString.Key: Any] = [
+                .font: fontTruc,
+                .foregroundColor: muc.giaTri == 65 ? UIColor.systemOrange : (muc.giaTri == 80 ? UIColor.systemGreen : mauChuPhu)
+            ]
+            let sz = (chuY as NSString).size(withAttributes: attrY)
+            (chuY as NSString).draw(
+                at: CGPoint(x: max(2, leTrai - sz.width - 4), y: y - sz.height / 2),
+                withAttributes: attrY
+            )
+        }
+        ctx.setLineDash(phase: 0, lengths: [])
+
+        guard !danhSach.isEmpty else {
+            let tb = "Chưa có dữ liệu nhân viên — hãy nhập ảnh Doanh thu / Thi đua Nhân viên."
+            let attr: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 12, weight: .semibold),
+                .foregroundColor: mauChuPhu
+            ]
+            let sz = (tb as NSString).size(withAttributes: attr)
+            (tb as NSString).draw(
+                at: CGPoint(x: max(leTrai + 8, (rect.width - sz.width) / 2), y: leTren + caoVe / 2 - sz.height / 2),
+                withAttributes: attr
+            )
+            return
+        }
+
+        let rongCot: CGFloat = 28
+        let fontDiem = UIFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .heavy)
+        let fontTen = UIFont.systemFont(ofSize: 9.5, weight: .bold)
+        let pCenter = NSMutableParagraphStyle()
+        pCenter.alignment = .center
+        pCenter.lineBreakMode = .byWordWrapping
+
+        for (i, item) in danhSach.enumerated() {
+            let xTam = leTrai + CGFloat(i) * chieuRongMoiNV + chieuRongMoiNV / 2
+            let yDay = leTren + caoVe
+
+            // Nền tô sáng đỏ nhạt cho 5 nhân viên bị cảnh báo yếu liên tục
+            if item.laTop5CanhBao {
+                let khungCanhBao = CGRect(
+                    x: xTam - chieuRongMoiNV / 2 + 2,
+                    y: 4,
+                    width: chieuRongMoiNV - 4,
+                    height: rect.height - 8
+                )
+                UIColor.systemRed.withAlphaComponent(0.08).setFill()
+                UIBezierPath(roundedRect: khungCanhBao, cornerRadius: 8).fill()
+            }
+
+            let mauCot: UIColor
+            if item.laTop5CanhBao {
+                mauCot = (item.thuHangCanhBao <= 3)
+                    ? UIColor(red: 0.86, green: 0.15, blue: 0.15, alpha: 1)
+                    : UIColor(red: 0.92, green: 0.38, blue: 0.08, alpha: 1)
+            } else {
+                switch item.mucDo {
+                case .khoe: mauCot = UIColor(red: 0.08, green: 0.62, blue: 0.28, alpha: 1)
+                case .kha: mauCot = UIColor(red: 0.14, green: 0.42, blue: 0.92, alpha: 1)
+                case .canChuY: mauCot = UIColor(red: 0.94, green: 0.52, blue: 0.06, alpha: 1)
+                case .yeuBaoDong: mauCot = UIColor(red: 0.86, green: 0.15, blue: 0.15, alpha: 1)
+                }
+            }
+
+            let diemHienThi = max(4.0, item.diemSucKhoe)
+            let caoCot = max(6, CGFloat(min(maxDiem, diemHienThi) / maxDiem) * caoVe)
+            let xCot = xTam - rongCot / 2
+            let rectCot = CGRect(x: xCot, y: yDay - caoCot, width: rongCot, height: caoCot)
+            let pathCot = UIBezierPath(
+                roundedRect: rectCot,
+                byRoundingCorners: [.topLeft, .topRight],
+                cornerRadii: CGSize(width: 5, height: 5)
+            )
+            mauCot.setFill()
+            pathCot.fill()
+
+            // Nhãn % điểm sức khỏe trên đỉnh cột
+            let chuDiem = String(format: "%.0f%%", item.diemSucKhoe)
+            let attrDiem: [NSAttributedString.Key: Any] = [
+                .font: fontDiem,
+                .foregroundColor: mauCot
+            ]
+            let szDiem = (chuDiem as NSString).size(withAttributes: attrDiem)
+            let yDiem = max(14, yDay - caoCot - szDiem.height - 2)
+            (chuDiem as NSString).draw(
+                at: CGPoint(x: xTam - szDiem.width / 2, y: yDiem),
+                withAttributes: attrDiem
+            )
+
+            // Nếu thuộc Top 5 nhân viên yếu liên tục: vẽ huy hiệu "🔥 XN" phía trên
+            if item.laTop5CanhBao {
+                let chuCB = "🔥\(item.soNgayYeuLienTuc)N"
+                let attrCB: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.systemFont(ofSize: 8.5, weight: .heavy),
+                    .foregroundColor: UIColor.white
+                ]
+                let szCB = (chuCB as NSString).size(withAttributes: attrCB)
+                let rectBadge = CGRect(
+                    x: xTam - (szCB.width + 8) / 2,
+                    y: max(1, yDiem - 14),
+                    width: szCB.width + 8,
+                    height: 13
+                )
+                UIColor(red: 0.84, green: 0.12, blue: 0.12, alpha: 1).setFill()
+                UIBezierPath(roundedRect: rectBadge, cornerRadius: 5).fill()
+                (chuCB as NSString).draw(
+                    at: CGPoint(x: rectBadge.minX + 4, y: rectBadge.minY + 1),
+                    withAttributes: attrCB
+                )
+            }
+
+            // Tên rút gọn 2 dòng dưới chân cột (không bao giờ bị "...")
+            let tenNgan = item.tenRutGonBieuDo
+            let rectTen = CGRect(x: xTam - chieuRongMoiNV / 2 + 2, y: yDay + 5, width: chieuRongMoiNV - 4, height: 30)
+            (tenNgan as NSString).draw(in: rectTen, withAttributes: [
+                .font: fontTen,
+                .foregroundColor: item.laTop5CanhBao ? UIColor.systemRed : UIColor.label,
+                .paragraphStyle: pCenter
+            ])
+
+            // Hàng chấm nhỏ biểu thị các ngày gần nhất ngay dưới tên
+            let lichSuNgan = Array(item.lichSuNgay.suffix(5))
+            if !lichSuNgan.isEmpty {
+                let coCham: CGFloat = 5.5
+                let kcCham: CGFloat = 2.5
+                let tongRongCham = CGFloat(lichSuNgan.count) * coCham + CGFloat(max(0, lichSuNgan.count - 1)) * kcCham
+                var xCham = xTam - tongRongCham / 2
+                let yCham = yDay + 37
+                for ng in lichSuNgan {
+                    let mauCham: UIColor = ng.laNgayYeu
+                        ? .systemRed
+                        : (ng.diemSucKhoe >= 80 ? .systemGreen : .systemOrange)
+                    mauCham.setFill()
+                    UIBezierPath(ovalIn: CGRect(x: xCham, y: yCham, width: coCham, height: coCham)).fill()
+                    xCham += coCham + kcCham
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 4C. Khung Tổng Hợp Biểu Đồ (Có 2 nút nhấn: Biểu đồ Realtime & Biểu đồ Sức khỏe Nhân viên)
+
 final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITableViewDelegate {
     var khiBamSuaDoanhThuLuyKe: (() -> Void)?
     var khiChonNgayRealtime: ((DuLieuRealtimeNgayTrongThang) -> Void)?
+    var khiChonNhanVienSucKhoe: ((TongHopNhanVien) -> Void)?
+
+    private(set) var loaiBieuDoDangXem: LoaiBieuDoThang = .realtime
+    private var sapXepSucKhoeTheoCanhBao: Bool = true
+    private var ketQuaSucKhoe = KetQuaPhanTichSucKhoeDoiNgu(
+        danhSachTheoCanhBao: [],
+        danhSachTheoDiemCaoThap: [],
+        top5CanhBaoYeu: [],
+        trungBinhDoiDTQD: 0,
+        trungBinhDiemSucKhoe: 0,
+        soNgayCoDuLieu: 0,
+        soNVKhoe: 0,
+        soNVKha: 0,
+        soNVCanChuY: 0,
+        soNVYeu: 0
+    )
 
     private var ngayHienTai: Date = Date()
     private var doanhThuLuyKe = ThongTinDoanhThu()
@@ -1917,8 +2159,46 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     private var danhSachBieuDo: [DuLieuRealtimeNgayTrongThang] = []
     private var chiHienNgayCoSo: Bool = false
 
+    // Thanh 2 nút chuyển đổi trên cùng của mục Biểu đồ: 1. Biểu đồ Realtime | 2. Biểu đồ Sức khỏe Nhân viên
+    private let nutBieuDoRealtime = UIButton(type: .custom)
+    private let nutBieuDoSucKhoeNV = UIButton(type: .custom)
+    private var hangHaiNutBieuDo: UIStackView!
+
+    // Khung 1: Nội dung Biểu đồ Realtime
     private let cuonDoc = UIScrollView()
     private let nganNoiDung = UIStackView()
+
+    // Khung 2: Nội dung Biểu đồ Sức khỏe Nhân viên (16 NV + Cảnh báo 5 NV yếu liên tục)
+    private let cuonSucKhoeNV = UIScrollView()
+    private let nganSucKhoeNV = UIStackView()
+    private let theSKKhoe = TheDoanhThuView(
+        tieuDe: "🟢 KHỎE (≥80%)",
+        mauBatDau: UIColor(red: 0.08, green: 0.61, blue: 0.27, alpha: 1),
+        mauKetThuc: UIColor(red: 0.06, green: 0.48, blue: 0.22, alpha: 1)
+    )
+    private let theSKKha = TheDoanhThuView(
+        tieuDe: "🔵 KHÁ (65–79%)",
+        mauBatDau: UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1),
+        mauKetThuc: UIColor(red: 0.22, green: 0.27, blue: 0.88, alpha: 1)
+    )
+    private let theSKCanChuY = TheDoanhThuView(
+        tieuDe: "🟠 CẦN CHÚ Ý",
+        mauBatDau: UIColor(red: 0.95, green: 0.55, blue: 0.06, alpha: 1),
+        mauKetThuc: UIColor(red: 0.86, green: 0.42, blue: 0.02, alpha: 1)
+    )
+    private let theSKYeu = TheDoanhThuView(
+        tieuDe: "🔴 CẢNH BÁO YẾU LT",
+        mauBatDau: UIColor(red: 0.88, green: 0.16, blue: 0.16, alpha: 1),
+        mauKetThuc: UIColor(red: 0.72, green: 0.10, blue: 0.14, alpha: 1)
+    )
+    private let nhanPhuDeCanhBao5NV = UILabel()
+    private let nganDanhSach5NVYeu = UIStackView()
+    private let nhanTomTatBieuDoSK = UILabel()
+    private let cuonBieuDoSK16NV = UIScrollView()
+    private let veBieuDoSK16NV = VeBieuDoSucKhoe16NVView()
+    private var rangBuocRongBieuDoSK16NV: NSLayoutConstraint?
+    private let nutSapXepSK = UIButton(type: .system)
+    private let nganBangThanhNgang16NV = UIStackView()
 
     private let nhanTieuDeLuyKe = UILabel()
     private let theLuyKeThuc = TheDoanhThuView(
@@ -1942,8 +2222,8 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     private let bangNgay = UITableView(frame: .zero, style: .plain)
     private var rangBuocCaoBang: NSLayoutConstraint?
 
+    /// Số dòng tổng kết cuối bảng: 0 = TỔNG CỘNG, 1 = TRUNG BÌNH / NGÀY, 2 = DK CUỐI THÁNG (ĐẠT / CHƯA ĐẠT)
     private let soDongTongKetCuoiBang: Int = 3
-    private let chieuCaoMoiDongBang: CGFloat = 52
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -1957,6 +2237,17 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     private func taoGiaoDien() {
         backgroundColor = .clear
 
+        // 0. Hai nút nhấn chuyển đổi trên cùng của mục Biểu đồ: Biểu đồ Realtime | Biểu đồ Sức khỏe Nhân viên
+        cauHinhNutChuyenBieuDo(nutBieuDoRealtime, tieuDe: "📊 Biểu đồ Realtime", tag: 0)
+        cauHinhNutChuyenBieuDo(nutBieuDoSucKhoeNV, tieuDe: "🩺 Biểu đồ Sức khỏe Nhân viên", tag: 1)
+
+        hangHaiNutBieuDo = UIStackView(arrangedSubviews: [nutBieuDoRealtime, nutBieuDoSucKhoeNV])
+        hangHaiNutBieuDo.axis = .horizontal
+        hangHaiNutBieuDo.spacing = 8
+        hangHaiNutBieuDo.distribution = .fillEqually
+        hangHaiNutBieuDo.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(hangHaiNutBieuDo)
+
         cuonDoc.showsVerticalScrollIndicator = true
         cuonDoc.translatesAutoresizingMaskIntoConstraints = false
         addSubview(cuonDoc)
@@ -1965,6 +2256,8 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nganNoiDung.spacing = 10
         nganNoiDung.translatesAutoresizingMaskIntoConstraints = false
         cuonDoc.addSubview(nganNoiDung)
+
+        taoGiaoDienSucKhoeNhanVien()
 
         let khungLuyKe = UIView()
         khungLuyKe.backgroundColor = .secondarySystemGroupedBackground
@@ -1975,7 +2268,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nhanTieuDeLuyKe.textColor = .secondaryLabel
         nhanTieuDeLuyKe.numberOfLines = 0
         nhanTieuDeLuyKe.lineBreakMode = .byWordWrapping
-        nhanTieuDeLuyKe.adjustsFontSizeToFitWidth = false
 
         let nutSuaLK = UIButton(type: .system)
         nutSuaLK.setTitle("✏️ Lũy kế", for: .normal)
@@ -1983,7 +2275,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nutSuaLK.titleLabel?.numberOfLines = 0
         nutSuaLK.titleLabel?.lineBreakMode = .byWordWrapping
         nutSuaLK.titleLabel?.textAlignment = .center
-        nutSuaLK.titleLabel?.adjustsFontSizeToFitWidth = false
         nutSuaLK.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
         nutSuaLK.tintColor = .systemBlue
         nutSuaLK.layer.cornerRadius = 7
@@ -2000,7 +2291,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         hangTheLK.axis = .horizontal
         hangTheLK.spacing = 8
         hangTheLK.distribution = .fillEqually
-        hangTheLK.heightAnchor.constraint(greaterThanOrEqualToConstant: 76).isActive = true
+        hangTheLK.heightAnchor.constraint(greaterThanOrEqualToConstant: 72).isActive = true
 
         let tapLK = UITapGestureRecognizer(target: self, action: #selector(bamSuaLuyKe))
         hangTheLK.addGestureRecognizer(tapLK)
@@ -2028,7 +2319,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         lbTieuDeBD.textColor = .label
         lbTieuDeBD.numberOfLines = 0
         lbTieuDeBD.lineBreakMode = .byWordWrapping
-        lbTieuDeBD.adjustsFontSizeToFitWidth = false
 
         chonCheDoNgay.selectedSegmentIndex = 0
         chonCheDoNgay.addTarget(self, action: #selector(doiCheDoLocNgay), for: .valueChanged)
@@ -2043,7 +2333,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nhanTomTatRT.textColor = .secondaryLabel
         nhanTomTatRT.numberOfLines = 0
         nhanTomTatRT.lineBreakMode = .byWordWrapping
-        nhanTomTatRT.adjustsFontSizeToFitWidth = false
 
         cuonBieuDo.showsHorizontalScrollIndicator = true
         cuonBieuDo.bounces = true
@@ -2091,14 +2380,13 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         lbTieuDeBang.textColor = .secondaryLabel
         lbTieuDeBang.numberOfLines = 0
         lbTieuDeBang.lineBreakMode = .byWordWrapping
-        lbTieuDeBang.adjustsFontSizeToFitWidth = false
         lbTieuDeBang.translatesAutoresizingMaskIntoConstraints = false
         khungBang.addSubview(lbTieuDeBang)
 
         bangNgay.dataSource = self
         bangNgay.delegate = self
         bangNgay.isScrollEnabled = false
-        bangNgay.rowHeight = chieuCaoMoiDongBang
+        bangNgay.rowHeight = 46
         bangNgay.separatorInset = UIEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
         if #available(iOS 15.0, *) {
             bangNgay.sectionHeaderTopPadding = 0
@@ -2126,7 +2414,12 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         }
 
         NSLayoutConstraint.activate([
-            cuonDoc.topAnchor.constraint(equalTo: topAnchor),
+            hangHaiNutBieuDo.topAnchor.constraint(equalTo: topAnchor),
+            hangHaiNutBieuDo.leadingAnchor.constraint(equalTo: leadingAnchor),
+            hangHaiNutBieuDo.trailingAnchor.constraint(equalTo: trailingAnchor),
+            hangHaiNutBieuDo.heightAnchor.constraint(greaterThanOrEqualToConstant: 42),
+
+            cuonDoc.topAnchor.constraint(equalTo: hangHaiNutBieuDo.bottomAnchor, constant: 8),
             cuonDoc.leadingAnchor.constraint(equalTo: leadingAnchor),
             cuonDoc.trailingAnchor.constraint(equalTo: trailingAnchor),
             cuonDoc.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -2135,8 +2428,432 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             nganNoiDung.leadingAnchor.constraint(equalTo: cuonDoc.contentLayoutGuide.leadingAnchor),
             nganNoiDung.trailingAnchor.constraint(equalTo: cuonDoc.contentLayoutGuide.trailingAnchor),
             nganNoiDung.bottomAnchor.constraint(equalTo: cuonDoc.contentLayoutGuide.bottomAnchor, constant: -12),
-            nganNoiDung.widthAnchor.constraint(equalTo: cuonDoc.frameLayoutGuide.widthAnchor)
+            nganNoiDung.widthAnchor.constraint(equalTo: cuonDoc.frameLayoutGuide.widthAnchor),
+
+            cuonSucKhoeNV.topAnchor.constraint(equalTo: hangHaiNutBieuDo.bottomAnchor, constant: 8),
+            cuonSucKhoeNV.leadingAnchor.constraint(equalTo: leadingAnchor),
+            cuonSucKhoeNV.trailingAnchor.constraint(equalTo: trailingAnchor),
+            cuonSucKhoeNV.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            nganSucKhoeNV.topAnchor.constraint(equalTo: cuonSucKhoeNV.contentLayoutGuide.topAnchor),
+            nganSucKhoeNV.leadingAnchor.constraint(equalTo: cuonSucKhoeNV.contentLayoutGuide.leadingAnchor),
+            nganSucKhoeNV.trailingAnchor.constraint(equalTo: cuonSucKhoeNV.contentLayoutGuide.trailingAnchor),
+            nganSucKhoeNV.bottomAnchor.constraint(equalTo: cuonSucKhoeNV.contentLayoutGuide.bottomAnchor, constant: -12),
+            nganSucKhoeNV.widthAnchor.constraint(equalTo: cuonSucKhoeNV.frameLayoutGuide.widthAnchor)
         ])
+
+        capNhatTrangThaiHaiNutBieuDo()
+    }
+
+    private func cauHinhNutChuyenBieuDo(_ nut: UIButton, tieuDe: String, tag: Int) {
+        nut.tag = tag
+        nut.setTitle(tieuDe, for: .normal)
+        nut.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nut.titleLabel?.numberOfLines = 0
+        nut.titleLabel?.lineBreakMode = .byWordWrapping
+        nut.titleLabel?.textAlignment = .center
+        nut.titleLabel?.adjustsFontSizeToFitWidth = false
+        nut.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+        nut.layer.cornerRadius = 10
+        nut.layer.borderWidth = 1.2
+        nut.addTarget(self, action: #selector(bamChuyenLoaiBieuDo(_:)), for: .touchUpInside)
+    }
+
+    @objc private func bamChuyenLoaiBieuDo(_ sender: UIButton) {
+        let loaiMoi: LoaiBieuDoThang = (sender.tag == 1) ? .sucKhoeNhanVien : .realtime
+        guard loaiMoi != loaiBieuDoDangXem else { return }
+        loaiBieuDoDangXem = loaiMoi
+        capNhatTrangThaiHaiNutBieuDo()
+    }
+
+    func chonLoaiBieuDo(_ loai: LoaiBieuDoThang) {
+        loaiBieuDoDangXem = loai
+        capNhatTrangThaiHaiNutBieuDo()
+    }
+
+    private func capNhatTrangThaiHaiNutBieuDo() {
+        let xemRealtime = (loaiBieuDoDangXem == .realtime)
+        cuonDoc.isHidden = !xemRealtime
+        cuonSucKhoeNV.isHidden = xemRealtime
+
+        if xemRealtime {
+            nutBieuDoRealtime.backgroundColor = .systemBlue
+            nutBieuDoRealtime.setTitleColor(.white, for: .normal)
+            nutBieuDoRealtime.layer.borderColor = UIColor.systemBlue.cgColor
+
+            nutBieuDoSucKhoeNV.backgroundColor = .systemBackground
+            nutBieuDoSucKhoeNV.setTitleColor(.systemRed, for: .normal)
+            nutBieuDoSucKhoeNV.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.45).cgColor
+        } else {
+            nutBieuDoRealtime.backgroundColor = .systemBackground
+            nutBieuDoRealtime.setTitleColor(.label, for: .normal)
+            nutBieuDoRealtime.layer.borderColor = UIColor.separator.cgColor
+
+            nutBieuDoSucKhoeNV.backgroundColor = UIColor(red: 0.86, green: 0.15, blue: 0.15, alpha: 1)
+            nutBieuDoSucKhoeNV.setTitleColor(.white, for: .normal)
+            nutBieuDoSucKhoeNV.layer.borderColor = UIColor(red: 0.86, green: 0.15, blue: 0.15, alpha: 1).cgColor
+        }
+    }
+
+    // MARK: - Dựng Giao diện Biểu Đồ Sức Khỏe Nhân Viên (Trực quan cho 16 NV + Cảnh báo 5 NV yếu liên tục)
+
+    private func taoGiaoDienSucKhoeNhanVien() {
+        cuonSucKhoeNV.showsVerticalScrollIndicator = true
+        cuonSucKhoeNV.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(cuonSucKhoeNV)
+
+        nganSucKhoeNV.axis = .vertical
+        nganSucKhoeNV.spacing = 10
+        nganSucKhoeNV.translatesAutoresizingMaskIntoConstraints = false
+        cuonSucKhoeNV.addSubview(nganSucKhoeNV)
+
+        // 1. Hàng 4 thẻ phân loại nhanh 16 nhân viên
+        let hang4TheSK = UIStackView(arrangedSubviews: [theSKKhoe, theSKKha, theSKCanChuY, theSKYeu])
+        hang4TheSK.axis = .horizontal
+        hang4TheSK.spacing = 6
+        hang4TheSK.distribution = .fillEqually
+        hang4TheSK.heightAnchor.constraint(greaterThanOrEqualToConstant: 68).isActive = true
+
+        // 2. Khung Cảnh báo Đỏ nổi bật: 5 Nhân viên yếu nhiều ngày liên tục
+        let khungCanhBao5NV = UIView()
+        khungCanhBao5NV.backgroundColor = UIColor(red: 1.0, green: 0.95, blue: 0.95, alpha: 1)
+        khungCanhBao5NV.layer.cornerRadius = 12
+        khungCanhBao5NV.layer.borderWidth = 1.5
+        khungCanhBao5NV.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.55).cgColor
+
+        let lbTieuDeCanhBao = UILabel()
+        lbTieuDeCanhBao.text = "🚨 CẢNH BÁO 5 NHÂN VIÊN YẾU NHIỀU NGÀY LIÊN TỤC"
+        lbTieuDeCanhBao.font = .systemFont(ofSize: 13, weight: .heavy)
+        lbTieuDeCanhBao.textColor = UIColor(red: 0.80, green: 0.10, blue: 0.10, alpha: 1)
+        lbTieuDeCanhBao.numberOfLines = 0
+        lbTieuDeCanhBao.lineBreakMode = .byWordWrapping
+
+        nhanPhuDeCanhBao5NV.font = .systemFont(ofSize: 11.5, weight: .semibold)
+        nhanPhuDeCanhBao5NV.textColor = UIColor(red: 0.55, green: 0.15, blue: 0.15, alpha: 1)
+        nhanPhuDeCanhBao5NV.numberOfLines = 0
+        nhanPhuDeCanhBao5NV.lineBreakMode = .byWordWrapping
+
+        nganDanhSach5NVYeu.axis = .vertical
+        nganDanhSach5NVYeu.spacing = 6
+
+        let nganCB = UIStackView(arrangedSubviews: [lbTieuDeCanhBao, nhanPhuDeCanhBao5NV, nganDanhSach5NVYeu])
+        nganCB.axis = .vertical
+        nganCB.spacing = 6
+        nganCB.translatesAutoresizingMaskIntoConstraints = false
+        khungCanhBao5NV.addSubview(nganCB)
+
+        NSLayoutConstraint.activate([
+            nganCB.topAnchor.constraint(equalTo: khungCanhBao5NV.topAnchor, constant: 10),
+            nganCB.leadingAnchor.constraint(equalTo: khungCanhBao5NV.leadingAnchor, constant: 10),
+            nganCB.trailingAnchor.constraint(equalTo: khungCanhBao5NV.trailingAnchor, constant: -10),
+            nganCB.bottomAnchor.constraint(equalTo: khungCanhBao5NV.bottomAnchor, constant: -10)
+        ])
+
+        // 3. Khung Biểu đồ Cột Trực quan 16 Nhân viên
+        let khungBieuDo16NV = UIView()
+        khungBieuDo16NV.backgroundColor = .secondarySystemGroupedBackground
+        khungBieuDo16NV.layer.cornerRadius = 12
+
+        let lbTieuDeBD16 = UILabel()
+        lbTieuDeBD16.text = "📊 BIỂU ĐỒ CỘT TRỰC QUAN SỨC KHỎE 16 NHÂN VIÊN (CHẠM VÀO CỘT ĐỂ XEM CHI TIẾT MÔN)"
+        lbTieuDeBD16.font = .systemFont(ofSize: 12, weight: .bold)
+        lbTieuDeBD16.textColor = .label
+        lbTieuDeBD16.numberOfLines = 0
+        lbTieuDeBD16.lineBreakMode = .byWordWrapping
+
+        nhanTomTatBieuDoSK.font = .systemFont(ofSize: 11.5, weight: .semibold)
+        nhanTomTatBieuDoSK.textColor = .secondaryLabel
+        nhanTomTatBieuDoSK.numberOfLines = 0
+        nhanTomTatBieuDoSK.lineBreakMode = .byWordWrapping
+
+        cuonBieuDoSK16NV.showsHorizontalScrollIndicator = true
+        cuonBieuDoSK16NV.bounces = true
+        cuonBieuDoSK16NV.heightAnchor.constraint(equalToConstant: 232).isActive = true
+
+        veBieuDoSK16NV.translatesAutoresizingMaskIntoConstraints = false
+        veBieuDoSK16NV.khiChonNhanVien = { [weak self] item in
+            self?.khiChonNhanVienSucKhoe?(item.tongHopLuyKe)
+        }
+        cuonBieuDoSK16NV.addSubview(veBieuDoSK16NV)
+
+        let rBDSK = veBieuDoSK16NV.widthAnchor.constraint(equalToConstant: 960)
+        rBDSK.isActive = true
+        rangBuocRongBieuDoSK16NV = rBDSK
+
+        NSLayoutConstraint.activate([
+            veBieuDoSK16NV.topAnchor.constraint(equalTo: cuonBieuDoSK16NV.contentLayoutGuide.topAnchor),
+            veBieuDoSK16NV.leadingAnchor.constraint(equalTo: cuonBieuDoSK16NV.contentLayoutGuide.leadingAnchor),
+            veBieuDoSK16NV.trailingAnchor.constraint(equalTo: cuonBieuDoSK16NV.contentLayoutGuide.trailingAnchor),
+            veBieuDoSK16NV.bottomAnchor.constraint(equalTo: cuonBieuDoSK16NV.contentLayoutGuide.bottomAnchor),
+            veBieuDoSK16NV.heightAnchor.constraint(equalTo: cuonBieuDoSK16NV.frameLayoutGuide.heightAnchor)
+        ])
+
+        let nganBD16 = UIStackView(arrangedSubviews: [lbTieuDeBD16, nhanTomTatBieuDoSK, cuonBieuDoSK16NV])
+        nganBD16.axis = .vertical
+        nganBD16.spacing = 6
+        nganBD16.translatesAutoresizingMaskIntoConstraints = false
+        khungBieuDo16NV.addSubview(nganBD16)
+
+        NSLayoutConstraint.activate([
+            nganBD16.topAnchor.constraint(equalTo: khungBieuDo16NV.topAnchor, constant: 10),
+            nganBD16.leadingAnchor.constraint(equalTo: khungBieuDo16NV.leadingAnchor, constant: 10),
+            nganBD16.trailingAnchor.constraint(equalTo: khungBieuDo16NV.trailingAnchor, constant: -10),
+            nganBD16.bottomAnchor.constraint(equalTo: khungBieuDo16NV.bottomAnchor, constant: -10)
+        ])
+
+        // 4. Khung Bảng Thanh Ngang Sức Khỏe Toàn Bộ 16 Nhân Viên (Quan sát trọn vẹn 16 NV theo chiều dọc)
+        let khungThanhNgang16NV = UIView()
+        khungThanhNgang16NV.backgroundColor = .secondarySystemGroupedBackground
+        khungThanhNgang16NV.layer.cornerRadius = 12
+
+        let lbTieuDeThanhNgang = UILabel()
+        lbTieuDeThanhNgang.text = "📋 BẢNG THANH NGANG SỨC KHỎE & CHUỖI NGÀY 16 NHÂN VIÊN"
+        lbTieuDeThanhNgang.font = .systemFont(ofSize: 12, weight: .bold)
+        lbTieuDeThanhNgang.textColor = .label
+        lbTieuDeThanhNgang.numberOfLines = 0
+        lbTieuDeThanhNgang.lineBreakMode = .byWordWrapping
+
+        nutSapXepSK.setTitle(" ⇅ Ưu tiên 5 NV yếu LT lên đầu", for: .normal)
+        nutSapXepSK.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
+        nutSapXepSK.titleLabel?.numberOfLines = 0
+        nutSapXepSK.titleLabel?.lineBreakMode = .byWordWrapping
+        nutSapXepSK.titleLabel?.textAlignment = .center
+        nutSapXepSK.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
+        nutSapXepSK.tintColor = .systemBlue
+        nutSapXepSK.layer.cornerRadius = 8
+        nutSapXepSK.contentEdgeInsets = UIEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+        nutSapXepSK.addTarget(self, action: #selector(bamDoiSapXepSucKhoe), for: .touchUpInside)
+
+        let hangDauThanhNgang = UIStackView(arrangedSubviews: [lbTieuDeThanhNgang, nutSapXepSK])
+        hangDauThanhNgang.axis = .vertical
+        hangDauThanhNgang.spacing = 6
+
+        nganBangThanhNgang16NV.axis = .vertical
+        nganBangThanhNgang16NV.spacing = 6
+
+        let nganTN = UIStackView(arrangedSubviews: [hangDauThanhNgang, nganBangThanhNgang16NV])
+        nganTN.axis = .vertical
+        nganTN.spacing = 8
+        nganTN.translatesAutoresizingMaskIntoConstraints = false
+        khungThanhNgang16NV.addSubview(nganTN)
+
+        NSLayoutConstraint.activate([
+            nganTN.topAnchor.constraint(equalTo: khungThanhNgang16NV.topAnchor, constant: 10),
+            nganTN.leadingAnchor.constraint(equalTo: khungThanhNgang16NV.leadingAnchor, constant: 10),
+            nganTN.trailingAnchor.constraint(equalTo: khungThanhNgang16NV.trailingAnchor, constant: -10),
+            nganTN.bottomAnchor.constraint(equalTo: khungThanhNgang16NV.bottomAnchor, constant: -10)
+        ])
+
+        [hang4TheSK, khungCanhBao5NV, khungBieuDo16NV, khungThanhNgang16NV].forEach {
+            nganSucKhoeNV.addArrangedSubview($0)
+        }
+    }
+
+    @objc private func bamDoiSapXepSucKhoe() {
+        sapXepSucKhoeTheoCanhBao.toggle()
+        let tieuDe = sapXepSucKhoeTheoCanhBao
+            ? " ⇅ Đang xếp: Ưu tiên 5 NV yếu liên tục lên đầu (Chạm đổi Cao → Thấp)"
+            : " ⇅ Đang xếp: Điểm Sức khỏe Cao → Thấp (Chạm đổi Ưu tiên cảnh báo)"
+        nutSapXepSK.setTitle(tieuDe, for: .normal)
+        capNhatGiaoDienSucKhoeNhanVien()
+    }
+
+    private func capNhatGiaoDienSucKhoeNhanVien() {
+        ketQuaSucKhoe = KhoDuLieu.dungChung.phanTichSucKhoeNhanVienThang(den: ngayHienTai)
+        let kq = ketQuaSucKhoe
+        let tongNV = kq.danhSachTheoCanhBao.count
+
+        nutBieuDoSucKhoeNV.setTitle("🩺 Biểu đồ Sức khỏe NV (⚠️ \(kq.top5CanhBaoYeu.count))", for: .normal)
+
+        theSKKhoe.capNhatNoiDung(
+            chinh: "\(kq.soNVKhoe) NV",
+            phu: "ĐIỂM SK ≥ 80% / \(tongNV) NV"
+        )
+        theSKKha.capNhatNoiDung(
+            chinh: "\(kq.soNVKha) NV",
+            phu: "ĐIỂM SK 65–79% / \(tongNV) NV"
+        )
+        theSKCanChuY.capNhatNoiDung(
+            chinh: "\(kq.soNVCanChuY) NV",
+            phu: "ĐIỂM SK 50–64% / \(tongNV) NV"
+        )
+        theSKYeu.capNhatNoiDung(
+            chinh: "\(kq.top5CanhBaoYeu.count) NV",
+            phu: "YẾU LIÊN TỤC CẦN KÈM CẶP"
+        )
+
+        nhanPhuDeCanhBao5NV.text = "Hệ thống tự động theo dõi chuỗi ngày & điểm sức khỏe tổng hợp (60% Doanh thu QĐ + 40% Môn thi đua) của \(tongNV) nhân viên để cảnh báo 5 nhân viên yếu nhiều ngày liên tục. Chạm vào nhân viên để xem chi tiết từng môn:"
+
+        // Dựng danh sách 5 thẻ cảnh báo nhân viên yếu liên tục
+        nganDanhSach5NVYeu.arrangedSubviews.forEach {
+            nganDanhSach5NVYeu.removeArrangedSubview($0)
+            $0.removeFromSuperview()
+        }
+        for item in kq.top5CanhBaoYeu {
+            let theCB = taoTheCanhBaoNhanVienYeu(item)
+            nganDanhSach5NVYeu.addArrangedSubview(theCB)
+        }
+
+        // Cập nhật biểu đồ cột trực quan 16 NV
+        let dsHienThi = sapXepSucKhoeTheoCanhBao ? kq.danhSachTheoCanhBao : kq.danhSachTheoDiemCaoThap
+        nhanTomTatBieuDoSK.text = "Điểm SK trung bình đội (\(tongNV) NV): \(kq.trungBinhDiemSucKhoe.chuoiPhanTram)  •  DT QĐ TB đội: \(kq.trungBinhDoiDTQD.chuoiSoGonVN)tr  •  🟦 Chuẩn 100%  🟩 Khỏe ≥80%  🟧 Ngưỡng yếu <65%  🔥 Top 5 NV yếu liên tục"
+        veBieuDoSK16NV.danhSach = dsHienThi
+        let rongCan = max(bounds.width - 20, 64 + CGFloat(max(1, dsHienThi.count)) * veBieuDoSK16NV.chieuRongMoiNV)
+        rangBuocRongBieuDoSK16NV?.constant = rongCan
+
+        // Dựng bảng thanh ngang cho toàn bộ 16 nhân viên
+        nganBangThanhNgang16NV.arrangedSubviews.forEach {
+            nganBangThanhNgang16NV.removeArrangedSubview($0)
+            $0.removeFromSuperview()
+        }
+        for (idx, item) in dsHienThi.enumerated() {
+            let dongView = taoDongThanhNgangSucKhoe16NV(stt: idx + 1, item: item)
+            nganBangThanhNgang16NV.addArrangedSubview(dongView)
+        }
+    }
+
+    private func taoTheCanhBaoNhanVienYeu(_ item: ChiSoSucKhoeNhanVien) -> UIView {
+        let khung = UIControl()
+        khung.backgroundColor = .white
+        khung.layer.cornerRadius = 10
+        khung.layer.borderWidth = 1.2
+        khung.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.45).cgColor
+
+        let lbHangVaTen = UILabel()
+        lbHangVaTen.text = "⚠️ #\(item.thuHangCanhBao). \(item.nhanVien.hoTen) — Mã NV: \(item.nhanVien.maNV)"
+        lbHangVaTen.font = .systemFont(ofSize: 13, weight: .heavy)
+        lbHangVaTen.textColor = UIColor(red: 0.72, green: 0.08, blue: 0.08, alpha: 1)
+        lbHangVaTen.numberOfLines = 0
+        lbHangVaTen.lineBreakMode = .byWordWrapping
+
+        let pillChuoiNgay = UILabel()
+        pillChuoiNgay.text = " 🔥 Yếu \(item.soNgayYeuLienTuc) ngày liên tục • Điểm SK: \(item.diemSucKhoe.chuoiPhanTram) "
+        pillChuoiNgay.font = .monospacedDigitSystemFont(ofSize: 11.5, weight: .bold)
+        pillChuoiNgay.textColor = .white
+        pillChuoiNgay.backgroundColor = UIColor(red: 0.84, green: 0.14, blue: 0.14, alpha: 1)
+        pillChuoiNgay.layer.cornerRadius = 6
+        pillChuoiNgay.clipsToBounds = true
+        pillChuoiNgay.numberOfLines = 0
+        pillChuoiNgay.lineBreakMode = .byWordWrapping
+        pillChuoiNgay.textAlignment = .center
+
+        let chuoiChamNgay: String = {
+            guard !item.lichSuNgay.isEmpty else { return "🔴 → 🔴 → 🔴" }
+            return item.lichSuNgay.map { ng in
+                let icon = ng.laNgayYeu ? "🔴" : (ng.diemSucKhoe >= 80 ? "🟢" : "🟡")
+                return "N\(ng.ngayTrongThang)\(icon)"
+            }.joined(separator: " → ")
+        }()
+
+        let lbChiTiet = UILabel()
+        lbChiTiet.text = "📊 \(item.lyDoCanhBao)\n📅 Chuỗi ngày gần nhất: \(chuoiChamNgay)"
+        lbChiTiet.font = .systemFont(ofSize: 11.5, weight: .semibold)
+        lbChiTiet.textColor = .darkGray
+        lbChiTiet.numberOfLines = 0
+        lbChiTiet.lineBreakMode = .byWordWrapping
+
+        let ngan = UIStackView(arrangedSubviews: [lbHangVaTen, pillChuoiNgay, lbChiTiet])
+        ngan.axis = .vertical
+        ngan.spacing = 4
+        ngan.isUserInteractionEnabled = false
+        ngan.translatesAutoresizingMaskIntoConstraints = false
+        khung.addSubview(ngan)
+
+        NSLayoutConstraint.activate([
+            ngan.topAnchor.constraint(equalTo: khung.topAnchor, constant: 8),
+            ngan.leadingAnchor.constraint(equalTo: khung.leadingAnchor, constant: 10),
+            ngan.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -10),
+            ngan.bottomAnchor.constraint(equalTo: khung.bottomAnchor, constant: -8)
+        ])
+
+        khung.addAction(UIAction { [weak self] _ in
+            self?.khiChonNhanVienSucKhoe?(item.tongHopLuyKe)
+        }, for: .touchUpInside)
+
+        return khung
+    }
+
+    private func taoDongThanhNgangSucKhoe16NV(stt: Int, item: ChiSoSucKhoeNhanVien) -> UIView {
+        let khung = UIControl()
+        khung.backgroundColor = item.laTop5CanhBao
+            ? UIColor(red: 1.0, green: 0.96, blue: 0.96, alpha: 1)
+            : .systemBackground
+        khung.layer.cornerRadius = 9
+        khung.layer.borderWidth = item.laTop5CanhBao ? 1.2 : 0.7
+        khung.layer.borderColor = item.laTop5CanhBao
+            ? UIColor.systemRed.withAlphaComponent(0.5).cgColor
+            : UIColor.separator.cgColor
+
+        let mauChinh: UIColor
+        if item.laTop5CanhBao {
+            mauChinh = UIColor(red: 0.84, green: 0.14, blue: 0.14, alpha: 1)
+        } else {
+            switch item.mucDo {
+            case .khoe: mauChinh = UIColor(red: 0.08, green: 0.58, blue: 0.26, alpha: 1)
+            case .kha: mauChinh = UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1)
+            case .canChuY: mauChinh = UIColor(red: 0.90, green: 0.46, blue: 0.04, alpha: 1)
+            case .yeuBaoDong: mauChinh = UIColor(red: 0.84, green: 0.14, blue: 0.14, alpha: 1)
+            }
+        }
+
+        let chuoiCanhBao = item.laTop5CanhBao
+            ? "🔥 Cảnh báo #\(item.thuHangCanhBao): Yếu \(item.soNgayYeuLienTuc) ngày LT"
+            : "\(item.mucDo.bieuTuong) \(item.mucDo.tenNgan)"
+
+        let lbDau = UILabel()
+        lbDau.text = "\(stt). \(item.nhanVien.hoTen) (\(item.nhanVien.maNV))   •   \(chuoiCanhBao)"
+        lbDau.font = .systemFont(ofSize: 12.5, weight: .bold)
+        lbDau.textColor = item.laTop5CanhBao ? UIColor(red: 0.72, green: 0.08, blue: 0.08, alpha: 1) : .label
+        lbDau.numberOfLines = 0
+        lbDau.lineBreakMode = .byWordWrapping
+
+        let track = UIView()
+        track.backgroundColor = .systemGray5
+        track.layer.cornerRadius = 5
+        track.clipsToBounds = true
+        track.heightAnchor.constraint(equalToConstant: 10).isActive = true
+
+        let fill = UIView()
+        fill.backgroundColor = mauChinh
+        fill.layer.cornerRadius = 5
+        fill.translatesAutoresizingMaskIntoConstraints = false
+        track.addSubview(fill)
+
+        let tyLe = CGFloat(min(1.0, max(0.04, item.diemSucKhoe / 100.0)))
+        NSLayoutConstraint.activate([
+            fill.leadingAnchor.constraint(equalTo: track.leadingAnchor),
+            fill.topAnchor.constraint(equalTo: track.topAnchor),
+            fill.bottomAnchor.constraint(equalTo: track.bottomAnchor),
+            fill.widthAnchor.constraint(equalTo: track.widthAnchor, multiplier: tyLe)
+        ])
+
+        let chuoiCham = item.lichSuNgay.map { $0.laNgayYeu ? "🔴" : ($0.diemSucKhoe >= 80 ? "🟢" : "🟡") }.joined()
+        let lbPhu = UILabel()
+        lbPhu.text = "Điểm SK: \(item.diemSucKhoe.chuoiPhanTram)  •  DT QĐ: \(item.tongHopLuyKe.doanhThuQD.chuoiSoGonVN)tr  •  Môn đạt: \(item.tongHopLuyKe.soMonDat)/\(item.tongHopLuyKe.tongMonGiao) (TB \(item.tongHopLuyKe.phanTramHTTB.chuoiPhanTram))  \(chuoiCham)"
+        lbPhu.font = .monospacedDigitSystemFont(ofSize: 11.5, weight: .semibold)
+        lbPhu.textColor = .secondaryLabel
+        lbPhu.numberOfLines = 0
+        lbPhu.lineBreakMode = .byWordWrapping
+
+        let ngan = UIStackView(arrangedSubviews: [lbDau, track, lbPhu])
+        ngan.axis = .vertical
+        ngan.spacing = 5
+        ngan.isUserInteractionEnabled = false
+        ngan.translatesAutoresizingMaskIntoConstraints = false
+        khung.addSubview(ngan)
+
+        NSLayoutConstraint.activate([
+            ngan.topAnchor.constraint(equalTo: khung.topAnchor, constant: 8),
+            ngan.leadingAnchor.constraint(equalTo: khung.leadingAnchor, constant: 10),
+            ngan.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -10),
+            ngan.bottomAnchor.constraint(equalTo: khung.bottomAnchor, constant: -8)
+        ])
+
+        khung.addAction(UIAction { [weak self] _ in
+            self?.khiChonNhanVienSucKhoe?(item.tongHopLuyKe)
+        }, for: .touchUpInside)
+
+        return khung
     }
 
     @objc private func bamSuaLuyKe() {
@@ -2153,6 +2870,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         self.doanhThuLuyKe = KhoDuLieu.dungChung.doanhThuLuyKeThang(cho: ngay)
         self.tatCaNgayTrongThang = KhoDuLieu.dungChung.danhSachRealtimeTheoNgayTrongThang(cho: ngay)
         capNhatDuLieuHienThi()
+        capNhatGiaoDienSucKhoeNhanVien()
     }
 
     private func taoNoiDungTomTatThang(
@@ -2218,7 +2936,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         rangBuocRongBieuDo?.constant = rongCan
 
         let soDong = danhSachBieuDo.count + soDongTongKetCuoiBang
-        rangBuocCaoBang?.constant = 42 + CGFloat(soDong) * chieuCaoMoiDongBang
+        rangBuocCaoBang?.constant = 38 + CGFloat(soDong) * 46
         bangNgay.reloadData()
     }
 
@@ -2227,7 +2945,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     }
 
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
-        let header = UIView(frame: CGRect(x: 0, y: 0, width: tableView.bounds.width, height: 42))
+        let header = UIView(frame: CGRect(x: 0, y: 0, width: tableView.bounds.width, height: 38))
         header.backgroundColor = .systemGray5
         let tieuDe = ["NGÀY / MỤC", "DT THỰC (RT)", "DT QUY ĐỔI (RT)", "% QUY ĐỔI", "KHÁCH / BILL", "DK / ĐÁNH GIÁ"]
         let tyLe: [CGFloat] = [0.16, 0.17, 0.18, 0.13, 0.16, 0.20]
@@ -2244,7 +2962,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         for (i, chu) in tieuDe.enumerated() {
             let lb = UILabel()
             lb.text = chu
-            lb.font = .systemFont(ofSize: 10.5, weight: .bold)
+            lb.font = .systemFont(ofSize: 10, weight: .bold)
             lb.textColor = .label
             lb.numberOfLines = 0
             lb.lineBreakMode = .byWordWrapping
@@ -2257,7 +2975,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     }
 
     func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
-        42
+        38
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -2293,6 +3011,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             let giaTri: [String]
             let mauChuCuoi: UIColor
             if loaiTongKet == 0 {
+                // Dòng 1: TỔNG CỘNG CÁC NGÀY ĐÃ NHẬP
                 cell.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.08)
                 let mtDenNay = duBao.mucTieuMoiNgay * Double(max(1, dsCoSo.count))
                 let ptDenNay = mtDenNay > 0 ? (tongRTQD / mtDenNay * 100.0) : 0
@@ -2309,6 +3028,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
                     danhGia
                 ]
             } else if loaiTongKet == 1 {
+                // Dòng 2: TRUNG BÌNH MỖI NGÀY
                 cell.backgroundColor = UIColor.systemGray6
                 let soN = Double(max(1, dsCoSo.count))
                 let tbKhach = dsCoSo.isEmpty ? 0 : (tongKhach / soN)
@@ -2324,6 +3044,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
                     chuoiMTNgay
                 ]
             } else {
+                // Dòng 3: DỰ KIẾN CUỐI THÁNG (ĐẠT HAY KHÔNG ĐẠT)
                 let dat = duBao.daHoanThanhDuKien
                 let coPT = duBao.phanTramHTQDDuKien > 0 || duBao.mucTieuThang > 0
                 cell.backgroundColor = coPT
@@ -2451,7 +3172,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         khiChonNgayRealtime?(danhSachBieuDo[indexPath.row])
     }
 
-    // MARK: - Xuất Ảnh Bảng Tổng Hợp & Đồ Thị Cột Realtime Tháng
+    // MARK: - Xuất Ảnh Bảng Tổng Hợp & Đồ Thị Cột Realtime Tháng (Xuất TOÀN BỘ dữ liệu bảng + các dòng text DK cuối tháng Đạt / Chưa đạt)
 
     func taoAnhBaoCaoRealtimeThang(ngay: Date, thongTinDonVi: String = "", capNhatLuc: String = "") -> UIImage? {
         capNhat(cho: ngay)
@@ -2471,13 +3192,13 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         let fontTomTat1 = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let fontTomTat2 = UIFont.systemFont(ofSize: 12.5, weight: .heavy)
         let caoD1 = max(20, ceil((tomTat.dong1 as NSString).boundingRect(
-            with: CGSize(width: rongBieuDo - 24, height: CGFloat.greatestFiniteMagnitude),
+            with: CGSize(width: rongBieuDo - 24, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTomTat1],
             context: nil
         ).height))
         let caoD2 = max(20, ceil((tomTat.dong2 as NSString).boundingRect(
-            with: CGSize(width: rongBieuDo - 24, height: CGFloat.greatestFiniteMagnitude),
+            with: CGSize(width: rongBieuDo - 24, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontTomTat2],
             context: nil
@@ -2485,12 +3206,12 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         let caoHeader: CGFloat = 56
         let caoTieuDeLuyKe: CGFloat = 24
-        let caoLuyKe: CGFloat = 88
+        let caoLuyKe: CGFloat = 84
         let caoHopTomTat: CGFloat = 16 + caoD1 + 6 + caoD2
         let caoBieuDo: CGFloat = 236
         let caoTieuDeBang: CGFloat = 24
-        let caoHeaderBang: CGFloat = 42
-        let caoDong: CGFloat = 48
+        let caoHeaderBang: CGFloat = 38
+        let caoDong: CGFloat = 42
         let tongSoDongBang = dsVe.count + soDongTongKetCuoiBang
         let caoBang = caoHeaderBang + CGFloat(max(1, tongSoDongBang)) * caoDong
         let caoAnh = le * 2 + caoHeader + 10 + caoTieuDeLuyKe + 6 + caoLuyKe + 12 + caoHopTomTat + 10 + caoBieuDo + 12 + caoTieuDeBang + 6 + caoBang
@@ -2504,8 +3225,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         lbPhu.font = .systemFont(ofSize: 12.5, weight: .bold)
         lbPhu.textColor = .darkGray
         lbPhu.numberOfLines = 0
-        lbPhu.lineBreakMode = .byWordWrapping
-        lbPhu.adjustsFontSizeToFitWidth = false
         khung.addSubview(lbPhu)
 
         let lbChinh = UILabel(frame: CGRect(x: le, y: le + 22, width: rongBieuDo, height: 30))
@@ -2513,19 +3232,16 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         lbChinh.font = .systemFont(ofSize: 19, weight: .heavy)
         lbChinh.textColor = .black
         lbChinh.numberOfLines = 0
-        lbChinh.lineBreakMode = .byWordWrapping
-        lbChinh.adjustsFontSizeToFitWidth = false
         khung.addSubview(lbChinh)
 
         var y = le + caoHeader + 10
 
+        // 1. Tiêu đề & 2 thẻ Doanh thu Lũy kế tháng
         let lbTieuDeLK = UILabel(frame: CGRect(x: le, y: y, width: rongBieuDo, height: caoTieuDeLuyKe))
         lbTieuDeLK.text = "📌 DOANH THU LŨY KẾ THÁNG \(String(format: "%02d/%04d", thang, nam)) (CỐ ĐỊNH — NHẬP MỚI THAY THẾ NGÀY TRƯỚC)"
         lbTieuDeLK.font = .systemFont(ofSize: 12.5, weight: .bold)
         lbTieuDeLK.textColor = .darkGray
         lbTieuDeLK.numberOfLines = 0
-        lbTieuDeLK.lineBreakMode = .byWordWrapping
-        lbTieuDeLK.adjustsFontSizeToFitWidth = false
         khung.addSubview(lbTieuDeLK)
 
         y += caoTieuDeLuyKe + 6
@@ -2564,6 +3280,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         y += caoLuyKe + 12
 
+        // 2. Khung Tóm tắt Tổng Realtime, Trung bình/ngày & Dự kiến cuối tháng (Đạt / Chưa đạt)
         let coPT = duBao.phanTramHTQDDuKien > 0 || duBao.mucTieuThang > 0
         let hopTomTat = UIView(frame: CGRect(x: le, y: y, width: rongBieuDo, height: caoHopTomTat))
         hopTomTat.backgroundColor = coPT
@@ -2581,7 +3298,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         lbDong1.textColor = .black
         lbDong1.numberOfLines = 0
         lbDong1.lineBreakMode = .byWordWrapping
-        lbDong1.adjustsFontSizeToFitWidth = false
         hopTomTat.addSubview(lbDong1)
 
         let lbDong2 = UILabel(frame: CGRect(x: 12, y: 8 + caoD1 + 6, width: rongBieuDo - 24, height: caoD2))
@@ -2589,7 +3305,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         lbDong2.font = fontTomTat2
         lbDong2.numberOfLines = 0
         lbDong2.lineBreakMode = .byWordWrapping
-        lbDong2.adjustsFontSizeToFitWidth = false
         lbDong2.textColor = coPT
             ? (duBao.daHoanThanhDuKien ? UIColor(red: 0.06, green: 0.50, blue: 0.22, alpha: 1) : UIColor(red: 0.78, green: 0.18, blue: 0.08, alpha: 1))
             : UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1)
@@ -2598,6 +3313,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         y += caoHopTomTat + 10
 
+        // 3. Khung Biểu đồ cột
         let hopBD = UIView(frame: CGRect(x: le, y: y, width: rongBieuDo, height: caoBieuDo))
         hopBD.backgroundColor = UIColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 1)
         hopBD.layer.cornerRadius = 10
@@ -2609,8 +3325,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         lbLegend.font = .systemFont(ofSize: 12, weight: .bold)
         lbLegend.textColor = .black
         lbLegend.numberOfLines = 0
-        lbLegend.lineBreakMode = .byWordWrapping
-        lbLegend.adjustsFontSizeToFitWidth = false
         hopBD.addSubview(lbLegend)
 
         let chart = VeBieuDoCotRealtimeView(frame: CGRect(x: 4, y: 28, width: rongBieuDo - 8, height: caoBieuDo - 32))
@@ -2622,13 +3336,12 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         y += caoBieuDo + 12
 
+        // 4. Bảng chi tiết toàn bộ các ngày + 3 dòng tổng kết (Tổng cộng, TB/ngày, DK cuối tháng Đạt / Chưa đạt)
         let lbTieuDeBangXuat = UILabel(frame: CGRect(x: le, y: y, width: rongBieuDo, height: caoTieuDeBang))
         lbTieuDeBangXuat.text = "📋 BẢNG CHI TIẾT REALTIME THEO NGÀY & ĐÁNH GIÁ DỰ KIẾN CUỐI THÁNG"
         lbTieuDeBangXuat.font = .systemFont(ofSize: 13, weight: .heavy)
         lbTieuDeBangXuat.textColor = .black
         lbTieuDeBangXuat.numberOfLines = 0
-        lbTieuDeBangXuat.lineBreakMode = .byWordWrapping
-        lbTieuDeBangXuat.adjustsFontSizeToFitWidth = false
         khung.addSubview(lbTieuDeBangXuat)
 
         y += caoTieuDeBang + 6
@@ -2644,7 +3357,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         self.danhSachBieuDo = dsVe
         if let hView = self.tableView(bangNgay, viewForHeaderInSection: 0) {
             hView.frame = CGRect(x: 0, y: 0, width: rongBieuDo, height: caoHeaderBang)
-            hView.layoutIfNeeded()
             khungBang.addSubview(hView)
         }
         for i in 0..<tongSoDongBang {
@@ -2652,7 +3364,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             let vDong = cell.contentView
             vDong.frame = CGRect(x: 0, y: caoHeaderBang + CGFloat(i) * caoDong, width: rongBieuDo, height: caoDong)
             vDong.backgroundColor = cell.backgroundColor
-            vDong.layoutIfNeeded()
             let vach = UIView(frame: CGRect(x: 0, y: caoDong - 0.5, width: rongBieuDo, height: 0.5))
             vach.backgroundColor = .systemGray4
             vDong.addSubview(vach)
@@ -2738,4 +3449,205 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         return "\u{FEFF}" + cacDong.joined(separator: "\n")
     }
+
+    // MARK: - Xuất Ảnh Biểu Đồ Sức Khỏe 16 Nhân Viên & Cảnh Báo 5 Nhân Viên Yếu Nhiều Ngày Liên Tục
+
+    func taoAnhBaoCaoSucKhoeNhanVien(ngay: Date, thongTinDonVi: String = "", capNhatLuc: String = "") -> UIImage? {
+        capNhat(cho: ngay)
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
+        let donVi = !thongTinDonVi.isEmpty ? thongTinDonVi : (dl.thongTinDonVi.isEmpty ? "ĐIỆN MÁY XANH" : dl.thongTinDonVi)
+        let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
+        let kq = ketQuaSucKhoe
+        let dsHienThi = sapXepSucKhoeTheoCanhBao ? kq.danhSachTheoCanhBao : kq.danhSachTheoDiemCaoThap
+        let tongNV = dsHienThi.count
+
+        let le: CGFloat = 18
+        let rongNoiDung = max(920, 64 + CGFloat(max(1, tongNV)) * 56)
+        let rongAnh = rongNoiDung + le * 2
+
+        let caoHeader: CGFloat = 56
+        let cao4The: CGFloat = 76
+        let caoTieuDeCB: CGFloat = 46
+        let caoMoiTheCB: CGFloat = 68
+        let caoKhungCB: CGFloat = 16 + caoTieuDeCB + CGFloat(kq.top5CanhBaoYeu.count) * (caoMoiTheCB + 6)
+        let caoBieuDoCot: CGFloat = 264
+        let caoTieuDeBang: CGFloat = 28
+        let caoMoiDongNV: CGFloat = 62
+        let caoBangNV: CGFloat = CGFloat(max(1, tongNV)) * (caoMoiDongNV + 6)
+
+        let caoAnh = le * 2 + caoHeader + 10 + cao4The + 12 + caoKhungCB + 12 + caoBieuDoCot + 12 + caoTieuDeBang + 6 + caoBangNV
+
+        let khung = UIView(frame: CGRect(x: 0, y: 0, width: rongAnh, height: caoAnh))
+        khung.backgroundColor = .white
+        khung.overrideUserInterfaceStyle = .light
+
+        let lbPhu = UILabel(frame: CGRect(x: le, y: le, width: rongNoiDung, height: 20))
+        lbPhu.text = "\(donVi)  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
+        lbPhu.font = .systemFont(ofSize: 12.5, weight: .bold)
+        lbPhu.textColor = .darkGray
+        lbPhu.numberOfLines = 0
+        khung.addSubview(lbPhu)
+
+        let lbChinh = UILabel(frame: CGRect(x: le, y: le + 22, width: rongNoiDung, height: 30))
+        lbChinh.text = "🩺 BIỂU ĐỒ SỨC KHỎE \(tongNV) NHÂN VIÊN & CẢNH BÁO 5 NV YẾU LIÊN TỤC"
+        lbChinh.font = .systemFont(ofSize: 19, weight: .heavy)
+        lbChinh.textColor = .black
+        lbChinh.numberOfLines = 0
+        khung.addSubview(lbChinh)
+
+        var y = le + caoHeader + 10
+
+        // 1. 4 thẻ tóm tắt
+        let kcThe: CGFloat = 10
+        let rongMoiThe = (rongNoiDung - kcThe * 3) / 4
+        let duLieu4The: [(tieuDe: String, chinh: String, phu: String, m1: UIColor, m2: UIColor)] = [
+            ("🟢 KHỎE (≥80%)", "\(kq.soNVKhoe) NV", "ĐIỂM SK ≥ 80% / \(tongNV) NV", UIColor(red: 0.08, green: 0.61, blue: 0.27, alpha: 1), UIColor(red: 0.06, green: 0.48, blue: 0.22, alpha: 1)),
+            ("🔵 KHÁ (65–79%)", "\(kq.soNVKha) NV", "ĐIỂM SK 65–79% / \(tongNV) NV", UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1), UIColor(red: 0.22, green: 0.27, blue: 0.88, alpha: 1)),
+            ("🟠 CẦN CHÚ Ý", "\(kq.soNVCanChuY) NV", "ĐIỂM SK 50–64% / \(tongNV) NV", UIColor(red: 0.95, green: 0.55, blue: 0.06, alpha: 1), UIColor(red: 0.86, green: 0.42, blue: 0.02, alpha: 1)),
+            ("🔴 CẢNH BÁO YẾU LT", "\(kq.top5CanhBaoYeu.count) NV", "YẾU LIÊN TỤC CẦN KÈM CẶP", UIColor(red: 0.88, green: 0.16, blue: 0.16, alpha: 1), UIColor(red: 0.72, green: 0.10, blue: 0.14, alpha: 1))
+        ]
+        for (i, t) in duLieu4The.enumerated() {
+            let vThe = TheDoanhThuView(tieuDe: t.tieuDe, mauBatDau: t.m1, mauKetThuc: t.m2)
+            vThe.capNhatNoiDung(chinh: t.chinh, phu: t.phu, coLon: true)
+            vThe.frame = CGRect(x: le + CGFloat(i) * (rongMoiThe + kcThe), y: y, width: rongMoiThe, height: cao4The)
+            vThe.layoutIfNeeded()
+            khung.addSubview(vThe)
+        }
+
+        y += cao4The + 12
+
+        // 2. Khung Cảnh báo 5 nhân viên yếu liên tục
+        let hopCB = UIView(frame: CGRect(x: le, y: y, width: rongNoiDung, height: caoKhungCB))
+        hopCB.backgroundColor = UIColor(red: 1.0, green: 0.95, blue: 0.95, alpha: 1)
+        hopCB.layer.cornerRadius = 10
+        hopCB.layer.borderWidth = 1.5
+        hopCB.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.55).cgColor
+        khung.addSubview(hopCB)
+
+        let lbCBHeader = UILabel(frame: CGRect(x: 12, y: 8, width: rongNoiDung - 24, height: 22))
+        lbCBHeader.text = "🚨 CẢNH BÁO 5 NHÂN VIÊN YẾU NHIỀU NGÀY LIÊN TỤC"
+        lbCBHeader.font = .systemFont(ofSize: 14, weight: .heavy)
+        lbCBHeader.textColor = UIColor(red: 0.78, green: 0.08, blue: 0.08, alpha: 1)
+        hopCB.addSubview(lbCBHeader)
+
+        let lbCBSub = UILabel(frame: CGRect(x: 12, y: 30, width: rongNoiDung - 24, height: 18))
+        lbCBSub.text = "Điểm SK tổng hợp = 60% Doanh thu QĐ + 40% Môn thi đua  •  Điểm SK TB đội: \(kq.trungBinhDiemSucKhoe.chuoiPhanTram)  •  DT QĐ TB đội: \(kq.trungBinhDoiDTQD.chuoiSoGonVN)tr"
+        lbCBSub.font = .systemFont(ofSize: 12, weight: .semibold)
+        lbCBSub.textColor = .darkGray
+        hopCB.addSubview(lbCBSub)
+
+        var yCB: CGFloat = 54
+        for item in kq.top5CanhBaoYeu {
+            let oCB = UIView(frame: CGRect(x: 12, y: yCB, width: rongNoiDung - 24, height: caoMoiTheCB))
+            oCB.backgroundColor = .white
+            oCB.layer.cornerRadius = 8
+            oCB.layer.borderWidth = 1
+            oCB.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.4).cgColor
+
+            let lbTen = UILabel(frame: CGRect(x: 10, y: 6, width: rongNoiDung - 290, height: 22))
+            lbTen.text = "⚠️ #\(item.thuHangCanhBao). \(item.nhanVien.hoTen) — Mã NV: \(item.nhanVien.maNV)"
+            lbTen.font = .systemFont(ofSize: 13, weight: .heavy)
+            lbTen.textColor = UIColor(red: 0.72, green: 0.08, blue: 0.08, alpha: 1)
+            oCB.addSubview(lbTen)
+
+            let badge = UILabel(frame: CGRect(x: rongNoiDung - 270, y: 6, width: 236, height: 22))
+            badge.text = "🔥 Yếu \(item.soNgayYeuLienTuc) ngày LT • Điểm SK: \(item.diemSucKhoe.chuoiPhanTram)"
+            badge.font = .monospacedDigitSystemFont(ofSize: 11.5, weight: .bold)
+            badge.textColor = .white
+            badge.backgroundColor = UIColor(red: 0.84, green: 0.14, blue: 0.14, alpha: 1)
+            badge.textAlignment = .center
+            badge.layer.cornerRadius = 6
+            badge.clipsToBounds = true
+            oCB.addSubview(badge)
+
+            let chuoiCham = item.lichSuNgay.map { "N\($0.ngayTrongThang)\($0.laNgayYeu ? "🔴" : ($0.diemSucKhoe >= 80 ? "🟢" : "🟡"))" }.joined(separator: " → ")
+            let lbLyDo = UILabel(frame: CGRect(x: 10, y: 32, width: rongNoiDung - 44, height: 30))
+            lbLyDo.text = "📊 \(item.lyDoCanhBao)   |   📅 Chuỗi ngày: \(chuoiCham)"
+            lbLyDo.font = .systemFont(ofSize: 12, weight: .semibold)
+            lbLyDo.textColor = .black
+            lbLyDo.numberOfLines = 0
+            oCB.addSubview(lbLyDo)
+
+            hopCB.addSubview(oCB)
+            yCB += caoMoiTheCB + 6
+        }
+
+        y += caoKhungCB + 12
+
+        // 3. Khung Biểu đồ cột 16 NV
+        let hopBD = UIView(frame: CGRect(x: le, y: y, width: rongNoiDung, height: caoBieuDoCot))
+        hopBD.backgroundColor = UIColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 1)
+        hopBD.layer.cornerRadius = 10
+        hopBD.layer.borderWidth = 1
+        hopBD.layer.borderColor = UIColor.systemGray4.cgColor
+        khung.addSubview(hopBD)
+
+        let lbLegend = UILabel(frame: CGRect(x: 12, y: 8, width: rongNoiDung - 24, height: 20))
+        lbLegend.text = "📊 BIỂU ĐỒ CỘT TRỰC QUAN SỨC KHỎE \(tongNV) NHÂN VIÊN:   🟢 Khỏe (≥80%)   🔵 Khá (65–79%)   🟠 Cần chú ý (50–64%)   🔴/🔥 Top 5 Yếu liên tục"
+        lbLegend.font = .systemFont(ofSize: 12.5, weight: .bold)
+        lbLegend.textColor = .black
+        hopBD.addSubview(lbLegend)
+
+        let chart = VeBieuDoSucKhoe16NVView(frame: CGRect(x: 4, y: 30, width: rongNoiDung - 8, height: caoBieuDoCot - 34))
+        chart.overrideUserInterfaceStyle = .light
+        chart.danhSach = dsHienThi
+        hopBD.addSubview(chart)
+
+        y += caoBieuDoCot + 12
+
+        // 4. Bảng Thanh Ngang Sức Khỏe 16 NV
+        let lbTieuDeBang = UILabel(frame: CGRect(x: le, y: y, width: rongNoiDung, height: caoTieuDeBang))
+        lbTieuDeBang.text = "📋 BẢNG THANH NGANG ĐỐI CHIẾU SỨC KHỎE & CHUỖI NGÀY TOÀN BỘ \(tongNV) NHÂN VIÊN"
+        lbTieuDeBang.font = .systemFont(ofSize: 13.5, weight: .heavy)
+        lbTieuDeBang.textColor = .black
+        khung.addSubview(lbTieuDeBang)
+
+        y += caoTieuDeBang + 6
+
+        for (idx, item) in dsHienThi.enumerated() {
+            let oDong = UIView(frame: CGRect(x: le, y: y, width: rongNoiDung, height: caoMoiDongNV))
+            oDong.backgroundColor = item.laTop5CanhBao ? UIColor(red: 1.0, green: 0.96, blue: 0.96, alpha: 1) : .white
+            oDong.layer.cornerRadius = 8
+            oDong.layer.borderWidth = item.laTop5CanhBao ? 1.2 : 0.8
+            oDong.layer.borderColor = (item.laTop5CanhBao ? UIColor.systemRed.withAlphaComponent(0.5) : UIColor.systemGray4).cgColor
+
+            let mauThanh: UIColor = item.laTop5CanhBao
+                ? UIColor(red: 0.84, green: 0.14, blue: 0.14, alpha: 1)
+                : (item.mucDo == .khoe ? UIColor(red: 0.08, green: 0.58, blue: 0.26, alpha: 1) : (item.mucDo == .kha ? UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1) : UIColor(red: 0.90, green: 0.46, blue: 0.04, alpha: 1)))
+
+            let chuCB = item.laTop5CanhBao ? "🔥 Cảnh báo #\(item.thuHangCanhBao): Yếu \(item.soNgayYeuLienTuc) ngày liên tục" : "\(item.mucDo.bieuTuong) \(item.mucDo.tenNgan)"
+            let lb1 = UILabel(frame: CGRect(x: 10, y: 6, width: rongNoiDung - 20, height: 18))
+            lb1.text = "\(idx + 1). \(item.nhanVien.hoTen) (Mã NV: \(item.nhanVien.maNV))   •   \(chuCB)"
+            lb1.font = .systemFont(ofSize: 12.5, weight: .bold)
+            lb1.textColor = item.laTop5CanhBao ? UIColor(red: 0.72, green: 0.08, blue: 0.08, alpha: 1) : .black
+            oDong.addSubview(lb1)
+
+            let track = UIView(frame: CGRect(x: 10, y: 27, width: rongNoiDung - 20, height: 9))
+            track.backgroundColor = UIColor.systemGray5
+            track.layer.cornerRadius = 4.5
+            let tyLe = CGFloat(min(1.0, max(0.04, item.diemSucKhoe / 100.0)))
+            let fill = UIView(frame: CGRect(x: 0, y: 0, width: (rongNoiDung - 20) * tyLe, height: 9))
+            fill.backgroundColor = mauThanh
+            fill.layer.cornerRadius = 4.5
+            track.addSubview(fill)
+            oDong.addSubview(track)
+
+            let chuoiCham = item.lichSuNgay.map { $0.laNgayYeu ? "🔴" : ($0.diemSucKhoe >= 80 ? "🟢" : "🟡") }.joined()
+            let lb2 = UILabel(frame: CGRect(x: 10, y: 39, width: rongNoiDung - 20, height: 18))
+            lb2.text = "Điểm SK: \(item.diemSucKhoe.chuoiPhanTram)   •   DT QĐ: \(item.tongHopLuyKe.doanhThuQD.chuoiSoGonVN)tr   •   Môn đạt: \(item.tongHopLuyKe.soMonDat)/\(item.tongHopLuyKe.tongMonGiao) (TB \(item.tongHopLuyKe.phanTramHTTB.chuoiPhanTram))   •   Chuỗi ngày: \(chuoiCham)"
+            lb2.font = .monospacedDigitSystemFont(ofSize: 11.5, weight: .semibold)
+            lb2.textColor = .darkGray
+            oDong.addSubview(lb2)
+
+            khung.addSubview(oDong)
+            y += caoMoiDongNV + 6
+        }
+
+        let fmt = UIGraphicsImageRendererFormat()
+        fmt.scale = 2.0
+        return UIGraphicsImageRenderer(size: khung.bounds.size, format: fmt).image { ctx in
+            khung.layer.render(in: ctx.cgContext)
+        }
+    }
+
 }

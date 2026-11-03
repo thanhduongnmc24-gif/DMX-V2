@@ -139,29 +139,31 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     @objc private func moQuanLyTaiKhoan() {
         let tk = DichVuDongBo.dungChung.tenDangNhap.isEmpty ? "Tài khoản" : DichVuDongBo.dungChung.tenDangNhap
         let laAdmin = DichVuDongBo.dungChung.laAdmin
-        var cacMuc: [MucChonDMX] = []
+        let menu = UIAlertController(
+            title: "Tài khoản ĐMX: \(tk) \(laAdmin ? "(Admin)" : "")",
+            message: "Dữ liệu được đồng bộ tự động với nhánh duongnt.io.vn/dmx.",
+            preferredStyle: .actionSheet
+        )
         if laAdmin {
-            cacMuc.append(MucChonDMX(tieuDe: "🛡️ Quản lý tài khoản & Phân quyền Admin") { [weak self] in
+            menu.addAction(UIAlertAction(title: "🛡️ Quản lý tài khoản & Phân quyền Admin", style: .default) { [weak self] _ in
                 self?.bamMoManHinhAdminTaiKhoan()
             })
         }
-        cacMuc.append(MucChonDMX(tieuDe: "🔑 Đổi mật khẩu tài khoản \(tk)") { [weak self] in
+        menu.addAction(UIAlertAction(title: "🔑 Đổi mật khẩu tài khoản \(tk)", style: .default) { [weak self] _ in
             self?.bamDoiMatKhauCaNhan()
         })
-        cacMuc.append(MucChonDMX(tieuDe: "🔄 Đồng bộ dữ liệu ngay") {
+        menu.addAction(UIAlertAction(title: "🔄 Đồng bộ dữ liệu ngay", style: .default) { _ in
             DichVuDongBo.dungChung.taiDuLieu()
         })
-        cacMuc.append(MucChonDMX(tieuDe: "🚪 Đăng xuất tài khoản", kieu: .nguyHiem) {
+        menu.addAction(UIAlertAction(title: "🚪 Đăng xuất tài khoản", style: .destructive) { _ in
             DichVuDongBo.dungChung.dangXuat()
             (UIApplication.shared.delegate as? UyQuyenUngDung)?.hienThiDangNhap()
         })
-        cacMuc.append(MucChonDMX(tieuDe: "Đóng", kieu: .huy))
-
-        hienMenuChon(
-            tieuDe: "Tài khoản ĐMX: \(tk) \(laAdmin ? "(Admin)" : "")",
-            thongDiep: "Dữ liệu được đồng bộ tự động với nhánh duongnt.io.vn/dmx.",
-            cacMuc: cacMuc
-        )
+        menu.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        if let pop = menu.popoverPresentationController {
+            pop.barButtonItem = navigationItem.rightBarButtonItems?.last
+        }
+        present(menu, animated: true)
     }
 
     private func hienThongBao(tieuDe: String, noiDung: String) {
@@ -210,6 +212,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nganTong.translatesAutoresizingMaskIntoConstraints = false
         cuon.addSubview(nganTong)
 
+        // Khối Tài khoản & Quản trị Admin
         let tieuDeTK = taoTieuDeNhom("👤 TÀI KHOẢN & QUẢN TRỊ HỆ THỐNG")
         let khungTK = UIView()
         khungTK.backgroundColor = .secondarySystemGroupedBackground
@@ -220,14 +223,9 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nhanThongTinTaiKhoan.font = .systemFont(ofSize: 13.5, weight: .bold)
         nhanThongTinTaiKhoan.textColor = .label
         nhanThongTinTaiKhoan.numberOfLines = 0
-        nhanThongTinTaiKhoan.lineBreakMode = .byWordWrapping
-        nhanThongTinTaiKhoan.adjustsFontSizeToFitWidth = false
 
         nutMoAdminTaiKhoan.setTitle("🛡️ Quản lý Tài khoản (Thêm mới, Đổi mật khẩu, Set quyền Admin) ▸", for: .normal)
         nutMoAdminTaiKhoan.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nutMoAdminTaiKhoan.titleLabel?.numberOfLines = 0
-        nutMoAdminTaiKhoan.titleLabel?.lineBreakMode = .byWordWrapping
-        nutMoAdminTaiKhoan.titleLabel?.adjustsFontSizeToFitWidth = false
         nutMoAdminTaiKhoan.contentHorizontalAlignment = .left
         nutMoAdminTaiKhoan.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
         nutMoAdminTaiKhoan.tintColor = .systemBlue
@@ -237,9 +235,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         nutDoiMatKhauNhanh.setTitle("🔑 Đổi mật khẩu", for: .normal)
         nutDoiMatKhauNhanh.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
-        nutDoiMatKhauNhanh.titleLabel?.numberOfLines = 0
-        nutDoiMatKhauNhanh.titleLabel?.lineBreakMode = .byWordWrapping
-        nutDoiMatKhauNhanh.titleLabel?.adjustsFontSizeToFitWidth = false
         nutDoiMatKhauNhanh.backgroundColor = .systemBackground
         nutDoiMatKhauNhanh.tintColor = .label
         nutDoiMatKhauNhanh.layer.cornerRadius = 9
@@ -250,9 +245,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         nutDangXuatNhanh.setTitle("🚪 Đăng xuất", for: .normal)
         nutDangXuatNhanh.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
-        nutDangXuatNhanh.titleLabel?.numberOfLines = 0
-        nutDangXuatNhanh.titleLabel?.lineBreakMode = .byWordWrapping
-        nutDangXuatNhanh.titleLabel?.adjustsFontSizeToFitWidth = false
         nutDangXuatNhanh.backgroundColor = UIColor.systemRed.withAlphaComponent(0.12)
         nutDangXuatNhanh.tintColor = .systemRed
         nutDangXuatNhanh.layer.cornerRadius = 9
@@ -270,6 +262,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nganTK.translatesAutoresizingMaskIntoConstraints = false
         khungTK.addSubview(nganTK)
 
+        // Khối 1 & 2: Chia Target mặt hàng & Quản lý danh sách nhân viên
         let tieuDeNV = taoTieuDeNhom("1 & 2. CHIA TARGET MẶT HÀNG & QUẢN LÝ NHÂN VIÊN")
         let khungNV = UIView()
         khungNV.backgroundColor = .secondarySystemGroupedBackground
@@ -277,10 +270,9 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         [nutChiaTarget, nutQuanLyNV].forEach { nut in
             nut.titleLabel?.numberOfLines = 0
-            nut.titleLabel?.lineBreakMode = .byWordWrapping
-            nut.titleLabel?.adjustsFontSizeToFitWidth = false
-            nut.titleLabel?.textAlignment = .left
-            nut.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+        nut.titleLabel?.lineBreakMode = .byWordWrapping
+        nut.titleLabel?.textAlignment = .center
+        nut.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
             nut.contentHorizontalAlignment = .left
             nut.backgroundColor = .systemBackground
             nut.tintColor = .systemBlue
@@ -298,6 +290,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nganNV.translatesAutoresizingMaskIntoConstraints = false
         khungNV.addSubview(nganNV)
 
+        // Khối 3: Chọn kiểu hiển thị & xuất báo cáo
         let tieuDeKieu = taoTieuDeNhom("3. KIỂU HIỂN THỊ & XUẤT BÁO CÁO")
         let khungKieu = UIView()
         khungKieu.backgroundColor = .secondarySystemGroupedBackground
@@ -308,19 +301,12 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nhanMoTaKieu.font = .systemFont(ofSize: 13)
         nhanMoTaKieu.textColor = .secondaryLabel
         nhanMoTaKieu.numberOfLines = 0
-        nhanMoTaKieu.lineBreakMode = .byWordWrapping
-        nhanMoTaKieu.adjustsFontSizeToFitWidth = false
 
         let nhanMoTaCot = UILabel()
         nhanMoTaCot.text = "Số cột khi xuất ảnh (áp dụng cho mẫu Thẻ tiến độ):"
         nhanMoTaCot.font = .systemFont(ofSize: 13)
         nhanMoTaCot.textColor = .secondaryLabel
         nhanMoTaCot.numberOfLines = 0
-        nhanMoTaCot.lineBreakMode = .byWordWrapping
-        nhanMoTaCot.adjustsFontSizeToFitWidth = false
-
-        chonKieuHienThi.damBaoHienThiDayDuText()
-        chonSoCotXuat.damBaoHienThiDayDuText()
 
         let nganKieu = UIStackView(arrangedSubviews: [nhanMoTaKieu, chonKieuHienThi, nhanMoTaCot, chonSoCotXuat])
         nganKieu.axis = .vertical
@@ -328,13 +314,14 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nganKieu.translatesAutoresizingMaskIntoConstraints = false
         khungKieu.addSubview(nganKieu)
 
+        // Khối 4: Cụm từ lọc bỏ trong tất cả ngành hàng
         let tieuDeLoc = taoTieuDeNhom("4. CỤM TỪ LỌC BỎ TRONG TẤT CẢ NGÀNH HÀNG")
         let khungLoc = UIView()
         khungLoc.backgroundColor = .secondarySystemGroupedBackground
         khungLoc.layer.cornerRadius = 12
         khungLoc.clipsToBounds = true
 
-        oNhapCumTu.placeholder = "Nhập cụm từ muốn lọc bỏ (VD: 275 Quang Trung)"
+        oNhapCumTu.placeholder = "Nhập cụm từ muốn lọc bỏ (VD: 275 Quang Trung)..."
         oNhapCumTu.borderStyle = .roundedRect
         oNhapCumTu.font = .systemFont(ofSize: 14)
         oNhapCumTu.clearButtonMode = .whileEditing
@@ -344,9 +331,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let nutThem = UIButton(type: .system)
         nutThem.setTitle(" + Thêm ", for: .normal)
         nutThem.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
-        nutThem.titleLabel?.numberOfLines = 0
-        nutThem.titleLabel?.lineBreakMode = .byWordWrapping
-        nutThem.titleLabel?.adjustsFontSizeToFitWidth = false
         nutThem.backgroundColor = .systemBlue
         nutThem.tintColor = .white
         nutThem.layer.cornerRadius = 8
@@ -363,8 +347,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         bangCumTu.dataSource = self
         bangCumTu.delegate = self
-        bangCumTu.rowHeight = UITableView.automaticDimension
-        bangCumTu.estimatedRowHeight = 44
+        bangCumTu.rowHeight = 42
         bangCumTu.backgroundColor = .clear
         bangCumTu.separatorInset = UIEdgeInsets(top: 0, left: 14, bottom: 0, right: 14)
 
@@ -451,9 +434,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let cell = tableView.dequeueReusableCell(withIdentifier: ma) ?? UITableViewCell(style: .value1, reuseIdentifier: ma)
         cell.backgroundColor = .clear
         cell.selectionStyle = .none
-        cell.textLabel?.numberOfLines = 0
-        cell.textLabel?.lineBreakMode = .byWordWrapping
-        cell.textLabel?.adjustsFontSizeToFitWidth = false
 
         if danhSachCumTu.isEmpty {
             cell.textLabel?.text = "Chưa có cụm từ lọc bỏ nào"
@@ -500,9 +480,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nhan.text = chu
         nhan.font = .systemFont(ofSize: 11.5, weight: .bold)
         nhan.textColor = .secondaryLabel
-        nhan.numberOfLines = 0
-        nhan.lineBreakMode = .byWordWrapping
-        nhan.adjustsFontSizeToFitWidth = false
         return nhan
     }
 }
@@ -540,16 +517,11 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
         nhanTomTat.font = .systemFont(ofSize: 13, weight: .semibold)
         nhanTomTat.textColor = .label
         nhanTomTat.numberOfLines = 0
-        nhanTomTat.lineBreakMode = .byWordWrapping
-        nhanTomTat.adjustsFontSizeToFitWidth = false
         nhanTomTat.text = "Chạm vào từng tài khoản bên dưới để Đổi mật khẩu, Set/Gỡ quyền Admin hoặc Xoá."
 
         nutThemTaiKhoan.setImage(UIImage(systemName: "person.badge.plus"), for: .normal)
         nutThemTaiKhoan.setTitle(" Thêm tài khoản mới", for: .normal)
         nutThemTaiKhoan.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
-        nutThemTaiKhoan.titleLabel?.numberOfLines = 0
-        nutThemTaiKhoan.titleLabel?.lineBreakMode = .byWordWrapping
-        nutThemTaiKhoan.titleLabel?.adjustsFontSizeToFitWidth = false
         nutThemTaiKhoan.backgroundColor = .systemBlue
         nutThemTaiKhoan.tintColor = .white
         nutThemTaiKhoan.layer.cornerRadius = 9
@@ -564,8 +536,7 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
 
         bang.dataSource = self
         bang.delegate = self
-        bang.rowHeight = UITableView.automaticDimension
-        bang.estimatedRowHeight = 64
+        bang.rowHeight = 62
 
         [khungDau, bang].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
@@ -664,15 +635,8 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let ma = "TaiKhoanAdminCell"
         let cell = tableView.dequeueReusableCell(withIdentifier: ma) ?? UITableViewCell(style: .subtitle, reuseIdentifier: ma)
-        cell.textLabel?.numberOfLines = 0
-        cell.textLabel?.lineBreakMode = .byWordWrapping
-        cell.textLabel?.adjustsFontSizeToFitWidth = false
-        cell.detailTextLabel?.numberOfLines = 0
-        cell.detailTextLabel?.lineBreakMode = .byWordWrapping
-        cell.detailTextLabel?.adjustsFontSizeToFitWidth = false
-
         guard !danhSach.isEmpty else {
-            cell.textLabel?.text = "Đang tải danh sách tài khoản"
+            cell.textLabel?.text = "Đang tải danh sách tài khoản..."
             cell.detailTextLabel?.text = nil
             cell.accessoryType = .none
             return cell
@@ -718,34 +682,38 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
 
     private func moMenuTacVuChoTaiKhoan(_ tk: ThongTinTaiKhoanDMX) {
         let vaiTro = tk.laAdmin ? "Admin" : "Tài khoản thường"
-        var cacMuc: [MucChonDMX] = [
-            MucChonDMX(tieuDe: "🔑 Đổi mật khẩu cho \"\(tk.tenDangNhap)\"") { [weak self] in
-                self?.moHopThoaiDoiMatKhau(cho: tk)
-            }
-        ]
+        let sheet = UIAlertController(
+            title: "Tài khoản: \(tk.tenDangNhap)",
+            message: "Quyền hiện tại: \(vaiTro)",
+            preferredStyle: .actionSheet
+        )
+
+        sheet.addAction(UIAlertAction(title: "🔑 Đổi mật khẩu cho \"\(tk.tenDangNhap)\"", style: .default) { [weak self] _ in
+            self?.moHopThoaiDoiMatKhau(cho: tk)
+        })
 
         if !tk.laAdminGoc {
             if tk.laAdmin {
-                cacMuc.append(MucChonDMX(tieuDe: "👤 Gỡ quyền Admin (Chuyển về Tài khoản thường)") { [weak self] in
+                sheet.addAction(UIAlertAction(title: "👤 Gỡ quyền Admin (Chuyển về Tài khoản thường)", style: .default) { [weak self] _ in
                     self?.thucHienDoiQuyenAdmin(cho: tk, laAdmin: false)
                 })
             } else {
-                cacMuc.append(MucChonDMX(tieuDe: "🛡️ Set quyền Admin cho \"\(tk.tenDangNhap)\"") { [weak self] in
+                sheet.addAction(UIAlertAction(title: "🛡️ Set quyền Admin cho \"\(tk.tenDangNhap)\"", style: .default) { [weak self] _ in
                     self?.thucHienDoiQuyenAdmin(cho: tk, laAdmin: true)
                 })
             }
 
-            cacMuc.append(MucChonDMX(tieuDe: "🗑️ Xoá tài khoản \"\(tk.tenDangNhap)\"", kieu: .nguyHiem) { [weak self] in
+            sheet.addAction(UIAlertAction(title: "🗑️ Xoá tài khoản \"\(tk.tenDangNhap)\"", style: .destructive) { [weak self] _ in
                 self?.xacNhanXoaTaiKhoan(tk)
             })
         }
-        cacMuc.append(MucChonDMX(tieuDe: "Đóng", kieu: .huy))
 
-        hienMenuChon(
-            tieuDe: "Tài khoản: \(tk.tenDangNhap)",
-            thongDiep: "Quyền hiện tại: \(vaiTro)",
-            cacMuc: cacMuc
-        )
+        sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        if let pop = sheet.popoverPresentationController {
+            pop.sourceView = view
+            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+        }
+        present(sheet, animated: true)
     }
 
     private func moHopThoaiDoiMatKhau(cho tk: ThongTinTaiKhoanDMX) {
