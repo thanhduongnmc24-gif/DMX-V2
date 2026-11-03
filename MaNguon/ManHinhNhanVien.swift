@@ -34,9 +34,22 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         fatalError("init(coder:) has not been implemented")
     }
 
+    private func capNhatTieuDeThanhDieuHuong(_ chu: String) {
+        title = chu
+        let nhan = UILabel()
+        nhan.text = chu
+        nhan.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nhan.textColor = .label
+        nhan.textAlignment = .center
+        nhan.numberOfLines = 0
+        nhan.lineBreakMode = .byWordWrapping
+        nhan.adjustsFontSizeToFitWidth = false
+        navigationItem.titleView = nhan
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "\(dong.tenNganhHang) (\(cheDo.tieuDe))"
+        capNhatTieuDeThanhDieuHuong("\(dong.tenNganhHang) (\(cheDo.tieuDe))")
         view.backgroundColor = .systemGroupedBackground
 
         let nutSua = UIBarButtonItem(
@@ -264,7 +277,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
             $0.id == dong.id || KhoDuLieu.chuanHoaKhoaSoSanh($0.tenNganhHang) == KhoDuLieu.chuanHoaKhoaSoSanh(dong.tenNganhHang)
         }) {
             dong = capNhatDong
-            title = "\(dong.tenNganhHang) (\(cheDo.tieuDe))"
+            capNhatTieuDeThanhDieuHuong("\(dong.tenNganhHang) (\(cheDo.tieuDe))")
         }
 
         danhSachXepHang = KhoDuLieu.dungChung.danhSachXepHangNhanVien(cho: dong, den: ngay, cheDo: cheDo)
@@ -397,11 +410,11 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
     }
 
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
-        let header = UIView(frame: CGRect(x: 0, y: 0, width: tableView.bounds.width, height: 38))
+        let header = UIView(frame: CGRect(x: 0, y: 0, width: tableView.bounds.width, height: 44))
         header.backgroundColor = .tertiarySystemGroupedBackground
 
         let nhanTrai = UILabel()
-        nhanTrai.text = "#   NHÂN VIÊN (Chạm sửa TH \(cheDo.tieuDe))"
+        nhanTrai.text = "#  NHÂN VIÊN (Chạm sửa)"
         nhanTrai.font = .systemFont(ofSize: 11, weight: .bold)
         nhanTrai.textColor = .secondaryLabel
         nhanTrai.numberOfLines = 0
@@ -409,7 +422,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         nhanTrai.adjustsFontSizeToFitWidth = false
 
         let nhanPhai = UILabel()
-        nhanPhai.text = "THỰC HIỆN  •  CÒN/VƯỢT  •  % HT"
+        nhanPhai.text = "THỰC HIỆN • CÒN/VƯỢT • % HT"
         nhanPhai.font = .systemFont(ofSize: 11, weight: .bold)
         nhanPhai.textColor = .secondaryLabel
         nhanPhai.textAlignment = .right
@@ -423,16 +436,18 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         }
         NSLayoutConstraint.activate([
             nhanTrai.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 10),
-            nhanTrai.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            nhanTrai.topAnchor.constraint(equalTo: header.topAnchor, constant: 4),
+            nhanTrai.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -4),
             nhanPhai.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -10),
-            nhanPhai.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            nhanPhai.topAnchor.constraint(equalTo: header.topAnchor, constant: 4),
+            nhanPhai.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -4),
             nhanTrai.trailingAnchor.constraint(lessThanOrEqualTo: nhanPhai.leadingAnchor, constant: -6)
         ])
         return header
     }
 
     func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
-        38
+        44
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
