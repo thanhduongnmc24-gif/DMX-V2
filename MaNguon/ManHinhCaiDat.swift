@@ -7,8 +7,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     private let nutDoiMatKhauNhanh = UIButton(type: .system)
     private let nutDangXuatNhanh = UIButton(type: .system)
 
-    private let oNhapMucTieuQDThang = UITextField()
-    private let nhanChiTietMucTieuThang = UILabel()
     private let chonKieuHienThi = UISegmentedControl(items: ["Bảng 8 cột (Chi tiết)", "Thẻ tiến độ (Gọn)"])
     private let chonSoCotXuat = UISegmentedControl(items: ["1 cột", "2 cột", "3 cột", "4 cột"])
     private let nutChiaTarget = UIButton(type: .system)
@@ -52,22 +50,15 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let chiSoCot = max(0, min(3, cd.soCotXuatAnh - 1))
         chonSoCotXuat.selectedSegmentIndex = chiSoCot
 
-        let mtHienTai = KhoDuLieu.dungChung.mucTieuDoanhThuQDThang(cho: ngay)
-        if mtHienTai > 0 {
-            oNhapMucTieuQDThang.text = String(format: "%.2f", mtHienTai).replacingOccurrences(of: ".00", with: "")
-        }
-
         taoGiaoDien()
         capNhatThongTinTaiKhoanUI()
         capNhatTieuDeNutNhanVien()
-        capNhatThongTinChiaMucTieuThang()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         capNhatThongTinTaiKhoanUI()
         capNhatTieuDeNutNhanVien()
-        capNhatThongTinChiaMucTieuThang()
     }
 
     private func capNhatThongTinTaiKhoanUI() {
@@ -83,52 +74,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let soMH = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay).count
         nutChiaTarget.setTitle("🎯 1. Chia Target mặt hàng (\(soMH) mặt hàng) ▸", for: .normal)
         nutQuanLyNV.setTitle("👥 2. Danh sách nhân viên quản lý (\(cd.danhSachNhanVien.count) NV) ▸", for: .normal)
-    }
-
-    private func docSoMucTieuTuO() -> Double {
-        let raw = (oNhapMucTieuQDThang.text ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: " ", with: "")
-        guard !raw.isEmpty else { return 0 }
-        let chuan = raw.replacingOccurrences(of: ",", with: ".")
-        return Double(chuan) ?? 0
-    }
-
-    @objc private func khiThayDoiMucTieuThang() {
-        capNhatThongTinChiaMucTieuThang()
-    }
-
-    private func capNhatThongTinChiaMucTieuThang() {
-        let soNgay = KhoDuLieu.dungChung.soNgayTrongThang(cho: ngay)
-        let thang = TienIchNgay.lich.component(.month, from: ngay)
-        let nam = TienIchNgay.lich.component(.year, from: ngay)
-        let mucTieu = docSoMucTieuTuO()
-
-        if mucTieu > 0 {
-            let moiNgay = mucTieu / Double(max(1, soNgay))
-            let duBao = KhoDuLieu.dungChung.tinhDuBaoQuyDoiTuRealtime(cho: ngay, cheDoDangXem: .realtime)
-            var chuoi = "📅 Tháng \(String(format: "%02d/%04d", thang, nam)) có \(soNgay) ngày thực tế  →  Tự chia: \(moiNgay.chuoiSoVN) / ngày."
-            if duBao.soNgayCoRealtime > 0 {
-                let dkCuoiThang = duBao.trungBinhQDMoiNgay * Double(soNgay)
-                let ptDK = (dkCuoiThang / mucTieu) * 100.0
-                let kq = ptDK >= 99.995 ? "✅ ĐẠT MỤC TIÊU" : "⚠️ CHƯA ĐẠT"
-                chuoi += "\n📊 Đã nhập \(duBao.soNgayCoRealtime) ngày RT (TB \(duBao.trungBinhQDMoiNgay.chuoiSoVN)/ngày) → Cuối tháng dự kiến: \(dkCuoiThang.chuoiSoVN) (\(ptDK.chuoiPhanTramVN) - \(kq))"
-            } else {
-                chuoi += "\n💡 Khi nhập 2 ảnh Realtime mỗi ngày, app sẽ tự lấy TB các ngày × \(soNgay) ngày để tính % HT QĐ dự kiến cuối tháng."
-            }
-            nhanChiTietMucTieuThang.text = chuoi
-            nhanChiTietMucTieuThang.textColor = UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
-        } else {
-            nhanChiTietMucTieuThang.text = "📅 Tháng \(String(format: "%02d/%04d", thang, nam)) có \(soNgay) ngày thực tế.\nNhập mục tiêu DT quy đổi tháng để app tự chia cho \(soNgay) ngày và tự tính % HT QĐ dự kiến cuối tháng từ các ngày Realtime."
-            nhanChiTietMucTieuThang.textColor = .secondaryLabel
-        }
-    }
-
-    @objc private func bamApDungMucTieuThang() {
-        oNhapMucTieuQDThang.resignFirstResponder()
-        let mucTieu = docSoMucTieuTuO()
-        KhoDuLieu.dungChung.luuMucTieuDoanhThuQDThang(mucTieu, cho: ngay)
-        capNhatThongTinChiaMucTieuThang()
     }
 
     @objc private func bamMoManHinhAdminTaiKhoan() {
@@ -234,8 +179,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             }
             oNhapCumTu.text = ""
         }
-        let mucTieuThang = docSoMucTieuTuO()
-        KhoDuLieu.dungChung.luuMucTieuDoanhThuQDThang(mucTieuThang, cho: ngay)
 
         let kieu = KieuHienThiBaoCao(rawValue: chonKieuHienThi.selectedSegmentIndex) ?? .bangChiTiet
         let soCot = chonSoCotXuat.selectedSegmentIndex + 1
@@ -318,47 +261,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nganTK.spacing = 8
         nganTK.translatesAutoresizingMaskIntoConstraints = false
         khungTK.addSubview(nganTK)
-
-        // Khối 0: Mục tiêu Doanh thu Quy đổi Tháng (Tự chia theo số ngày thực tế của tháng hiện tại)
-        let thang = TienIchNgay.lich.component(.month, from: ngay)
-        let nam = TienIchNgay.lich.component(.year, from: ngay)
-        let soNgayThang = KhoDuLieu.dungChung.soNgayTrongThang(cho: ngay)
-        let tieuDeMucTieu = taoTieuDeNhom("🎯 DOANH THU QUY ĐỔI MỤC TIÊU THÁNG \(String(format: "%02d/%04d", thang, nam)) (\(soNgayThang) NGÀY)")
-        let khungMucTieu = UIView()
-        khungMucTieu.backgroundColor = .secondarySystemGroupedBackground
-        khungMucTieu.layer.cornerRadius = 12
-        khungMucTieu.layer.borderWidth = 1
-        khungMucTieu.layer.borderColor = UIColor.systemGreen.withAlphaComponent(0.35).cgColor
-
-        oNhapMucTieuQDThang.placeholder = "Nhập mục tiêu DT quy đổi tháng (VD: 15000)..."
-        oNhapMucTieuQDThang.borderStyle = .roundedRect
-        oNhapMucTieuQDThang.font = .systemFont(ofSize: 15, weight: .bold)
-        oNhapMucTieuQDThang.keyboardType = .decimalPad
-        oNhapMucTieuQDThang.clearButtonMode = .whileEditing
-        oNhapMucTieuQDThang.addTarget(self, action: #selector(khiThayDoiMucTieuThang), for: .editingChanged)
-
-        let nutLuuMT = UIButton(type: .system)
-        nutLuuMT.setTitle(" Áp dụng ", for: .normal)
-        nutLuuMT.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nutLuuMT.backgroundColor = UIColor(red: 0.09, green: 0.61, blue: 0.27, alpha: 1)
-        nutLuuMT.tintColor = .white
-        nutLuuMT.layer.cornerRadius = 8
-        nutLuuMT.contentEdgeInsets = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
-        nutLuuMT.setContentHuggingPriority(.required, for: .horizontal)
-        nutLuuMT.addTarget(self, action: #selector(bamApDungMucTieuThang), for: .touchUpInside)
-
-        let hangNhapMT = UIStackView(arrangedSubviews: [oNhapMucTieuQDThang, nutLuuMT])
-        hangNhapMT.axis = .horizontal
-        hangNhapMT.spacing = 8
-
-        nhanChiTietMucTieuThang.font = .systemFont(ofSize: 12.5, weight: .semibold)
-        nhanChiTietMucTieuThang.numberOfLines = 0
-
-        let nganMT = UIStackView(arrangedSubviews: [hangNhapMT, nhanChiTietMucTieuThang])
-        nganMT.axis = .vertical
-        nganMT.spacing = 6
-        nganMT.translatesAutoresizingMaskIntoConstraints = false
-        khungMucTieu.addSubview(nganMT)
 
         // Khối 1 & 2: Chia Target mặt hàng & Quản lý danh sách nhân viên
         let tieuDeNV = taoTieuDeNhom("1 & 2. CHIA TARGET MẶT HÀNG & QUẢN LÝ NHÂN VIÊN")
@@ -451,7 +353,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             khungLoc.addSubview($0)
         }
 
-        [tieuDeTK, khungTK, tieuDeMucTieu, khungMucTieu, tieuDeNV, khungNV, tieuDeKieu, khungKieu, tieuDeLoc, khungLoc].forEach {
+        [tieuDeTK, khungTK, tieuDeNV, khungNV, tieuDeKieu, khungKieu, tieuDeLoc, khungLoc].forEach {
             nganTong.addArrangedSubview($0)
         }
 
@@ -471,11 +373,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             nganTK.leadingAnchor.constraint(equalTo: khungTK.leadingAnchor, constant: 12),
             nganTK.trailingAnchor.constraint(equalTo: khungTK.trailingAnchor, constant: -12),
             nganTK.bottomAnchor.constraint(equalTo: khungTK.bottomAnchor, constant: -10),
-
-            nganMT.topAnchor.constraint(equalTo: khungMucTieu.topAnchor, constant: 10),
-            nganMT.leadingAnchor.constraint(equalTo: khungMucTieu.leadingAnchor, constant: 12),
-            nganMT.trailingAnchor.constraint(equalTo: khungMucTieu.trailingAnchor, constant: -12),
-            nganMT.bottomAnchor.constraint(equalTo: khungMucTieu.bottomAnchor, constant: -10),
 
             nganNV.topAnchor.constraint(equalTo: khungNV.topAnchor, constant: 10),
             nganNV.leadingAnchor.constraint(equalTo: khungNV.leadingAnchor, constant: 10),
@@ -515,10 +412,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        if textField == oNhapMucTieuQDThang {
-            bamApDungMucTieuThang()
-            return true
-        }
         bamThemCumTu()
         textField.resignFirstResponder()
         return true

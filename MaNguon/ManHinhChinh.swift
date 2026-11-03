@@ -240,6 +240,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         bangThiDua.khiBamQuetAnh = { [weak self] in
             self?.bamThemAnhMoi()
         }
+        bangThiDua.khiDoiCheDoDuKien = { [weak self] _ in
+            self?.napDuLieu()
+        }
         bangThiDua.khiChonDong = { [weak self] dong in
             guard let self = self else { return }
             let vc = ManHinhChiTietNganhHang(dong: dong, ngay: self.ngayHienTai, cheDo: self.cheDoDoanhThu)
@@ -283,9 +286,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             self.cheDoDoanhThu = .luyKe
             self.napDuLieu()
             self.bamTheDoanhThu()
-        }
-        bangRealtimeThang.khiBamNhapMucTieuQDThang = { [weak self] in
-            self?.moHopThoaiNhapMucTieuQDThang()
         }
         bangRealtimeThang.khiChonNgayRealtime = { [weak self] item in
             self?.moMenuRealtimeChoNgay(item)
@@ -449,7 +449,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
 
         let dl = KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
         let dsThiDuaDangChon = dl.danhSachThiDua(theo: cheDoDoanhThu)
-        let soDat = dsThiDuaDangChon.filter { $0.daDat }.count
+        let xemDK = (cheDoDoanhThu == .luyKe && bangThiDua.dangXemDuKien)
+        let soDat = dsThiDuaDangChon.filter { xemDK ? $0.daHoanThanhDuBao : $0.daDat }.count
         let dtDangChon = (cheDoDoanhThu == .luyKe) ? dl.doanhThu : dl.doanhThuRealtime
 
         cumChiSoChinh.capNhat(
@@ -686,7 +687,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         menu.addAction(UIAlertAction(title: "📷 Nhập tất cả ảnh cho tab \(cheDoDoanhThu.tieuDe)", style: .default) { [weak self] _ in
             self?.bamNhapTatCaAnh()
         })
-        menu.addAction(UIAlertAction(title: "⚙️ Cài đặt Mục tiêu tháng & Nhân viên", style: .default) { [weak self] _ in
+        menu.addAction(UIAlertAction(title: "⚙️ Cài đặt & Quản lý Nhân viên", style: .default) { [weak self] _ in
             self?.moCaiDat()
         })
         menu.addAction(UIAlertAction(title: "➕ Thêm 1 ngành hàng Thi đua (\(cheDoDoanhThu.tieuDe))", style: .default) { [weak self] _ in
@@ -707,7 +708,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
 
     @objc private func bamTheDoanhThu() {
         let tenCheDo = cheDoDoanhThu.tieuDe
-        let duBao = KhoDuLieu.dungChung.tinhDuBaoQuyDoiTuRealtime(cho: ngayHienTai, cheDoDangXem: cheDoDoanhThu)
 
         let menu = UIAlertController(
             title: "Doanh thu (\(tenCheDo))",
@@ -717,9 +717,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         menu.addAction(UIAlertAction(title: "📷 Chọn 2 ảnh Doanh thu \(tenCheDo) (Thực + QĐ)", style: .default) { [weak self] _ in
             guard let self = self else { return }
             self.moChonAnh(cheDo: .doanhThu(self.cheDoDoanhThu), gioiHan: 2)
-        })
-        menu.addAction(UIAlertAction(title: "🎯 Đặt Mục tiêu Doanh thu QĐ Tháng (Chia \(duBao.soNgayTrongThang) ngày)", style: .default) { [weak self] _ in
-            self?.moHopThoaiNhapMucTieuQDThang()
         })
         menu.addAction(UIAlertAction(title: "✏️ Nhập / Sửa tay Doanh thu \(tenCheDo) (& Lượt khách)", style: .default) { [weak self] _ in
             self?.moHopThoaiNhapDoanhThu()
@@ -742,41 +739,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             pop.sourceRect = cumChiSoChinh.bounds
         }
         present(menu, animated: true)
-    }
-
-    private func moHopThoaiNhapMucTieuQDThang() {
-        let soNgay = KhoDuLieu.dungChung.soNgayTrongThang(cho: ngayHienTai)
-        let thang = TienIchNgay.lich.component(.month, from: ngayHienTai)
-        let nam = TienIchNgay.lich.component(.year, from: ngayHienTai)
-        let hienTai = KhoDuLieu.dungChung.mucTieuDoanhThuQDThang(cho: ngayHienTai)
-
-        let hop = UIAlertController(
-            title: "🎯 Mục tiêu DT Quy đổi Tháng \(String(format: "%02d/%04d", thang, nam))",
-            message: "Tháng \(thang)/\(nam) có \(soNgay) ngày thực tế.\nHệ thống sẽ tự chia cho \(soNgay) ngày và tính % HT QĐ dự kiến cuối tháng ở tab Realtime:",
-            preferredStyle: .alert
-        )
-        hop.addTextField { tf in
-            tf.placeholder = "Nhập mục tiêu DT QĐ tháng (VD: 15000)"
-            tf.keyboardType = .decimalPad
-            if hienTai > 0 {
-                tf.text = String(format: "%.2f", hienTai).replacingOccurrences(of: ".00", with: "")
-            }
-        }
-        hop.addAction(UIAlertAction(title: "Lưu mục tiêu tháng", style: .default) { [weak self] _ in
-            guard let self = self else { return }
-            let val = self.docSoTuO(hop.textFields?.first?.text)
-            KhoDuLieu.dungChung.luuMucTieuDoanhThuQDThang(val, cho: self.ngayHienTai)
-            self.napDuLieu()
-        })
-        if hienTai > 0 {
-            hop.addAction(UIAlertAction(title: "Xoá mục tiêu tháng", style: .destructive) { [weak self] _ in
-                guard let self = self else { return }
-                KhoDuLieu.dungChung.luuMucTieuDoanhThuQDThang(0, cho: self.ngayHienTai)
-                self.napDuLieu()
-            })
-        }
-        hop.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
-        present(hop, animated: true)
     }
 
     private func moHopThoaiNhapDoanhThu() {
@@ -968,7 +930,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
                 if let dt = kq.doanhThu, dt.coDuLieu {
                     if laRT {
                         dl.doanhThuRealtime = dl.doanhThuRealtime.gop(voi: dt, laRealtime: true)
-                        cacMucDaDien.append("• Doanh thu Realtime (\(kq.soAnhDoanhThu) ảnh): Thực \(dl.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN) | QĐ \(dl.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN)")
+                        cacMucDaDien.append("• Doanh thu Realtime (\(kq.soAnhDoanhThu) ảnh): Thực \(dl.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN) | QĐ \(dl.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN) | HT \(dl.doanhThuRealtime.phanTramHTQDDuKienHienThi.chuoiPhanTram)")
                     } else {
                         dl.doanhThu = dl.doanhThu.gop(voi: dt, laRealtime: false)
                         cacMucDaDien.append("• Doanh thu Lũy kế (\(kq.soAnhDoanhThu) ảnh): Thực \(dl.doanhThu.doanhThuThuc.chuoiSoGonVN) | QĐ \(dl.doanhThu.doanhThuQuyDoi.chuoiSoGonVN) | HT \(dl.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram)")
@@ -1185,7 +1147,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
     // MARK: - Sửa / Thêm / Xoá Ngành hàng Thi đua
 
     private func bamThemDongThuCong() {
-        let moi = DongThiDua(tenNganhHang: "T10 - ", loaiChiTieu: .doanhThu, thucHien: 0, target: 0)
+        let moi = DongThiDua(tenNganhHang: "T11 - ", loaiChiTieu: .doanhThu, thucHien: 0, target: 0)
         moHopThoaiSuaDong(moi, laThemMoi: true)
     }
 
@@ -1197,7 +1159,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             preferredStyle: .alert
         )
         hop.addTextField { tf in
-            tf.placeholder = "Tên ngành hàng (VD: T10 - AUDIO)"
+            tf.placeholder = "Tên ngành hàng (VD: T11 - Cáp sạc)"
             tf.text = dong.tenNganhHang
         }
         hop.addTextField { tf in
@@ -1206,24 +1168,49 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             tf.autocapitalizationType = .allCharacters
         }
         hop.addTextField { tf in
-            tf.placeholder = "Thực hiện (VD: 52.00)"
+            tf.placeholder = "Thực hiện (VD: 12.73)"
             tf.keyboardType = .decimalPad
             if !laThemMoi { tf.text = String(dong.thucHien) }
         }
         hop.addTextField { tf in
-            tf.placeholder = "Target (VD: 55.12)"
+            tf.placeholder = "Target (VD: 127.66)"
             tf.keyboardType = .decimalPad
             if !laThemMoi { tf.text = String(dong.target) }
+        }
+        if cheDoSua == .luyKe {
+            hop.addTextField { tf in
+                tf.placeholder = "DT/SL Dự kiến cuối tháng (VD: 169.87)"
+                tf.keyboardType = .decimalPad
+                if !laThemMoi, let dk = dong.duKienGoc, dk > 0 {
+                    tf.text = String(dk)
+                }
+            }
+            hop.addTextField { tf in
+                tf.placeholder = "% Dự kiến hoàn thành (VD: 133.1)"
+                tf.keyboardType = .decimalPad
+                if !laThemMoi, let ptDB = dong.phanTramDuBaoGoc, ptDB > 0 {
+                    tf.text = String(ptDB)
+                }
+            }
         }
 
         hop.addAction(UIAlertAction(title: "Lưu", style: .default) { [weak self] _ in
             guard let self = self, let tfs = hop.textFields, tfs.count >= 4 else { return }
             let tenNhap = (tfs[0].text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             guard !tenNhap.isEmpty else { return }
-            let dvt = (tfs[1].text ?? "DTLK").uppercased()
+            let dvt = (tfs[1].text ?? "DT").uppercased()
             let loai: LoaiChiTieuThiDua = dvt.contains("SL") ? .soLuong : .doanhThu
             let th = self.docSoTuO(tfs[2].text)
             let tg = self.docSoTuO(tfs[3].text)
+
+            var dkMoi = dong.duKienGoc
+            var ptDBMoi = dong.phanTramDuBaoGoc
+            if cheDoSua == .luyKe && tfs.count >= 6 {
+                let vDK = self.docSoTuO(tfs[4].text)
+                let vPTDB = self.docSoTuO(tfs[5].text)
+                dkMoi = vDK > 0 ? vDK : nil
+                ptDBMoi = vPTDB > 0 ? vPTDB : nil
+            }
 
             let capNhat = DongThiDua(
                 id: dong.id,
@@ -1231,7 +1218,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
                 tenNganhHang: tenNhap,
                 loaiChiTieu: loai,
                 thucHien: th,
-                target: tg
+                target: tg,
+                phanTramHTGoc: dong.phanTramHTGoc,
+                phanTramDuBaoGoc: ptDBMoi,
+                duKienGoc: dkMoi
             )
 
             var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
@@ -1267,12 +1257,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         dl.doanhThuRealtime = ThongTinDoanhThu(
             doanhThuThuc: 337,
             targetThuc: 407,
-            duKienThuc: 0,
+            duKienThuc: 380,
             phanTramHTThuc: 82.9,
             doanhThuQuyDoi: 455,
             targetQuyDoi: 547,
-            duKienQuyDoi: 0,
-            phanTramHTQuyDoi: 0,
+            duKienQuyDoi: 512,
+            phanTramHTQuyDoi: 83.2,
             phanTramTraGop: 46.6,
             doanhThuTraGop: 212,
             luotKhach: 1356,
@@ -1307,19 +1297,23 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             phanTramTienDoThang: 97.0
         )
         let mau: [DongThiDua] = [
-            DongThiDua(tenNganhHang: "T09 - T10 IPHONE 18 series, iPhone Duo", loaiChiTieu: .doanhThu, thucHien: 4476.28, target: 3493.60),
-            DongThiDua(tenNganhHang: "T10 - NẠP - RÚT TIỀN TÀI KHOẢN NGÂN HÀNG", loaiChiTieu: .soLuong, thucHien: 407, target: 363),
-            DongThiDua(tenNganhHang: "T10 - SIM TỔNG", loaiChiTieu: .soLuong, thucHien: 52.00, target: 55.12),
-            DongThiDua(tenNganhHang: "T10 - Bảo Hiểm Tổng", loaiChiTieu: .doanhThu, thucHien: 306.69, target: 283.58),
-            DongThiDua(tenNganhHang: "T10 - BẢO HIỂM THỢ ĐMX_CE", loaiChiTieu: .doanhThu, thucHien: 551.87, target: 745.76),
-            DongThiDua(tenNganhHang: "T10 - BẢO HIỂM THỢ ĐMX_ICT", loaiChiTieu: .doanhThu, thucHien: 103.82, target: 73.99),
-            DongThiDua(tenNganhHang: "T10 - GIA DỤNG SUNHOUSE", loaiChiTieu: .doanhThu, thucHien: 647.39, target: 703.00),
-            DongThiDua(tenNganhHang: "T10 - ĐIỆN TỬ TCL", loaiChiTieu: .doanhThu, thucHien: 205.22, target: 240.37),
-            DongThiDua(tenNganhHang: "T10 - PANASONIC", loaiChiTieu: .doanhThu, thucHien: 599.03, target: 614.15),
-            DongThiDua(tenNganhHang: "T10 - TIVI", loaiChiTieu: .doanhThu, thucHien: 800.25, target: 1079.00),
-            DongThiDua(tenNganhHang: "T10 - HÚT BỤI", loaiChiTieu: .doanhThu, thucHien: 158.97, target: 288.00),
-            DongThiDua(tenNganhHang: "T10 - AUDIO", loaiChiTieu: .doanhThu, thucHien: 19.00, target: 63.00),
-            DongThiDua(tenNganhHang: "T10 - Máy Lạnh", loaiChiTieu: .soLuong, thucHien: 39.00, target: 147.00)
+            DongThiDua(tenNganhHang: "T11 - Đồng hồ & Smartwatch", loaiChiTieu: .doanhThu, thucHien: 12.73, target: 127.66, phanTramHTGoc: 10.0, phanTramDuBaoGoc: 133.1, duKienGoc: 169.87),
+            DongThiDua(tenNganhHang: "T11 - Cáp sạc", loaiChiTieu: .doanhThu, thucHien: 2.84, target: 22.50, phanTramHTGoc: 12.6, phanTramDuBaoGoc: 168.3, duKienGoc: 37.87),
+            DongThiDua(tenNganhHang: "T11 - Trả chậm Homecredit", loaiChiTieu: .doanhThu, thucHien: 364.24, target: 2732.52, phanTramHTGoc: 13.3, phanTramDuBaoGoc: 177.8, duKienGoc: 4858.90),
+            DongThiDua(tenNganhHang: "T11 - Phụ kiện khác IT & Nhóm khác", loaiChiTieu: .doanhThu, thucHien: 41.86, target: 281.69, phanTramHTGoc: 14.9, phanTramDuBaoGoc: 198.3, duKienGoc: 558.46),
+            DongThiDua(tenNganhHang: "T09 - T10 IPHONE 18 series, iPhone Duo", loaiChiTieu: .doanhThu, thucHien: 4476.28, target: 3493.60, phanTramHTGoc: 128.1, phanTramDuBaoGoc: 132.4, duKienGoc: 4625.50),
+            DongThiDua(tenNganhHang: "T10 - NẠP - RÚT TIỀN TÀI KHOẢN NGÂN HÀNG", loaiChiTieu: .soLuong, thucHien: 407, target: 363, phanTramHTGoc: 112.1, phanTramDuBaoGoc: 115.8, duKienGoc: 420),
+            DongThiDua(tenNganhHang: "T10 - SIM TỔNG", loaiChiTieu: .soLuong, thucHien: 52.00, target: 55.12, phanTramHTGoc: 94.3, phanTramDuBaoGoc: 97.5, duKienGoc: 54),
+            DongThiDua(tenNganhHang: "T10 - Bảo Hiểm Tổng", loaiChiTieu: .doanhThu, thucHien: 306.69, target: 283.58, phanTramHTGoc: 108.2, phanTramDuBaoGoc: 111.8, duKienGoc: 317.04),
+            DongThiDua(tenNganhHang: "T10 - BẢO HIỂM THỢ ĐMX_CE", loaiChiTieu: .doanhThu, thucHien: 551.87, target: 745.76, phanTramHTGoc: 74.0, phanTramDuBaoGoc: 76.5, duKienGoc: 570.50),
+            DongThiDua(tenNganhHang: "T10 - BẢO HIỂM THỢ ĐMX_ICT", loaiChiTieu: .doanhThu, thucHien: 103.82, target: 73.99, phanTramHTGoc: 140.3, phanTramDuBaoGoc: 145.0, duKienGoc: 107.28),
+            DongThiDua(tenNganhHang: "T10 - GIA DỤNG SUNHOUSE", loaiChiTieu: .doanhThu, thucHien: 647.39, target: 703.00, phanTramHTGoc: 92.1, phanTramDuBaoGoc: 95.2, duKienGoc: 669.25),
+            DongThiDua(tenNganhHang: "T10 - ĐIỆN TỬ TCL", loaiChiTieu: .doanhThu, thucHien: 205.22, target: 240.37, phanTramHTGoc: 85.4, phanTramDuBaoGoc: 88.2, duKienGoc: 212.00),
+            DongThiDua(tenNganhHang: "T10 - PANASONIC", loaiChiTieu: .doanhThu, thucHien: 599.03, target: 614.15, phanTramHTGoc: 97.5, phanTramDuBaoGoc: 100.8, duKienGoc: 619.00),
+            DongThiDua(tenNganhHang: "T10 - TIVI", loaiChiTieu: .doanhThu, thucHien: 800.25, target: 1079.00, phanTramHTGoc: 74.2, phanTramDuBaoGoc: 76.6, duKienGoc: 826.50),
+            DongThiDua(tenNganhHang: "T10 - HÚT BỤI", loaiChiTieu: .doanhThu, thucHien: 158.97, target: 288.00, phanTramHTGoc: 55.2, phanTramDuBaoGoc: 57.0, duKienGoc: 164.16),
+            DongThiDua(tenNganhHang: "T10 - AUDIO", loaiChiTieu: .doanhThu, thucHien: 19.00, target: 63.00, phanTramHTGoc: 30.2, phanTramDuBaoGoc: 31.2, duKienGoc: 19.65),
+            DongThiDua(tenNganhHang: "T10 - Máy Lạnh", loaiChiTieu: .soLuong, thucHien: 39.00, target: 147.00, phanTramHTGoc: 26.5, phanTramDuBaoGoc: 27.4, duKienGoc: 40.00)
         ]
         dl.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: dl.danhSachThiDua, moi: mau)
         let mauRealtime: [DongThiDua] = [

@@ -188,10 +188,6 @@ final class DichVuDocAnh {
             }
 
             if dtGop.coDuLieu {
-                if laRealtime {
-                    dtGop.phanTramHTQuyDoi = 0
-                    dtGop.duKienQuyDoi = 0
-                }
                 kq.doanhThu = dtGop
             }
 
@@ -399,11 +395,6 @@ final class DichVuDocAnh {
                 let phanTu = self.thucHienOCR(anh: anh)
                 let kqAnh = self.phanTichDoanhThu(phanTu: phanTu)
                 ketQuaGop = ketQuaGop.gop(voi: kqAnh, laRealtime: laRealtime)
-            }
-            if laRealtime {
-                // Theo yêu cầu: Realtime không lấy % HT QĐ dự kiến từ ảnh mà để app tự tính
-                ketQuaGop.phanTramHTQuyDoi = 0
-                ketQuaGop.duKienQuyDoi = 0
             }
             DispatchQueue.main.async {
                 hoanTat(ketQuaGop)
@@ -617,7 +608,7 @@ final class DichVuDocAnh {
         return (ketQua, [], capNhatLuc, thongTinDonVi)
     }
 
-    // MARK: - Bước 2A.1: Bộ phân tích Lưới Thẻ Thi Đua 2 Cột
+    // MARK: - Bước 2A.1: Bộ phân tích Lưới Thẻ Thi Đua 2 Cột (Quét đủ Thực hiện, Target, DT/SL Dự kiến, % HT tháng & % Dự kiến hoàn thành)
 
     private func phanTichThiDuaLuoiThe2Cot(phanTu: [PhanTuVanBan], watermark: String?) -> [DongThiDua] {
         // Tuyệt đối không phân tích nếu đây là ảnh chụp màn hình Doanh thu Siêu thị
@@ -632,8 +623,10 @@ final class DichVuDocAnh {
         }
         let coTargetTrai = phanTu.contains { $0.x < 0.48 && boDau($0.chu).contains("TARGET") }
         let coTargetPhai = phanTu.contains { $0.x >= 0.48 && boDau($0.chu).contains("TARGET") }
+        let coTieuDeTheTrai = phanTu.contains { $0.x < 0.45 && boDau($0.chu).range(of: "^T\\d{1,2}\\b", options: .regularExpression) != nil }
+        let coTieuDeThePhai = phanTu.contains { $0.x >= 0.48 && boDau($0.chu).range(of: "^T\\d{1,2}\\b", options: .regularExpression) != nil }
 
-        guard coDauHieuLuoiThe || (coTargetTrai && coTargetPhai) else {
+        guard coDauHieuLuoiThe || (coTargetTrai && coTargetPhai) || (coTieuDeTheTrai && coTieuDeThePhai) else {
             return []
         }
 
@@ -648,8 +641,26 @@ final class DichVuDocAnh {
         }
         let yBatDauTrang: CGFloat = (cacYHeader.max() ?? -0.01) + 0.010
 
-        let theCotTrai = phanTichCotTheThiDua(phanTu: phanTu, xMin: 0.0, xMax: 0.495, yBatDauTrang: max(0.002, yBatDauTrang), watermark: watermark)
-        let theCotPhai = phanTichCotTheThiDua(phanTu: phanTu, xMin: 0.495, xMax: 1.0, yBatDauTrang: max(0.002, yBatDauTrang), watermark: watermark)
+        // Tìm ranh giới giữa cột thẻ Trái và cột thẻ Phải (hỗ trợ cả ảnh có lề đen bên trái)
+        let cacXDauCotPhai = phanTu.compactMap { pt -> CGFloat? in
+            guard pt.x >= 0.48 && pt.x <= 0.65 else { return nil }
+            let u = boDau(pt.chu).trimmingCharacters(in: .whitespacesAndNewlines)
+            if u.range(of: "^T\\d{1,2}\\b", options: .regularExpression) != nil ||
+               u.contains("THUC HIEN") || u.contains("HT THANG") || u.contains("HT NGAY") ||
+               (pt.chu.contains("%") && chuyenChuoiThanhSoDoanhThu(pt.chu) != nil) {
+                return pt.x
+            }
+            return nil
+        }
+        let xRanhGioiCot: CGFloat
+        if let minXPhai = cacXDauCotPhai.min() {
+            xRanhGioiCot = max(0.495, min(0.535, minXPhai - 0.025))
+        } else {
+            xRanhGioiCot = 0.50
+        }
+
+        let theCotTrai = phanTichCotTheThiDua(phanTu: phanTu, xMin: 0.0, xMax: xRanhGioiCot, yBatDauTrang: max(0.002, yBatDauTrang), watermark: watermark)
+        let theCotPhai = phanTichCotTheThiDua(phanTu: phanTu, xMin: xRanhGioiCot, xMax: 1.0, yBatDauTrang: max(0.002, yBatDauTrang), watermark: watermark)
 
         var ketQua: [DongThiDua] = []
         let soHang = max(theCotTrai.count, theCotPhai.count)
@@ -671,18 +682,21 @@ final class DichVuDocAnh {
         yBatDauTrang: CGFloat,
         watermark: String?
     ) -> [DongThiDua] {
-        let xGiua = (xMin + xMax) / 2.0
         let phanTuCot = phanTu.filter { pt in
             let xTam = pt.x + min(pt.rong, 0.15) / 2.0
             return xTam >= xMin && xTam < xMax && pt.y >= yBatDauTrang && pt.y < 0.996
         }
         guard !phanTuCot.isEmpty else { return [] }
 
+        let xTraiThuc = phanTuCot.map(\.x).min() ?? xMin
+        let xPhaiThuc = phanTuCot.map { $0.x + min($0.rong, 0.15) }.max() ?? xMax
+        let xGiua = (xTraiThuc + xPhaiThuc) / 2.0 - 0.015
+
         var ungVienDauThe: [CGFloat] = []
         for pt in phanTuCot {
             let u = boDau(pt.chu).trimmingCharacters(in: .whitespacesAndNewlines)
             let uGon = u.replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression)
-            if pt.x >= xMax - 0.13 && (uGon == "DT" || uGon == "SL" || uGon == "OT" || uGon == "0T" || uGon == "5L" || uGon == "SI") {
+            if pt.x >= xPhaiThuc - 0.13 && (uGon == "DT" || uGon == "SL" || uGon == "OT" || uGon == "0T" || uGon == "5L" || uGon == "SI" || uGon == "PR") {
                 ungVienDauThe.append(pt.y)
             } else if pt.x < xGiua && u.range(of: "^T\\d{1,2}\\b", options: .regularExpression) != nil {
                 ungVienDauThe.append(pt.y)
@@ -725,7 +739,7 @@ final class DichVuDocAnh {
         var danhSachThe: [DongThiDua] = []
 
         for (k, yDau) in cacDauThe.enumerated() {
-            let yTrenThe: CGFloat = max(yBatDauTrang, yDau - 0.016)
+            let yTrenThe: CGFloat = max(yBatDauTrang, yDau - 0.014)
             let yDuoiThe: CGFloat = (k + 1 < cacDauThe.count)
                 ? (cacDauThe[k + 1] - 0.014)
                 : 0.996
@@ -733,23 +747,26 @@ final class DichVuDocAnh {
             let trongThe = phanTuCot.filter { $0.y >= yTrenThe && $0.y <= yDuoiThe }
             guard !trongThe.isEmpty else { continue }
 
+            // Chỉ lấy các số % nằm bên dưới tiêu đề thẻ (pt.y >= yDau + 0.015) để không dính phần đáy của thẻ bị cắt ở mép trên ảnh
             let cacPhanTuPhanTramTrai = trongThe.filter { pt in
-                pt.x < xGiua && pt.chu.contains("%") && chuyenChuoiThanhSoDoanhThu(pt.chu) != nil
+                pt.y >= yDau + 0.015 && pt.x < xGiua && pt.chu.contains("%") && chuyenChuoiThanhSoDoanhThu(pt.chu) != nil
             }.sorted { $0.y < $1.y }
 
-            let yBigPct: CGFloat = cacPhanTuPhanTramTrai.first?.y ?? (yDau + 0.055)
+            let yBigPct: CGFloat = cacPhanTuPhanTramTrai.first?.y ?? (yDau + 0.065)
             let yBotPct: CGFloat = (cacPhanTuPhanTramTrai.count >= 2)
                 ? cacPhanTuPhanTramTrai.last!.y
                 : (yDuoiThe - 0.012)
 
-            let phanTramDuBao = cacPhanTuPhanTramTrai.first.flatMap { chuyenChuoiThanhSoDoanhThu($0.chu) }
-            let phanTramHT = cacPhanTuPhanTramTrai.last.flatMap { chuyenChuoiThanhSoDoanhThu($0.chu) } ?? phanTramDuBao
+            var phanTramDuBao = cacPhanTuPhanTramTrai.first.flatMap { chuyenChuoiThanhSoDoanhThu($0.chu) }
+            var phanTramHT: Double? = (cacPhanTuPhanTramTrai.count >= 2)
+                ? cacPhanTuPhanTramTrai.last.flatMap { chuyenChuoiThanhSoDoanhThu($0.chu) }
+                : nil
 
             var loai: LoaiChiTieuThiDua = .doanhThu
             for pt in trongThe {
                 let u = boDau(pt.chu).trimmingCharacters(in: .whitespacesAndNewlines)
                 let uGon = u.replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression)
-                if u.contains("SL DU") || uGon == "SL" || uGon == "5L" {
+                if u.contains("SL DU") || uGon == "SL" || uGon == "5L" || uGon == "SI" {
                     loai = .soLuong
                     break
                 } else if u.contains("DT DU") || uGon == "DT" || uGon == "0T" || uGon == "OT" {
@@ -760,7 +777,7 @@ final class DichVuDocAnh {
             var yGioiHanTieuDe = yBigPct - 0.004
             for pt in trongThe where pt.y < yBigPct + 0.025 {
                 let u = boDau(pt.chu)
-                if pt.chu.contains("%") ||
+                if (pt.chu.contains("%") && pt.y >= yDau + 0.015) ||
                    u.contains("DU KIEN") ||
                    u.contains("HOAN THANH") ||
                    u.contains("HT NGAY") ||
@@ -775,13 +792,13 @@ final class DichVuDocAnh {
             }
 
             let phanTuTen = trongThe.filter { pt in
-                guard pt.y <= yGioiHanTieuDe else { return false }
+                guard pt.y >= yDau - 0.012 && pt.y <= yGioiHanTieuDe else { return false }
                 let u = boDau(pt.chu).trimmingCharacters(in: .whitespacesAndNewlines)
                 let uGon = u.replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression)
-                if uGon == "DT" || uGon == "SL" || uGon == "OT" || uGon == "0T" || uGon == "5L" || uGon == "SI" {
+                if uGon == "DT" || uGon == "SL" || uGon == "OT" || uGon == "0T" || uGon == "5L" || uGon == "SI" || uGon == "PR" {
                     return false
                 }
-                if pt.x >= xMax - 0.125 && uGon.count <= 3 {
+                if pt.x >= xPhaiThuc - 0.125 && uGon.count <= 3 {
                     return false
                 }
                 if u.contains("KHONG TINH") || u.contains("TINH HANG") || u.contains("CHAY THEO") || u.contains("THUONG HIEU") {
@@ -810,57 +827,134 @@ final class DichVuDocAnh {
             let tenSach = lamSachTenChuongTrinh(chuoiTen)
             guard tenSach.count >= 2, !laTenTheDoanhThuKhongPhaiThiDua(tenSach) else { continue }
 
-            let yGioiHanDuoiSo: CGFloat = (cacPhanTuPhanTramTrai.count >= 2) ? (yBotPct - 0.010) : yDuoiThe
-            let cacYMocTrongThe = trongThe.compactMap { pt -> CGFloat? in
-                guard pt.y > yBigPct + 0.015 && pt.y < yGioiHanDuoiSo else { return nil }
-                let u = boDau(pt.chu)
-                if u.contains("THUC HIEN") || u.hasPrefix("TARGET") || u == "THUC" || u == "HIEN" {
-                    return pt.y
-                }
-                return nil
-            }
-            let yBatDauSo: CGFloat = (cacYMocTrongThe.min() ?? (yBigPct + (yBotPct - yBigPct) * 0.40)) + 0.003
-
-            let vungSoTHTG = trongThe.filter { pt in
-                guard pt.y > yBatDauSo && pt.y < yGioiHanDuoiSo else { return false }
-                guard !pt.chu.contains("%") else { return false }
-                let u = boDau(pt.chu)
+            // Quét toàn bộ các hàng số bên dưới thanh tiến độ:
+            // - Hàng trên: THỰC HIỆN (trái) & TARGET (phải)
+            // - Hàng dưới (ở tab Lũy kế): % HT THÁNG (trái) & DT/SL DỰ KIẾN (phải)
+            let vungSoDuoiThanh = trongThe.filter { pt in
+                guard pt.y > yBigPct + 0.018 && pt.y <= yDuoiThe else { return false }
+                let u = boDau(pt.chu).trimmingCharacters(in: .whitespacesAndNewlines)
                 if u.contains("THUC") || u.contains("HIEN") || u.contains("TARGET") ||
-                   u.contains("NGAY") || u.contains("THANG") || u.contains("DU KIEN") || u.contains("HT") {
+                   u.contains("NGAY") || u.contains("THANG") || u.contains("DU KIEN") ||
+                   u.contains("HOAN") || u.contains("THANH") || u == "HT" || u == "% HT" || u == ">" {
                     return false
                 }
-                return true
+                return !trichCacSoTheThiDua(trong: pt.chu).isEmpty
             }.sorted {
-                if abs($0.y - $1.y) < 0.014 { return $0.x < $1.x }
+                if abs($0.y - $1.y) < 0.018 { return $0.x < $1.x }
                 return $0.y < $1.y
+            }
+
+            var cacHangSo: [(y: CGFloat, phanTu: [PhanTuVanBan])] = []
+            for pt in vungSoDuoiThanh {
+                if let idx = cacHangSo.indices.last, abs(pt.y - cacHangSo[idx].y) < 0.025 {
+                    cacHangSo[idx].phanTu.append(pt)
+                } else {
+                    cacHangSo.append((y: pt.y, phanTu: [pt]))
+                }
             }
 
             var thucHien: Double?
             var target: Double?
+            var duKien: Double?
 
-            for pt in vungSoTHTG {
-                let cacSo = trichCacSoTheThiDua(trong: pt.chu)
-                if cacSo.count >= 2 && pt.rong > 0.18 {
-                    if thucHien == nil { thucHien = cacSo[0] }
-                    if target == nil { target = cacSo[1] }
-                } else if let so = cacSo.first {
-                    if pt.x < xGiua {
-                        if thucHien == nil { thucHien = so }
+            // Tìm mốc Y của nhãn hàng thứ 2 (% HT THÁNG / DT DỰ KIẾN / SL DỰ KIẾN) nếu OCR đọc được nhãn
+            let cacYMocHang2 = trongThe.compactMap { pt -> CGFloat? in
+                guard pt.y > yBigPct + 0.03 else { return nil }
+                let u = boDau(pt.chu)
+                if u.contains("HT THANG") || u.contains("DT DU") || u.contains("SL DU") {
+                    return pt.y
+                }
+                return nil
+            }
+            let yMocHang2 = cacYMocHang2.min()
+
+            for (chiSoHang, hang) in cacHangSo.enumerated() {
+                let laHangDuKien: Bool
+                if cacHangSo.count >= 2 {
+                    laHangDuKien = (chiSoHang >= 1)
+                } else if let yMoc2 = yMocHang2, hang.y > yMoc2 {
+                    laHangDuKien = true
+                } else if cacPhanTuPhanTramTrai.count >= 2 && abs(hang.y - yBotPct) < 0.025 {
+                    laHangDuKien = true
+                } else {
+                    laHangDuKien = false
+                }
+
+                for pt in hang.phanTu.sorted(by: { $0.x < $1.x }) {
+                    let cacSo = trichCacSoTheThiDua(trong: pt.chu)
+                    guard !cacSo.isEmpty else { continue }
+
+                    if !laHangDuKien {
+                        if cacSo.count >= 2 && pt.rong > 0.18 {
+                            if thucHien == nil { thucHien = cacSo[0] }
+                            if target == nil { target = cacSo[1] }
+                        } else if let so = cacSo.first {
+                            if pt.x < xGiua {
+                                if !pt.chu.contains("%") && thucHien == nil {
+                                    thucHien = so
+                                }
+                            } else {
+                                if !pt.chu.contains("%") && target == nil {
+                                    target = so
+                                }
+                            }
+                        }
                     } else {
-                        if target == nil { target = so }
+                        if cacSo.count >= 2 && pt.rong > 0.18 {
+                            if phanTramHT == nil { phanTramHT = cacSo[0] }
+                            if duKien == nil { duKien = cacSo[1] }
+                        } else if let so = cacSo.first {
+                            if pt.x < xGiua {
+                                if phanTramHT == nil { phanTramHT = so }
+                            } else if !pt.chu.contains("%") {
+                                if duKien == nil { duKien = so }
+                            }
+                        }
                     }
                 }
             }
 
+            // Nếu thẻ ở sát mép dưới ảnh bị cắt cụt hoàn toàn phần số liệu thì bỏ qua để tránh tạo dòng 0/0 rác
+            if thucHien == nil && target == nil && phanTramDuBao == nil && phanTramHT == nil && duKien == nil {
+                continue
+            }
+
+            // Nếu là thẻ Realtime (chỉ có 1 số % duy nhất ở trên cùng và không có dòng DT DỰ KIẾN)
+            if phanTramHT == nil && duKien == nil {
+                phanTramHT = phanTramDuBao
+            }
+
             let soTH = thucHien ?? 0.0
             let soTG: Double
-            if let tg = target {
-                soTG = tg
+            if let tg = target, tg > 0 {
+                // Kiểm tra nếu OCR bị mất phần thập phân hoặc dấu phẩy nhưng có cả duKien và phanTramDuBao để đối chiếu
+                if let dk = duKien, let ptDB = phanTramDuBao, ptDB > 1.0 {
+                    let tgUocTuDK = dk / (ptDB / 100.0)
+                    if abs(tg - tgUocTuDK) > max(10.0, tgUocTuDK * 0.25) {
+                        soTG = (loai == .soLuong) ? tgUocTuDK.rounded() : ((tgUocTuDK * 100).rounded() / 100)
+                    } else {
+                        soTG = tg
+                    }
+                } else {
+                    soTG = tg
+                }
+            } else if let dk = duKien, let ptDB = phanTramDuBao, ptDB > 0.1 {
+                let uocLuong = dk / (ptDB / 100.0)
+                soTG = (loai == .soLuong) ? uocLuong.rounded() : ((uocLuong * 100).rounded() / 100)
             } else if soTH > 0, let pt = phanTramHT ?? phanTramDuBao, pt > 0.1 {
                 let uocLuong = soTH / (pt / 100.0)
                 soTG = (loai == .soLuong) ? uocLuong.rounded() : ((uocLuong * 100).rounded() / 100)
             } else {
                 soTG = 0.0
+            }
+
+            // Nếu có Target và DT Dự kiến mà OCR chưa đọc được % Dự kiến hoặc % HT tháng thì tự bổ sung chính xác
+            if phanTramDuBao == nil, let dk = duKien, soTG > 0.0001 {
+                phanTramDuBao = ((dk / soTG) * 1000).rounded() / 10
+            }
+            if duKien == nil, let ptDB = phanTramDuBao, soTG > 0.0001, cacPhanTuPhanTramTrai.count >= 2 {
+                let uocDK = soTG * (ptDB / 100.0)
+                duKien = (loai == .soLuong) ? uocDK.rounded() : ((uocDK * 100).rounded() / 100)
             }
 
             let dong = DongThiDua(
@@ -870,7 +964,8 @@ final class DichVuDocAnh {
                 thucHien: soTH,
                 target: soTG,
                 phanTramHTGoc: phanTramHT,
-                phanTramDuBaoGoc: phanTramDuBao ?? phanTramHT
+                phanTramDuBaoGoc: phanTramDuBao ?? phanTramHT,
+                duKienGoc: duKien
             )
             danhSachThe.append(dong)
         }
@@ -1424,6 +1519,7 @@ final class DichVuDocAnh {
             .replacingOccurrences(of: "…", with: "")
             .replacingOccurrences(of: "...", with: "")
             .replacingOccurrences(of: "+", with: "")
+            .replacingOccurrences(of: "^[^0-9\\-]+|[^0-9]+$", with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !s.isEmpty else { return nil }
@@ -1569,8 +1665,8 @@ final class DichVuDocAnh {
             }
         }
 
-        // 3D. Ô "% HT target" hoặc "% HT target ngày"
-        if let theHT = layDuLieuThe(thoaMan: { $0.contains("HT TARGET") || ($0.contains("TARGET") && $0.contains("%")) }) {
+        // 3D. Ô "% HT target" / "% HT dự kiến" / "% HT target ngày"
+        if let theHT = layDuLieuThe(thoaMan: { $0.contains("HT TARGET") || $0.contains("HT DU KIEN") || $0.contains("DU KIEN HOAN") || ($0.contains("TARGET") && $0.contains("%")) }) {
             if let so = theHT.soChinh {
                 if laAnhQuyDoi {
                     kq.phanTramHTQuyDoi = so
