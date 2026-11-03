@@ -1,4 +1,4 @@
-import Foundation
+import UIKit
 import Security
 
 struct PhienDangNhapDMX: Codable {
@@ -167,8 +167,30 @@ final class DichVuDongBo {
 
     private let khoaKeychain = "com.thanhduong.tonghopdmx.phien-dang-nhap"
     private let khoaDaDonDepLocal = "com.thanhduong.tonghopdmx.da-don-dep-tai-khoan-cu-v1"
-    private let hangDoi = DispatchQueue(label: "com.thanhduong.tonghopdmx.dongbo")
+    private let hangDoi = DispatchQueue(label: "com.thanhduong.tonghopdmx.dongbo", qos: .utility)
+    private let khoaTrangThai = NSLock()
     private(set) var phien: PhienDangNhapDMX?
+
+    /// Phiên mạng chạy nền độc lập, ưu tiên thấp (.utility) để không bao giờ làm khựng giao diện người dùng
+    private lazy var phienMang: URLSession = {
+        let cfg = URLSessionConfiguration.default
+        cfg.timeoutIntervalForRequest = 18
+        cfg.timeoutIntervalForResource = 35
+        cfg.waitsForConnectivity = false
+        let opQueue = OperationQueue()
+        opQueue.name = "com.thanhduong.tonghopdmx.network"
+        opQueue.qualityOfService = .utility
+        opQueue.maxConcurrentOperationCount = 3
+        return URLSession(configuration: cfg, delegate: nil, delegateQueue: opQueue)
+    }()
+
+    // Bộ đệm gom nhóm & chống dội (debounce) khi đồng bộ dữ liệu lên Supabase để tránh đơ máy
+    private var cacNgayChoDay: [String: DuLieuNgayDMX] = [:]
+    private var caiDatChoDay: CaiDatDMX?
+    private var congViecDayNen: DispatchWorkItem?
+    private var dangTaiDuLieu: Bool = false
+    private var daKhoiTaoAdminTrongPhien: Bool = false
+    private var daKiemTraBucket: Bool = false
 
     var daDangNhap: Bool { phien != nil }
     var tenDangNhap: String { phien?.tenDangNhap ?? "" }
@@ -184,6 +206,21 @@ final class DichVuDongBo {
             p.laAdmin = true
             phien = p
             luuKeychain(p)
+        }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(dayNgayKhiUngDungAn),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+    }
+
+    @objc private func dayNgayKhiUngDungAn() {
+        hangDoi.async { [weak self] in
+            guard let self else { return }
+            self.congViecDayNen?.cancel()
+            self.congViecDayNen = nil
+            self.thucThiDayDuLieuGomNhom()
         }
     }
 
@@ -270,7 +307,6 @@ final class DichVuDongBo {
                 hoanTat(.success(()))
 
             case .failure(let loi):
-                // Nếu tài khoản đăng nhập là duongnt và chưa từng được tạo trên Supabase Auth thì tự khởi tạo tài khoản Admin gốc duongnt
                 if tenChuan == Self.taiKhoanAdminGoc {
                     self.kiemTraVaKhoiTaoDuongntNeuChuaCo(matKhau: matKhau, loiGoc: loi, hoanTat: hoanTat)
                     return
@@ -293,10 +329,8 @@ final class DichVuDongBo {
                     self.trichTenDangNhap(tu: $0).lowercased() == Self.taiKhoanAdminGoc
                 }
                 if daCoDuongnt {
-                    // Tài khoản duongnt đã có trên hệ thống -> mật khẩu nhập chưa đúng
                     DispatchQueue.main.async { hoanTat(.failure(loiGoc)) }
                 } else {
-                    // Chưa có tài khoản duongnt -> tạo mới làm Admin gốc rồi đăng nhập
                     self.adminTaoTaiKhoanMoi(tenDangNhap: Self.taiKhoanAdminGoc, matKhau: matKhau, laAdmin: true) { kqTao in
                         switch kqTao {
                         case .success:
@@ -328,16 +362,31 @@ final class DichVuDongBo {
     }
 
     func dangXuat() {
+        khoaTrangThai.lock()
+        cacNgayChoDay.removeAll()
+        caiDatChoDay = nil
+        congViecDayNen?.cancel()
+        congViecDayNen = nil
+        daKhoiTaoAdminTrongPhien = false
+        khoaTrangThai.unlock()
+
         phien = nil
         xoaKeychain()
         KhoDuLieu.dungChung.datLaiSauDangXuat()
     }
 
-    // MARK: - 3. Quản lý Tài khoản & Phân quyền Admin (Thêm mới, Đổi mật khẩu, Set quyền Admin, Xoá toàn bộ tài khoản khác trừ duongnt)
+    // MARK: - 3. Quản lý Tài khoản & Phân quyền Admin
 
-    /// Tự động chạy 1 lần duy nhất để set `duongnt` làm Admin gốc và xoá toàn bộ các tài khoản cũ đã đăng nhập vào dự án (giữ nguyên `duongnt`).
-    /// Đồng thời kiểm tra nếu thiết bị hiện tại đang đăng nhập vào tài khoản đã bị xoá thì tự động đăng xuất ngay.
-    func thucHienKhoiTaoAdminVaXoaTaiKhoanCuNeuCan(hoanTat: (() -> Void)? = nil) {
+    func thucHienKhoiTaoAdminVaXoaTaiKhoanCuNeuCan(batBuoc: Bool = false, hoanTat: (() -> Void)? = nil) {
+        khoaTrangThai.lock()
+        if daKhoiTaoAdminTrongPhien && !batBuoc {
+            khoaTrangThai.unlock()
+            hoanTat?()
+            return
+        }
+        daKhoiTaoAdminTrongPhien = true
+        khoaTrangThai.unlock()
+
         layDanhSachUsersSupabaseAdmin { [weak self] kq in
             guard let self else { hoanTat?(); return }
             guard case .success(let tatCaUsers) = kq else {
@@ -350,7 +399,6 @@ final class DichVuDongBo {
                 self.trichTenDangNhap(tu: $0).lowercased() == Self.taiKhoanAdminGoc
             }
 
-            // Đảm bảo duongnt luôn có quyền Admin trên Supabase
             if let duongnt = userDuongnt {
                 let daLaAdmin = self.xacDinhLaAdmin(user: duongnt, tenDangNhap: Self.taiKhoanAdminGoc)
                 if !daLaAdmin || duongnt.userMetadata?["la_admin"] != "true" {
@@ -376,7 +424,6 @@ final class DichVuDongBo {
                 return
             }
 
-            // Kiểm tra tài khoản đang đăng nhập trên máy còn tồn tại trên hệ thống không
             if self.daDangNhap {
                 let tenHienTai = self.tenDangNhap.lowercased()
                 let conTonTai = dmxUsers.contains {
@@ -390,7 +437,6 @@ final class DichVuDongBo {
                     }
                     return
                 }
-                // Cập nhật lại cờ laAdmin mới nhất từ server cho phiên hiện tại
                 if let uHienTai = dmxUsers.first(where: { self.trichTenDangNhap(tu: $0).lowercased() == tenHienTai }),
                    var p = self.phien {
                     let quyenMoi = self.xacDinhLaAdmin(user: uHienTai, tenDangNhap: tenHienTai)
@@ -416,7 +462,6 @@ final class DichVuDongBo {
         capNhatUserSupabaseAdmin(userId: userId, matKhauMoi: nil, userMetadata: meta) { _ in }
     }
 
-    /// Lấy danh sách toàn bộ các tài khoản ĐMX trong dự án
     func layDanhSachTaiKhoan(hoanTat: @escaping (Result<[ThongTinTaiKhoanDMX], Error>) -> Void) {
         layDanhSachUsersSupabaseAdmin { [weak self] kq in
             guard let self else { return }
@@ -451,7 +496,6 @@ final class DichVuDongBo {
         }
     }
 
-    /// Admin thêm tài khoản mới (có thể chọn làm tài khoản thường hoặc cấp quyền Admin) mà không làm đăng xuất phiên Admin hiện tại
     func adminTaoTaiKhoanMoi(
         tenDangNhap: String,
         matKhau: String,
@@ -497,13 +541,13 @@ final class DichVuDongBo {
 
         var req = URLRequest(url: diaChiSupabase.appendingPathComponent("/auth/v1/admin/users"))
         req.httpMethod = "POST"
-        req.timeoutInterval = 25
+        req.timeoutInterval = 20
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
         req.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
         req.httpBody = try? JSONEncoder().encode(payload)
 
-        URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
+        phienMang.dataTask(with: req) { [weak self] data, response, error in
             guard let self else { return }
             if let error {
                 DispatchQueue.main.async { hoanTat(.failure(error)) }
@@ -533,7 +577,6 @@ final class DichVuDongBo {
         }.resume()
     }
 
-    /// Admin đổi mật khẩu cho bất kỳ tài khoản nào trong hệ thống
     func adminDoiMatKhau(
         userId: String,
         tenDangNhap: String,
@@ -547,7 +590,6 @@ final class DichVuDongBo {
         capNhatUserSupabaseAdmin(userId: userId, matKhauMoi: matKhauMoi, userMetadata: nil, hoanTat: hoanTat)
     }
 
-    /// Đổi mật khẩu cho chính tài khoản đang đăng nhập
     func doiMatKhauCaNhan(matKhauMoi: String, hoanTat: @escaping (Result<Void, Error>) -> Void) {
         guard matKhauMoi.count >= 6 else {
             hoanTat(.failure(NSError.dmx("Mật khẩu mới cần có ít nhất 6 ký tự.")))
@@ -564,7 +606,6 @@ final class DichVuDongBo {
         }
     }
 
-    /// Admin cấp hoặc gỡ quyền Admin cho tài khoản thường (Riêng tài khoản `duongnt` luôn giữ quyền Admin gốc)
     func adminDatQuyenAdmin(
         taiKhoan: ThongTinTaiKhoanDMX,
         laAdmin: Bool,
@@ -597,7 +638,6 @@ final class DichVuDongBo {
         }
     }
 
-    /// Admin xoá 1 tài khoản cụ thể (Bảo vệ tuyệt đối tài khoản `duongnt`)
     func adminXoaTaiKhoan(
         taiKhoan: ThongTinTaiKhoanDMX,
         hoanTat: @escaping (Result<Void, Error>) -> Void
@@ -611,7 +651,6 @@ final class DichVuDongBo {
         }
     }
 
-    /// Xoá TẤT CẢ các tài khoản hiện tại trong dự án, chỉ giữ lại duy nhất tài khoản Admin gốc `duongnt`
     func adminXoaTatCaTaiKhoanKhacGiuDuongnt(hoanTat: @escaping (Result<Int, Error>) -> Void) {
         layDanhSachUsersSupabaseAdmin { [weak self] kq in
             guard let self else { return }
@@ -626,7 +665,6 @@ final class DichVuDongBo {
                     self.trichTenDangNhap(tu: $0).lowercased() != Self.taiKhoanAdminGoc
                 }
 
-                // Xoá thêm các dòng hồ sơ mồ côi trong bảng dmx_ho_so khác duongnt
                 self.xoaHoSoSQLKhacDuongnt()
 
                 guard !cacUserCanXoa.isEmpty else {
@@ -672,12 +710,12 @@ final class DichVuDongBo {
         ]
         var req = URLRequest(url: comps.url!)
         req.httpMethod = "GET"
-        req.timeoutInterval = 25
+        req.timeoutInterval = 20
         req.cachePolicy = .reloadIgnoringLocalCacheData
         req.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
         req.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
 
-        URLSession.shared.dataTask(with: req) { data, response, error in
+        phienMang.dataTask(with: req) { data, response, error in
             if let error {
                 hoanTat(.failure(error))
                 return
@@ -715,13 +753,13 @@ final class DichVuDongBo {
         let url = diaChiSupabase.appendingPathComponent("/auth/v1/admin/users/\(userId)")
         var req = URLRequest(url: url)
         req.httpMethod = "PUT"
-        req.timeoutInterval = 25
+        req.timeoutInterval = 20
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
         req.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
         req.httpBody = try? JSONSerialization.data(withJSONObject: bodyDict)
 
-        URLSession.shared.dataTask(with: req) { data, response, error in
+        phienMang.dataTask(with: req) { data, response, error in
             if let error {
                 DispatchQueue.main.async { hoanTat(.failure(error)) }
                 return
@@ -741,7 +779,6 @@ final class DichVuDongBo {
     private func xoaUserVaDuLieuTrenSupabase(userId: String, hoanTat: @escaping (Result<Void, Error>) -> Void) {
         let nhom = DispatchGroup()
 
-        // 1. Xoá dữ liệu bảng dmx_du_lieu_ngay của user
         nhom.enter()
         var compNgay = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_du_lieu_ngay"), resolvingAgainstBaseURL: false)!
         compNgay.queryItems = [URLQueryItem(name: "nguoi_dung_id", value: "eq.\(userId)")]
@@ -749,9 +786,8 @@ final class DichVuDongBo {
         reqNgay.httpMethod = "DELETE"
         reqNgay.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
         reqNgay.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: reqNgay) { _, _, _ in nhom.leave() }.resume()
+        phienMang.dataTask(with: reqNgay) { _, _, _ in nhom.leave() }.resume()
 
-        // 2. Xoá hồ sơ bảng dmx_ho_so của user
         nhom.enter()
         var compHoSo = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_ho_so"), resolvingAgainstBaseURL: false)!
         compHoSo.queryItems = [URLQueryItem(name: "nguoi_dung_id", value: "eq.\(userId)")]
@@ -759,33 +795,31 @@ final class DichVuDongBo {
         reqHoSo.httpMethod = "DELETE"
         reqHoSo.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
         reqHoSo.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: reqHoSo) { _, _, _ in nhom.leave() }.resume()
+        phienMang.dataTask(with: reqHoSo) { _, _, _ in nhom.leave() }.resume()
 
-        // 3. Xoá file JSON trong Supabase Storage dmx-du-lieu/{userId}.json
         nhom.enter()
         let urlStorage = diaChiSupabase.appendingPathComponent("/storage/v1/object/\(tenBucket)/\(userId).json")
         var reqStorage = URLRequest(url: urlStorage)
         reqStorage.httpMethod = "DELETE"
         reqStorage.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
         reqStorage.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: reqStorage) { _, _, _ in nhom.leave() }.resume()
+        phienMang.dataTask(with: reqStorage) { _, _, _ in nhom.leave() }.resume()
 
-        // 4. Xoá tài khoản khỏi Supabase Auth (vô hiệu hoá ngay lập tức mọi phiên đăng nhập của tài khoản này)
         var xoaAuthThanhCong = false
         nhom.enter()
         let urlAuth = diaChiSupabase.appendingPathComponent("/auth/v1/admin/users/\(userId)")
         var reqAuth = URLRequest(url: urlAuth)
         reqAuth.httpMethod = "DELETE"
-        reqAuth.timeoutInterval = 25
+        reqAuth.timeoutInterval = 20
         reqAuth.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
         reqAuth.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: reqAuth) { _, response, _ in
+        phienMang.dataTask(with: reqAuth) { _, response, _ in
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             xoaAuthThanhCong = (200..<300).contains(status) || status == 404
             nhom.leave()
         }.resume()
 
-        nhom.notify(queue: .global()) {
+        nhom.notify(queue: hangDoi) {
             if xoaAuthThanhCong {
                 hoanTat(.success(()))
             } else {
@@ -801,7 +835,7 @@ final class DichVuDongBo {
         req.httpMethod = "DELETE"
         req.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
         req.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: req) { _, _, _ in }.resume()
+        phienMang.dataTask(with: req) { _, _, _ in }.resume()
     }
 
     private func dinhDangNgayISO(_ raw: String?) -> String {
@@ -814,16 +848,34 @@ final class DichVuDongBo {
         return prefix
     }
 
-    // MARK: - 4. Tải dữ liệu đồng bộ (Kết hợp kiểm tra tài khoản hợp lệ + Supabase Storage + Bảng SQL + Web API)
+    // MARK: - 4. Tải dữ liệu đồng bộ (Xử lý gộp & chuẩn hoá hoàn toàn trên luồng nền, tránh đơ máy người dùng)
 
     func taiDuLieu(hoanTat: ((Result<Void, Error>) -> Void)? = nil) {
+        khoaTrangThai.lock()
+        if dangTaiDuLieu {
+            khoaTrangThai.unlock()
+            hoanTat?(.success(()))
+            return
+        }
+        dangTaiDuLieu = true
+        khoaTrangThai.unlock()
+
+        let ketThucTai: (Result<Void, Error>) -> Void = { [weak self] kq in
+            self?.khoaTrangThai.lock()
+            self?.dangTaiDuLieu = false
+            self?.khoaTrangThai.unlock()
+            DispatchQueue.main.async {
+                hoanTat?(kq)
+            }
+        }
+
         thucHienKhoiTaoAdminVaXoaTaiKhoanCuNeuCan { [weak self] in
             guard let self else { return }
-            guard self.daDangNhap else { hoanTat?(.success(())); return }
+            guard self.daDangNhap else { ketThucTai(.success(())); return }
 
             self.damBaoUserId { [weak self] userId in
                 guard let self else { return }
-                guard self.daDangNhap else { hoanTat?(.success(())); return }
+                guard self.daDangNhap else { ketThucTai(.success(())); return }
 
                 let nhom = DispatchGroup()
                 let khoaGop = NSLock()
@@ -881,41 +933,98 @@ final class DichVuDongBo {
                     nhom.leave()
                 }
 
-                nhom.notify(queue: .main) {
+                // Xử lý gộp và chuẩn hoá chuỗi trên luồng nền (hangDoi) thay vì luồng chính
+                nhom.notify(queue: self.hangDoi) { [weak self] in
+                    guard let self else { return }
                     khoaGop.lock()
-                    let cdCuoi = caiDatGop
-                    let ngayCuoi = cacNgayGop
+                    var cdCuoi = caiDatGop
+                    var ngayCuoi = cacNgayGop
                     khoaGop.unlock()
+
+                    // Giữ nguyên các dữ liệu mới vừa quét/điền ở local đang chờ đẩy lên Supabase (không để dữ liệu cũ trên mây đè lên)
+                    self.khoaTrangThai.lock()
+                    if let cdMoiLocal = self.caiDatChoDay {
+                        cdCuoi = cdMoiLocal
+                    }
+                    for (kLocal, vLocal) in self.cacNgayChoDay {
+                        ngayCuoi[kLocal] = vLocal
+                    }
+                    self.khoaTrangThai.unlock()
+
                     if cdCuoi != nil || !ngayCuoi.isEmpty {
                         KhoDuLieu.dungChung.nhapDuLieuDamMay(caiDat: cdCuoi, cacNgay: ngayCuoi)
-                        NotificationCenter.default.post(name: .duLieuDMXDaDongBo, object: nil)
+                        DispatchQueue.main.async {
+                            NotificationCenter.default.post(name: .duLieuDMXDaDongBo, object: nil)
+                        }
                     }
-                    hoanTat?(.success(()))
+                    ketThucTai(.success(()))
                 }
             }
         }
     }
 
-    // MARK: - 5. Đẩy dữ liệu ngày & cài đặt lên đám mây
+    // MARK: - 5. Đẩy dữ liệu ngày & cài đặt lên đám mây (Gom nhóm & chống dội trên luồng nền, không gây đơ máy)
 
     func dayDuLieuNgay(_ duLieu: DuLieuNgayDMX) {
-        day(GoiDongBo(caiDat: nil, ngay: duLieu.khoaNgay, duLieuNgay: duLieu))
+        guard daDangNhap else { return }
+        khoaTrangThai.lock()
+        cacNgayChoDay[duLieu.khoaNgay] = duLieu
+        khoaTrangThai.unlock()
+        lenLichDayDuLieuNen()
     }
 
     func dayCaiDat(_ caiDat: CaiDatDMX) {
-        day(GoiDongBo(caiDat: caiDat, ngay: nil, duLieuNgay: nil))
+        guard daDangNhap else { return }
+        khoaTrangThai.lock()
+        caiDatChoDay = caiDat
+        khoaTrangThai.unlock()
+        lenLichDayDuLieuNen()
     }
 
-    private func day(_ goi: GoiDongBo) {
-        guard daDangNhap else { return }
+    /// Gom các thay đổi liên tiếp trong vòng 1.0 giây thành 1 lần đồng bộ chạy ngầm duy nhất
+    private func lenLichDayDuLieuNen() {
         hangDoi.async { [weak self] in
             guard let self else { return }
-            self.guiWeb(path: "/api/dmx/dong-bo", method: "POST", body: goi, canDangNhap: true) { (_: Result<LoiMayChu, Error>) in }
+            self.congViecDayNen?.cancel()
+            let cv = DispatchWorkItem { [weak self] in
+                self?.thucThiDayDuLieuGomNhom()
+            }
+            self.congViecDayNen = cv
+            self.hangDoi.asyncAfter(deadline: .now() + 1.0, execute: cv)
+        }
+    }
 
-            self.damBaoUserId { [weak self] userId in
-                guard let self, let uid = userId, !uid.isEmpty else { return }
-                self.ghiStorageSupabase(userId: uid, goi: goi)
-                self.ghiBangSQLSupabase(userId: uid, goi: goi)
+    private func thucThiDayDuLieuGomNhom() {
+        guard daDangNhap else { return }
+        khoaTrangThai.lock()
+        let dsNgayCanDay = cacNgayChoDay
+        let cdCanDay = caiDatChoDay
+        cacNgayChoDay.removeAll()
+        caiDatChoDay = nil
+        khoaTrangThai.unlock()
+
+        guard cdCanDay != nil || !dsNgayCanDay.isEmpty else { return }
+
+        // Lấy bản sao an toàn từ KhoDuLieu trên luồng nền
+        let banSaoKho = KhoDuLieu.dungChung.layBanSaoAnToan()
+
+        // 1. Đẩy sang Web API (từng gói gọn nhẹ)
+        if let cdCanDay, dsNgayCanDay.isEmpty {
+            let goi = GoiDongBo(caiDat: cdCanDay, ngay: nil, duLieuNgay: nil)
+            guiWeb(path: "/api/dmx/dong-bo", method: "POST", body: goi, canDangNhap: true) { (_: Result<LoiMayChu, Error>) in }
+        } else {
+            for (_, dlNgay) in dsNgayCanDay {
+                let goi = GoiDongBo(caiDat: cdCanDay, ngay: dlNgay.khoaNgay, duLieuNgay: dlNgay)
+                guiWeb(path: "/api/dmx/dong-bo", method: "POST", body: goi, canDangNhap: true) { (_: Result<LoiMayChu, Error>) in }
+            }
+        }
+
+        // 2. Đẩy lên Supabase SQL & Storage trên luồng nền
+        damBaoUserId { [weak self] userId in
+            guard let self, let uid = userId, !uid.isEmpty else { return }
+            self.hangDoi.async {
+                self.ghiStorageSupabase(userId: uid, caiDat: cdCanDay ?? banSaoKho.caiDat, cacNgay: banSaoKho.cacNgay)
+                self.ghiBangSQLSupabase(userId: uid, caiDat: cdCanDay, cacNgay: dsNgayCanDay)
             }
         }
     }
@@ -931,12 +1040,12 @@ final class DichVuDongBo {
         comps.query = query
         var req = URLRequest(url: comps.url!)
         req.httpMethod = "POST"
-        req.timeoutInterval = 25
+        req.timeoutInterval = 20
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(khoaCongKhaiSupabase, forHTTPHeaderField: "apikey")
         req.httpBody = try? JSONEncoder().encode(body)
 
-        URLSession.shared.dataTask(with: req) { data, response, error in
+        phienMang.dataTask(with: req) { data, response, error in
             if let error {
                 DispatchQueue.main.async { hoanTat(.failure(error)) }
                 return
@@ -995,7 +1104,7 @@ final class DichVuDongBo {
         req.setValue(khoaCongKhaiSupabase, forHTTPHeaderField: "apikey")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        URLSession.shared.dataTask(with: req) { [weak self] data, response, _ in
+        phienMang.dataTask(with: req) { [weak self] data, response, _ in
             guard let self else { hoanTat(nil); return }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             if status == 401 || status == 403 || status == 404 {
@@ -1028,12 +1137,12 @@ final class DichVuDongBo {
         let url = diaChiSupabase.appendingPathComponent("/storage/v1/object/\(tenBucket)/\(userId).json")
         var req = URLRequest(url: url)
         req.httpMethod = "GET"
-        req.timeoutInterval = 20
+        req.timeoutInterval = 18
         req.cachePolicy = .reloadIgnoringLocalCacheData
         req.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
         req.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
 
-        URLSession.shared.dataTask(with: req) { data, response, _ in
+        phienMang.dataTask(with: req) { data, response, _ in
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard (200..<300).contains(status), let data else {
                 hoanTat(nil)
@@ -1044,30 +1153,44 @@ final class DichVuDongBo {
         }.resume()
     }
 
-    private func ghiStorageSupabase(userId: String, goi: GoiDongBo) {
-        let payload = DuLieuDamMay(
-            caiDat: goi.caiDat ?? KhoDuLieu.dungChung.caiDat,
-            cacNgay: KhoDuLieu.dungChung.cacNgay
-        )
+    private func ghiStorageSupabase(userId: String, caiDat: CaiDatDMX, cacNgay: [String: DuLieuNgayDMX]) {
+        let payload = DuLieuDamMay(caiDat: caiDat, cacNgay: cacNgay)
         guard let body = try? JSONEncoder().encode(payload) else { return }
 
-        var reqBucket = URLRequest(url: diaChiSupabase.appendingPathComponent("/storage/v1/bucket"))
-        reqBucket.httpMethod = "POST"
-        reqBucket.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        reqBucket.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
-        reqBucket.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
-        reqBucket.httpBody = try? JSONSerialization.data(withJSONObject: ["id": tenBucket, "name": tenBucket, "public": false])
-        URLSession.shared.dataTask(with: reqBucket) { _, _, _ in
+        let guiFileLenBucket: () -> Void = { [weak self] in
+            guard let self else { return }
             let url = self.diaChiSupabase.appendingPathComponent("/storage/v1/object/\(self.tenBucket)/\(userId).json")
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
-            req.timeoutInterval = 25
+            req.timeoutInterval = 20
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.setValue("true", forHTTPHeaderField: "x-upsert")
             req.setValue(self.khoaBiMatSupabase, forHTTPHeaderField: "apikey")
             req.setValue("Bearer \(self.khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
             req.httpBody = body
-            URLSession.shared.dataTask(with: req) { _, _, _ in }.resume()
+            self.phienMang.dataTask(with: req) { _, _, _ in }.resume()
+        }
+
+        // Chỉ kiểm tra tạo bucket 1 lần duy nhất trong phiên để giảm một nửa số request mạng
+        khoaTrangThai.lock()
+        let canTaoBucket = !daKiemTraBucket
+        daKiemTraBucket = true
+        khoaTrangThai.unlock()
+
+        guard canTaoBucket else {
+            guiFileLenBucket()
+            return
+        }
+
+        var reqBucket = URLRequest(url: diaChiSupabase.appendingPathComponent("/storage/v1/bucket"))
+        reqBucket.httpMethod = "POST"
+        reqBucket.timeoutInterval = 12
+        reqBucket.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        reqBucket.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
+        reqBucket.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
+        reqBucket.httpBody = try? JSONSerialization.data(withJSONObject: ["id": tenBucket, "name": tenBucket, "public": false])
+        phienMang.dataTask(with: reqBucket) { _, _, _ in
+            guiFileLenBucket()
         }.resume()
     }
 
@@ -1080,6 +1203,7 @@ final class DichVuDongBo {
             return
         }
         let nhom = DispatchGroup()
+        let khoaKQ = NSLock()
         var cdKetQua: CaiDatDMX?
         var ngayKetQua: [String: DuLieuNgayDMX] = [:]
 
@@ -1093,11 +1217,13 @@ final class DichVuDongBo {
         var reqHoSo = URLRequest(url: compHoSo.url!)
         reqHoSo.setValue(khoaCongKhaiSupabase, forHTTPHeaderField: "apikey")
         reqHoSo.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: reqHoSo) { data, response, _ in
+        phienMang.dataTask(with: reqHoSo) { data, response, _ in
             if let status = (response as? HTTPURLResponse)?.statusCode, (200..<300).contains(status),
                let data, let rows = try? JSONDecoder().decode([DongHoSoSupabase].self, from: data),
                let cd = rows.first?.cai_dat {
+                khoaKQ.lock()
                 cdKetQua = cd
+                khoaKQ.unlock()
             }
             nhom.leave()
         }.resume()
@@ -1113,26 +1239,33 @@ final class DichVuDongBo {
         var reqNgay = URLRequest(url: compNgay.url!)
         reqNgay.setValue(khoaCongKhaiSupabase, forHTTPHeaderField: "apikey")
         reqNgay.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: reqNgay) { data, response, _ in
+        phienMang.dataTask(with: reqNgay) { data, response, _ in
             if let status = (response as? HTTPURLResponse)?.statusCode, (200..<300).contains(status),
                let data, let rows = try? JSONDecoder().decode([DongDuLieuNgaySupabase].self, from: data) {
+                khoaKQ.lock()
                 for r in rows {
                     ngayKetQua[r.ngay] = r.du_lieu
                 }
+                khoaKQ.unlock()
             }
             nhom.leave()
         }.resume()
 
-        nhom.notify(queue: .global()) {
-            hoanTat(cdKetQua, ngayKetQua)
+        nhom.notify(queue: hangDoi) {
+            khoaKQ.lock()
+            let cd = cdKetQua
+            let ngay = ngayKetQua
+            khoaKQ.unlock()
+            hoanTat(cd, ngay)
         }
     }
 
-    private func ghiBangSQLSupabase(userId: String, goi: GoiDongBo) {
+    /// Ghi dữ liệu lên bảng SQL Supabase theo lô (batch upsert) giúp nhanh và nhẹ máy
+    private func ghiBangSQLSupabase(userId: String, caiDat: CaiDatDMX?, cacNgay: [String: DuLieuNgayDMX]) {
         guard let token = phien?.accessToken else { return }
         let isoNow = ISO8601DateFormatter().string(from: Date())
 
-        if let cd = goi.caiDat {
+        if let cd = caiDat {
             var comp = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_ho_so"), resolvingAgainstBaseURL: false)!
             comp.queryItems = [URLQueryItem(name: "on_conflict", value: "nguoi_dung_id")]
             var req = URLRequest(url: comp.url!)
@@ -1148,10 +1281,10 @@ final class DichVuDongBo {
                 ngay_cap_nhat: isoNow
             )
             req.httpBody = try? JSONEncoder().encode(body)
-            URLSession.shared.dataTask(with: req) { _, _, _ in }.resume()
+            phienMang.dataTask(with: req) { _, _, _ in }.resume()
         }
 
-        if let ngay = goi.ngay, let dl = goi.duLieuNgay {
+        if !cacNgay.isEmpty {
             var comp = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_du_lieu_ngay"), resolvingAgainstBaseURL: false)!
             comp.queryItems = [URLQueryItem(name: "on_conflict", value: "nguoi_dung_id,ngay")]
             var req = URLRequest(url: comp.url!)
@@ -1160,14 +1293,16 @@ final class DichVuDongBo {
             req.setValue("resolution=merge-duplicates", forHTTPHeaderField: "Prefer")
             req.setValue(khoaCongKhaiSupabase, forHTTPHeaderField: "apikey")
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            let body = DongDuLieuNgaySupabase(
-                nguoi_dung_id: userId,
-                ngay: ngay,
-                du_lieu: dl,
-                ngay_cap_nhat: isoNow
-            )
-            req.httpBody = try? JSONEncoder().encode(body)
-            URLSession.shared.dataTask(with: req) { _, _, _ in }.resume()
+            let danhSachDong = cacNgay.map { (khoa, dl) in
+                DongDuLieuNgaySupabase(
+                    nguoi_dung_id: userId,
+                    ngay: khoa,
+                    du_lieu: dl,
+                    ngay_cap_nhat: isoNow
+                )
+            }
+            req.httpBody = try? JSONEncoder().encode(danhSachDong)
+            phienMang.dataTask(with: req) { _, _, _ in }.resume()
         }
     }
 
@@ -1207,14 +1342,14 @@ final class DichVuDongBo {
         var request = URLRequest(url: diaChiWeb.appendingPathComponent(path))
         request.httpMethod = method
         request.httpBody = bodyData
-        request.timeoutInterval = 20
+        request.timeoutInterval = 18
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if canDangNhap, let token = phien?.accessToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+        phienMang.dataTask(with: request) { [weak self] data, response, error in
             if let error { DispatchQueue.main.async { hoanTat(.failure(error)) }; return }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             if status == 401, canDangNhap, thuLai {
