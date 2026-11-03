@@ -57,6 +57,14 @@ final class TheDoanhThuView: UIControl {
     private let nhanTarget = UILabel()
     private let chamTron = UIView()
 
+    override var frame: CGRect {
+        didSet { capNhatBoCucThe() }
+    }
+
+    override var bounds: CGRect {
+        didSet { capNhatBoCucThe() }
+    }
+
     init(tieuDe: String, mauBatDau: UIColor, mauKetThuc: UIColor, hienChamTron: Bool = false) {
         super.init(frame: .zero)
         layer.cornerRadius = 11
@@ -74,7 +82,6 @@ final class TheDoanhThuView: UIControl {
         nhanTieuDe.numberOfLines = 0
         nhanTieuDe.lineBreakMode = .byWordWrapping
         nhanTieuDe.adjustsFontSizeToFitWidth = false
-        nhanTieuDe.setContentCompressionResistancePriority(.required, for: .vertical)
 
         nhanGiaTriChinh.text = "0,00"
         nhanGiaTriChinh.font = .systemFont(ofSize: 13.0, weight: .heavy)
@@ -83,9 +90,8 @@ final class TheDoanhThuView: UIControl {
         nhanGiaTriChinh.numberOfLines = 0
         nhanGiaTriChinh.lineBreakMode = .byWordWrapping
         nhanGiaTriChinh.adjustsFontSizeToFitWidth = false
-        nhanGiaTriChinh.setContentCompressionResistancePriority(.required, for: .vertical)
 
-        vachKe.backgroundColor = UIColor.white.withAlphaComponent(0.26)
+        vachKe.backgroundColor = UIColor.white.withAlphaComponent(0.28)
 
         nhanTarget.text = "TARGET: 0,00"
         nhanTarget.font = .systemFont(ofSize: 8.0, weight: .bold)
@@ -94,43 +100,15 @@ final class TheDoanhThuView: UIControl {
         nhanTarget.numberOfLines = 0
         nhanTarget.lineBreakMode = .byWordWrapping
         nhanTarget.adjustsFontSizeToFitWidth = false
-        nhanTarget.setContentCompressionResistancePriority(.required, for: .vertical)
 
         chamTron.backgroundColor = .white
-        chamTron.layer.cornerRadius = 3.0
+        chamTron.layer.cornerRadius = 2.5
         chamTron.isHidden = !hienChamTron
 
         [nhanTieuDe, nhanGiaTriChinh, vachKe, nhanTarget, chamTron].forEach {
             $0.isUserInteractionEnabled = false
-            $0.translatesAutoresizingMaskIntoConstraints = false
             addSubview($0)
         }
-
-        let trailingTieuDe: CGFloat = hienChamTron ? -10 : -2
-        NSLayoutConstraint.activate([
-            nhanTieuDe.topAnchor.constraint(equalTo: topAnchor, constant: 3),
-            nhanTieuDe.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-            nhanTieuDe.trailingAnchor.constraint(equalTo: trailingAnchor, constant: trailingTieuDe),
-
-            chamTron.centerYAnchor.constraint(equalTo: nhanTieuDe.centerYAnchor),
-            chamTron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -3),
-            chamTron.widthAnchor.constraint(equalToConstant: 5),
-            chamTron.heightAnchor.constraint(equalToConstant: 5),
-
-            nhanGiaTriChinh.topAnchor.constraint(equalTo: nhanTieuDe.bottomAnchor, constant: 1.5),
-            nhanGiaTriChinh.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-            nhanGiaTriChinh.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
-
-            vachKe.topAnchor.constraint(equalTo: nhanGiaTriChinh.bottomAnchor, constant: 2),
-            vachKe.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
-            vachKe.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5),
-            vachKe.heightAnchor.constraint(equalToConstant: 1),
-
-            nhanTarget.topAnchor.constraint(equalTo: vachKe.bottomAnchor, constant: 1.5),
-            nhanTarget.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-            nhanTarget.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
-            nhanTarget.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -2.5)
-        ])
     }
 
     required init?(coder: NSCoder) {
@@ -139,7 +117,30 @@ final class TheDoanhThuView: UIControl {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        capNhatBoCucThe()
+    }
+
+    private func capNhatBoCucThe() {
         lopGradient.frame = bounds
+        let w = bounds.width
+        let h = bounds.height
+        guard w > 10, h > 10 else { return }
+
+        // Cố định toạ độ Y của vùng tiêu đề, số chính và đường gạch ngang theo chiều cao thẻ H
+        // để mọi thẻ trên cùng 1 hàng có số chính và đường gạch ngang thẳng hàng ngang tuyệt đối
+        let yTieuDe = round(h * 0.03)
+        let caoTieuDe = round(h * 0.31)
+        let yGiaTri = yTieuDe + caoTieuDe
+        let caoGiaTri = round(h * 0.27)
+        let yVachKe = yGiaTri + caoGiaTri + 1
+        let yTarget = yVachKe + 2
+        let caoTarget = max(12, h - yTarget - 2)
+
+        nhanTieuDe.frame = CGRect(x: 2, y: yTieuDe, width: max(8, w - 4), height: caoTieuDe)
+        chamTron.frame = CGRect(x: max(2, w - 8), y: max(3, yTieuDe + 2), width: 5, height: 5)
+        nhanGiaTriChinh.frame = CGRect(x: 2, y: yGiaTri, width: max(8, w - 4), height: caoGiaTri)
+        vachKe.frame = CGRect(x: 5, y: yVachKe, width: max(8, w - 10), height: 1)
+        nhanTarget.frame = CGRect(x: 2, y: yTarget, width: max(8, w - 4), height: caoTarget)
     }
 
     func capNhatNoiDung(chinh: String, phu: String, coLon: Bool = false) {
@@ -148,6 +149,7 @@ final class TheDoanhThuView: UIControl {
         nhanTieuDe.font = .systemFont(ofSize: coLon ? 11.0 : 8.5, weight: .bold)
         nhanGiaTriChinh.font = .systemFont(ofSize: coLon ? 17.0 : 13.0, weight: .heavy)
         nhanTarget.font = .systemFont(ofSize: coLon ? 10.5 : 8.0, weight: .bold)
+        capNhatBoCucThe()
     }
 
     func capNhat(doanhThu: Double, target: Double) {
@@ -163,6 +165,7 @@ final class TheDoanhThuView: UIControl {
                 nhanTarget.text = "TARGET: 0,00"
             }
         }
+        capNhatBoCucThe()
     }
 }
 
@@ -562,7 +565,7 @@ final class OTheThiDuaCell: UICollectionViewCell {
         let rongTrai1Dong = ceil((chuoiTrai as NSString).size(withAttributes: [.font: fontDam]).width) + 2
         let rongPhai1Dong = ceil((chuoiPhai as NSString).size(withAttributes: [.font: fontVua]).width) + 2
 
-        let xepChong2DongSo = (rongTrai1Dong + 6 + rongPhai1Dong > rongTrong)
+        let xepChong2DongSo = laTheHep || (rongTrai1Dong + 6 + rongPhai1Dong > rongTrong)
         let caoTrai: CGFloat
         let caoPhai: CGFloat
         let caoKhuVucSo: CGFloat

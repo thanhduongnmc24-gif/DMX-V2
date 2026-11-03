@@ -346,7 +346,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
             view.addSubview($0)
         }
 
-        let rgCaoCum = cumChiSoChinh.heightAnchor.constraint(equalToConstant: 184)
+        let rgCaoCum = cumChiSoChinh.heightAnchor.constraint(equalToConstant: 188)
         rangBuocCaoCumChiSo = rgCaoCum
 
         NSLayoutConstraint.activate([
