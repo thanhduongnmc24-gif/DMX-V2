@@ -3090,6 +3090,18 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             let cacAnh = danhSach.compactMap { $0 }
             guard !cacAnh.isEmpty else { return }
 
+            // Khi chọn Gemini trong Cài đặt, mọi loại nút quét đều đi qua cùng
+            // bộ phân tích ảnh đa phương thức rồi tự phân loại bảng.
+            if KhoDuLieu.dungChung.caiDat.dungGeminiQuetAnh {
+                let cheDoTab: LoaiCheDoDoanhThu
+                switch cheDo {
+                case .doanhThu(let loai), .thiDua(let loai), .thiDuaNhanVien(let loai), .doanhThuNhanVien(let loai), .tatCaAnhTheoTab(let loai):
+                    cheDoTab = loai
+                }
+                self.xuLyQuetTatCaAnhTheoTab(cacAnh, cheDoTab: cheDoTab)
+                return
+            }
+
             switch cheDo {
             case .doanhThu(let loaiDT):
                 self.xuLyQuetDoanhThu(cacAnh, loai: loaiDT)

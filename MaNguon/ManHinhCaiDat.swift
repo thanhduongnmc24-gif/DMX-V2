@@ -17,6 +17,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     private let nutKhoiPhucKeyMacDinh = UIButton(type: .system)
     private let nhanTrangThaiGemini = UILabel()
     private var modelGeminiDangChon: String = "gemini-2.5-flash"
+    private let chonCongCuQuetAnh = UISegmentedControl(items: ["OCR trên máy", "Gemini 2.5"])
 
     private let chonKieuHienThi = UISegmentedControl(items: ["Bảng 8 cột (Chi tiết)", "Thẻ tiến độ (Gọn)"])
     private let chonSoCotXuat = UISegmentedControl(items: ["1 cột", "2 cột", "3 cột", "4 cột"])
@@ -40,6 +41,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         chonSoCotXuat.selectedSegmentIndex = max(0, min(3, cd.soCotXuatAnh - 1))
         oNhapGeminiKey.text = cd.geminiApiKey.isEmpty ? DichVuGeminiAI.khoaMacDinh : cd.geminiApiKey
         modelGeminiDangChon = cd.geminiModel.hasPrefix("gemini-2.5-") ? cd.geminiModel : "gemini-2.5-flash"
+        chonCongCuQuetAnh.selectedSegmentIndex = cd.dungGeminiQuetAnh ? 1 : 0
         capNhatTieuDeNutModelGemini()
         bangCumTu.reloadData()
         capNhatThongTinTaiKhoanUI()
@@ -56,6 +58,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         view.backgroundColor = BangMauBCTD.nenTrang
         chonKieuHienThi.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
         chonSoCotXuat.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
+        chonCongCuQuetAnh.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
 
         let nutLuu = UIBarButtonItem(
             title: "Lưu",
@@ -79,6 +82,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         chonSoCotXuat.selectedSegmentIndex = chiSoCot
         oNhapGeminiKey.text = cd.geminiApiKey.isEmpty ? DichVuGeminiAI.khoaMacDinh : cd.geminiApiKey
         modelGeminiDangChon = cd.geminiModel.hasPrefix("gemini-2.5-") ? cd.geminiModel : "gemini-2.5-flash"
+        chonCongCuQuetAnh.selectedSegmentIndex = cd.dungGeminiQuetAnh ? 1 : 0
 
         taoGiaoDien()
         capNhatTieuDeNutModelGemini()
@@ -306,6 +310,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         moi.soCotXuatAnh = soCot
         moi.geminiApiKey = keyGemini.isEmpty ? DichVuGeminiAI.khoaMacDinh : keyGemini
         moi.geminiModel = modelGeminiDangChon
+        moi.dungGeminiQuetAnh = (chonCongCuQuetAnh.selectedSegmentIndex == 1)
         KhoDuLieu.dungChung.luuCaiDat(moi)
     }
 
@@ -408,13 +413,24 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nhanTrangThaiGemini.lineBreakMode = .byWordWrapping
         nhanTrangThaiGemini.adjustsFontSizeToFitWidth = false
 
+        let nhanQuetAnh = UILabel()
+        nhanQuetAnh.text = "CÔNG CỤ QUÉT ẢNH SỐ LIỆU"
+        nhanQuetAnh.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nhanQuetAnh.textColor = BangMauBCTD.xanhChuDaoDam
+        chonCongCuQuetAnh.backgroundColor = BangMauBCTD.nenThePhu
+        chonCongCuQuetAnh.selectedSegmentTintColor = BangMauBCTD.vangSang
+        chonCongCuQuetAnh.setTitleTextAttributes([.foregroundColor: BangMauBCTD.chuPhu], for: .normal)
+        chonCongCuQuetAnh.setTitleTextAttributes([.foregroundColor: BangMauBCTD.chuChinh, .font: UIFont.systemFont(ofSize: 12.5, weight: .bold)], for: .selected)
+
         let nganGemini = UIStackView(arrangedSubviews: [
             nhanMoTaGemini,
             oNhapGeminiKey,
             nutChonModelGemini,
             nutKiemTraKeyGemini,
             nutKhoiPhucKeyMacDinh,
-            nhanTrangThaiGemini
+            nhanTrangThaiGemini,
+            nhanQuetAnh,
+            chonCongCuQuetAnh
         ])
         nganGemini.axis = .vertical
         nganGemini.spacing = 8

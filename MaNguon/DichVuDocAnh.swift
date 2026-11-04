@@ -100,6 +100,21 @@ final class DichVuDocAnh {
         tienTrinh: @escaping (String) -> Void,
         hoanTat: @escaping (KetQuaQuetTatCaAnh) -> Void
     ) {
+        if KhoDuLieu.dungChung.caiDat.dungGeminiQuetAnh {
+            DichVuQuetAnhGemini.dungChung.quet(
+                danhSachAnh: danhSachAnh,
+                cheDo: cheDoDangChon,
+                tienTrinh: tienTrinh
+            ) { ketQua in
+                switch ketQua {
+                case .success(let kq): hoanTat(kq)
+                case .failure(let loi):
+                    tienTrinh("Gemini không đọc được ảnh: \(loi.localizedDescription)")
+                    hoanTat(KetQuaQuetTatCaAnh())
+                }
+            }
+            return
+        }
         DispatchQueue.global(qos: .userInitiated).async {
             var kq = KetQuaQuetTatCaAnh()
             let laRealtime = (cheDoDangChon == .realtime)

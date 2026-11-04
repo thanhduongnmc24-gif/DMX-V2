@@ -935,6 +935,7 @@ struct CaiDatDMX: Codable {
     var mucTieuDoanhThuQDThang: [String: Double] = [:]
     var geminiApiKey: String = CaiDatDMX.geminiKeyMacDinh
     var geminiModel: String = CaiDatDMX.geminiModelMacDinh
+    var dungGeminiQuetAnh: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case kieuHienThi
@@ -945,6 +946,7 @@ struct CaiDatDMX: Codable {
         case mucTieuDoanhThuQDThang
         case geminiApiKey
         case geminiModel
+        case dungGeminiQuetAnh
     }
 
     static let nhanVienMau: [NhanVienQuanLy] = [
@@ -974,7 +976,8 @@ struct CaiDatDMX: Codable {
         chiaTargetNganhHang: [String: [String]] = [:],
         mucTieuDoanhThuQDThang: [String: Double] = [:],
         geminiApiKey: String = CaiDatDMX.geminiKeyMacDinh,
-        geminiModel: String = CaiDatDMX.geminiModelMacDinh
+        geminiModel: String = CaiDatDMX.geminiModelMacDinh,
+        dungGeminiQuetAnh: Bool = false
     ) {
         self.kieuHienThi = kieuHienThi
         self.danhSachCumTuLocBo = danhSachCumTuLocBo
@@ -984,6 +987,7 @@ struct CaiDatDMX: Codable {
         self.mucTieuDoanhThuQDThang = mucTieuDoanhThuQDThang
         self.geminiApiKey = geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Self.geminiKeyMacDinh : geminiApiKey
         self.geminiModel = geminiModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Self.geminiModelMacDinh : geminiModel
+        self.dungGeminiQuetAnh = dungGeminiQuetAnh
     }
 
     init(from decoder: Decoder) throws {
@@ -1000,6 +1004,7 @@ struct CaiDatDMX: Codable {
         geminiApiKey = rawKey.isEmpty ? Self.geminiKeyMacDinh : rawKey
         let rawModel = (try? c.decode(String.self, forKey: .geminiModel))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         geminiModel = rawModel.isEmpty ? Self.geminiModelMacDinh : rawModel
+        dungGeminiQuetAnh = (try? c.decode(Bool.self, forKey: .dungGeminiQuetAnh)) ?? false
     }
 }
 
