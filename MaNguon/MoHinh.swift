@@ -313,7 +313,7 @@ enum MucMenuChinh: Int, CaseIterable {
     }
 
     var coMenuCon: Bool {
-        self == .doSoXemSo
+        false
     }
 }
 

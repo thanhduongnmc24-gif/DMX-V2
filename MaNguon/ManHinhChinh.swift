@@ -146,7 +146,7 @@ final class MenuDieuHuongBenTraiView: UIView {
             let dongChinh = taoDongMenuChinh(muc: muc, dangChon: laMucDangChon)
             nganDanhSach.addArrangedSubview(dongChinh)
 
-            if muc == .doSoXemSo && dangMoMenuConDoSo {
+            if muc.coMenuCon && dangMoMenuConDoSo {
                 let khungMenuCon = UIStackView()
                 khungMenuCon.axis = .vertical
                 khungMenuCon.spacing = 4
@@ -289,7 +289,7 @@ final class MenuDieuHuongBenTraiView: UIView {
 
     @objc private func bamMucChinh(_ sender: UIControl) {
         guard let muc = MucMenuChinh(rawValue: sender.tag) else { return }
-        if muc == .doSoXemSo {
+        if muc.coMenuCon {
             dangMoMenuConDoSo.toggle()
             dungLaiDanhSachMenu()
             return
@@ -311,6 +311,10 @@ final class MenuDieuHuongBenTraiView: UIView {
 // MARK: - Màn Hình Chính Điều Phối Toàn Bộ Ứng Dụng
 
 final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITextViewDelegate {
+    private enum DinhDangFileBaoCao: String, CaseIterable {
+        case excel = "Excel"
+        case powerPoint = "PowerPoint"
+    }
     private enum CheDoQuetAnh {
         case doanhThu(LoaiCheDoDoanhThu)
         case thiDua(LoaiCheDoDoanhThu)
@@ -396,6 +400,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     private let nutNhapDoanhThuNV = UIButton(type: .system)
     private let nutXoaQuetLai = UIButton(type: .system)
     private let nutThemThuCong = UIButton(type: .system)
+    private let nutXuatAnhTrongXemSo = UIButton(type: .system)
 
     // 4. Các bảng dữ liệu trong phần "1. Xem số"
     private let bangThiDua = BangThiDuaView()
@@ -420,6 +425,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     private let nhanTieuDeMucMoRong = UILabel()
     private let nhanMoTaMucMoRong = UILabel()
     private let nganHanhDongMucMoRong = UIStackView()
+    private var noiDungXuatFileDangChon: LoaiBaoCaoXuatAnh = .doanhThuThiDuaLuyKe
+    private var dinhDangFileDangChon: DinhDangFileBaoCao = .excel
+    private let nutChonNoiDungXuatFile = UIButton(type: .system)
+    private let nutChonDinhDangFile = UIButton(type: .system)
+    private let oCauLenhXuatFile = UITextView()
+    private var rangBuocCaoOCauLenhXuatFile: NSLayoutConstraint?
 
     // 6. Menu trượt bên trái (Sidebar Drawer) & lớp nền mờ
     private let lopNenMoMenu = UIControl()
@@ -618,11 +629,13 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
         // 0. Thanh chuyển nhanh 3 mục con của "Đổ số - Xem số": 1. Xem số | 2. Nhập số | 3. Xuất ảnh
         khungThanhMucConDoSo.backgroundColor = BangMauBCTD.nenThe
+        khungThanhMucConDoSo.isHidden = true
         khungThanhMucConDoSo.layer.cornerRadius = 11
         khungThanhMucConDoSo.layer.borderWidth = 1
         khungThanhMucConDoSo.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
 
         nganNutMucConDoSo.axis = .horizontal
+        nganNutMucConDoSo.isHidden = true
         nganNutMucConDoSo.spacing = 6
         nganNutMucConDoSo.distribution = .fillEqually
         nganNutMucConDoSo.translatesAutoresizingMaskIntoConstraints = false
@@ -691,6 +704,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         khungCumDoanhThu.clipsToBounds = true
 
         thanhTieuDeDoanhThu.backgroundColor = BangMauBCTD.xanhChuDao
+        thanhTieuDeDoanhThu.isHidden = true
         thanhTieuDeDoanhThu.addTarget(self, action: #selector(bamTheDoanhThu), for: .touchUpInside)
         thanhTieuDeDoanhThu.translatesAutoresizingMaskIntoConstraints = false
         khungCumDoanhThu.addSubview(thanhTieuDeDoanhThu)
@@ -809,7 +823,17 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutThemThuCong.contentEdgeInsets = UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
         nutThemThuCong.addTarget(self, action: #selector(bamThemDongThuCong), for: .touchUpInside)
 
-        hangNutQuet = UIStackView(arrangedSubviews: [nutThemAnhMoi, nutNhapDoanhThuNV, nutXoaQuetLai, nutThemThuCong])
+        nutXuatAnhTrongXemSo.setImage(UIImage(systemName: "square.and.arrow.up"), for: .normal)
+        nutXuatAnhTrongXemSo.setTitle(" Xuất ảnh", for: .normal)
+        nutXuatAnhTrongXemSo.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
+        nutXuatAnhTrongXemSo.titleLabel?.numberOfLines = 0
+        nutXuatAnhTrongXemSo.backgroundColor = BangMauBCTD.xanhDatVach
+        nutXuatAnhTrongXemSo.tintColor = .white
+        nutXuatAnhTrongXemSo.setTitleColor(.white, for: .normal)
+        nutXuatAnhTrongXemSo.layer.cornerRadius = 9
+        nutXuatAnhTrongXemSo.addTarget(self, action: #selector(moMenuXuatBaoCao), for: .touchUpInside)
+
+        hangNutQuet = UIStackView(arrangedSubviews: [nutThemAnhMoi, nutNhapDoanhThuNV, nutXoaQuetLai, nutThemThuCong, nutXuatAnhTrongXemSo])
         hangNutQuet.axis = .horizontal
         hangNutQuet.spacing = 6
         nutThemAnhMoi.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -936,14 +960,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             khungThanhMucConDoSo.topAnchor.constraint(equalTo: khungDoSoXemSo.topAnchor, constant: 4),
             khungThanhMucConDoSo.leadingAnchor.constraint(equalTo: khungDoSoXemSo.leadingAnchor, constant: 8),
             khungThanhMucConDoSo.trailingAnchor.constraint(equalTo: khungDoSoXemSo.trailingAnchor, constant: -8),
-            khungThanhMucConDoSo.heightAnchor.constraint(greaterThanOrEqualToConstant: 40),
+            khungThanhMucConDoSo.heightAnchor.constraint(equalToConstant: 0),
 
             nganNutMucConDoSo.topAnchor.constraint(equalTo: khungThanhMucConDoSo.topAnchor, constant: 4),
             nganNutMucConDoSo.leadingAnchor.constraint(equalTo: khungThanhMucConDoSo.leadingAnchor, constant: 4),
             nganNutMucConDoSo.trailingAnchor.constraint(equalTo: khungThanhMucConDoSo.trailingAnchor, constant: -4),
             nganNutMucConDoSo.bottomAnchor.constraint(equalTo: khungThanhMucConDoSo.bottomAnchor, constant: -4),
 
-            khungXemSo.topAnchor.constraint(equalTo: khungThanhMucConDoSo.bottomAnchor, constant: 4),
+            khungXemSo.topAnchor.constraint(equalTo: khungDoSoXemSo.topAnchor),
             khungXemSo.leadingAnchor.constraint(equalTo: khungDoSoXemSo.leadingAnchor),
             khungXemSo.trailingAnchor.constraint(equalTo: khungDoSoXemSo.trailingAnchor),
             khungXemSo.bottomAnchor.constraint(equalTo: khungDoSoXemSo.bottomAnchor),
@@ -975,7 +999,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             thanhTieuDeDoanhThu.topAnchor.constraint(equalTo: khungCumDoanhThu.topAnchor),
             thanhTieuDeDoanhThu.leadingAnchor.constraint(equalTo: khungCumDoanhThu.leadingAnchor),
             thanhTieuDeDoanhThu.trailingAnchor.constraint(equalTo: khungCumDoanhThu.trailingAnchor),
-            thanhTieuDeDoanhThu.heightAnchor.constraint(greaterThanOrEqualToConstant: 29),
+            thanhTieuDeDoanhThu.heightAnchor.constraint(equalToConstant: 0),
 
             vachVangDauDT.topAnchor.constraint(equalTo: thanhTieuDeDoanhThu.topAnchor),
             vachVangDauDT.bottomAnchor.constraint(equalTo: thanhTieuDeDoanhThu.bottomAnchor),
@@ -994,7 +1018,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             cumChiSoChinh.leadingAnchor.constraint(equalTo: khungCumDoanhThu.leadingAnchor, constant: 7),
             cumChiSoChinh.trailingAnchor.constraint(equalTo: khungCumDoanhThu.trailingAnchor, constant: -7),
             cumChiSoChinh.bottomAnchor.constraint(equalTo: khungCumDoanhThu.bottomAnchor, constant: -7),
-            cumChiSoChinh.heightAnchor.constraint(equalToConstant: 146),
+            cumChiSoChinh.heightAnchor.constraint(equalToConstant: 92),
 
             rgTopDuoiTheoVach,
             khungCumDuoi.leadingAnchor.constraint(equalTo: khungXemSo.leadingAnchor, constant: 8),
@@ -2310,6 +2334,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         menuBenTrai.khiChonMucChinh = { [weak self] muc in
             guard let self = self else { return }
             self.mucMenuChinh = muc
+            if muc == .doSoXemSo { self.mucConDoSo = .xemSo }
             self.anMenu(animated: true)
             self.napDuLieu()
         }
@@ -2422,13 +2447,19 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             let kemNV = tatCaNV.suffix(5).reversed().enumerated().map {
                 "   \($0.offset + 1). \($0.element.nhanVien.hoTen): \($0.element.doanhThuQD.chuoiSoGonVN) QĐ · \($0.element.soLuongDon.chuoiSoGonVN) SL"
             }
-            nhanTomTatTongQuan.text = ([
+            var cacDongTongQuan: [String] = [
                 "TỔNG QUAN NGÀY \(ngayStr)", "",
                 "1. DOANH THU",
                 "   a. Lũy kế: Thực \(duLieu.doanhThu.doanhThuThuc.chuoiSoGonVN) · Quy đổi \(duLieu.doanhThu.doanhThuQuyDoi.chuoiSoGonVN) · HT \(duLieu.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram)",
                 "   b. Realtime: Thực \(duLieu.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN) · Quy đổi \(duLieu.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN)", "",
                 "2. NHÓM HÀNG BÁN TỐT (LŨY KẾ ĐẾN LẦN NHẬP GẦN NHẤT)"
-            ] + (nhomTot.isEmpty ? ["   Chưa có dữ liệu"] : nhomTot) + ["", "3. NHÂN VIÊN BÁN TỐT (TOP 5)"] + (topNV.isEmpty ? ["   Chưa có dữ liệu"] : topNV) + ["", "4. NHÂN VIÊN BÁN KÉM (TOP 5)"] + (kemNV.isEmpty ? ["   Chưa có dữ liệu"] : kemNV)).joined(separator: "\n")
+            ]
+            cacDongTongQuan.append(contentsOf: nhomTot.isEmpty ? ["   Chưa có dữ liệu"] : nhomTot)
+            cacDongTongQuan.append(contentsOf: ["", "3. NHÂN VIÊN BÁN TỐT (TOP 5)"])
+            cacDongTongQuan.append(contentsOf: topNV.isEmpty ? ["   Chưa có dữ liệu"] : topNV)
+            cacDongTongQuan.append(contentsOf: ["", "4. NHÂN VIÊN BÁN KÉM (TOP 5)"])
+            cacDongTongQuan.append(contentsOf: kemNV.isEmpty ? ["   Chưa có dữ liệu"] : kemNV)
+            nhanTomTatTongQuan.text = cacDongTongQuan.joined(separator: "\n")
 
         case .baoCao:
             manHinhBanTinNhung.capNhatNgay(ngayHienTai)
@@ -2482,14 +2513,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     }
 
     private func capNhatTrangThaiMuc() {
+        if mucMenuChinh == .doSoXemSo { mucConDoSo = .xemSo }
         menuBenTrai.capNhatTrangThai(mucChinh: mucMenuChinh, mucCon: mucConDoSo)
 
         let tieuDeNutMenu: String
-        if mucMenuChinh == .doSoXemSo {
-            tieuDeNutMenu = " \(mucConDoSo.tieuDeNgan)"
-        } else {
-            tieuDeNutMenu = " \(mucMenuChinh.tieuDe)"
-        }
+        tieuDeNutMenu = " \(mucMenuChinh.tieuDe)"
         nutMoMenu.setTitle(tieuDeNutMenu, for: .normal)
 
         let hienNutTrenNav = (mucMenuChinh == .doSoXemSo || mucMenuChinh == .tongQuan || mucMenuChinh == .baoCao || mucMenuChinh == .lichDoSo)
@@ -2616,8 +2644,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("📈 Mở Biểu đồ & Tổng hợp Realtime tháng", action: #selector(moNhanhBieuDoTuMucMoRong)))
 
         case .xuatFileBaoCao:
-            nhanMoTaMucMoRong.text = "Sao chép toàn bộ số liệu dạng JSON kèm câu lệnh để dán vào Copilot hoặc ứng dụng AI khác và yêu cầu tạo Excel/PowerPoint."
-            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("📋 Copy JSON + câu lệnh tạo file", action: #selector(bamCopyJSONXuatFileTuMenu)))
+            nhanMoTaMucMoRong.text = "Chọn nội dung và loại file. Ứng dụng sẽ tự sinh câu lệnh, copy vào clipboard và xuất đúng ảnh dữ liệu để gửi sang ứng dụng AI khác."
+            cauHinhKhuVucXuatFileBaoCao()
+            nganHanhDongMucMoRong.addArrangedSubview(nutChonNoiDungXuatFile)
+            nganHanhDongMucMoRong.addArrangedSubview(nutChonDinhDangFile)
+            nganHanhDongMucMoRong.addArrangedSubview(oCauLenhXuatFile)
+            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("📋 Copy câu lệnh & Xuất ảnh dữ liệu", action: #selector(bamCopyVaXuatAnhTaoFile)))
 
         case .nhanVien:
             nhanMoTaMucMoRong.text = "Xem bảng xếp hạng doanh thu nhân viên hoặc theo dõi sức khỏe đội ngũ."
@@ -2650,6 +2682,82 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nut.contentEdgeInsets = UIEdgeInsets(top: 11, left: 14, bottom: 11, right: 14)
         nut.addTarget(self, action: action, for: .touchUpInside)
         return nut
+    }
+
+    private func cauHinhKhuVucXuatFileBaoCao() {
+        func cauHinhCombo(_ nut: UIButton) {
+            nut.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+            nut.titleLabel?.numberOfLines = 0
+            nut.contentHorizontalAlignment = .left
+            nut.backgroundColor = BangMauBCTD.nenThePhu
+            nut.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+            nut.layer.cornerRadius = 10
+            nut.layer.borderWidth = 1
+            nut.layer.borderColor = BangMauBCTD.vienDam.cgColor
+            nut.contentEdgeInsets = UIEdgeInsets(top: 11, left: 12, bottom: 11, right: 12)
+            nut.showsMenuAsPrimaryAction = true
+        }
+        cauHinhCombo(nutChonNoiDungXuatFile)
+        cauHinhCombo(nutChonDinhDangFile)
+
+        let cacNoiDung = LoaiBaoCaoXuatAnh.allCases.map { loai in
+            UIAction(title: loai.tieuDeNgan, state: loai == noiDungXuatFileDangChon ? .on : .off) { [weak self] _ in
+                self?.noiDungXuatFileDangChon = loai
+                self?.cauHinhKhuVucXuatFileBaoCao()
+            }
+        }
+        nutChonNoiDungXuatFile.menu = UIMenu(title: "Nội dung xuất báo cáo", children: cacNoiDung)
+        nutChonNoiDungXuatFile.setTitle("Nội dung: \(noiDungXuatFileDangChon.tieuDeNgan) ▾", for: .normal)
+
+        let cacDinhDang = DinhDangFileBaoCao.allCases.map { dinhDang in
+            UIAction(title: dinhDang.rawValue, state: dinhDang == dinhDangFileDangChon ? .on : .off) { [weak self] _ in
+                self?.dinhDangFileDangChon = dinhDang
+                self?.cauHinhKhuVucXuatFileBaoCao()
+            }
+        }
+        nutChonDinhDangFile.menu = UIMenu(title: "Loại file cần tạo", children: cacDinhDang)
+        nutChonDinhDangFile.setTitle("Loại file: \(dinhDangFileDangChon.rawValue) ▾", for: .normal)
+
+        oCauLenhXuatFile.font = .systemFont(ofSize: 13.5)
+        oCauLenhXuatFile.textColor = BangMauBCTD.chuChinh
+        oCauLenhXuatFile.backgroundColor = BangMauBCTD.nenThePhu
+        oCauLenhXuatFile.layer.cornerRadius = 10
+        oCauLenhXuatFile.layer.borderWidth = 1
+        oCauLenhXuatFile.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        oCauLenhXuatFile.isScrollEnabled = true
+        if rangBuocCaoOCauLenhXuatFile == nil {
+            let rangBuoc = oCauLenhXuatFile.heightAnchor.constraint(equalToConstant: 210)
+            rangBuoc.isActive = true
+            rangBuocCaoOCauLenhXuatFile = rangBuoc
+        }
+        oCauLenhXuatFile.text = taoCauLenhXuatFile()
+    }
+
+    private func taoCauLenhXuatFile() -> String {
+        let yeuCauDinhDang: String
+        switch dinhDangFileDangChon {
+        case .excel:
+            yeuCauDinhDang = "Hãy tạo file Excel (.xlsx) có bảng dữ liệu rõ ràng, định dạng số/phần trăm đúng, bộ lọc, tổng hợp và biểu đồ phù hợp."
+        case .powerPoint:
+            yeuCauDinhDang = "Hãy tạo file PowerPoint (.pptx) trình bày chuyên nghiệp, chữ dễ đọc, có bảng hoặc biểu đồ phù hợp và trang kết luận hành động."
+        }
+        return """
+        Tôi gửi kèm một ảnh báo cáo: \(noiDungXuatFileDangChon.tieuDeNgan).
+        \(yeuCauDinhDang)
+        Hãy đọc toàn bộ số liệu trực tiếp từ ảnh, giữ nguyên tên ngành hàng/nhân viên, số âm, số 0, số thập phân và phần trăm. Không tự bịa hoặc thay đổi số liệu. Nếu ô nào không đọc rõ, hãy đánh dấu cần kiểm tra thay vì suy đoán. Khi hoàn tất, cung cấp file \(dinhDangFileDangChon.rawValue) để tải xuống.
+        """
+    }
+
+    @objc private func bamCopyVaXuatAnhTaoFile() {
+        let cauLenh = oCauLenhXuatFile.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        UIPasteboard.general.string = cauLenh.isEmpty ? taoCauLenhXuatFile() : cauLenh
+        guard let anh = taoAnhTheoLoaiBaoCao(noiDungXuatFileDangChon) else {
+            let tb = UIAlertController(title: "Chưa xuất được ảnh", message: "Không có đủ dữ liệu để tạo ảnh đã chọn. Câu lệnh vẫn được copy vào clipboard.", preferredStyle: .alert)
+            tb.addAction(UIAlertAction(title: "Đóng", style: .default))
+            present(tb, animated: true)
+            return
+        }
+        chiaSe([anh])
     }
 
     @objc private func moNhanhBieuDoTuMucMoRong() {
