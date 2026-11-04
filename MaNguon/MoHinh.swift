@@ -189,6 +189,8 @@ enum TabXemSo: Int, CaseIterable {
     case bieuDo = 2
     case nhanVien = 3
 
+    static var allCases: [TabXemSo] { [.luyKe, .realtime, .bieuDo] }
+
     var tieuDe: String {
         switch self {
         case .luyKe: return "Lũy kế"
@@ -258,9 +260,10 @@ enum MucMenuChinh: Int, CaseIterable {
     case lienHeVip = 12
     case quanTri = 13
     case trinhDuyet = 14
+    case nhanVien = 15
 
     static var allCases: [MucMenuChinh] {
-        [.tongQuan, .baoCao, .doSoXemSo, .xuatFileBaoCao, .caiDat, .quanTri]
+        [.tongQuan, .doSoXemSo, .nhanVien, .xuatFileBaoCao, .caiDat, .quanTri]
     }
 
     var tieuDe: String {
@@ -280,6 +283,7 @@ enum MucMenuChinh: Int, CaseIterable {
         case .lienHeVip: return "Liên hệ & gói VIP"
         case .quanTri: return "Quản trị"
         case .trinhDuyet: return "Trình duyệt Copilot"
+        case .nhanVien: return "Nhân viên"
         }
     }
 
@@ -300,6 +304,7 @@ enum MucMenuChinh: Int, CaseIterable {
         case .lienHeVip: return "phone.fill"
         case .quanTri: return "crown.fill"
         case .trinhDuyet: return "globe"
+        case .nhanVien: return "person.3.fill"
         }
     }
 

@@ -2213,6 +2213,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     // Hai nút chuyển đổi trên đỉnh mục Biểu đồ: 1. Biểu đồ Realtime | 2. Biểu đồ sức khỏe NV
     private let nutBieuDoRealtime = UIButton(type: .custom)
     private let nutBieuDoSucKhoeNV = UIButton(type: .custom)
+    private let hangHaiNutBieuDo = UIStackView()
 
     private var doanhThuLuyKe = ThongTinDoanhThu()
     private var tatCaNgayTrongThang: [DuLieuRealtimeNgayTrongThang] = []
@@ -2318,7 +2319,8 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         cauHinhNutChuyenBieuDo(nutBieuDoRealtime, tieuDe: "📊 Biểu đồ Realtime", tag: LoaiBieuDoThang.realtime.rawValue)
         cauHinhNutChuyenBieuDo(nutBieuDoSucKhoeNV, tieuDe: "❤️‍🩹 Biểu đồ sức khỏe NV", tag: LoaiBieuDoThang.sucKhoeNhanVien.rawValue)
 
-        let hangHaiNutBieuDo = UIStackView(arrangedSubviews: [nutBieuDoRealtime, nutBieuDoSucKhoeNV])
+        hangHaiNutBieuDo.addArrangedSubview(nutBieuDoRealtime)
+        hangHaiNutBieuDo.addArrangedSubview(nutBieuDoSucKhoeNV)
         hangHaiNutBieuDo.axis = .horizontal
         hangHaiNutBieuDo.spacing = 8
         hangHaiNutBieuDo.distribution = .fillEqually
@@ -2738,6 +2740,17 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     func chonLoaiBieuDo(_ loai: LoaiBieuDoThang) {
         loaiBieuDoDangXem = loai
         capNhatGiaoDienHaiNutBieuDo()
+    }
+
+    func hienThiRieng(_ loai: LoaiBieuDoThang) {
+        loaiBieuDoDangXem = loai
+        hangHaiNutBieuDo.isHidden = true
+        capNhatGiaoDienHaiNutBieuDo()
+        cuonDoc.setContentOffset(.zero, animated: false)
+    }
+
+    func hienThiBieuDoRealtime() {
+        hienThiRieng(.realtime)
     }
 
     private func capNhatGiaoDienHaiNutBieuDo() {

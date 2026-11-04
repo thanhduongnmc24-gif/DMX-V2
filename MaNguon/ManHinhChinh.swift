@@ -404,7 +404,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
     // 5. Khung nội dung cho các mục khác trong Menu (Tổng quan, Báo cáo AI, Cài đặt, Quản trị, Mở rộng)
     private let khungTongQuan = UIView()
-    private let nhanTomTatTongQuan = UILabel()
+    private let nhanTomTatTongQuan = UITextView()
     private let khungBaoCao = UIView()
     private lazy var manHinhBanTinNhung = ManHinhBanTin(ngay: ngayHienTai) { [weak self] khung, soLieu in
         self?.taoAnhBangChoBanTin(khung: khung, soLieu: soLieu) ?? []
@@ -1335,7 +1335,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         lbBuoc1.lineBreakMode = .byWordWrapping
         lbBuoc1.adjustsFontSizeToFitWidth = false
 
-        let nganLuoiLoai = UIStackView(arrangedSubviews: [lbBuoc1])
+        let nganLuoiLoai = UIStackView()
         nganLuoiLoai.axis = .vertical
         nganLuoiLoai.spacing = 8
         nganLuoiLoai.translatesAutoresizingMaskIntoConstraints = false
@@ -1510,16 +1510,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutCopyJSONXuatAnh.contentEdgeInsets = UIEdgeInsets(top: 12, left: 10, bottom: 12, right: 10)
         nutCopyJSONXuatAnh.addTarget(self, action: #selector(bamCopyJSONTuMucXuatAnh), for: .touchUpInside)
 
-        let nganVB = UIStackView(arrangedSubviews: [
-            hangTrenVB,
-            hangGiongXA,
-            oVanBanXuatAnh,
-            khungYeuCauXA,
-            nhanTrangThaiXuatAnh,
-            nutXuatAnhThat,
-            nutCopyJSONXuatAnh,
-            nutCopyRieng
-        ])
+        let nganVB = UIStackView(arrangedSubviews: [nutXuatAnhThat])
         nganVB.axis = .vertical
         nganVB.spacing = 10
         nganVB.translatesAutoresizingMaskIntoConstraints = false
@@ -1951,11 +1942,13 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         lbKickerChao.translatesAutoresizingMaskIntoConstraints = false
         theChao.addSubview(lbKickerChao)
 
-        nhanTomTatTongQuan.font = .systemFont(ofSize: 13.5, weight: .semibold)
+        nhanTomTatTongQuan.font = .systemFont(ofSize: 14, weight: .medium)
         nhanTomTatTongQuan.textColor = .white
-        nhanTomTatTongQuan.numberOfLines = 0
-        nhanTomTatTongQuan.lineBreakMode = .byWordWrapping
-        nhanTomTatTongQuan.adjustsFontSizeToFitWidth = false
+        nhanTomTatTongQuan.backgroundColor = .clear
+        nhanTomTatTongQuan.isEditable = false
+        nhanTomTatTongQuan.isScrollEnabled = true
+        nhanTomTatTongQuan.showsVerticalScrollIndicator = true
+        nhanTomTatTongQuan.textContainerInset = UIEdgeInsets(top: 8, left: 4, bottom: 8, right: 4)
         nhanTomTatTongQuan.translatesAutoresizingMaskIntoConstraints = false
         theChao.addSubview(nhanTomTatTongQuan)
 
@@ -1998,7 +1991,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             tag: 105
         )
 
-        [theChao, nhanHuongDan, nutMoBaoCao, nutMoXemSo, nutMoNhapSo, nutMoXuatAnh, nutMoCaiDat].forEach {
+        let nutCopyTongQuan = taoNutLoiTatTongQuan(
+            tieuDe: "📋 Copy thông tin tổng quan",
+            moTa: "Sao chép toàn bộ nội dung trong bảng phía trên",
+            mau: BangMauBCTD.xanhDatVach,
+            tag: 106
+        )
+
+        [theChao, nutCopyTongQuan].forEach {
             ngan.addArrangedSubview($0)
         }
 
@@ -2031,7 +2031,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             nhanTomTatTongQuan.topAnchor.constraint(equalTo: lbKickerChao.bottomAnchor, constant: 6),
             nhanTomTatTongQuan.leadingAnchor.constraint(equalTo: vachVangChao.trailingAnchor, constant: 12),
             nhanTomTatTongQuan.trailingAnchor.constraint(equalTo: theChao.trailingAnchor, constant: -14),
-            nhanTomTatTongQuan.bottomAnchor.constraint(equalTo: theChao.bottomAnchor, constant: -14)
+            nhanTomTatTongQuan.bottomAnchor.constraint(equalTo: theChao.bottomAnchor, constant: -14),
+            nhanTomTatTongQuan.heightAnchor.constraint(equalToConstant: max(420, UIScreen.main.bounds.height * 0.75))
         ])
     }
 
@@ -2107,6 +2108,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             mucConDoSo = .xuatAnh
         case 105:
             mucMenuChinh = .caiDat
+        case 106:
+            UIPasteboard.general.string = nhanTomTatTongQuan.text
+            let tb = UIAlertController(title: "Đã copy", message: "Đã sao chép thông tin tổng quan vào clipboard.", preferredStyle: .alert)
+            tb.addAction(UIAlertAction(title: "Đóng", style: .default))
+            present(tb, animated: true)
+            return
         default:
             break
         }
@@ -2402,19 +2409,26 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
         switch mucMenuChinh {
         case .tongQuan:
-            let soDatLK = duLieu.danhSachThiDua.filter(\.daDat).count
-            let tongLK = duLieu.danhSachThiDua.count
-            let soDatRT = duLieu.danhSachThiDuaRealtime.filter(\.daDat).count
-            let tongRT = duLieu.danhSachThiDuaRealtime.count
-            let soNV = KhoDuLieu.dungChung.caiDat.danhSachNhanVien.count
             let ngayStr = TienIchNgay.hienThiNgay.string(from: ngayHienTai)
-            nhanTomTatTongQuan.text = [
-                "📅 Ngày báo cáo: \(ngayStr)",
-                "• Doanh thu Lũy kế: Thực \(duLieu.doanhThu.doanhThuThuc.chuoiSoGonVN) | QĐ \(duLieu.doanhThu.doanhThuQuyDoi.chuoiSoGonVN) (\(duLieu.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram))",
-                "• Doanh thu Realtime: Thực \(duLieu.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN) | QĐ \(duLieu.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN)",
-                "• Thi đua Lũy kế đạt: \(soDatLK)/\(tongLK) ngành hàng   •   Thi đua Realtime đạt: \(soDatRT)/\(tongRT) ngành hàng",
-                "• Nhân sự đang quản lý: \(soNV) nhân viên"
-            ].joined(separator: "\n")
+            let nhomTot = duLieu.danhSachThiDua
+                .sorted { $0.phanTramHT > $1.phanTramHT }
+                .prefix(5)
+                .enumerated()
+                .map { "   \($0.offset + 1). \($0.element.tenNganhHang): \($0.element.thucHien.chuoiSoGonVN)/\($0.element.target.chuoiSoGonVN) (\($0.element.phanTramHT.chuoiPhanTram))" }
+            let tatCaNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .doanhThuQD, cheDo: .luyKe)
+            let topNV = tatCaNV.prefix(5).enumerated().map {
+                "   \($0.offset + 1). \($0.element.nhanVien.hoTen): \($0.element.doanhThuQD.chuoiSoGonVN) QĐ · \($0.element.soLuongDon.chuoiSoGonVN) SL"
+            }
+            let kemNV = tatCaNV.suffix(5).reversed().enumerated().map {
+                "   \($0.offset + 1). \($0.element.nhanVien.hoTen): \($0.element.doanhThuQD.chuoiSoGonVN) QĐ · \($0.element.soLuongDon.chuoiSoGonVN) SL"
+            }
+            nhanTomTatTongQuan.text = ([
+                "TỔNG QUAN NGÀY \(ngayStr)", "",
+                "1. DOANH THU",
+                "   a. Lũy kế: Thực \(duLieu.doanhThu.doanhThuThuc.chuoiSoGonVN) · Quy đổi \(duLieu.doanhThu.doanhThuQuyDoi.chuoiSoGonVN) · HT \(duLieu.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram)",
+                "   b. Realtime: Thực \(duLieu.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN) · Quy đổi \(duLieu.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN)", "",
+                "2. NHÓM HÀNG BÁN TỐT (LŨY KẾ ĐẾN LẦN NHẬP GẦN NHẤT)"
+            ] + (nhomTot.isEmpty ? ["   Chưa có dữ liệu"] : nhomTot) + ["", "3. NHÂN VIÊN BÁN TỐT (TOP 5)"] + (topNV.isEmpty ? ["   Chưa có dữ liệu"] : topNV) + ["", "4. NHÂN VIÊN BÁN KÉM (TOP 5)"] + (kemNV.isEmpty ? ["   Chưa có dữ liệu"] : kemNV)).joined(separator: "\n")
 
         case .baoCao:
             manHinhBanTinNhung.capNhatNgay(ngayHienTai)
@@ -2435,6 +2449,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 case .nhanVien:
                     bangNhanVien.capNhat(cho: ngayHienTai, cheDo: cheDoDoanhThu)
                 case .bieuDo:
+                    bangRealtimeThang.hienThiBieuDoRealtime()
                     bangRealtimeThang.capNhat(cho: ngayHienTai)
                 }
 
@@ -2604,6 +2619,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             nhanMoTaMucMoRong.text = "Sao chép toàn bộ số liệu dạng JSON kèm câu lệnh để dán vào Copilot hoặc ứng dụng AI khác và yêu cầu tạo Excel/PowerPoint."
             nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("📋 Copy JSON + câu lệnh tạo file", action: #selector(bamCopyJSONXuatFileTuMenu)))
 
+        case .nhanVien:
+            nhanMoTaMucMoRong.text = "Xem bảng xếp hạng doanh thu nhân viên hoặc theo dõi sức khỏe đội ngũ."
+            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("👥 Bảng xếp hạng nhân viên", action: #selector(moNhanVienTuMenu)))
+            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("❤️‍🩹 Sức khỏe nhân viên", action: #selector(moSucKhoeNhanVienTuMenu)))
+
         case .ketNoi:
             let tk = DichVuDongBo.dungChung.tenDangNhap.isEmpty ? "Chưa đăng nhập" : DichVuDongBo.dungChung.tenDangNhap
             nhanMoTaMucMoRong.text = "Trạng thái kết nối đồng bộ đám mây với máy chủ ĐMX (duongnt.io.vn/dmx).\nTài khoản hiện tại: \(tk)."
@@ -2637,6 +2657,21 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         mucConDoSo = .xemSo
         tabXemSo = .bieuDo
         napDuLieu()
+    }
+
+    @objc private func moNhanVienTuMenu() {
+        mucMenuChinh = .doSoXemSo
+        mucConDoSo = .xemSo
+        tabXemSo = .nhanVien
+        napDuLieu()
+    }
+
+    @objc private func moSucKhoeNhanVienTuMenu() {
+        mucMenuChinh = .doSoXemSo
+        mucConDoSo = .xemSo
+        tabXemSo = .bieuDo
+        napDuLieu()
+        bangRealtimeThang.hienThiRieng(.sucKhoeNhanVien)
     }
 
     /// Mở mục Báo cáo & Phân tích AI Gemini
@@ -3465,10 +3500,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let dsDangChon = dl.danhSachThiDua(theo: cheDoCSV)
 
         let cacMuc: [MucChonDMX] = [
-            MucChonDMX(tieuDe: "📰 Mở mục Báo cáo") { [weak self] in
-                self?.mucMenuChinh = .baoCao
-                self?.napDuLieu()
-            },
             MucChonDMX(tieuDe: "🖼️ Mở mục 3. Xuất ảnh (Có ô Text báo cáo + Copy gửi LINE)") { [weak self] in
                 self?.mucMenuChinh = .doSoXemSo
                 self?.mucConDoSo = .xuatAnh
