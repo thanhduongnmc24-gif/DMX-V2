@@ -2310,7 +2310,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 let ttRT = duLieu.doanhThuRealtime.coDuLieu ? "Đã có (\(duLieu.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN) tr QĐ)" : "Chưa nhập"
                 nhanTrangThaiNhapSo.text = [
                     "📅 TRẠNG THÁI DỮ LIỆU NGÀY \(ngayStr):",
-                    "• Lũy kế: Doanh thu [\(ttLK)] · Thi đua [\(duLieu.danhSachThiDua.count) ngành] · Doanh thu NV [\(duLieu.doanhThuNhanVienLuyKe.count) NV]",
+                    "• Lũy kế: Doanh thu [\(ttLK)] · Thi đua [\(duLieu.danhSachThiDua.count) ngành] · Doanh thu NV [\(duLieu.doanhThuNhanVien.count) NV]",
                     "• Realtime: Doanh thu [\(ttRT)] · Thi đua [\(duLieu.danhSachThiDuaRealtime.count) ngành] · Doanh thu NV [\(duLieu.doanhThuNhanVienRealtime.count) NV]"
                 ].joined(separator: "\n")
 

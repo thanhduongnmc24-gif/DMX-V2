@@ -313,7 +313,7 @@ final class BoVietBanTin {
         }()
 
         // 4) Ghi nhận nhân viên bán tốt
-        let dsNVLuyKe = KhoDuLieu.dungChung.duLieu(cho: s.ngay).doanhThuNhanVienLuyKe
+        let dsNVLuyKe = KhoDuLieu.dungChung.duLieu(cho: s.ngay).doanhThuNhanVien
         let dsNVRealtime = s.homNayNV
         var dongNVTot: [String] = []
 
@@ -356,8 +356,8 @@ final class BoVietBanTin {
         // Mục 1
         L.append("1) **Doanh thu hiện tại so với lũy kế / target**:")
         if s.coSoLieuLuyKe {
-            L.append("- Doanh thu lũy kế: **\(Int(dtLK.rounded()).dinhDangSoVN) triệu**")
-            L.append("- Target: **\(Int(tgLK.rounded()).dinhDangSoVN) triệu**")
+            L.append("- Doanh thu lũy kế: **\(dtLK.chuoiSoNguyenVN) triệu**")
+            L.append("- Target: **\(tgLK.chuoiSoNguyenVN) triệu**")
             L.append("- % hoàn thành: **\(String(format: "%.0f%%", ptHTLK))** (Dự kiến cuối tháng: **\(lk.phanTramHTQDDuKienHienThi.chuoiPhanTram)**)")
         } else {
             L.append("- Doanh thu lũy kế: Chưa nhập ảnh Doanh thu lũy kế hôm nay")
@@ -550,7 +550,7 @@ final class BoVietBanTin {
             if !dsDT.isEmpty {
                 L.append("1) Top Doanh thu Quy đổi (\(cheDo.tieuDe)):")
                 for (i, nv) in dsDT.prefix(6).enumerated() {
-                    L.append("  \(i + 1). \(nv.hoTen): \(nv.doanhThuQD.chuoiSoGonVN) triệu QĐ (Thực: \(nv.doanhThuThuc.chuoiSoGonVN) tr • QĐ: \(nv.hieuQuaQD.chuoiPhanTram))")
+                    L.append("  \(i + 1). \(nv.hoTen): \(nv.doanhThuQD.chuoiSoGonVN) triệu QĐ (Thực: \(nv.doanhThuThuc.chuoiSoGonVN) tr • QĐ: \(nv.phanTramQuyDoi.chuoiPhanTram))")
                 }
                 L.append("")
             }
@@ -594,7 +594,7 @@ final class BoVietBanTin {
             return L.joined(separator: "\n")
 
         case .bieuDoRealtimeThang:
-            let dsNgay = KhoDuLieu.dungChung.danhSachRealtimeTrongThang(cho: ngay).filter(\.coDuLieu)
+            let dsNgay = KhoDuLieu.dungChung.danhSachRealtimeTheoNgayTrongThang(cho: ngay).filter(\.coDuLieu)
             let tongQD = dsNgay.map(\.doanhThuQuyDoi).reduce(0, +)
             let tongThuc = dsNgay.map(\.doanhThuThuc).reduce(0, +)
             let tbQD = dsNgay.isEmpty ? 0 : tongQD / Double(dsNgay.count)
@@ -608,7 +608,7 @@ final class BoVietBanTin {
                 "• Tổng Doanh thu Quy đổi các ngày: \(tongQD.chuoiSoGonVN) triệu (Trung bình: \(tbQD.chuoiSoGonVN) triệu/ngày)"
             ]
             if let maxD = caoNhat {
-                L.append("• Ngày cao điểm nhất: Ngày \(maxD.ngayTrongThang) đạt \(maxD.doanhThuQuyDoi.chuoiSoGonVN) triệu QĐ (\(maxD.phanTramHTQuyDoi.chuoiPhanTram))")
+                L.append("• Ngày cao điểm nhất: Ngày \(maxD.ngayTrongThang) đạt \(maxD.doanhThuQuyDoi.chuoiSoGonVN) triệu QĐ (\(maxD.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram))")
             }
             L.append("• Cả siêu thị tiếp tục duy trì nhịp độ chốt đơn đều đặn ở tất cả các khung giờ!")
             return L.joined(separator: "\n")
@@ -714,7 +714,9 @@ final class DichVuGeminiAI {
         goiTiepModel(danhSachModel: danhSachThu, chiSo: 0, apiKey: key, prompt: cauLenhThu) { kq in
             DispatchQueue.main.async {
                 switch kq {
-                case .success(let (modelOK, text)):
+                case .success(let ketQua):
+                    let modelOK = ketQua.0
+                    let text = ketQua.1
                     hoanTat(.success((modelOK, text)))
                 case .failure(let loi):
                     hoanTat(.failure(loi))
@@ -750,7 +752,8 @@ final class DichVuGeminiAI {
         goiTiepModel(danhSachModel: danhSachThu, chiSo: 0, apiKey: key, prompt: prompt) { kq in
             DispatchQueue.main.async {
                 switch kq {
-                case .success(let (_, vanBan)):
+                case .success(let ketQua):
+                    let vanBan = ketQua.1
                     hoanTat(.success(vanBan))
                 case .failure(let loi):
                     hoanTat(.failure(loi))
@@ -947,7 +950,7 @@ enum BoXuatOfficeDMX {
                 d.target.chuoiSoGonVN,
                 thieu.chuoiSoGonVN,
                 d.phanTramHT.chuoiPhanTram,
-                d.duKienCuoiThang.chuoiSoGonVN,
+                d.duKien.chuoiSoGonVN,
                 d.phanTramDuBao.chuoiPhanTram
             ])
         }
@@ -972,7 +975,7 @@ enum BoXuatOfficeDMX {
 
         // Sheet 4: Xếp hạng Nhân viên
         let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: .luyKe)
-        let mapDTLK = Dictionary(uniqueKeysWithValues: dl.doanhThuNhanVienLuyKe.map { (KhoDuLieu.chuanHoaMaNV($0.maNV), $0) })
+        let mapDTLK = Dictionary(uniqueKeysWithValues: dl.doanhThuNhanVien.map { (KhoDuLieu.chuanHoaMaNV($0.maNV), $0) })
         let mapDTRT = Dictionary(uniqueKeysWithValues: dl.doanhThuNhanVienRealtime.map { (KhoDuLieu.chuanHoaMaNV($0.maNV), $0) })
         var dongSheet4: [[String]] = [
             ["BẢNG XẾP HẠNG NHÂN VIÊN (\(ngayStr))"],

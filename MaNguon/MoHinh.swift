@@ -932,6 +932,17 @@ struct CaiDatDMX: Codable {
     var geminiApiKey: String = CaiDatDMX.geminiKeyMacDinh
     var geminiModel: String = CaiDatDMX.geminiModelMacDinh
 
+    enum CodingKeys: String, CodingKey {
+        case kieuHienThi
+        case danhSachCumTuLocBo
+        case soCotXuatAnh
+        case danhSachNhanVien
+        case chiaTargetNganhHang
+        case mucTieuDoanhThuQDThang
+        case geminiApiKey
+        case geminiModel
+    }
+
     static let nhanVienMau: [NhanVienQuanLy] = [
         .init(maNV: "24939", hoTen: "Phan Hoàng Sơn"),
         .init(maNV: "201962", hoTen: "Nguyễn Thị Kim Loan"),

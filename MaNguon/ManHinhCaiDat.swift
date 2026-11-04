@@ -154,7 +154,9 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             self.nutKiemTraKeyGemini.setTitle("🔍 Kiểm tra & Dùng thử Key Gemini ngay", for: .normal)
 
             switch kq {
-            case .success(let (modelOK, phanHoi)):
+            case .success(let ketQua):
+                let modelOK = ketQua.modelThanhCong
+                let phanHoi = ketQua.phanHoiMau
                 self.modelGeminiDangChon = modelOK
                 self.capNhatTieuDeNutModelGemini()
                 self.dongBoTamCaiDat()
