@@ -46,7 +46,13 @@ final class DichVuQuetAnhGemini {
                   let text = responseParts.compactMap({ $0["text"] as? String }).first,
                   let jsonData = text.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
-                let msg = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? [String: Any]
+                let msg: [String: Any]?
+                if let errorData = data,
+                   let errorRoot = try? JSONSerialization.jsonObject(with: errorData) as? [String: Any] {
+                    msg = errorRoot["error"] as? [String: Any]
+                } else {
+                    msg = nil
+                }
                 let loi = (msg?["message"] as? String) ?? "Gemini không trả về dữ liệu bảng hợp lệ."
                 DispatchQueue.main.async { hoanTat(.failure(NSError(domain: "GeminiVision", code: 500, userInfo: [NSLocalizedDescriptionKey: loi]))) }
                 return
