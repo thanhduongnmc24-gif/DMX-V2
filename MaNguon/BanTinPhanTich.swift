@@ -1588,7 +1588,7 @@ enum BoXuatOfficeDMX {
             .so(dl.doanhThuRealtime.targetQuyDoi),
             .congThuc("MAX(0,E\(rRealtime)-D\(rRealtime))", giaTriTam: thieuQDRT),
             .phanTram(dl.doanhThuRealtime.phanTramHTQDDuKienHienThi),
-            .chu("Lượt khách: \(Int(dl.doanhThuRealtime.luotKhach)) • Tỷ lệ trả góp: \(dl.doanhThuRealtime.phanTramTraCham.chuoiPhanTram)", kieu: .macDinh)
+            .chu("Lượt khách: \(Int(dl.doanhThuRealtime.luotKhach)) • Tỷ lệ trả góp: \(dl.doanhThuRealtime.phanTramTraGop.chuoiPhanTram)", kieu: .macDinh)
         ], chieuCao: 24))
 
         d1.append(DongExcel([
@@ -2094,7 +2094,7 @@ enum BoXuatOfficeDMX {
                 .chu(hs.nhanVien.maNV, kieu: .canGiua),
                 .chu(hs.nhanVien.hoTen, kieu: .inDam),
                 .phanTram(hs.diemSucKhoe, kieu: kieuMuc),
-                .chu("\(hs.mucDo.bieuTuong) \(hs.mucDo.tieuDe)", kieu: kieuMuc),
+                .chu("\(hs.mucDo.kyHieu) \(hs.mucDo.nhan)", kieu: kieuMuc),
                 .chu(hs.nhanXuHuong, kieu: .canGiua),
                 .chu(hs.soNgayYeuLienTuc > 0 ? "\(hs.soNgayYeuLienTuc) ngày" : "0", kieu: hs.soNgayYeuLienTuc >= 2 ? .trangThaiYeu : .canGiua)
             ]
@@ -2342,7 +2342,7 @@ enum BoXuatOfficeDMX {
         let bangSlide1: [[String]] = [
             ["Hạng mục Báo cáo", "Doanh thu Thực", "Doanh thu Quy đổi", "Target Quy đổi", "% Hoàn thành", "Nhận định điều hành"],
             ["Lũy kế tháng (\(ngayStr))", "\(dl.doanhThu.doanhThuThuc.chuoiSoGonVN) tr", "\(dl.doanhThu.doanhThuQuyDoi.chuoiSoGonVN) tr", "\(dl.doanhThu.targetQuyDoi.chuoiSoGonVN) tr", dl.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram, hoSo.tomTatDieuHanh],
-            ["Realtime trong ngày", "\(dl.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN) tr", "\(dl.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN) tr", "\(dl.doanhThuRealtime.targetQuyDoi.chuoiSoGonVN) tr", dl.doanhThuRealtime.phanTramHTQDDuKienHienThi.chuoiPhanTram, "Lượt khách: \(Int(dl.doanhThuRealtime.luotKhach)) • Trả góp: \(dl.doanhThuRealtime.phanTramTraCham.chuoiPhanTram)"],
+            ["Realtime trong ngày", "\(dl.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN) tr", "\(dl.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN) tr", "\(dl.doanhThuRealtime.targetQuyDoi.chuoiSoGonVN) tr", dl.doanhThuRealtime.phanTramHTQDDuKienHienThi.chuoiPhanTram, "Lượt khách: \(Int(dl.doanhThuRealtime.luotKhach)) • Trả góp: \(dl.doanhThuRealtime.phanTramTraGop.chuoiPhanTram)"],
             ["Dự báo cuối tháng", "\(duBao.duKienThucCuoiThang.chuoiSoGonVN) tr", "\(duBao.duKienQDCuoiThang.chuoiSoGonVN) tr", "\(duBao.mucTieuThang.chuoiSoGonVN) tr", duBao.phanTramHTQDDuKien.chuoiPhanTram, "TB ngày: \(duBao.trungBinhQDMoiNgay.chuoiSoGonVN) tr / Định mức: \(duBao.mucTieuMoiNgay.chuoiSoGonVN) tr"]
         ]
         let slide1XML = taoSlideChuyenNghiepXML(
@@ -2484,7 +2484,7 @@ enum BoXuatOfficeDMX {
         if bangSlide6.count == 1 {
             for (idx, hs) in bcSK.danhSachTatCa.prefix(6).enumerated() {
                 bangSlide6.append([
-                    "\(hs.mucDo.bieuTuong) #\(idx + 1)",
+                    "\(hs.mucDo.kyHieu) #\(idx + 1)",
                     hs.nhanVien.maNV,
                     hs.nhanVien.hoTen,
                     "\(Int(round(hs.diemSucKhoe)))%",

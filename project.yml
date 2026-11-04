@@ -25,7 +25,7 @@ targets:
           - ThongTin.plist
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.thanhduong.tonghopdmx
+        PRODUCT_BUNDLE_IDENTIFIER: com.thanhduong.v2dmx
         PRODUCT_NAME: TongHopDMX
         INFOPLIST_FILE: TaiNguyen/ThongTin.plist
         CURRENT_PROJECT_VERSION: 1
