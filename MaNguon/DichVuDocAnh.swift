@@ -37,7 +37,6 @@ struct KetQuaQuetTatCaAnh {
 
     var capNhatLuc: String = ""
     var thongTinDonVi: String = ""
-    var thongBaoLoi: String = ""
 
     var coDuLieu: Bool {
         (doanhThu?.coDuLieu ?? false) ||
@@ -101,23 +100,6 @@ final class DichVuDocAnh {
         tienTrinh: @escaping (String) -> Void,
         hoanTat: @escaping (KetQuaQuetTatCaAnh) -> Void
     ) {
-        if KhoDuLieu.dungChung.caiDat.dungGeminiQuetAnh {
-            DichVuQuetAnhGemini.dungChung.quet(
-                danhSachAnh: danhSachAnh,
-                cheDo: cheDoDangChon,
-                tienTrinh: tienTrinh
-            ) { ketQua in
-                switch ketQua {
-                case .success(let kq): hoanTat(kq)
-                case .failure(let loi):
-                    var kqLoi = KetQuaQuetTatCaAnh()
-                    kqLoi.thongBaoLoi = loi.localizedDescription
-                    tienTrinh("Gemini không đọc được ảnh: \(loi.localizedDescription)")
-                    hoanTat(kqLoi)
-                }
-            }
-            return
-        }
         DispatchQueue.global(qos: .userInitiated).async {
             var kq = KetQuaQuetTatCaAnh()
             let laRealtime = (cheDoDangChon == .realtime)

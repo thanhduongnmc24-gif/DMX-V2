@@ -10,15 +10,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     private let nutDoiMatKhauNhanh = UIButton(type: .system)
     private let nutDangXuatNhanh = UIButton(type: .system)
 
-    // Cụm cài đặt Google Gemini AI (Miễn phí)
-    private let oNhapGeminiKey = UITextField()
-    private let nutChonModelGemini = UIButton(type: .system)
-    private let nutKiemTraKeyGemini = UIButton(type: .system)
-    private let nutKhoiPhucKeyMacDinh = UIButton(type: .system)
-    private let nhanTrangThaiGemini = UILabel()
-    private var modelGeminiDangChon: String = "gemini-2.5-flash"
-    private let chonCongCuQuetAnh = UISegmentedControl(items: ["OCR trên máy", "Gemini 2.5"])
-
     private let chonKieuHienThi = UISegmentedControl(items: ["Bảng 8 cột (Chi tiết)", "Thẻ tiến độ (Gọn)"])
     private let chonSoCotXuat = UISegmentedControl(items: ["1 cột", "2 cột", "3 cột", "4 cột"])
     private let nutChiaTarget = UIButton(type: .system)
@@ -39,10 +30,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         chonKieuHienThi.selectedSegmentIndex = cd.kieuHienThi.rawValue
         danhSachCumTu = cd.danhSachCumTuLocBo
         chonSoCotXuat.selectedSegmentIndex = max(0, min(3, cd.soCotXuatAnh - 1))
-        oNhapGeminiKey.text = cd.geminiApiKey.isEmpty ? DichVuGeminiAI.khoaMacDinh : cd.geminiApiKey
-        modelGeminiDangChon = cd.geminiModel.hasPrefix("gemini-2.5-") ? cd.geminiModel : "gemini-2.5-flash"
-        chonCongCuQuetAnh.selectedSegmentIndex = cd.dungGeminiQuetAnh ? 1 : 0
-        capNhatTieuDeNutModelGemini()
         bangCumTu.reloadData()
         capNhatThongTinTaiKhoanUI()
         capNhatTieuDeNutNhanVien()
@@ -54,11 +41,10 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Cài đặt & Gemini AI"
+        title = "Cài đặt"
         view.backgroundColor = BangMauBCTD.nenTrang
         chonKieuHienThi.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
         chonSoCotXuat.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
-        chonCongCuQuetAnh.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
 
         let nutLuu = UIBarButtonItem(
             title: "Lưu",
@@ -80,12 +66,8 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         danhSachCumTu = cd.danhSachCumTuLocBo
         let chiSoCot = max(0, min(3, cd.soCotXuatAnh - 1))
         chonSoCotXuat.selectedSegmentIndex = chiSoCot
-        oNhapGeminiKey.text = cd.geminiApiKey.isEmpty ? DichVuGeminiAI.khoaMacDinh : cd.geminiApiKey
-        modelGeminiDangChon = cd.geminiModel.hasPrefix("gemini-2.5-") ? cd.geminiModel : "gemini-2.5-flash"
-        chonCongCuQuetAnh.selectedSegmentIndex = cd.dungGeminiQuetAnh ? 1 : 0
 
         taoGiaoDien()
-        capNhatTieuDeNutModelGemini()
         capNhatThongTinTaiKhoanUI()
         capNhatTieuDeNutNhanVien()
     }
@@ -104,81 +86,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
         nhanHopThuThongBao.text = "📩 Hệ thống ĐMX (\(ngayStr)): Dữ liệu và cài đặt của tài khoản \(ten) được đồng bộ đám mây tự động."
         nutMoAdminTaiKhoan.isHidden = !laAdmin
-    }
-
-    private func capNhatTieuDeNutModelGemini() {
-        let moTa = DichVuGeminiAI.cacModelMienPhi.first(where: { $0.ma == modelGeminiDangChon })?.ten
-            ?? "\(modelGeminiDangChon) (Miễn phí)"
-        nutChonModelGemini.setTitle("⚡ Model miễn phí: \(moTa) ▾", for: .normal)
-    }
-
-    @objc private func bamChonModelGemini() {
-        var cacMuc: [MucChonDMX] = []
-        for item in DichVuGeminiAI.cacModelMienPhi {
-            let dangChon = (item.ma == modelGeminiDangChon)
-            cacMuc.append(MucChonDMX(tieuDe: item.ten, dangChon: dangChon) { [weak self] in
-                guard let self = self else { return }
-                self.modelGeminiDangChon = item.ma
-                self.capNhatTieuDeNutModelGemini()
-                self.dongBoTamCaiDat()
-                self.khiThayDoiCaiDat?()
-            })
-        }
-        cacMuc.append(MucChonDMX(tieuDe: "Đóng", kieu: .huy))
-        hienMenuChon(
-            tieuDe: "Chọn Model Google Gemini (Không tính phí)",
-            thongDiep: "Tất cả các dòng Gemini Flash bên dưới đều thuộc gói miễn phí (Free Tier) của Google AI Studio:",
-            cacMuc: cacMuc
-        )
-    }
-
-    @objc private func bamKhoiPhucKeyMacDinh() {
-        oNhapGeminiKey.text = DichVuGeminiAI.khoaMacDinh
-        modelGeminiDangChon = "gemini-2.5-flash"
-        capNhatTieuDeNutModelGemini()
-        dongBoTamCaiDat()
-        bamKiemTraKeyGemini()
-    }
-
-    @objc private func bamKiemTraKeyGemini() {
-        view.endEditing(true)
-        dongBoTamCaiDat()
-        let key = (oNhapGeminiKey.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let keyDung = key.isEmpty ? DichVuGeminiAI.khoaMacDinh : key
-        oNhapGeminiKey.text = keyDung
-
-        nutKiemTraKeyGemini.isEnabled = false
-        nutKiemTraKeyGemini.setTitle("⏳ Đang kiểm tra kết nối Gemini AI...", for: .normal)
-        nhanTrangThaiGemini.text = "🔄 Đang gửi yêu cầu kiểm tra key tới máy chủ Google Gemini (\(modelGeminiDangChon))..."
-        nhanTrangThaiGemini.textColor = BangMauBCTD.xanhChuDao
-
-        DichVuGeminiAI.dungChung.kiemTraVaDungThuKey(apiKey: keyDung, model: modelGeminiDangChon) { [weak self] kq in
-            guard let self = self else { return }
-            self.nutKiemTraKeyGemini.isEnabled = true
-            self.nutKiemTraKeyGemini.setTitle("🔍 Kiểm tra & Dùng thử Key Gemini ngay", for: .normal)
-
-            switch kq {
-            case .success(let ketQua):
-                let modelOK = ketQua.modelThanhCong
-                let phanHoi = ketQua.phanHoiMau
-                self.modelGeminiDangChon = modelOK
-                self.capNhatTieuDeNutModelGemini()
-                self.dongBoTamCaiDat()
-                self.nhanTrangThaiGemini.text = "✅ Kết nối thành công với model miễn phí \"\(modelOK)\"!\n💬 Phản hồi thử: \(phanHoi)"
-                self.nhanTrangThaiGemini.textColor = BangMauBCTD.xanhLaDam
-                self.hienThongBao(
-                    tieuDe: "✅ Key Gemini Hoạt Động Tốt",
-                    noiDung: "Model sử dụng: \(modelOK) (Miễn phí)\n\nPhản hồi từ AI:\n\(phanHoi)"
-                )
-            case .failure(let loi):
-                self.nhanTrangThaiGemini.text = "⚠️ Không thể xác thực trực tiếp lúc này: \(loi.localizedDescription). Đã lưu key để dùng cho mục Báo cáo & Xuất ảnh."
-                self.nhanTrangThaiGemini.textColor = BangMauBCTD.doYeuChu
-                self.hienThongBao(
-                    tieuDe: "Thông báo kiểm tra Key Gemini",
-                    noiDung: "Chi tiết phản hồi từ Google API:\n\(loi.localizedDescription)\n\n(Key đã được lưu sẵn. Khi không có mạng hoặc hết hạn mức, ứng dụng vẫn tự động tạo báo cáo chuẩn 5 mục ngay lập tức)."
-                )
-            }
-        }
     }
 
     @objc private func thayDoiTuyChonHienThi() {
@@ -302,15 +209,11 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         let kieu = KieuHienThiBaoCao(rawValue: chonKieuHienThi.selectedSegmentIndex) ?? .bangChiTiet
         let soCot = chonSoCotXuat.selectedSegmentIndex + 1
-        let keyGemini = (oNhapGeminiKey.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
         var moi = KhoDuLieu.dungChung.caiDat
         moi.kieuHienThi = kieu
         moi.danhSachCumTuLocBo = danhSachCumTu
         moi.soCotXuatAnh = soCot
-        moi.geminiApiKey = keyGemini.isEmpty ? DichVuGeminiAI.khoaMacDinh : keyGemini
-        moi.geminiModel = modelGeminiDangChon
-        moi.dungGeminiQuetAnh = (chonCongCuQuetAnh.selectedSegmentIndex == 1)
         KhoDuLieu.dungChung.luuCaiDat(moi)
     }
 
@@ -336,106 +239,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nganTong.spacing = 10
         nganTong.translatesAutoresizingMaskIntoConstraints = false
         cuon.addSubview(nganTong)
-
-        // 0. KHUNG CÀI ĐẶT GOOGLE GEMINI AI (MIỄN PHÍ)
-        let tieuDeGemini = taoTieuDeNhom("🤖 TRÍ TUỆ NHÂN TẠO GOOGLE GEMINI (MIỄN PHÍ — PHÂN TÍCH BÁO CÁO)")
-        let khungGemini = UIView()
-        khungGemini.backgroundColor = BangMauBCTD.nenThe
-        khungGemini.layer.cornerRadius = 12
-        khungGemini.layer.borderWidth = 1.2
-        khungGemini.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
-
-        let nhanMoTaGemini = UILabel()
-        nhanMoTaGemini.text = "Nhập Google Gemini API Key để phân tích số liệu và viết báo cáo tự động. Ứng dụng sử dụng dòng model Gemini Flash miễn phí (Free Tier) không bị tính phí, đã tích hợp sẵn Key mặc định bên dưới:"
-        nhanMoTaGemini.font = .systemFont(ofSize: 13.0, weight: .medium)
-        nhanMoTaGemini.textColor = BangMauBCTD.chuPhu
-        nhanMoTaGemini.numberOfLines = 0
-        nhanMoTaGemini.lineBreakMode = .byWordWrapping
-        nhanMoTaGemini.adjustsFontSizeToFitWidth = false
-
-        oNhapGeminiKey.placeholder = "Nhập Google Gemini API Key (AIzaSy...)"
-        oNhapGeminiKey.borderStyle = .roundedRect
-        oNhapGeminiKey.font = .monospacedSystemFont(ofSize: 13.0, weight: .semibold)
-        oNhapGeminiKey.textColor = BangMauBCTD.chuChinh
-        oNhapGeminiKey.backgroundColor = BangMauBCTD.nenThePhu
-        oNhapGeminiKey.clearButtonMode = .whileEditing
-        oNhapGeminiKey.autocapitalizationType = .none
-        oNhapGeminiKey.autocorrectionType = .no
-        oNhapGeminiKey.returnKeyType = .done
-        oNhapGeminiKey.delegate = self
-
-        nutChonModelGemini.titleLabel?.font = .systemFont(ofSize: 13.0, weight: .bold)
-        nutChonModelGemini.titleLabel?.numberOfLines = 0
-        nutChonModelGemini.titleLabel?.lineBreakMode = .byWordWrapping
-        nutChonModelGemini.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutChonModelGemini.contentHorizontalAlignment = .left
-        nutChonModelGemini.backgroundColor = BangMauBCTD.nenHeaderBang
-        nutChonModelGemini.tintColor = .white
-        nutChonModelGemini.setTitleColor(.white, for: .normal)
-        nutChonModelGemini.setTitleColor(UIColor.white.withAlphaComponent(0.65), for: .disabled)
-        nutChonModelGemini.layer.cornerRadius = 9
-        nutChonModelGemini.layer.borderWidth = 1
-        nutChonModelGemini.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
-        nutChonModelGemini.contentEdgeInsets = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 10)
-        nutChonModelGemini.addTarget(self, action: #selector(bamChonModelGemini), for: .touchUpInside)
-
-        nutKiemTraKeyGemini.setTitle("🔍 Kiểm tra & Dùng thử Key Gemini ngay", for: .normal)
-        nutKiemTraKeyGemini.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nutKiemTraKeyGemini.titleLabel?.numberOfLines = 0
-        nutKiemTraKeyGemini.titleLabel?.lineBreakMode = .byWordWrapping
-        nutKiemTraKeyGemini.titleLabel?.textAlignment = .center
-        nutKiemTraKeyGemini.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutKiemTraKeyGemini.backgroundColor = BangMauBCTD.xanhChuDao
-        nutKiemTraKeyGemini.tintColor = .white
-        nutKiemTraKeyGemini.setTitleColor(.white, for: .normal)
-        nutKiemTraKeyGemini.layer.cornerRadius = 10
-        nutKiemTraKeyGemini.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
-        nutKiemTraKeyGemini.addTarget(self, action: #selector(bamKiemTraKeyGemini), for: .touchUpInside)
-
-        nutKhoiPhucKeyMacDinh.setTitle("↺ Khôi phục & Dùng thử Key mặc định", for: .normal)
-        nutKhoiPhucKeyMacDinh.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
-        nutKhoiPhucKeyMacDinh.titleLabel?.numberOfLines = 0
-        nutKhoiPhucKeyMacDinh.titleLabel?.lineBreakMode = .byWordWrapping
-        nutKhoiPhucKeyMacDinh.titleLabel?.textAlignment = .center
-        nutKhoiPhucKeyMacDinh.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutKhoiPhucKeyMacDinh.backgroundColor = BangMauBCTD.vangSang
-        nutKhoiPhucKeyMacDinh.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
-        nutKhoiPhucKeyMacDinh.layer.cornerRadius = 9
-        nutKhoiPhucKeyMacDinh.layer.borderWidth = 1
-        nutKhoiPhucKeyMacDinh.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
-        nutKhoiPhucKeyMacDinh.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
-        nutKhoiPhucKeyMacDinh.addTarget(self, action: #selector(bamKhoiPhucKeyMacDinh), for: .touchUpInside)
-
-        nhanTrangThaiGemini.text = "✅ Đã nạp sẵn Key mặc định (AIzaSyBLV7N_qUxSuiJ3B3FETmj2Ta67CKeVKWo). Bấm nút kiểm tra bên trên để test trực tiếp."
-        nhanTrangThaiGemini.font = .systemFont(ofSize: 12.5, weight: .semibold)
-        nhanTrangThaiGemini.textColor = BangMauBCTD.xanhLaDam
-        nhanTrangThaiGemini.numberOfLines = 0
-        nhanTrangThaiGemini.lineBreakMode = .byWordWrapping
-        nhanTrangThaiGemini.adjustsFontSizeToFitWidth = false
-
-        let nhanQuetAnh = UILabel()
-        nhanQuetAnh.text = "CÔNG CỤ QUÉT ẢNH SỐ LIỆU"
-        nhanQuetAnh.font = .systemFont(ofSize: 12.5, weight: .bold)
-        nhanQuetAnh.textColor = BangMauBCTD.xanhChuDaoDam
-        chonCongCuQuetAnh.backgroundColor = BangMauBCTD.nenThePhu
-        chonCongCuQuetAnh.selectedSegmentTintColor = BangMauBCTD.vangSang
-        chonCongCuQuetAnh.setTitleTextAttributes([.foregroundColor: BangMauBCTD.chuPhu], for: .normal)
-        chonCongCuQuetAnh.setTitleTextAttributes([.foregroundColor: BangMauBCTD.chuChinh, .font: UIFont.systemFont(ofSize: 12.5, weight: .bold)], for: .selected)
-
-        let nganGemini = UIStackView(arrangedSubviews: [
-            nhanMoTaGemini,
-            oNhapGeminiKey,
-            nutChonModelGemini,
-            nutKiemTraKeyGemini,
-            nutKhoiPhucKeyMacDinh,
-            nhanTrangThaiGemini,
-            nhanQuetAnh,
-            chonCongCuQuetAnh
-        ])
-        nganGemini.axis = .vertical
-        nganGemini.spacing = 8
-        nganGemini.translatesAutoresizingMaskIntoConstraints = false
-        khungGemini.addSubview(nganGemini)
 
         // 1. HỘP THƯ & ĐỒNG BỘ
         let tieuDeHopThu = taoTieuDeNhom("📬 HỘP THƯ & THÔNG BÁO HỆ THỐNG")
@@ -655,7 +458,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         }
 
         [
-            tieuDeGemini, khungGemini,
             tieuDeNV, khungNV,
             tieuDeKieu, khungKieu,
             tieuDeLoc, khungLoc,
@@ -675,11 +477,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             nganTong.trailingAnchor.constraint(equalTo: cuon.contentLayoutGuide.trailingAnchor, constant: -14),
             nganTong.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -16),
             nganTong.widthAnchor.constraint(equalTo: cuon.frameLayoutGuide.widthAnchor, constant: -28),
-
-            nganGemini.topAnchor.constraint(equalTo: khungGemini.topAnchor, constant: 12),
-            nganGemini.leadingAnchor.constraint(equalTo: khungGemini.leadingAnchor, constant: 12),
-            nganGemini.trailingAnchor.constraint(equalTo: khungGemini.trailingAnchor, constant: -12),
-            nganGemini.bottomAnchor.constraint(equalTo: khungGemini.bottomAnchor, constant: -12),
 
             nganHopThu.topAnchor.constraint(equalTo: khungHopThu.topAnchor, constant: 10),
             nganHopThu.leadingAnchor.constraint(equalTo: khungHopThu.leadingAnchor, constant: 12),
@@ -731,11 +528,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        if textField === oNhapGeminiKey {
-            dongBoTamCaiDat()
-            textField.resignFirstResponder()
-            return true
-        }
         bamThemCumTu()
         textField.resignFirstResponder()
         return true
