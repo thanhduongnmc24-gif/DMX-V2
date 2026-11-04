@@ -332,6 +332,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         bangRealtimeThang.khiChonNgayRealtime = { [weak self] item in
             self?.moMenuRealtimeChoNgay(item)
         }
+        bangRealtimeThang.khiChonNhanVienSucKhoe = { [weak self] row, cheDo in
+            guard let self = self else { return }
+            let vc = ManHinhChiTietNhanVien(row, ngay: self.ngayHienTai, cheDo: cheDo)
+            self.navigationController?.pushViewController(vc, animated: true)
+        }
+        bangRealtimeThang.khiChiaSeAnhSucKhoe = { [weak self] anh in
+            self?.chiaSe([anh])
+        }
 
         cumChiSoChinh.translatesAutoresizingMaskIntoConstraints = false
         khungCumDoanhThu.addSubview(cumChiSoChinh)
@@ -518,7 +526,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         let laNhanVien = (tabHienTai == .nhanVien)
         let laBieuDo = (tabHienTai == .duPhong2)
 
-        rangBuocCaoCumChiSo?.constant = laBieuDo ? 38 : 184
+        rangBuocCaoCumChiSo?.constant = laBieuDo ? 38 : 188
         hangBaNut.isHidden = laBieuDo
         hangNutQuet.isHidden = laBieuDo
 
@@ -1339,7 +1347,16 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
                 ) else { return }
                 self.chiaSe([anh])
             },
-            MucChonDMX(tieuDe: "👤 Ảnh Sức Khoẻ Nhân Viên (\(cheDoNV.tieuDe))") { [weak self] in
+            MucChonDMX(tieuDe: "❤️‍🩹 Ảnh Biểu Đồ Sức Khỏe 16 NV & Cảnh Báo Top 5 Yếu") { [weak self] in
+                guard let self = self,
+                      let anh = self.bangRealtimeThang.taoAnhBaoCaoSucKhoeNhanVien(
+                          ngay: self.ngayHienTai,
+                          thongTinDonVi: dl.thongTinDonVi,
+                          capNhatLuc: dl.capNhatLuc
+                      ) else { return }
+                self.chiaSe([anh])
+            },
+            MucChonDMX(tieuDe: "👤 Ảnh Chi Tiết Từng Nhân Viên (\(cheDoNV.tieuDe))") { [weak self] in
                 self?.moChonNhanVienChiaSeAnh(cheDo: cheDoNV)
             },
             MucChonDMX(tieuDe: "📈 Ảnh Biểu Đồ & Tổng Hợp Realtime Tháng (Toàn bộ bảng)") { [weak self] in
