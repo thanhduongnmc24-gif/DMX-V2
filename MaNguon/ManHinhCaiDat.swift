@@ -10,6 +10,14 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     private let nutDoiMatKhauNhanh = UIButton(type: .system)
     private let nutDangXuatNhanh = UIButton(type: .system)
 
+    // Cụm cài đặt Google Gemini AI (Miễn phí)
+    private let oNhapGeminiKey = UITextField()
+    private let nutChonModelGemini = UIButton(type: .system)
+    private let nutKiemTraKeyGemini = UIButton(type: .system)
+    private let nutKhoiPhucKeyMacDinh = UIButton(type: .system)
+    private let nhanTrangThaiGemini = UILabel()
+    private var modelGeminiDangChon: String = "gemini-2.5-flash"
+
     private let chonKieuHienThi = UISegmentedControl(items: ["Bảng 8 cột (Chi tiết)", "Thẻ tiến độ (Gọn)"])
     private let chonSoCotXuat = UISegmentedControl(items: ["1 cột", "2 cột", "3 cột", "4 cột"])
     private let nutChiaTarget = UIButton(type: .system)
@@ -30,6 +38,9 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         chonKieuHienThi.selectedSegmentIndex = cd.kieuHienThi.rawValue
         danhSachCumTu = cd.danhSachCumTuLocBo
         chonSoCotXuat.selectedSegmentIndex = max(0, min(3, cd.soCotXuatAnh - 1))
+        oNhapGeminiKey.text = cd.geminiApiKey.isEmpty ? DichVuGeminiAI.khoaMacDinh : cd.geminiApiKey
+        modelGeminiDangChon = cd.geminiModel.isEmpty ? "gemini-2.5-flash" : cd.geminiModel
+        capNhatTieuDeNutModelGemini()
         bangCumTu.reloadData()
         capNhatThongTinTaiKhoanUI()
         capNhatTieuDeNutNhanVien()
@@ -41,7 +52,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Tài khoản & Hộp thư"
+        title = "Cài đặt & Gemini AI"
         view.backgroundColor = BangMauBCTD.nenTrang
         chonKieuHienThi.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
         chonSoCotXuat.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
@@ -58,7 +69,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             target: self,
             action: #selector(moQuanLyTaiKhoan)
         )
-        nutTaiKhoan.tintColor = .systemBlue
+        nutTaiKhoan.tintColor = BangMauBCTD.xanhChuDao
         navigationItem.rightBarButtonItems = [nutLuu, nutTaiKhoan]
 
         let cd = KhoDuLieu.dungChung.caiDat
@@ -66,8 +77,11 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         danhSachCumTu = cd.danhSachCumTuLocBo
         let chiSoCot = max(0, min(3, cd.soCotXuatAnh - 1))
         chonSoCotXuat.selectedSegmentIndex = chiSoCot
+        oNhapGeminiKey.text = cd.geminiApiKey.isEmpty ? DichVuGeminiAI.khoaMacDinh : cd.geminiApiKey
+        modelGeminiDangChon = cd.geminiModel.isEmpty ? "gemini-2.5-flash" : cd.geminiModel
 
         taoGiaoDien()
+        capNhatTieuDeNutModelGemini()
         capNhatThongTinTaiKhoanUI()
         capNhatTieuDeNutNhanVien()
     }
@@ -86,6 +100,79 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
         nhanHopThuThongBao.text = "📩 Hệ thống ĐMX (\(ngayStr)): Dữ liệu và cài đặt của tài khoản \(ten) được đồng bộ đám mây tự động."
         nutMoAdminTaiKhoan.isHidden = !laAdmin
+    }
+
+    private func capNhatTieuDeNutModelGemini() {
+        let moTa = DichVuGeminiAI.cacModelMienPhi.first(where: { $0.ma == modelGeminiDangChon })?.ten
+            ?? "\(modelGeminiDangChon) (Miễn phí)"
+        nutChonModelGemini.setTitle("⚡ Model miễn phí: \(moTa) ▾", for: .normal)
+    }
+
+    @objc private func bamChonModelGemini() {
+        var cacMuc: [MucChonDMX] = []
+        for item in DichVuGeminiAI.cacModelMienPhi {
+            let dangChon = (item.ma == modelGeminiDangChon)
+            cacMuc.append(MucChonDMX(tieuDe: item.ten, dangChon: dangChon) { [weak self] in
+                guard let self = self else { return }
+                self.modelGeminiDangChon = item.ma
+                self.capNhatTieuDeNutModelGemini()
+                self.dongBoTamCaiDat()
+                self.khiThayDoiCaiDat?()
+            })
+        }
+        cacMuc.append(MucChonDMX(tieuDe: "Đóng", kieu: .huy))
+        hienMenuChon(
+            tieuDe: "Chọn Model Google Gemini (Không tính phí)",
+            thongDiep: "Tất cả các dòng Gemini Flash bên dưới đều thuộc gói miễn phí (Free Tier) của Google AI Studio:",
+            cacMuc: cacMuc
+        )
+    }
+
+    @objc private func bamKhoiPhucKeyMacDinh() {
+        oNhapGeminiKey.text = DichVuGeminiAI.khoaMacDinh
+        modelGeminiDangChon = "gemini-2.5-flash"
+        capNhatTieuDeNutModelGemini()
+        dongBoTamCaiDat()
+        bamKiemTraKeyGemini()
+    }
+
+    @objc private func bamKiemTraKeyGemini() {
+        view.endEditing(true)
+        dongBoTamCaiDat()
+        let key = (oNhapGeminiKey.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyDung = key.isEmpty ? DichVuGeminiAI.khoaMacDinh : key
+        oNhapGeminiKey.text = keyDung
+
+        nutKiemTraKeyGemini.isEnabled = false
+        nutKiemTraKeyGemini.setTitle("⏳ Đang kiểm tra kết nối Gemini AI...", for: .normal)
+        nhanTrangThaiGemini.text = "🔄 Đang gửi yêu cầu kiểm tra key tới máy chủ Google Gemini (\(modelGeminiDangChon))..."
+        nhanTrangThaiGemini.textColor = BangMauBCTD.xanhChuDao
+
+        DichVuGeminiAI.dungChung.kiemTraVaDungThuKey(apiKey: keyDung, model: modelGeminiDangChon) { [weak self] kq in
+            guard let self = self else { return }
+            self.nutKiemTraKeyGemini.isEnabled = true
+            self.nutKiemTraKeyGemini.setTitle("🔍 Kiểm tra & Dùng thử Key Gemini ngay", for: .normal)
+
+            switch kq {
+            case .success(let (modelOK, phanHoi)):
+                self.modelGeminiDangChon = modelOK
+                self.capNhatTieuDeNutModelGemini()
+                self.dongBoTamCaiDat()
+                self.nhanTrangThaiGemini.text = "✅ Kết nối thành công với model miễn phí \"\(modelOK)\"!\n💬 Phản hồi thử: \(phanHoi)"
+                self.nhanTrangThaiGemini.textColor = BangMauBCTD.xanhLaDam
+                self.hienThongBao(
+                    tieuDe: "✅ Key Gemini Hoạt Động Tốt",
+                    noiDung: "Model sử dụng: \(modelOK) (Miễn phí)\n\nPhản hồi từ AI:\n\(phanHoi)"
+                )
+            case .failure(let loi):
+                self.nhanTrangThaiGemini.text = "⚠️ Không thể xác thực trực tiếp lúc này: \(loi.localizedDescription). Đã lưu key để dùng cho mục Báo cáo & Xuất ảnh."
+                self.nhanTrangThaiGemini.textColor = BangMauBCTD.doYeuChu
+                self.hienThongBao(
+                    tieuDe: "Thông báo kiểm tra Key Gemini",
+                    noiDung: "Chi tiết phản hồi từ Google API:\n\(loi.localizedDescription)\n\n(Key đã được lưu sẵn. Khi không có mạng hoặc hết hạn mức, ứng dụng vẫn tự động tạo báo cáo chuẩn 5 mục ngay lập tức)."
+                )
+            }
+        }
     }
 
     @objc private func thayDoiTuyChonHienThi() {
@@ -209,10 +296,14 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         let kieu = KieuHienThiBaoCao(rawValue: chonKieuHienThi.selectedSegmentIndex) ?? .bangChiTiet
         let soCot = chonSoCotXuat.selectedSegmentIndex + 1
+        let keyGemini = (oNhapGeminiKey.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
         var moi = KhoDuLieu.dungChung.caiDat
         moi.kieuHienThi = kieu
         moi.danhSachCumTuLocBo = danhSachCumTu
         moi.soCotXuatAnh = soCot
+        moi.geminiApiKey = keyGemini.isEmpty ? DichVuGeminiAI.khoaMacDinh : keyGemini
+        moi.geminiModel = modelGeminiDangChon
         KhoDuLieu.dungChung.luuCaiDat(moi)
     }
 
@@ -239,15 +330,103 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nganTong.translatesAutoresizingMaskIntoConstraints = false
         cuon.addSubview(nganTong)
 
+        // 0. KHUNG CÀI ĐẶT GOOGLE GEMINI AI (MIỄN PHÍ)
+        let tieuDeGemini = taoTieuDeNhom("🤖 TRÍ TUỆ NHÂN TẠO GOOGLE GEMINI (MIỄN PHÍ — PHÂN TÍCH BÁO CÁO)")
+        let khungGemini = UIView()
+        khungGemini.backgroundColor = BangMauBCTD.nenThe
+        khungGemini.layer.cornerRadius = 12
+        khungGemini.layer.borderWidth = 1.2
+        khungGemini.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
+
+        let nhanMoTaGemini = UILabel()
+        nhanMoTaGemini.text = "Nhập Google Gemini API Key để phân tích số liệu và viết báo cáo tự động. Ứng dụng sử dụng dòng model Gemini Flash miễn phí (Free Tier) không bị tính phí, đã tích hợp sẵn Key mặc định bên dưới:"
+        nhanMoTaGemini.font = .systemFont(ofSize: 13.0, weight: .medium)
+        nhanMoTaGemini.textColor = BangMauBCTD.chuPhu
+        nhanMoTaGemini.numberOfLines = 0
+        nhanMoTaGemini.lineBreakMode = .byWordWrapping
+        nhanMoTaGemini.adjustsFontSizeToFitWidth = false
+
+        oNhapGeminiKey.placeholder = "Nhập Google Gemini API Key (AIzaSy...)"
+        oNhapGeminiKey.borderStyle = .roundedRect
+        oNhapGeminiKey.font = .monospacedSystemFont(ofSize: 13.0, weight: .semibold)
+        oNhapGeminiKey.textColor = BangMauBCTD.chuChinh
+        oNhapGeminiKey.backgroundColor = BangMauBCTD.nenThePhu
+        oNhapGeminiKey.clearButtonMode = .whileEditing
+        oNhapGeminiKey.autocapitalizationType = .none
+        oNhapGeminiKey.autocorrectionType = .no
+        oNhapGeminiKey.returnKeyType = .done
+        oNhapGeminiKey.delegate = self
+
+        nutChonModelGemini.titleLabel?.font = .systemFont(ofSize: 13.0, weight: .bold)
+        nutChonModelGemini.titleLabel?.numberOfLines = 0
+        nutChonModelGemini.titleLabel?.lineBreakMode = .byWordWrapping
+        nutChonModelGemini.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutChonModelGemini.contentHorizontalAlignment = .left
+        nutChonModelGemini.backgroundColor = BangMauBCTD.nenHeaderBang
+        nutChonModelGemini.tintColor = BangMauBCTD.xanhChuDaoDam
+        nutChonModelGemini.layer.cornerRadius = 9
+        nutChonModelGemini.layer.borderWidth = 1
+        nutChonModelGemini.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
+        nutChonModelGemini.contentEdgeInsets = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 10)
+        nutChonModelGemini.addTarget(self, action: #selector(bamChonModelGemini), for: .touchUpInside)
+
+        nutKiemTraKeyGemini.setTitle("🔍 Kiểm tra & Dùng thử Key Gemini ngay", for: .normal)
+        nutKiemTraKeyGemini.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutKiemTraKeyGemini.titleLabel?.numberOfLines = 0
+        nutKiemTraKeyGemini.titleLabel?.lineBreakMode = .byWordWrapping
+        nutKiemTraKeyGemini.titleLabel?.textAlignment = .center
+        nutKiemTraKeyGemini.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutKiemTraKeyGemini.backgroundColor = BangMauBCTD.xanhChuDao
+        nutKiemTraKeyGemini.tintColor = .white
+        nutKiemTraKeyGemini.setTitleColor(.white, for: .normal)
+        nutKiemTraKeyGemini.layer.cornerRadius = 10
+        nutKiemTraKeyGemini.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+        nutKiemTraKeyGemini.addTarget(self, action: #selector(bamKiemTraKeyGemini), for: .touchUpInside)
+
+        nutKhoiPhucKeyMacDinh.setTitle("↺ Khôi phục & Dùng thử Key mặc định", for: .normal)
+        nutKhoiPhucKeyMacDinh.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutKhoiPhucKeyMacDinh.titleLabel?.numberOfLines = 0
+        nutKhoiPhucKeyMacDinh.titleLabel?.lineBreakMode = .byWordWrapping
+        nutKhoiPhucKeyMacDinh.titleLabel?.textAlignment = .center
+        nutKhoiPhucKeyMacDinh.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutKhoiPhucKeyMacDinh.backgroundColor = BangMauBCTD.vangSang
+        nutKhoiPhucKeyMacDinh.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutKhoiPhucKeyMacDinh.layer.cornerRadius = 9
+        nutKhoiPhucKeyMacDinh.layer.borderWidth = 1
+        nutKhoiPhucKeyMacDinh.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        nutKhoiPhucKeyMacDinh.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        nutKhoiPhucKeyMacDinh.addTarget(self, action: #selector(bamKhoiPhucKeyMacDinh), for: .touchUpInside)
+
+        nhanTrangThaiGemini.text = "✅ Đã nạp sẵn Key mặc định (AIzaSyBLV7N_qUxSuiJ3B3FETmj2Ta67CKeVKWo). Bấm nút kiểm tra bên trên để test trực tiếp."
+        nhanTrangThaiGemini.font = .systemFont(ofSize: 12.5, weight: .semibold)
+        nhanTrangThaiGemini.textColor = BangMauBCTD.xanhLaDam
+        nhanTrangThaiGemini.numberOfLines = 0
+        nhanTrangThaiGemini.lineBreakMode = .byWordWrapping
+        nhanTrangThaiGemini.adjustsFontSizeToFitWidth = false
+
+        let nganGemini = UIStackView(arrangedSubviews: [
+            nhanMoTaGemini,
+            oNhapGeminiKey,
+            nutChonModelGemini,
+            nutKiemTraKeyGemini,
+            nutKhoiPhucKeyMacDinh,
+            nhanTrangThaiGemini
+        ])
+        nganGemini.axis = .vertical
+        nganGemini.spacing = 8
+        nganGemini.translatesAutoresizingMaskIntoConstraints = false
+        khungGemini.addSubview(nganGemini)
+
+        // 1. HỘP THƯ & ĐỒNG BỘ
         let tieuDeHopThu = taoTieuDeNhom("📬 HỘP THƯ & THÔNG BÁO HỆ THỐNG")
         let khungHopThu = UIView()
-        khungHopThu.backgroundColor = .secondarySystemGroupedBackground
+        khungHopThu.backgroundColor = BangMauBCTD.nenThe
         khungHopThu.layer.cornerRadius = 12
         khungHopThu.layer.borderWidth = 1
-        khungHopThu.layer.borderColor = UIColor.systemOrange.withAlphaComponent(0.35).cgColor
+        khungHopThu.layer.borderColor = BangMauBCTD.vienThe.cgColor
 
         nhanHopThuThongBao.font = .systemFont(ofSize: 13, weight: .medium)
-        nhanHopThuThongBao.textColor = .label
+        nhanHopThuThongBao.textColor = BangMauBCTD.chuChinh
         nhanHopThuThongBao.numberOfLines = 0
         nhanHopThuThongBao.lineBreakMode = .byWordWrapping
         nhanHopThuThongBao.adjustsFontSizeToFitWidth = false
@@ -257,8 +436,8 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutDongBoNgay.titleLabel?.numberOfLines = 0
         nutDongBoNgay.titleLabel?.lineBreakMode = .byWordWrapping
         nutDongBoNgay.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutDongBoNgay.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
-        nutDongBoNgay.tintColor = .systemBlue
+        nutDongBoNgay.backgroundColor = BangMauBCTD.nenHeaderBang
+        nutDongBoNgay.tintColor = BangMauBCTD.xanhChuDao
         nutDongBoNgay.layer.cornerRadius = 9
         nutDongBoNgay.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
         nutDongBoNgay.addTarget(self, action: #selector(bamDongBoDamMayNgay), for: .touchUpInside)
@@ -271,13 +450,13 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         let tieuDeTK = taoTieuDeNhom("👤 TÀI KHOẢN & CÀI ĐẶT HỆ THỐNG")
         let khungTK = UIView()
-        khungTK.backgroundColor = .secondarySystemGroupedBackground
+        khungTK.backgroundColor = BangMauBCTD.nenThe
         khungTK.layer.cornerRadius = 12
         khungTK.layer.borderWidth = 1
-        khungTK.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.3).cgColor
+        khungTK.layer.borderColor = BangMauBCTD.vienThe.cgColor
 
         nhanThongTinTaiKhoan.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nhanThongTinTaiKhoan.textColor = .label
+        nhanThongTinTaiKhoan.textColor = BangMauBCTD.chuChinh
         nhanThongTinTaiKhoan.numberOfLines = 0
         nhanThongTinTaiKhoan.lineBreakMode = .byWordWrapping
         nhanThongTinTaiKhoan.adjustsFontSizeToFitWidth = false
@@ -288,8 +467,8 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutMoAdminTaiKhoan.titleLabel?.lineBreakMode = .byWordWrapping
         nutMoAdminTaiKhoan.titleLabel?.adjustsFontSizeToFitWidth = false
         nutMoAdminTaiKhoan.contentHorizontalAlignment = .left
-        nutMoAdminTaiKhoan.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
-        nutMoAdminTaiKhoan.tintColor = .systemBlue
+        nutMoAdminTaiKhoan.backgroundColor = BangMauBCTD.nenHeaderBang
+        nutMoAdminTaiKhoan.tintColor = BangMauBCTD.xanhChuDao
         nutMoAdminTaiKhoan.layer.cornerRadius = 10
         nutMoAdminTaiKhoan.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
         nutMoAdminTaiKhoan.addTarget(self, action: #selector(bamMoManHinhAdminTaiKhoan), for: .touchUpInside)
@@ -299,11 +478,11 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutDoiMatKhauNhanh.titleLabel?.numberOfLines = 0
         nutDoiMatKhauNhanh.titleLabel?.lineBreakMode = .byWordWrapping
         nutDoiMatKhauNhanh.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutDoiMatKhauNhanh.backgroundColor = .systemBackground
-        nutDoiMatKhauNhanh.tintColor = .label
+        nutDoiMatKhauNhanh.backgroundColor = BangMauBCTD.nenThePhu
+        nutDoiMatKhauNhanh.tintColor = BangMauBCTD.chuChinh
         nutDoiMatKhauNhanh.layer.cornerRadius = 9
         nutDoiMatKhauNhanh.layer.borderWidth = 1
-        nutDoiMatKhauNhanh.layer.borderColor = UIColor.separator.cgColor
+        nutDoiMatKhauNhanh.layer.borderColor = BangMauBCTD.vienDam.cgColor
         nutDoiMatKhauNhanh.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
         nutDoiMatKhauNhanh.addTarget(self, action: #selector(bamDoiMatKhauCaNhan), for: .touchUpInside)
 
@@ -312,8 +491,8 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutDangXuatNhanh.titleLabel?.numberOfLines = 0
         nutDangXuatNhanh.titleLabel?.lineBreakMode = .byWordWrapping
         nutDangXuatNhanh.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutDangXuatNhanh.backgroundColor = UIColor.systemRed.withAlphaComponent(0.12)
-        nutDangXuatNhanh.tintColor = .systemRed
+        nutDangXuatNhanh.backgroundColor = BangMauBCTD.doYeuPill
+        nutDangXuatNhanh.tintColor = BangMauBCTD.doYeuChu
         nutDangXuatNhanh.layer.cornerRadius = 9
         nutDangXuatNhanh.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
         nutDangXuatNhanh.addTarget(self, action: #selector(bamDangXuatTaiKhoan), for: .touchUpInside)
@@ -331,8 +510,10 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         let tieuDeNV = taoTieuDeNhom("1 & 2. CHIA TARGET MẶT HÀNG & QUẢN LÝ NHÂN VIÊN")
         let khungNV = UIView()
-        khungNV.backgroundColor = .secondarySystemGroupedBackground
+        khungNV.backgroundColor = BangMauBCTD.nenThe
         khungNV.layer.cornerRadius = 12
+        khungNV.layer.borderWidth = 1
+        khungNV.layer.borderColor = BangMauBCTD.vienThe.cgColor
 
         [nutChiaTarget, nutQuanLyNV].forEach { nut in
             nut.titleLabel?.numberOfLines = 0
@@ -341,11 +522,11 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             nut.titleLabel?.textAlignment = .left
             nut.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
             nut.contentHorizontalAlignment = .left
-            nut.backgroundColor = .systemBackground
-            nut.tintColor = .systemBlue
+            nut.backgroundColor = BangMauBCTD.nenHeaderBang
+            nut.tintColor = BangMauBCTD.xanhChuDaoDam
             nut.layer.cornerRadius = 10
             nut.layer.borderWidth = 1
-            nut.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.22).cgColor
+            nut.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
             nut.contentEdgeInsets = UIEdgeInsets(top: 11, left: 12, bottom: 11, right: 12)
         }
         nutChiaTarget.addTarget(self, action: #selector(moChiaTarget), for: .touchUpInside)
@@ -359,13 +540,15 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         let tieuDeKieu = taoTieuDeNhom("3. KIỂU HIỂN THỊ & XUẤT BÁO CÁO")
         let khungKieu = UIView()
-        khungKieu.backgroundColor = .secondarySystemGroupedBackground
+        khungKieu.backgroundColor = BangMauBCTD.nenThe
         khungKieu.layer.cornerRadius = 12
+        khungKieu.layer.borderWidth = 1
+        khungKieu.layer.borderColor = BangMauBCTD.vienThe.cgColor
 
         let nhanMoTaKieu = UILabel()
         nhanMoTaKieu.text = "Chọn 1 trong 2 mẫu hiển thị trên màn hình và khi xuất ảnh:"
         nhanMoTaKieu.font = .systemFont(ofSize: 13)
-        nhanMoTaKieu.textColor = .secondaryLabel
+        nhanMoTaKieu.textColor = BangMauBCTD.chuPhu
         nhanMoTaKieu.numberOfLines = 0
         nhanMoTaKieu.lineBreakMode = .byWordWrapping
         nhanMoTaKieu.adjustsFontSizeToFitWidth = false
@@ -373,21 +556,21 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let nhanMoTaCot = UILabel()
         nhanMoTaCot.text = "Số cột khi xuất ảnh (áp dụng cho mẫu Thẻ tiến độ):"
         nhanMoTaCot.font = .systemFont(ofSize: 13)
-        nhanMoTaCot.textColor = .secondaryLabel
+        nhanMoTaCot.textColor = BangMauBCTD.chuPhu
         nhanMoTaCot.numberOfLines = 0
         nhanMoTaCot.lineBreakMode = .byWordWrapping
         nhanMoTaCot.adjustsFontSizeToFitWidth = false
 
         [chonKieuHienThi, chonSoCotXuat].forEach { seg in
             seg.backgroundColor = BangMauBCTD.nenThePhu
-            seg.selectedSegmentTintColor = BangMauBCTD.nenMenuToi
+            seg.selectedSegmentTintColor = BangMauBCTD.vangSang
             seg.setTitleTextAttributes([
                 .font: UIFont.systemFont(ofSize: 12.0, weight: .semibold),
                 .foregroundColor: BangMauBCTD.chuPhu
             ], for: .normal)
             seg.setTitleTextAttributes([
                 .font: UIFont.systemFont(ofSize: 12.0, weight: .bold),
-                .foregroundColor: BangMauBCTD.vangChuDao
+                .foregroundColor: BangMauBCTD.chuChinh
             ], for: .selected)
             seg.damBaoHienThiDayDuText()
         }
@@ -400,8 +583,10 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         let tieuDeLoc = taoTieuDeNhom("4. CỤM TỪ LỌC BỎ TRONG TẤT CẢ NGÀNH HÀNG")
         let khungLoc = UIView()
-        khungLoc.backgroundColor = .secondarySystemGroupedBackground
+        khungLoc.backgroundColor = BangMauBCTD.nenThe
         khungLoc.layer.cornerRadius = 12
+        khungLoc.layer.borderWidth = 1
+        khungLoc.layer.borderColor = BangMauBCTD.vienThe.cgColor
         khungLoc.clipsToBounds = true
 
         oNhapCumTu.placeholder = "Nhập cụm từ muốn lọc bỏ (VD: 275 Quang Trung)"
@@ -417,7 +602,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutThem.titleLabel?.numberOfLines = 0
         nutThem.titleLabel?.lineBreakMode = .byWordWrapping
         nutThem.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutThem.backgroundColor = .systemBlue
+        nutThem.backgroundColor = BangMauBCTD.xanhChuDao
         nutThem.tintColor = .white
         nutThem.layer.cornerRadius = 8
         nutThem.contentEdgeInsets = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
@@ -429,7 +614,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         hangNhap.spacing = 8
 
         let vachNgan = UIView()
-        vachNgan.backgroundColor = .separator
+        vachNgan.backgroundColor = BangMauBCTD.vienThe
 
         bangCumTu.dataSource = self
         bangCumTu.delegate = self
@@ -443,7 +628,14 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             khungLoc.addSubview($0)
         }
 
-        [tieuDeHopThu, khungHopThu, tieuDeTK, khungTK, tieuDeNV, khungNV, tieuDeKieu, khungKieu, tieuDeLoc, khungLoc].forEach {
+        [
+            tieuDeGemini, khungGemini,
+            tieuDeNV, khungNV,
+            tieuDeKieu, khungKieu,
+            tieuDeLoc, khungLoc,
+            tieuDeHopThu, khungHopThu,
+            tieuDeTK, khungTK
+        ].forEach {
             nganTong.addArrangedSubview($0)
         }
 
@@ -458,6 +650,11 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             nganTong.trailingAnchor.constraint(equalTo: cuon.contentLayoutGuide.trailingAnchor, constant: -14),
             nganTong.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -16),
             nganTong.widthAnchor.constraint(equalTo: cuon.frameLayoutGuide.widthAnchor, constant: -28),
+
+            nganGemini.topAnchor.constraint(equalTo: khungGemini.topAnchor, constant: 12),
+            nganGemini.leadingAnchor.constraint(equalTo: khungGemini.leadingAnchor, constant: 12),
+            nganGemini.trailingAnchor.constraint(equalTo: khungGemini.trailingAnchor, constant: -12),
+            nganGemini.bottomAnchor.constraint(equalTo: khungGemini.bottomAnchor, constant: -12),
 
             nganHopThu.topAnchor.constraint(equalTo: khungHopThu.topAnchor, constant: 10),
             nganHopThu.leadingAnchor.constraint(equalTo: khungHopThu.leadingAnchor, constant: 12),
@@ -509,6 +706,11 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        if textField === oNhapGeminiKey {
+            dongBoTamCaiDat()
+            textField.resignFirstResponder()
+            return true
+        }
         bamThemCumTu()
         textField.resignFirstResponder()
         return true
@@ -516,6 +718,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
     @objc private func luuCaiDat() {
         dongBoTamCaiDat()
+        khiThayDoiCaiDat?()
         navigationController?.popViewController(animated: true)
     }
 
@@ -534,19 +737,19 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         if danhSachCumTu.isEmpty {
             cell.textLabel?.text = "Chưa có cụm từ lọc bỏ nào"
-            cell.textLabel?.textColor = .secondaryLabel
+            cell.textLabel?.textColor = BangMauBCTD.chuMo
             cell.textLabel?.font = .systemFont(ofSize: 13)
             cell.detailTextLabel?.text = nil
             cell.accessoryView = nil
         } else {
             let cumTu = danhSachCumTu[indexPath.row]
             cell.textLabel?.text = "\"\(cumTu)\""
-            cell.textLabel?.textColor = .label
+            cell.textLabel?.textColor = BangMauBCTD.chuChinh
             cell.textLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
 
             let nutXoa = UIButton(type: .system)
             nutXoa.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
-            nutXoa.tintColor = .systemRed
+            nutXoa.tintColor = BangMauBCTD.doYeuChu
             nutXoa.tag = indexPath.row
             nutXoa.frame = CGRect(x: 0, y: 0, width: 32, height: 32)
             nutXoa.addTarget(self, action: #selector(xoaCumTuTai(_:)), for: .touchUpInside)
@@ -577,8 +780,8 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     private func taoTieuDeNhom(_ chu: String) -> UILabel {
         let nhan = UILabel()
         nhan.text = chu
-        nhan.font = .systemFont(ofSize: 11.5, weight: .bold)
-        nhan.textColor = .secondaryLabel
+        nhan.font = .systemFont(ofSize: 12.0, weight: .heavy)
+        nhan.textColor = BangMauBCTD.xanhChuDaoDam
         nhan.numberOfLines = 0
         nhan.lineBreakMode = .byWordWrapping
         nhan.adjustsFontSizeToFitWidth = false
@@ -611,13 +814,13 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
 
     private func taoGiaoDien() {
         let khungDau = UIView()
-        khungDau.backgroundColor = .secondarySystemGroupedBackground
+        khungDau.backgroundColor = BangMauBCTD.nenThe
         khungDau.layer.cornerRadius = 12
         khungDau.layer.borderWidth = 1
-        khungDau.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.3).cgColor
+        khungDau.layer.borderColor = BangMauBCTD.vienThe.cgColor
 
         nhanTomTat.font = .systemFont(ofSize: 13, weight: .semibold)
-        nhanTomTat.textColor = .label
+        nhanTomTat.textColor = BangMauBCTD.chuChinh
         nhanTomTat.numberOfLines = 0
         nhanTomTat.lineBreakMode = .byWordWrapping
         nhanTomTat.adjustsFontSizeToFitWidth = false
@@ -629,7 +832,7 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
         nutThemTaiKhoan.titleLabel?.numberOfLines = 0
         nutThemTaiKhoan.titleLabel?.lineBreakMode = .byWordWrapping
         nutThemTaiKhoan.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutThemTaiKhoan.backgroundColor = .systemBlue
+        nutThemTaiKhoan.backgroundColor = BangMauBCTD.xanhChuDao
         nutThemTaiKhoan.tintColor = .white
         nutThemTaiKhoan.layer.cornerRadius = 9
         nutThemTaiKhoan.contentEdgeInsets = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 10)
@@ -762,11 +965,11 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
 
         cell.textLabel?.text = "\(tk.tenDangNhap)   •   \(nhanVaiTro)"
         cell.textLabel?.font = .systemFont(ofSize: 15, weight: .bold)
-        cell.textLabel?.textColor = tk.laAdmin ? .systemBlue : .label
+        cell.textLabel?.textColor = tk.laAdmin ? BangMauBCTD.xanhChuDao : BangMauBCTD.chuChinh
 
         cell.detailTextLabel?.text = "Tạo: \(tk.ngayTao)   •   Đăng nhập cuối: \(tk.dangNhapCuoi)"
         cell.detailTextLabel?.font = .systemFont(ofSize: 12)
-        cell.detailTextLabel?.textColor = .secondaryLabel
+        cell.detailTextLabel?.textColor = BangMauBCTD.chuMo
         cell.accessoryType = .disclosureIndicator
         return cell
     }
@@ -791,7 +994,7 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
             self?.moHopThoaiDoiMatKhau(cho: tk)
             hoanTat(true)
         }
-        doiMK.backgroundColor = .systemBlue
+        doiMK.backgroundColor = BangMauBCTD.xanhChuDao
         return UISwipeActionsConfiguration(actions: [xoa, doiMK])
     }
 

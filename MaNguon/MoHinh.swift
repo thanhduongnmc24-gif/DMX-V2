@@ -1,46 +1,57 @@
 import UIKit
 
-// MARK: - Bảng Màu & Phong Cách Chuẩn BaoCaoThiDua + Menu Trượt Bên Trái (#0F172A · #FFD200 · #6366F1)
+// MARK: - Bảng Màu Sáng Tươi Chuẩn ĐMX & BaoCaoThiDua (Không dùng màu xanh đen tối)
 
 enum BangMauBCTD {
-    // Nền tối chủ đạo của Sidebar Menu & Header báo cáo (BaoCaoThiDua: #0F172A / #1E2329)
-    static let nenMenuToi = UIColor(red: 0.06, green: 0.09, blue: 0.16, alpha: 1.0)       // #0F172A Slate 900
-    static let nenDongChonMenu = UIColor(red: 0.12, green: 0.16, blue: 0.23, alpha: 1.0)  // #1E293B Slate 800
-    static let nenMenuCon = UIColor(red: 0.05, green: 0.07, blue: 0.13, alpha: 1.0)       // #0B1120
-    static let nenHeaderBang = UIColor(red: 0.12, green: 0.14, blue: 0.16, alpha: 1.0)    // #1E2329 (bulletin.py .hd)
+    // Màu chủ đạo sáng tươi: Xanh Dương ĐMX (#2563EB / #0284C7) + Vàng Tươi (#FACC15) + Cam Nâu (#AD4F0A)
+    static let nenMenuToi = UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1.0)       // #2563EB Bright Royal Blue
+    static let nenDongChonMenu = UIColor(red: 0.11, green: 0.31, blue: 0.85, alpha: 1.0)  // #1D4ED8 Deep Sky Blue
+    static let nenMenuCon = UIColor(red: 0.93, green: 0.96, blue: 1.00, alpha: 1.0)       // #EFF6FF Light Sky
+    static let nenHeaderBang = UIColor(red: 0.15, green: 0.42, blue: 0.92, alpha: 1.0)    // #266BE9 Bright Blue Header
 
-    // Màu nhấn thương hiệu: Vàng Gold (Menu trái & viền .hd) + Indigo chủ đạo (#6366F1 của BaoCaoThiDua)
-    static let vangChuDao = UIColor(red: 0.96, green: 0.71, blue: 0.09, alpha: 1.0)       // #F5B517 / #FFD200
-    static let vangSang = UIColor(red: 0.98, green: 0.80, blue: 0.08, alpha: 1.0)         // #FACC15
-    static let vangNhatNen = UIColor(red: 1.00, green: 0.95, blue: 0.78, alpha: 1.0)      // #FEF3C7
-    static let indigoChuDao = UIColor(red: 0.39, green: 0.40, blue: 0.95, alpha: 1.0)     // #6366F1
-    static let indigoDam = UIColor(red: 0.31, green: 0.27, blue: 0.90, alpha: 1.0)        // #4F46E5
-    static let indigoNhatNen = UIColor(red: 0.93, green: 0.95, blue: 1.00, alpha: 1.0)    // #EEF2FF
-    static let indigoVien = UIColor(red: 0.78, green: 0.82, blue: 0.99, alpha: 1.0)       // #C7D2FE
-    static let xanhBienChuDao = UIColor(red: 0.05, green: 0.65, blue: 0.91, alpha: 1.0)   // #0EA5E9
+    // Màu Sidebar sáng thanh lịch
+    static let nenSidebarSang = UIColor.white
+    static let nenSidebarChon = UIColor(red: 0.92, green: 0.96, blue: 1.00, alpha: 1.0)   // #EBF4FF
+    static let nenSidebarCon = UIColor(red: 0.96, green: 0.98, blue: 1.00, alpha: 1.0)    // #F5F9FF
 
-    // Nền trang & thẻ sáng sạch chuẩn BaoCaoThiDua (#F1F5F9 / #FFFFFF / #E2E8F0)
-    static let nenTrang = UIColor(red: 0.95, green: 0.96, blue: 0.98, alpha: 1.0)         // #F1F5F9 Slate 100
+    // Màu nhấn thương hiệu: Vàng Tươi (như nút "Bình thường" trên ảnh mẫu) + Cam Phân Tích + Indigo/Sky
+    static let vangChuDao = UIColor(red: 1.00, green: 0.84, blue: 0.10, alpha: 1.0)       // #FFD61A Bright Gold
+    static let vangSang = UIColor(red: 0.99, green: 0.82, blue: 0.15, alpha: 1.0)         // #FACC15 Bright Yellow Pill
+    static let vangNhatNen = UIColor(red: 1.00, green: 0.96, blue: 0.80, alpha: 1.0)      // #FEF3C7
+    static let camPhanTich = UIColor(red: 0.68, green: 0.31, blue: 0.04, alpha: 1.0)      // #AD4F0A ("PHÂN TÍCH (viết sẵn — sửa được)")
+    static let mauChuTieuDePhanTich = UIColor(red: 0.68, green: 0.31, blue: 0.04, alpha: 1.0) // #AD4F0A
+    static let xanhChuDao = UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1.0)       // #2563EB
+    static let xanhChuDaoDam = UIColor(red: 0.11, green: 0.31, blue: 0.85, alpha: 1.0)    // #1D4ED8
+    static let vienXanhNhat = UIColor(red: 0.75, green: 0.85, blue: 0.99, alpha: 1.0)     // #BFDBFE
+    static let xanhLaDam = UIColor(red: 0.07, green: 0.49, blue: 0.23, alpha: 1.0)        // #127D3B
+    static let indigoChuDao = UIColor(red: 0.15, green: 0.40, blue: 0.92, alpha: 1.0)     // #2667EB Bright Blue
+    static let indigoDam = UIColor(red: 0.11, green: 0.32, blue: 0.82, alpha: 1.0)        // #1D52D1
+    static let indigoNhatNen = UIColor(red: 0.92, green: 0.96, blue: 1.00, alpha: 1.0)    // #EBF5FF
+    static let indigoVien = UIColor(red: 0.75, green: 0.85, blue: 0.99, alpha: 1.0)       // #BFDBFE
+    static let xanhBienChuDao = UIColor(red: 0.01, green: 0.52, blue: 0.78, alpha: 1.0)   // #0284C7 Sky 600
+
+    // Nền trang & thẻ sáng sạch (#F4F7FB / #FFFFFF / #E2E8F0)
+    static let nenTrang = UIColor(red: 0.96, green: 0.97, blue: 0.99, alpha: 1.0)         // #F5F8FC Bright Light Surface
     static let nenThe = UIColor.white                                                     // #FFFFFF
-    static let nenThePhu = UIColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 1.0)        // #F8FAFC Slate 50
-    static let nenHeaderPhu = UIColor(red: 0.95, green: 0.96, blue: 0.98, alpha: 1.0)     // #F1F5F9
-    static let vienThe = UIColor(red: 0.89, green: 0.91, blue: 0.94, alpha: 1.0)          // #E2E8F0 Slate 200
-    static let vienDam = UIColor(red: 0.80, green: 0.84, blue: 0.88, alpha: 1.0)          // #CBD5E1 Slate 300
+    static let nenThePhu = UIColor(red: 0.97, green: 0.98, blue: 1.00, alpha: 1.0)        // #F8FAFC
+    static let nenHeaderPhu = UIColor(red: 0.93, green: 0.96, blue: 1.00, alpha: 1.0)     // #EFF6FF
+    static let vienThe = UIColor(red: 0.86, green: 0.90, blue: 0.95, alpha: 1.0)          // #DCE5F2
+    static let vienDam = UIColor(red: 0.78, green: 0.83, blue: 0.90, alpha: 1.0)          // #C7D4E6
 
     // Chữ phân cấp độ tương phản cao
-    static let chuChinh = UIColor(red: 0.06, green: 0.09, blue: 0.16, alpha: 1.0)         // #0F172A Slate 900
-    static let chuPhu = UIColor(red: 0.28, green: 0.33, blue: 0.41, alpha: 1.0)           // #475569 Slate 600
-    static let chuMo = UIColor(red: 0.40, green: 0.45, blue: 0.55, alpha: 1.0)            // #64748B Slate 500
-    static let chuTrenNenToi = UIColor(red: 0.82, green: 0.85, blue: 0.90, alpha: 1.0)    // #D1D5DB
+    static let chuChinh = UIColor(red: 0.10, green: 0.15, blue: 0.24, alpha: 1.0)         // #1A263D
+    static let chuPhu = UIColor(red: 0.27, green: 0.34, blue: 0.45, alpha: 1.0)           // #455773
+    static let chuMo = UIColor(red: 0.42, green: 0.48, blue: 0.58, alpha: 1.0)            // #6B7B94
+    static let chuTrenNenToi = UIColor(red: 0.93, green: 0.96, blue: 1.00, alpha: 1.0)    // #EFF6FF
 
-    // 3 mức trạng thái nghiệp vụ BaoCaoThiDua: >=100% Xanh (ok) · 80-99% Vàng (mid/near) · <80% Đỏ (no/di)
-    static let xanhDatChu = UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1.0)       // #15803D
-    static let xanhDatPill = UIColor(red: 0.86, green: 0.99, blue: 0.90, alpha: 1.0)      // #DCFCE7
+    // 3 mức trạng thái nghiệp vụ: >=100% Xanh (ok) · 80-99% Vàng (mid/near) · <80% Đỏ (no/di)
+    static let xanhDatChu = UIColor(red: 0.07, green: 0.49, blue: 0.23, alpha: 1.0)       // #127D3B
+    static let xanhDatPill = UIColor(red: 0.86, green: 0.98, blue: 0.90, alpha: 1.0)      // #DCFCE7
     static let xanhDatNenDong = UIColor(red: 0.94, green: 0.99, blue: 0.96, alpha: 1.0)   // #F0FDF4
     static let xanhDatVach = UIColor(red: 0.09, green: 0.64, blue: 0.29, alpha: 1.0)      // #16A34A
 
-    static let vangKhaChu = UIColor(red: 0.63, green: 0.38, blue: 0.03, alpha: 1.0)       // #A16207
-    static let vangKhaPill = UIColor(red: 1.00, green: 0.95, blue: 0.78, alpha: 1.0)      // #FEF3C7
+    static let vangKhaChu = UIColor(red: 0.63, green: 0.36, blue: 0.03, alpha: 1.0)       // #A15C07
+    static let vangKhaPill = UIColor(red: 1.00, green: 0.95, blue: 0.76, alpha: 1.0)      // #FEF3C2
     static let vangKhaNenDong = UIColor(red: 1.00, green: 0.98, blue: 0.92, alpha: 1.0)   // #FFFBEB
     static let vangKhaVach = UIColor(red: 0.96, green: 0.62, blue: 0.04, alpha: 1.0)      // #F59E0B
 
@@ -128,7 +139,7 @@ enum BangMauBCTD {
             let lbPhu = UILabel(frame: CGRect(x: le, y: y, width: rongChu, height: caoPhu))
             lbPhu.text = s
             lbPhu.font = fontPhu
-            lbPhu.textColor = UIColor(red: 0.79, green: 0.81, blue: 0.83, alpha: 1.0)
+            lbPhu.textColor = UIColor(red: 0.90, green: 0.95, blue: 1.00, alpha: 1.0)
             lbPhu.numberOfLines = 0
             lbPhu.lineBreakMode = .byWordWrapping
             lbPhu.adjustsFontSizeToFitWidth = false
@@ -160,7 +171,6 @@ enum LoaiTabMuc: Int, CaseIterable {
     case nhanVien = 1
     case duPhong2 = 2
 
-    /// Danh sách 2 nút ở cụm dưới (đã xoá nút Dự phòng 3 theo yêu cầu)
     static let cacTabCumDuoi: [LoaiTabMuc] = [.thiDua, .nhanVien]
 
     var tieuDe: String {
@@ -172,8 +182,8 @@ enum LoaiTabMuc: Int, CaseIterable {
     }
 }
 
-/// 4 mục con bên trong phần "Đổ số - Xem số" trên Menu điều hướng
-enum MucConDoSo: Int, CaseIterable {
+/// 4 tab con bên trong mục "1. Xem số" (Lũy kế | Realtime | Biểu đồ | Nhân viên)
+enum TabXemSo: Int, CaseIterable {
     case luyKe = 0
     case realtime = 1
     case bieuDo = 2
@@ -188,35 +198,72 @@ enum MucConDoSo: Int, CaseIterable {
         }
     }
 
-    var bieuTuongSF: String {
+    var bieuTuong: String {
         switch self {
-        case .luyKe: return "chart.bar.xaxis"
-        case .realtime: return "bolt.fill"
-        case .bieuDo: return "chart.xyaxis.line"
-        case .nhanVien: return "person.2.fill"
+        case .luyKe: return "📊"
+        case .realtime: return "⚡"
+        case .bieuDo: return "📈"
+        case .nhanVien: return "👥"
         }
     }
 }
 
-/// Danh sách 12 mục chính trên Menu trượt (Sidebar Drawer) theo đúng thiết kế ảnh mẫu
+/// 3 mục con bên trong phần "Đổ số - Xem số" trên Menu điều hướng:
+/// 1. Xem số  |  2. Nhập số  |  3. Xuất ảnh
+enum MucConDoSo: Int, CaseIterable {
+    case xemSo = 0
+    case nhapSo = 1
+    case xuatAnh = 2
+
+    var tieuDe: String {
+        switch self {
+        case .xemSo: return "1. Xem số"
+        case .nhapSo: return "2. Nhập số"
+        case .xuatAnh: return "3. Xuất ảnh"
+        }
+    }
+
+    var tieuDeNgan: String {
+        switch self {
+        case .xemSo: return "Xem số"
+        case .nhapSo: return "Nhập số"
+        case .xuatAnh: return "Xuất ảnh"
+        }
+    }
+
+    var bieuTuongSF: String {
+        switch self {
+        case .xemSo: return "tablecells.fill"
+        case .nhapSo: return "camera.viewfinder"
+        case .xuatAnh: return "photo.on.rectangle.angled"
+        }
+    }
+}
+
+/// Danh sách mục chính trên Menu trượt (Sidebar Drawer):
+/// Dưới "Tổng quan" có ngay nút "Báo cáo", tiếp theo là "Đổ số - Xem số" (3 mục con) và "Cài đặt".
 enum MucMenuChinh: Int, CaseIterable {
     case tongQuan = 0
-    case doSoXemSo = 1
-    case lichDoSo = 2
-    case congCu = 3
-    case lenhTroLy = 4
-    case taiKhoanHopThu = 5
-    case ketNoi = 6
-    case nhiemVu = 7
-    case capNhat = 8
-    case hoTro = 9
-    case lienHeVip = 10
-    case quanTri = 11
+    case baoCao = 1
+    case doSoXemSo = 2
+    case caiDat = 3
+    case lichDoSo = 4
+    case congCu = 5
+    case lenhTroLy = 6
+    case taiKhoanHopThu = 7
+    case ketNoi = 8
+    case nhiemVu = 9
+    case capNhat = 10
+    case hoTro = 11
+    case lienHeVip = 12
+    case quanTri = 13
 
     var tieuDe: String {
         switch self {
         case .tongQuan: return "Tổng quan"
+        case .baoCao: return "Báo cáo"
         case .doSoXemSo: return "Đổ số - Xem số"
+        case .caiDat: return "Cài đặt"
         case .lichDoSo: return "Lịch đổ số"
         case .congCu: return "Công cụ"
         case .lenhTroLy: return "Lệnh trợ lý"
@@ -232,16 +279,18 @@ enum MucMenuChinh: Int, CaseIterable {
 
     var bieuTuongSF: String {
         switch self {
-        case .tongQuan: return "house"
+        case .tongQuan: return "house.fill"
+        case .baoCao: return "doc.text.magnifyingglass"
         case .doSoXemSo: return "tablecells.fill"
-        case .lichDoSo: return "alarm"
-        case .congCu: return "wrench.and.screwdriver"
-        case .lenhTroLy: return "terminal"
-        case .taiKhoanHopThu: return "face.smiling"
-        case .ketNoi: return "equal"
-        case .nhiemVu: return "pencil"
+        case .caiDat: return "gearshape.fill"
+        case .lichDoSo: return "calendar.badge.clock"
+        case .congCu: return "wrench.and.screwdriver.fill"
+        case .lenhTroLy: return "terminal.fill"
+        case .taiKhoanHopThu: return "person.crop.circle"
+        case .ketNoi: return "icloud.and.arrow.up"
+        case .nhiemVu: return "checklist"
         case .capNhat: return "arrow.up.square"
-        case .hoTro: return "questionmark"
+        case .hoTro: return "questionmark.circle"
         case .lienHeVip: return "phone.fill"
         case .quanTri: return "crown.fill"
         }
@@ -871,12 +920,17 @@ struct DongThiDua: Codable, Hashable, Identifiable {
 }
 
 struct CaiDatDMX: Codable {
+    static let geminiKeyMacDinh = "AIzaSyBLV7N_qUxSuiJ3B3FETmj2Ta67CKeVKWo"
+    static let geminiModelMacDinh = "gemini-2.5-flash"
+
     var kieuHienThi: KieuHienThiBaoCao = .bangChiTiet
     var danhSachCumTuLocBo: [String] = []
     var soCotXuatAnh: Int = 3
     var danhSachNhanVien: [NhanVienQuanLy] = CaiDatDMX.nhanVienMau
     var chiaTargetNganhHang: [String: [String]] = [:]
     var mucTieuDoanhThuQDThang: [String: Double] = [:]
+    var geminiApiKey: String = CaiDatDMX.geminiKeyMacDinh
+    var geminiModel: String = CaiDatDMX.geminiModelMacDinh
 
     static let nhanVienMau: [NhanVienQuanLy] = [
         .init(maNV: "24939", hoTen: "Phan Hoàng Sơn"),
@@ -903,7 +957,9 @@ struct CaiDatDMX: Codable {
         soCotXuatAnh: Int = 3,
         danhSachNhanVien: [NhanVienQuanLy] = CaiDatDMX.nhanVienMau,
         chiaTargetNganhHang: [String: [String]] = [:],
-        mucTieuDoanhThuQDThang: [String: Double] = [:]
+        mucTieuDoanhThuQDThang: [String: Double] = [:],
+        geminiApiKey: String = CaiDatDMX.geminiKeyMacDinh,
+        geminiModel: String = CaiDatDMX.geminiModelMacDinh
     ) {
         self.kieuHienThi = kieuHienThi
         self.danhSachCumTuLocBo = danhSachCumTuLocBo
@@ -911,6 +967,8 @@ struct CaiDatDMX: Codable {
         self.danhSachNhanVien = danhSachNhanVien
         self.chiaTargetNganhHang = chiaTargetNganhHang
         self.mucTieuDoanhThuQDThang = mucTieuDoanhThuQDThang
+        self.geminiApiKey = geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Self.geminiKeyMacDinh : geminiApiKey
+        self.geminiModel = geminiModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Self.geminiModelMacDinh : geminiModel
     }
 
     init(from decoder: Decoder) throws {
@@ -923,6 +981,10 @@ struct CaiDatDMX: Codable {
         danhSachNhanVien = dsNV.isEmpty ? Self.nhanVienMau : dsNV
         chiaTargetNganhHang = (try? c.decode([String: [String]].self, forKey: .chiaTargetNganhHang)) ?? [:]
         mucTieuDoanhThuQDThang = (try? c.decode([String: Double].self, forKey: .mucTieuDoanhThuQDThang)) ?? [:]
+        let rawKey = (try? c.decode(String.self, forKey: .geminiApiKey))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        geminiApiKey = rawKey.isEmpty ? Self.geminiKeyMacDinh : rawKey
+        let rawModel = (try? c.decode(String.self, forKey: .geminiModel))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        geminiModel = rawModel.isEmpty ? Self.geminiModelMacDinh : rawModel
     }
 }
 

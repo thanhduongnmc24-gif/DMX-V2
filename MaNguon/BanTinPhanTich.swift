@@ -47,6 +47,45 @@ enum GiongVanBanTin: Int, CaseIterable {
     }
 }
 
+// MARK: - Loại báo cáo trong mục "3. Xuất ảnh"
+
+enum LoaiBaoCaoXuatAnh: Int, CaseIterable {
+    case doanhThuThiDuaLuyKe = 0
+    case luyKeDuKien = 1
+    case doanhThuThiDuaRealtime = 2
+    case xepHangNVLuyKe = 3
+    case xepHangNVRealtime = 4
+    case bieuDoSucKhoeNV = 5
+    case bieuDoRealtimeThang = 6
+    case chiTiet16NV = 7
+
+    var tieuDeNgan: String {
+        switch self {
+        case .doanhThuThiDuaLuyKe: return "📊 Doanh thu & Thi đua Lũy kế"
+        case .luyKeDuKien: return "📈 Lũy kế — % Dự kiến cuối tháng"
+        case .doanhThuThiDuaRealtime: return "⚡ Doanh thu & Thi đua Realtime"
+        case .xepHangNVLuyKe: return "👥 Bảng Xếp Hạng NV (Lũy kế)"
+        case .xepHangNVRealtime: return "🔥 Bảng Xếp Hạng NV (Realtime)"
+        case .bieuDoSucKhoeNV: return "❤️‍🩹 Biểu Đồ Sức Khỏe 16 NV"
+        case .bieuDoRealtimeThang: return "📆 Biểu Đồ Realtime Tháng"
+        case .chiTiet16NV: return "👤 Gộp Chi Tiết Tất Cả NV"
+        }
+    }
+
+    var moTaPhu: String {
+        switch self {
+        case .doanhThuThiDuaLuyKe: return "8 thẻ Doanh thu Lũy kế + Bảng ngành hàng Thực hiện & Target"
+        case .luyKeDuKien: return "8 thẻ Doanh thu Lũy kế + Bảng % Dự kiến hoàn thành cuối tháng"
+        case .doanhThuThiDuaRealtime: return "8 thẻ Doanh thu Realtime + Bảng ngành hàng trong ngày"
+        case .xepHangNVLuyKe: return "Xếp hạng Doanh thu QĐ & số môn hoàn thành Lũy kế của NV"
+        case .xepHangNVRealtime: return "Xếp hạng Doanh thu QĐ & số môn Realtime trong ngày của NV"
+        case .bieuDoSucKhoeNV: return "Biểu đồ sức khỏe 16 NV & Cảnh báo Top 5 NV cần hỗ trợ"
+        case .bieuDoRealtimeThang: return "Biểu đồ cột Doanh thu Realtime các ngày trong tháng"
+        case .chiTiet16NV: return "Ảnh tổng hợp chi tiết các môn thi đua của toàn bộ nhân viên"
+        }
+    }
+}
+
 // MARK: - Bộ số liệu dùng để viết bản tin
 
 struct SoLieuBanTin {
@@ -166,7 +205,7 @@ extension KhoDuLieu {
     }
 }
 
-// MARK: - Bộ sinh số ngẫu nhiên theo hạt giống (cùng số + cùng ngày → cùng bài, không đổi mỗi lần mở)
+// MARK: - Bộ sinh số ngẫu nhiên theo hạt giống
 
 struct BoSinhNgauNhien: RandomNumberGenerator {
     private var trangThai: UInt64
@@ -189,7 +228,7 @@ struct BoSinhNgauNhien: RandomNumberGenerator {
     }
 }
 
-// MARK: - Bộ viết bài Phân tích (mẫu câu theo số liệu, không dùng AI ngoài, chạy offline)
+// MARK: - Bộ viết bài Phân tích (theo đúng mẫu đính kèm & cho từng loại ảnh xuất)
 
 final class BoVietBanTin {
     private var rng: BoSinhNgauNhien
@@ -212,7 +251,8 @@ final class BoVietBanTin {
         (["laptop", "tablet", "dong ho", "camera", "may doc sach"], "mời khách trải nghiệm máy trưng bày, demo tính năng chính trong 2 phút"),
         (["iphone"], "chủ động gợi ý đổi máy cũ lên iPhone, báo giá thu cũ ngay tại quầy"),
         (["vas", "nap", "rut", "tai khoan"], "mời khách nạp/rút tiền, mở tài khoản ngay lúc chờ thanh toán"),
-        (["dien thoai"], "đón khách ở khu điện thoại, so sánh 2 mẫu cùng tầm giá để khách chốt nhanh")
+        (["dien thoai"], "đón khách ở khu điện thoại, so sánh 2 mẫu cùng tầm giá để khách chốt nhanh"),
+        (["tivi", "tu lanh", "may giat", "may lanh", "gia dung", "loc nuoc"], "tư vấn gói trả chậm 0% + ưu đãi lắp đặt miễn phí trong ngày để chốt đơn nhanh")
     ]
 
     init(soLieu: SoLieuBanTin, giong: GiongVanBanTin, bienThe: Int = 0) {
@@ -223,10 +263,368 @@ final class BoVietBanTin {
     }
 
     func viet() -> String {
-        switch s.khung {
-        case .dauCa: return vietDauCa()
-        case .hienTai: return vietHienTai()
-        case .ketCa: return vietKetCa()
+        return vietTheoMauAnhChup(nhomTapTrung: [], nvTapTrung: [])
+    }
+
+    /// Viết bản tin đúng chuẩn mẫu ảnh chụp đính kèm (1..5 có đánh số, in đậm đầu mục, lọc theo chip Nhóm hàng & Nhân viên tập trung)
+    func vietTheoMauAnhChup(nhomTapTrung: Set<String> = [], nvTapTrung: Set<String> = []) -> String {
+        let dfNgay = DateFormatter()
+        dfNgay.dateFormat = "dd/MM/yyyy"
+        let ngayStr = dfNgay.string(from: s.ngay)
+
+        let dfGio = DateFormatter()
+        dfGio.dateFormat = "HH:mm"
+        let gioStr = s.capNhatLuc.isEmpty ? dfGio.string(from: Date()) : s.capNhatLuc
+        let donViStr = s.tenDonVi.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "ĐMX"
+            : s.tenDonVi.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let lk = s.luyKe
+        let rt = s.homNay
+        let dungQD = lk.targetQuyDoi > 0 || lk.doanhThuQuyDoi > 0
+        let dtLK = dungQD ? lk.doanhThuQuyDoi : lk.doanhThuThuc
+        let tgLK = dungQD ? lk.targetQuyDoi : lk.targetThuc
+        let ptHTLK: Double = {
+            if tgLK > 0 { return dtLK / tgLK * 100.0 }
+            return lk.phanTramHTQDDuKienHienThi
+        }()
+        let dtRT = (rt.doanhThuQuyDoi > 0) ? rt.doanhThuQuyDoi : rt.doanhThuThuc
+
+        let dsLK = dongCoTarget(s.dsLuyKe)
+        let dsRT = dongCoTarget(s.dsHomNay)
+        let nguonNganh = !dsLK.isEmpty ? dsLK : dsRT
+
+        // 2) Nhóm hàng bán tốt (đạt >= 100% dự kiến hoặc có % hoàn thành cao nhất)
+        let nhomTot = nguonNganh
+            .sorted { $0.phanTramDuBao > $1.phanTramDuBao }
+            .filter { $0.phanTramDuBao >= 95.0 || $0.phanTramHT >= 85.0 }
+            .prefix(6)
+
+        // 3) Nhóm hàng tập trung — gần đạt target (còn thiếu ít) hoặc do người dùng chọn chip
+        let nhomGanDat: [DongThiDua] = {
+            if !nhomTapTrung.isEmpty {
+                let daChon = nguonNganh.filter { nhomTapTrung.contains($0.tenNganhHang) }
+                if !daChon.isEmpty { return Array(daChon.prefix(6)) }
+            }
+            let gan = nguonNganh
+                .filter { $0.phanTramHT < 100.0 && $0.target > $0.thucHien }
+                .sorted { $0.phanTramHT > $1.phanTramHT }
+            return Array(gan.prefix(5))
+        }()
+
+        // 4) Ghi nhận nhân viên bán tốt
+        let dsNVLuyKe = KhoDuLieu.dungChung.duLieu(cho: s.ngay).doanhThuNhanVienLuyKe
+        let dsNVRealtime = s.homNayNV
+        var dongNVTot: [String] = []
+
+        let topNVLK = dsNVLuyKe.filter { $0.doanhThuQD > 0 }.sorted { $0.doanhThuQD > $1.doanhThuQD }.prefix(4)
+        for nv in topNVLK {
+            let tenRutGon = rutGonHoTenNV(nv.hoTen, maNV: nv.maNV)
+            let dtThuc = nv.doanhThuThuc > 0 ? " (DT thực \(Int(nv.doanhThuThuc.rounded())) tr)" : ""
+            dongNVTot.append("- **\(tenRutGon)**: Doanh thu QĐ lũy kế **\(Int(nv.doanhThuQD.rounded())) triệu**\(dtThuc).")
+        }
+
+        if dongNVTot.isEmpty {
+            let topNVThiDua = s.nhanVien
+                .filter { $0.tongMonGiao > 0 }
+                .sorted { ($0.soMonDat, $0.phanTramHTTB) > ($1.soMonDat, $1.phanTramHTTB) }
+                .prefix(4)
+            for nv in topNVThiDua {
+                let tenRutGon = rutGonHoTenNV(nv.nhanVien.hoTen, maNV: nv.nhanVien.maNV)
+                dongNVTot.append("- **\(tenRutGon)**: Hoàn thành **\(nv.soMonDat)/\(nv.tongMonGiao) môn** thi đua (TB **\(nv.phanTramHTTB.chuoiPhanTram)**).")
+            }
+        }
+
+        let topNVRT = dsNVRealtime.filter { $0.doanhThuQD > 0 }.sorted { $0.doanhThuQD > $1.doanhThuQD }.prefix(2)
+        for nv in topNVRT {
+            let tenRutGon = rutGonHoTenNV(nv.hoTen, maNV: nv.maNV)
+            dongNVTot.append("- **\(tenRutGon)** (Realtime hôm nay): **\(nv.doanhThuQD.chuoiSoGonVN) triệu** QĐ.")
+        }
+
+        var L: [String] = []
+        L.append("THÔNG BÁO TÌNH HÌNH KINH DOANH ĐẾN NGÀY \(ngayStr) — \(donViStr) lúc \(gioStr)")
+        L.append("")
+
+        if giong == .cangThang {
+            L.append("⚠️ Anh chị em chú ý đọc kỹ số liệu và tập trung đẩy số ngay trong ca:")
+            L.append("")
+        } else if giong == .thaoMai {
+            L.append("🌸 Cả nhà iu ơi, mình cùng điểm qua tình hình kinh doanh của siêu thị để cùng về đích thật rực rỡ nha ♥")
+            L.append("")
+        }
+
+        // Mục 1
+        L.append("1) **Doanh thu hiện tại so với lũy kế / target**:")
+        if s.coSoLieuLuyKe {
+            L.append("- Doanh thu lũy kế: **\(Int(dtLK.rounded()).dinhDangSoVN) triệu**")
+            L.append("- Target: **\(Int(tgLK.rounded()).dinhDangSoVN) triệu**")
+            L.append("- % hoàn thành: **\(String(format: "%.0f%%", ptHTLK))** (Dự kiến cuối tháng: **\(lk.phanTramHTQDDuKienHienThi.chuoiPhanTram)**)")
+        } else {
+            L.append("- Doanh thu lũy kế: Chưa nhập ảnh Doanh thu lũy kế hôm nay")
+        }
+        if dtRT > 0 {
+            let tgNgay = rt.targetQuyDoi > 0 ? " / target ngày **\(rt.targetQuyDoi.chuoiSoGonVN) triệu** (**\(rt.phanTramHTQDDuKienHienThi.chuoiPhanTram)**)" : ""
+            L.append("- Doanh thu Realtime: **\(dtRT.chuoiSoGonVN) triệu**\(tgNgay)")
+        } else {
+            L.append("- Doanh thu Realtime: **0 triệu** (cần cập nhật đơn phát sinh trong ca)")
+        }
+        L.append("")
+
+        // Mục 2
+        L.append("2) **Nhóm hàng bán tốt** (lũy kế đến hôm qua):")
+        if !nhomTot.isEmpty {
+            for d in nhomTot {
+                let dvt = d.loaiChiTieu == .soLuong ? "cái" : "triệu"
+                L.append("- **\(d.tenNganhHang)**: lũy kế **\(d.thucHien.chuoiSoGonVN)** / target **\(d.target.chuoiSoGonVN) \(dvt)** — đạt **\(String(format: "%.0f%%", d.phanTramHT))** (dự kiến **\(String(format: "%.0f%%", d.phanTramDuBao))**)")
+            }
+        } else if !nguonNganh.isEmpty {
+            for d in nguonNganh.sorted(by: { $0.phanTramHT > $1.phanTramHT }).prefix(4) {
+                L.append("- **\(d.tenNganhHang)**: thực hiện **\(d.thucHien.chuoiSoGonVN)** / target **\(d.target.chuoiSoGonVN)** (**\(String(format: "%.0f%%", d.phanTramHT))**)")
+            }
+        } else {
+            L.append("- Chưa có dữ liệu bảng ngành hàng thi đua. Vui lòng vào mục **Nhập số** để quét ảnh.")
+        }
+        L.append("")
+
+        // Mục 3
+        L.append("3) **Nhóm hàng tập trung — gần đạt target** (còn thiếu ít):")
+        if !nhomGanDat.isEmpty {
+            for d in nhomGanDat {
+                let thieu = max(0, d.target - d.thucHien)
+                L.append("- **\(d.tenNganhHang)**: đạt **\(String(format: "%.0f%%", d.phanTramHT))** (\(d.thucHien.chuoiSoGonVN)/\(d.target.chuoiSoGonVN)), chỉ còn thiếu **\(thieu.chuoiSoGonVN)** để cán mốc 100%")
+            }
+        } else {
+            L.append("- Các nhóm ngành trọng tâm đang bám sát tiến độ, tiếp tục duy trì tư vấn combo phụ kiện, trả chậm và bảo hiểm.")
+        }
+        L.append("")
+
+        // Mục 4
+        L.append("4) **Ghi nhận nhân viên bán tốt**:")
+        if !dongNVTot.isEmpty {
+            L.append(contentsOf: dongNVTot)
+        } else {
+            L.append("- Ghi nhận tinh thần chủ động đón khách và tư vấn nhiệt tình của tập thể nhân viên trong ca.")
+        }
+        L.append("")
+
+        // Mục 5
+        L.append("5) **Trọng tâm tập trung trong ca**:")
+        if !nhomTapTrung.isEmpty {
+            for tenNhom in nhomTapTrung.sorted() {
+                let goiY = vietHoaDau(hanhDong(cho: tenNhom))
+                L.append("- Tập trung đẩy **\(tenNhom)**: \(goiY).")
+            }
+        } else if let dau = nhomGanDat.first {
+            L.append("- Ưu tiên chốt dứt điểm các nhóm sát đích (**\(dau.tenNganhHang)**): \(hanhDong(cho: dau.tenNganhHang)).")
+        }
+
+        if !nvTapTrung.isEmpty {
+            let dsTen = nvTapTrung.sorted().joined(separator: ", ")
+            L.append("- Nhân sự trọng tâm cần bứt tốc trong ca: **\(dsTen)** — chủ động bám sát mục tiêu cá nhân và báo đơn ngay khi phát sinh.")
+        } else {
+            let nvCanHoTro = s.nhanVien
+                .filter { $0.tongMonGiao > 0 && $0.phanTramHTTB < 90 }
+                .sorted { $0.phanTramHTTB < $1.phanTramHTTB }
+                .prefix(3)
+            if !nvCanHoTro.isEmpty {
+                let dsTen = nvCanHoTro.map { ten($0.nhanVien.hoTen) }.joined(separator: ", ")
+                L.append("- Nhắc nhở các bạn **\(dsTen)** tập trung khai thác các môn còn 0 và tận dụng tối đa lượt khách vào quầy.")
+            }
+        }
+
+        switch giong {
+        case .cangThang:
+            L.append("- Yêu cầu 100% nhân sự bám sát chỉ tiêu, không để môn thi đua bằng 0, cuối ca Quản lý rà soát trực tiếp từng bạn!")
+        case .thaoMai:
+            L.append("- Cả nhà mình cùng cố gắng thêm một chút nữa để chiều tối nay bảng số xanh mướt hết nha, yêu cả nhà nhiều ♥")
+        case .binhThuong:
+            L.append("- Toàn siêu thị chủ động đón khách trong 5 giây, tư vấn kèm Phụ kiện + Sim + Bảo hiểm để hoàn thành vượt mức Target hôm nay!")
+        }
+
+        return L.joined(separator: "\n")
+    }
+
+    private func rutGonHoTenNV(_ hoTen: String, maNV: String) -> String {
+        let sach = hoTen.trimmingCharacters(in: .whitespacesAndNewlines)
+        if maNV.isEmpty || sach.contains(maNV) {
+            return sach
+        }
+        return "\(maNV) - \(sach)"
+    }
+
+    /// Tạo nội dung phân tích tương ứng cho từng nút trong mục "3. Xuất ảnh"
+    static func taoNoiDungBaoCao(loai: LoaiBaoCaoXuatAnh, ngay: Date, giong: GiongVanBanTin = .binhThuong) -> String {
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
+        let s = KhoDuLieu.dungChung.taoSoLieuBanTin(cho: ngay, khung: KhungBanTin.theoGio())
+        let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
+        let donVi = dl.thongTinDonVi.isEmpty ? "Siêu thị ĐMX" : dl.thongTinDonVi
+
+        switch loai {
+        case .doanhThuThiDuaLuyKe:
+            return BoVietBanTin(soLieu: s, giong: giong).vietTheoMauAnhChup()
+
+        case .luyKeDuKien:
+            let dt = dl.doanhThu
+            let ds = dl.danhSachThiDua.filter { $0.target > 0 }
+            let dat = ds.filter { $0.phanTramDuBao >= 100 }.sorted { $0.phanTramDuBao > $1.phanTramDuBao }
+            let gan = ds.filter { $0.phanTramDuBao >= 85 && $0.phanTramDuBao < 100 }.sorted { $0.phanTramDuBao > $1.phanTramDuBao }
+            let yeu = ds.filter { $0.phanTramDuBao < 85 }.sorted { $0.phanTramDuBao < $1.phanTramDuBao }
+
+            var L: [String] = [
+                "📈 BÁO CÁO LŨY KẾ & % DỰ KIẾN CUỐI THÁNG — \(donVi) (\(ngayStr))",
+                "",
+                "1) Tổng quan Doanh thu Lũy kế:",
+                "• Doanh thu Thực: \(dt.doanhThuThuc.chuoiSoGonVN) / Target \(dt.targetThuc.chuoiSoGonVN) triệu",
+                "• Doanh thu Quy đổi: \(dt.doanhThuQuyDoi.chuoiSoGonVN) / Target \(dt.targetQuyDoi.chuoiSoGonVN) triệu",
+                "• Dự kiến hoàn thành cuối tháng: \(dt.phanTramHTQDDuKienHienThi.chuoiPhanTram) (Số ngành đạt dự kiến: \(dat.count)/\(ds.count) ngành)",
+                ""
+            ]
+            if !dat.isEmpty {
+                L.append("2) Nhóm ngành vượt / đạt dự kiến tốt (>= 100%):")
+                for d in dat.prefix(5) {
+                    L.append("- \(d.tenNganhHang): TH \(d.thucHien.chuoiSoGonVN)/\(d.target.chuoiSoGonVN) → Dự kiến \(d.phanTramDuBao.chuoiPhanTram)")
+                }
+                L.append("")
+            }
+            if !gan.isEmpty {
+                L.append("3) Nhóm ngành sát đích (85% – 99%):")
+                for d in gan.prefix(5) {
+                    L.append("- \(d.tenNganhHang): Dự kiến \(d.phanTramDuBao.chuoiPhanTram) (cần đẩy nhẹ mỗi ngày)")
+                }
+                L.append("")
+            }
+            if !yeu.isEmpty {
+                L.append("4) Nhóm ngành cần tập trung bứt tốc (< 85%):")
+                for d in yeu.prefix(5) {
+                    L.append("- \(d.tenNganhHang): Dự kiến \(d.phanTramDuBao.chuoiPhanTram) (TH \(d.thucHien.chuoiSoGonVN)/\(d.target.chuoiSoGonVN))")
+                }
+            }
+            return L.joined(separator: "\n")
+
+        case .doanhThuThiDuaRealtime:
+            let rt = dl.doanhThuRealtime
+            let ds = dl.danhSachThiDuaRealtime.filter { $0.target > 0 }
+            let dat = ds.filter { $0.phanTramHT >= 100 }
+            let coSo = ds.filter { $0.thucHien > 0 && $0.phanTramHT < 100 }.sorted { $0.phanTramHT > $1.phanTramHT }
+            let bangKhong = ds.filter { $0.thucHien <= 0 }
+
+            var L: [String] = [
+                "⚡ BÁO CÁO NHANH REALTIME TRONG NGÀY — \(donVi) (\(ngayStr) \(dl.capNhatLuc))",
+                "",
+                "1) Doanh thu Realtime trong ngày:",
+                "• Doanh thu Thực: \(rt.doanhThuThuc.chuoiSoGonVN) triệu",
+                "• Doanh thu Quy đổi: \(rt.doanhThuQuyDoi.chuoiSoGonVN) / Target ngày \(rt.targetQuyDoi.chuoiSoGonVN) triệu (\(rt.phanTramHTQDDuKienHienThi.chuoiPhanTram))",
+                "• Số ngành đạt target ngày: \(dat.count)/\(ds.count) ngành",
+                ""
+            ]
+            if !dat.isEmpty {
+                L.append("2) Ngành hàng đã hoàn thành target ngày:")
+                for d in dat.prefix(5) {
+                    L.append("- \(d.tenNganhHang): \(d.thucHien.chuoiSoGonVN)/\(d.target.chuoiSoGonVN) (\(d.phanTramHT.chuoiPhanTram))")
+                }
+                L.append("")
+            }
+            if !coSo.isEmpty {
+                L.append("3) Ngành hàng đang chạy số — cần chốt thêm:")
+                for d in coSo.prefix(5) {
+                    let thieu = max(0, d.target - d.thucHien)
+                    L.append("- \(d.tenNganhHang): \(d.thucHien.chuoiSoGonVN)/\(d.target.chuoiSoGonVN) (\(d.phanTramHT.chuoiPhanTram)) — còn thiếu \(thieu.chuoiSoGonVN)")
+                }
+                L.append("")
+            }
+            if !bangKhong.isEmpty {
+                L.append("4) Ngành hàng đang bằng 0 (ưu tiên mở điểm ngay trong ca):")
+                L.append("- " + bangKhong.prefix(8).map(\.tenNganhHang).joined(separator: ", "))
+            }
+            return L.joined(separator: "\n")
+
+        case .xepHangNVLuyKe, .xepHangNVRealtime:
+            let cheDo: LoaiCheDoDoanhThu = (loai == .xepHangNVLuyKe) ? .luyKe : .realtime
+            let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: cheDo)
+            let dsDT = dl.doanhThuNhanVien(theo: cheDo).sorted { $0.doanhThuQD > $1.doanhThuQD }
+
+            var L: [String] = [
+                "👥 BẢNG XẾP HẠNG NHÂN VIÊN (\(cheDo.tieuDe.uppercased())) — \(donVi) (\(ngayStr))",
+                ""
+            ]
+            if !dsDT.isEmpty {
+                L.append("1) Top Doanh thu Quy đổi (\(cheDo.tieuDe)):")
+                for (i, nv) in dsDT.prefix(6).enumerated() {
+                    L.append("  \(i + 1). \(nv.hoTen): \(nv.doanhThuQD.chuoiSoGonVN) triệu QĐ (Thực: \(nv.doanhThuThuc.chuoiSoGonVN) tr • QĐ: \(nv.hieuQuaQD.chuoiPhanTram))")
+                }
+                L.append("")
+            }
+            if !dsNV.isEmpty {
+                L.append("2) Xếp hạng hoàn thành môn Thi đua (\(cheDo.tieuDe)):")
+                for (i, nv) in dsNV.prefix(6).enumerated() {
+                    L.append("  \(i + 1). \(nv.nhanVien.hoTen): \(nv.soMonDat)/\(nv.tongMonGiao) môn đạt • TB \(nv.phanTramHTTB.chuoiPhanTram)")
+                }
+                let yeu = dsNV.suffix(3)
+                if !yeu.isEmpty {
+                    L.append("")
+                    L.append("3) Nhân sự cần tập trung đẩy thêm các môn còn thiếu:")
+                    for nv in yeu {
+                        L.append("- \(nv.nhanVien.hoTen): đạt \(nv.soMonDat)/\(nv.tongMonGiao) môn (TB \(nv.phanTramHTTB.chuoiPhanTram))")
+                    }
+                }
+            }
+            return L.joined(separator: "\n")
+
+        case .bieuDoSucKhoeNV:
+            let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: .luyKe)
+            let topManh = dsNV.prefix(3)
+            let topYeu = dsNV.sorted { $0.phanTramHTTB < $1.phanTramHTTB }.prefix(5)
+
+            var L: [String] = [
+                "❤️‍🩹 BÁO CÁO BIỂU ĐỒ SỨC KHỎE NHÂN VIÊN — \(donVi) (\(ngayStr))",
+                "",
+                "1) Nhân sự dẫn đầu phong trào thi đua:"
+            ]
+            for nv in topManh {
+                L.append("- \(nv.nhanVien.hoTen): \(nv.soMonDat)/\(nv.tongMonGiao) môn đạt • TB \(nv.phanTramHTTB.chuoiPhanTram)")
+            }
+            L.append("")
+            L.append("2) Top 5 nhân sự cần kèm cặp & hỗ trợ đẩy số ngay trong ca:")
+            for nv in topYeu {
+                let monKhong = nv.cacMonGiao.filter { $0.thucHien <= 0 }.count
+                L.append("- \(nv.nhanVien.hoTen): TB \(nv.phanTramHTTB.chuoiPhanTram) (\(nv.soMonDat)/\(nv.tongMonGiao) môn đạt, còn \(monKhong) môn = 0)")
+            }
+            L.append("")
+            L.append("3) Trọng tâm hành động: Quản lý ca phân công kèm cặp trực tiếp các môn = 0 trong hôm nay.")
+            return L.joined(separator: "\n")
+
+        case .bieuDoRealtimeThang:
+            let dsNgay = KhoDuLieu.dungChung.danhSachRealtimeTrongThang(cho: ngay).filter(\.coDuLieu)
+            let tongQD = dsNgay.map(\.doanhThuQuyDoi).reduce(0, +)
+            let tongThuc = dsNgay.map(\.doanhThuThuc).reduce(0, +)
+            let tbQD = dsNgay.isEmpty ? 0 : tongQD / Double(dsNgay.count)
+            let caoNhat = dsNgay.max(by: { $0.doanhThuQuyDoi < $1.doanhThuQuyDoi })
+
+            var L: [String] = [
+                "📆 TỔNG HỢP BIỂU ĐỒ DOANH THU REALTIME THÁNG — \(donVi) (đến \(ngayStr))",
+                "",
+                "• Số ngày đã cập nhật Realtime: \(dsNgay.count) ngày",
+                "• Tổng Doanh thu Thực các ngày: \(tongThuc.chuoiSoGonVN) triệu",
+                "• Tổng Doanh thu Quy đổi các ngày: \(tongQD.chuoiSoGonVN) triệu (Trung bình: \(tbQD.chuoiSoGonVN) triệu/ngày)"
+            ]
+            if let maxD = caoNhat {
+                L.append("• Ngày cao điểm nhất: Ngày \(maxD.ngayTrongThang) đạt \(maxD.doanhThuQuyDoi.chuoiSoGonVN) triệu QĐ (\(maxD.phanTramHTQuyDoi.chuoiPhanTram))")
+            }
+            L.append("• Cả siêu thị tiếp tục duy trì nhịp độ chốt đơn đều đặn ở tất cả các khung giờ!")
+            return L.joined(separator: "\n")
+
+        case .chiTiet16NV:
+            let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: .luyKe)
+            var L: [String] = [
+                "👤 TỔNG HỢP CHI TIẾT THI ĐUA CÁ NHÂN (\(dsNV.count) NHÂN VIÊN) — \(ngayStr)",
+                ""
+            ]
+            for (i, nv) in dsNV.enumerated() {
+                let monYeu = nv.cacMonGiao.filter { $0.phanTramHT < 80 }.prefix(2).map(\.tenNganhHang).joined(separator: ", ")
+                let ghiChuYeu = monYeu.isEmpty ? "Đều các môn" : "Cần đẩy: \(monYeu)"
+                L.append("\(i + 1). \(nv.nhanVien.hoTen): \(nv.soMonDat)/\(nv.tongMonGiao) môn đạt (TB \(nv.phanTramHTTB.chuoiPhanTram)) — \(ghiChuYeu)")
+            }
+            return L.joined(separator: "\n")
         }
     }
 
@@ -260,290 +658,736 @@ final class BoVietBanTin {
         return "đưa \(nhom) vào lời chào đầu tiên với mỗi khách, mục tiêu ít nhất 1 đơn trong ca"
     }
 
-    private func loiDan() -> LoiDan {
-        switch giong {
-        case .cangThang:
-            return LoiDan(
-                mo: chon(["Anh chị em chú ý, nói ngắn gọn:", "Tình hình cần xử lý ngay, mọi người đọc kỹ:"]),
-                viec: "✔ YÊU CẦU (làm ngay, cuối ca QL kiểm tra):",
-                duoiTapTrung: " — chưa có số trước 15h thì báo lại QL lý do.",
-                ket: chon(["Không có lý do cho việc để môn bằng 0. Cuối ca mình chốt số với từng người.",
-                           "Hôm nay ai hụt target sẽ trao đổi riêng với QL. Làm ngay!"])
-            )
-        case .thaoMai:
-            return LoiDan(
-                mo: chon(["Cả nhà iu ơi, chị gửi chút tình hình nha ♥", "Mấy đứa ơi, mình cùng nhìn số một chút nhé ♥"]),
-                viec: "✔ Mình cùng làm mấy việc nhỏ này nha:",
-                duoiTapTrung: " — chị tin em làm được mà, cố lên nè ♥",
-                ket: chon(["Thương cả nhà nhiều, mình cùng nhau làm thật đẹp nha ♥",
-                           "Cả nhà giỏi lắm, chị luôn ở đây hỗ trợ mọi người ♥"])
-            )
-        case .binhThuong:
-            return LoiDan(
-                mo: chon(["Cả nhà cùng xem tình hình nhé:", "Gửi cả nhà tình hình số liệu:"]),
-                viec: "✔ VIỆC CẦN LÀM:",
-                duoiTapTrung: "",
-                ket: chon(["Cùng nhau làm một ngày thật đẹp số nhé!", "Cố lên cả nhà, mình làm được!"])
-            )
-        }
-    }
-
     private func dongCoTarget(_ ds: [DongThiDua]) -> [DongThiDua] {
         ds.filter { $0.target > 0.0001 }
     }
+}
 
-    private func tieuDeBai(_ ten: String) -> String {
-        let ngay = TienIchNgay.hienThiNgay.string(from: s.ngay)
-        let donVi = s.tenDonVi.isEmpty ? "" : " · \(s.tenDonVi)"
-        return "\(ten)\(donVi) · \(ngay)"
+// MARK: - Dịch vụ Google Gemini AI (Free-tier Flash model, tích hợp sẵn key mặc định)
+
+final class DichVuGeminiAI {
+    static let dungChung = DichVuGeminiAI()
+
+    /// Key mặc định do người dùng cung cấp để kiểm tra và dùng thử ngay
+    static let khoaMacDinh = "AIzaSyBLV7N_qUxSuiJ3B3FETmj2Ta67CKeVKWo"
+
+    /// Danh sách các model Google Gemini miễn phí (Free-tier trong Google AI Studio)
+    static let cacModelMienPhi: [(ma: String, ten: String)] = [
+        ("gemini-2.5-flash", "Gemini 2.5 Flash (Miễn phí · Nhanh & Thông minh nhất)"),
+        ("gemini-2.0-flash", "Gemini 2.0 Flash (Miễn phí · Ổn định, Tốc độ cao)"),
+        ("gemini-2.0-flash-lite", "Gemini 2.0 Flash-Lite (Miễn phí · Siêu nhẹ, Hạn mức cao)"),
+        ("gemini-1.5-flash", "Gemini 1.5 Flash (Miễn phí · Tương thích rộng)")
+    ]
+
+    private init() {}
+
+    var apiKeyHienTai: String {
+        let luu = KhoDuLieu.dungChung.caiDat.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        return luu.isEmpty ? Self.khoaMacDinh : luu
     }
 
-    private func dongLuuY() -> [String] {
-        if s.tamTinh {
-            return ["⏳ TẠM TÍNH (lũy kế hôm qua + kết ca tối qua) — gửi ảnh Đầu ca thật để thay bằng số thật.", ""]
+    var modelHienTai: String {
+        let luu = KhoDuLieu.dungChung.caiDat.geminiModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        return luu.isEmpty ? "gemini-2.5-flash" : luu
+    }
+
+    /// Kiểm tra API Key trực tiếp với máy chủ Google Gemini (tự động thử model dự phòng miễn phí nếu model đầu bận)
+    func kiemTraVaDungThuKey(
+        apiKey: String? = nil,
+        model: String? = nil,
+        hoanTat: @escaping (Result<(modelThanhCong: String, phanHoiMau: String), Error>) -> Void
+    ) {
+        let key = (apiKey ?? apiKeyHienTai).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            let err = NSError(domain: "GeminiAI", code: 400, userInfo: [NSLocalizedDescriptionKey: "Vui lòng nhập Google Gemini API Key."])
+            DispatchQueue.main.async { hoanTat(.failure(err)) }
+            return
         }
-        return []
-    }
 
-    private func phanTramNgay(_ t: ThongTinDoanhThu) -> Double {
-        if t.targetQuyDoi > 0, t.doanhThuQuyDoi > 0 { return t.doanhThuQuyDoi / t.targetQuyDoi * 100.0 }
-        if t.targetThuc > 0, t.doanhThuThuc > 0 { return t.doanhThuThuc / t.targetThuc * 100.0 }
-        if t.phanTramHTQuyDoi > 0 { return t.phanTramHTQuyDoi }
-        return t.phanTramHTThuc
-    }
+        let modelUuTien = (model ?? modelHienTai).trimmingCharacters(in: .whitespacesAndNewlines)
+        var danhSachThu: [String] = [modelUuTien]
+        for m in Self.cacModelMienPhi.map(\.ma) where !danhSachThu.contains(m) {
+            danhSachThu.append(m)
+        }
 
-    /// Đoạn "TẬP TRUNG": 3 nhân viên chậm nhất × 2 môn yếu nhất, có số cụ thể + việc cụ thể
-    private func doanTapTrung(_ loi: LoiDan) -> [String] {
-        let cacNV = s.nhanVien
-            .filter { $0.tongMonGiao > 0 && $0.phanTramHTTB < 100 }
-            .sorted { $0.phanTramHTTB < $1.phanTramHTTB }
-            .prefix(3)
-        var ketQua: [String] = []
-        let conLai = Double(s.soNgayConLai)
-        for nv in cacNV {
-            let cacMon = nv.cacMonGiao
-                .filter { $0.targetCaNhan > 0.0001 && $0.phanTramHT < 100 }
-                .sorted { $0.phanTramHT < $1.phanTramHT }
-                .prefix(2)
-            for mon in cacMon {
-                let thieu = max(0, mon.targetCaNhan - mon.thucHien)
-                let moiNgay = thieu / conLai
-                let dong1 = "• \(ten(nv.nhanVien.hoTen)) – \(mon.tenNganhHang): \(mon.thucHien.chuoiSoGonVN)/\(mon.targetCaNhan.chuoiSoGonVN) (\(mon.phanTramHT.chuoiPhanTram)). Còn thiếu \(thieu.chuoiSoGonVN), mỗi ngày cần ~\(moiNgay.chuoiSoGonVN)."
-                let viec = vietHoaDau(hanhDong(cho: mon.tenNganhHang))
-                ketQua.append(dong1)
-                ketQua.append("   → \(viec)\(loi.duoiTapTrung)")
+        let cauLenhThu = "Bạn là trợ lý phân tích kinh doanh Điện Máy Xanh. Hãy trả lời ngắn gọn 1 câu tiếng Việt xác nhận kết nối API Gemini thành công và sẵn sàng tạo báo cáo."
+        goiTiepModel(danhSachModel: danhSachThu, chiSo: 0, apiKey: key, prompt: cauLenhThu) { kq in
+            DispatchQueue.main.async {
+                switch kq {
+                case .success(let (modelOK, text)):
+                    hoanTat(.success((modelOK, text)))
+                case .failure(let loi):
+                    hoanTat(.failure(loi))
+                }
             }
         }
-        return ketQua.isEmpty ? [] : ["", "◎ TẬP TRUNG:"] + ketQua
     }
 
-    private func danhSachDanhDau(_ tieuDe: String, _ cacDong: [String]) -> [String] {
-        cacDong.isEmpty ? [] : ["", tieuDe] + cacDong
-    }
-
-    // MARK: Đầu ca
-
-    private func vietDauCa() -> String {
-        guard s.coSoLieuLuyKe else {
-            return "\(tieuDeBai("■ PHÂN TÍCH ĐẦU CA"))\n\nChưa có số Lũy kế. Vào \"Đổ số - Xem số → Lũy kế\" nhập ảnh Thi đua / Doanh thu rồi quay lại bản tin."
+    /// Gọi Google Gemini AI để phân tích dữ liệu thật của siêu thị và sinh báo cáo theo đúng mẫu ảnh chụp
+    func phanTichBaoCao(
+        soLieu: SoLieuBanTin,
+        giong: GiongVanBanTin,
+        nhomTapTrung: Set<String> = [],
+        nvTapTrung: Set<String> = [],
+        loaiBaoCao: LoaiBaoCaoXuatAnh? = nil,
+        hoanTat: @escaping (Result<String, Error>) -> Void
+    ) {
+        let key = apiKeyHienTai
+        let modelUuTien = modelHienTai
+        var danhSachThu: [String] = [modelUuTien]
+        for m in Self.cacModelMienPhi.map(\.ma) where !danhSachThu.contains(m) {
+            danhSachThu.append(m)
         }
-        let loi = loiDan()
-        let lk = s.luyKe
-        let ds = dongCoTarget(s.dsLuyKe)
-        let p = lk.phanTramHTQDDuKienHienThi
-        let dat = ds.filter { $0.phanTramDuBao >= 99.995 }
-        let yeu = ds.filter { $0.phanTramDuBao < 90 }.sorted { $0.phanTramDuBao < $1.phanTramDuBao }
-        let gan = ds.filter { $0.phanTramDuBao >= 90 && $0.phanTramDuBao < 99.995 }.sorted { $0.phanTramDuBao > $1.phanTramDuBao }
 
-        let dungQD = lk.targetQuyDoi > 0
-        let dtHT = dungQD ? lk.doanhThuQuyDoi : lk.doanhThuThuc
-        let mucTieu = dungQD ? lk.targetQuyDoi : lk.targetThuc
-        let moiNgayCan = max(0, mucTieu - dtHT) / Double(s.soNgayConLai)
-        let nhanLoai = dungQD ? "DT quy đổi" : "DT thực"
+        let prompt = taoPromptPhanTich(
+            soLieu: soLieu,
+            giong: giong,
+            nhomTapTrung: nhomTapTrung,
+            nvTapTrung: nvTapTrung,
+            loaiBaoCao: loaiBaoCao
+        )
 
-        var L: [String] = [tieuDeBai("■ PHÂN TÍCH ĐẦU CA"), ""]
-        L += dongLuuY()
-        L.append(loi.mo)
-
-        if p >= 100 {
-            L.append(chon(["Cả nhà ơi, lũy kế đến hôm qua mình đang đi tốt: dự kiến \(p.chuoiPhanTram) target doanh thu.",
-                           "Tin vui đầu ngày: siêu thị đang dự kiến \(p.chuoiPhanTram) target, giữ nhịp này là về đích sớm."]))
-        } else if p >= 90 {
-            L.append(chon(["Lũy kế đến hôm qua mình dự kiến \(p.chuoiPhanTram) target — sát nút rồi, không được lơi tay.",
-                           "Doanh thu dự kiến \(p.chuoiPhanTram), còn thiếu một chút nữa thôi, hôm nay phải bứt lên."]))
-        } else {
-            L.append(chon(["Nói thẳng: lũy kế dự kiến mới \(p.chuoiPhanTram) target, đang hụt khá nhiều.",
-                           "Tình hình chưa ổn — dự kiến chỉ \(p.chuoiPhanTram) target, cả team cần tăng tốc ngay từ ca sáng."]))
-        }
-        L.append("• Lũy kế \(nhanLoai): \(dtHT.chuoiSoGonVN) / \(mucTieu.chuoiSoGonVN). Mỗi ngày còn lại cần ~\(moiNgayCan.chuoiSoGonVN) để chạm 100%.")
-        if lk.coTangGiam {
-            let dau = lk.tangGiamCungKy >= 0 ? "+" : ""
-            L.append("• So cùng kỳ: \(dau)\(lk.tangGiamCungKy.chuoiPhanTram).")
-        }
-        L.append("• Thi đua: \(dat.count)/\(ds.count) môn đang về đích.")
-
-        L += danhSachDanhDau("⚠ CẢNH BÁO — môn đang hụt nặng:", yeu.prefix(5).map { "  - \($0.tenNganhHang): \($0.phanTramDuBao.chuoiPhanTram)" })
-        if !gan.isEmpty {
-            let tieuDe = chon(["◎ Môn chỉ cần đẩy thêm chút là đạt:", "◎ Môn sát đích, làm ngay hôm nay:"])
-            L += danhSachDanhDau(tieuDe, gan.prefix(4).map { "  - \($0.tenNganhHang): \($0.phanTramDuBao.chuoiPhanTram)" })
-        }
-        L += doanTapTrung(loi)
-
-        var viec: [String] = []
-        if let m = yeu.first {
-            viec.append(chon(["Ưu tiên tư vấn kèm \(m.tenNganhHang) cho mọi khách mua máy.",
-                              "Mỗi bạn chốt ít nhất 1 đơn \(m.tenNganhHang) trước 12h."]))
-        }
-        if yeu.count > 1 {
-            viec.append("Ca chiều tập trung \(yeu[1].tenNganhHang) — quản lý kiểm tra lúc 15h.")
-        }
-        if let m = gan.first {
-            viec.append("Chốt nốt \(m.tenNganhHang) trong hôm nay.")
-        }
-        viec.append(chon(["Chào khách trong 5 giây, không để khách đứng chờ.",
-                          "Mời khách trải nghiệm máy trưng bày, tăng tỉ lệ chốt."]))
-        L += ["", loi.viec]
-        for (i, v) in viec.enumerated() { L.append("  \(i + 1). \(v)") }
-
-        let nvYeu = s.nhanVien
-            .filter { $0.tongMonGiao > 0 && $0.phanTramHTTB < 90 }
-            .sorted { $0.phanTramHTTB < $1.phanTramHTTB }
-            .prefix(2)
-        if !nvYeu.isEmpty {
-            L += ["", "➤ NHẮC NHỞ:"]
-            for nv in nvYeu {
-                let soKhong = nv.cacMonGiao.filter { $0.thucHien <= 0 }.count
-                let t = ten(nv.nhanVien.hoTen)
-                let pc = nv.phanTramHTTB.chuoiPhanTram
-                L.append("  " + chon(["\(t) đang \(pc) target, còn \(soKhong) môn chưa có số — hôm nay cố lên em nhé.",
-                                      "\(t): \(pc) target, \(soKhong) môn = 0. Cần thấy số trong ca hôm nay."]))
+        goiTiepModel(danhSachModel: danhSachThu, chiSo: 0, apiKey: key, prompt: prompt) { kq in
+            DispatchQueue.main.async {
+                switch kq {
+                case .success(let (_, vanBan)):
+                    hoanTat(.success(vanBan))
+                case .failure(let loi):
+                    hoanTat(.failure(loi))
+                }
             }
         }
-        if let tot = s.nhanVien.filter({ $0.tongMonGiao > 0 }).max(by: { ($0.soMonDat, $0.phanTramHTTB) < ($1.soMonDat, $1.phanTramHTTB) }), tot.soMonDat > 0 {
-            let t = ten(tot.nhanVien.hoTen)
-            L += ["", chon(["★ Khen \(t): \(tot.soMonDat)/\(tot.tongMonGiao) môn về đích — mọi người học hỏi nhé!",
-                            "★ \(t) đang dẫn đầu với \(tot.soMonDat)/\(tot.tongMonGiao) môn đạt."])]
-        }
-        L += ["", loi.ket]
-        return L.joined(separator: "\n")
     }
 
-    // MARK: Hiện tại
-
-    private func vietHienTai() -> String {
-        guard s.coSoLieuHomNay || s.coSoLieuLuyKe else {
-            return "\(tieuDeBai("⚡ BÁO CÁO HIỆN TẠI"))\n\nChưa có số. Vào \"Đổ số - Xem số → Realtime\" nhập ảnh rồi quay lại bản tin."
+    private func taoPromptPhanTich(
+        soLieu: SoLieuBanTin,
+        giong: GiongVanBanTin,
+        nhomTapTrung: Set<String>,
+        nvTapTrung: Set<String>,
+        loaiBaoCao: LoaiBaoCaoXuatAnh?
+    ) -> String {
+        let banMau = BoVietBanTin(soLieu: soLieu, giong: giong).vietTheoMauAnhChup(
+            nhomTapTrung: nhomTapTrung,
+            nvTapTrung: nvTapTrung
+        )
+        let moTaGiong: String
+        switch giong {
+        case .binhThuong:
+            moTaGiong = "Chuyên nghiệp, rõ ràng, khích lệ tinh thần đội ngũ siêu thị."
+        case .cangThang:
+            moTaGiong = "Quyết liệt, thẳng thắn, tập trung đốc thúc tiến độ và yêu cầu cam kết hành động."
+        case .thaoMai:
+            moTaGiong = "Thân thiện, ngọt ngào, truyền cảm hứng tích cực nhưng vẫn bám sát con số mục tiêu."
         }
-        let loi = loiDan()
-        let t = s.homNay
-        var L: [String] = [tieuDeBai("⚡ BÁO CÁO HIỆN TẠI"), "", loi.mo]
 
-        if s.coSoLieuHomNay {
-            let p = phanTramNgay(t)
-            let dungQD = t.targetQuyDoi > 0
-            let dt = dungQD ? t.doanhThuQuyDoi : t.doanhThuThuc
-            let tg = dungQD ? t.targetQuyDoi : t.targetThuc
-            L.append("• Hôm nay đến giờ: \(dt.chuoiSoGonVN) / target ngày \(tg.chuoiSoGonVN) (\(p.chuoiPhanTram)).")
-            if p >= 60 {
-                L.append(chon(["Đang đi đúng nhịp, giữ vững nhé.", "Nhịp ổn, tiếp tục chốt đều tay."]))
-            } else {
-                L.append(chon(["Đang chậm so với nhịp ngày, cần tăng tốc ngay.", "Số trong ngày còn thấp, ca sau phải bù."]))
+        let yeuCauRieng: String
+        if let loai = loaiBaoCao {
+            let tomTatRieng = BoVietBanTin.taoNoiDungBaoCao(loai: loai, ngay: soLieu.ngay, giong: giong)
+            yeuCauRieng = "\nBỐI CẢNH XUẤT ẢNH: Người dùng đang chọn xuất ảnh \"\(loai.tieuDeNgan)\".\nDữ liệu chi tiết của phần này:\n\(tomTatRieng)\n"
+        } else {
+            yeuCauRieng = ""
+        }
+
+        return [
+            "Bạn là Quản lý Siêu thị Điện Máy Xanh chuyên phân tích số liệu thi đua kinh doanh để gửi lên nhóm LINE.",
+            "Hãy dựa trên số liệu thực tế dưới đây để viết một bản thông báo tình hình kinh doanh súc tích, chính xác tuyệt đối về con số, có đánh số 1) 2) 3) 4) 5) và giữ định dạng **in đậm** cho các chỉ số quan trọng giống hệt cấu trúc mẫu.",
+            "Giọng văn yêu cầu: \(moTaGiong)",
+            yeuCauRieng,
+            "DỮ LIỆU & BẢN MẪU CHUẨN CỦA SIÊU THỊ:",
+            banMau,
+            "",
+            "Chỉ trả về nội dung bài báo cáo hoàn chỉnh để copy gửi LINE (không thêm lời giải thích mở đầu hay kết thúc ngoài bản tin)."
+        ].joined(separator: "\n")
+    }
+
+    private func goiTiepModel(
+        danhSachModel: [String],
+        chiSo: Int,
+        apiKey: String,
+        prompt: String,
+        hoanTat: @escaping (Result<(String, String), Error>) -> Void
+    ) {
+        guard chiSo < danhSachModel.count else {
+            let err = NSError(
+                domain: "GeminiAI",
+                code: 500,
+                userInfo: [NSLocalizedDescriptionKey: "Không thể kết nối tới các model Gemini miễn phí. Vui lòng kiểm tra lại kết nối mạng hoặc API Key."]
+            )
+            hoanTat(.failure(err))
+            return
+        }
+
+        let model = danhSachModel[chiSo]
+        let urlStr = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)"
+        guard let url = URL(string: urlStr) else {
+            goiTiepModel(danhSachModel: danhSachModel, chiSo: chiSo + 1, apiKey: apiKey, prompt: prompt, hoanTat: hoanTat)
+            return
+        }
+
+        var req = URLRequest(url: url, timeoutInterval: 28)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let payload: [String: Any] = [
+            "contents": [
+                [
+                    "parts": [
+                        ["text": prompt]
+                    ]
+                ]
+            ],
+            "generationConfig": [
+                "temperature": 0.45,
+                "maxOutputTokens": 2048
+            ]
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+
+        URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
+            guard let self = self else { return }
+            if let error = error {
+                if chiSo + 1 < danhSachModel.count {
+                    self.goiTiepModel(danhSachModel: danhSachModel, chiSo: chiSo + 1, apiKey: apiKey, prompt: prompt, hoanTat: hoanTat)
+                } else {
+                    hoanTat(.failure(error))
+                }
+                return
             }
-        } else {
-            L.append("• Chưa có số Realtime hôm nay — nhập ảnh Realtime để bản tin đầy đủ hơn.")
-        }
-        if s.coSoLieuLuyKe {
-            L.append("• Lũy kế tháng: dự kiến \(s.luyKe.phanTramHTQDDuKienHienThi.chuoiPhanTram) target.")
+
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard let data = data else {
+                self.goiTiepModel(danhSachModel: danhSachModel, chiSo: chiSo + 1, apiKey: apiKey, prompt: prompt, hoanTat: hoanTat)
+                return
+            }
+
+            if statusCode == 200,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let candidates = json["candidates"] as? [[String: Any]],
+               let first = candidates.first,
+               let content = first["content"] as? [String: Any],
+               let parts = content["parts"] as? [[String: Any]] {
+                let gopText = parts.compactMap { $0["text"] as? String }.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                if !gopText.isEmpty {
+                    hoanTat(.success((model, gopText)))
+                    return
+                }
+            }
+
+            // Nếu lỗi 404 / 429 / 503 trên model hiện tại, thử sang model miễn phí kế tiếp
+            if (statusCode == 404 || statusCode == 429 || statusCode == 503) && (chiSo + 1 < danhSachModel.count) {
+                self.goiTiepModel(danhSachModel: danhSachModel, chiSo: chiSo + 1, apiKey: apiKey, prompt: prompt, hoanTat: hoanTat)
+                return
+            }
+
+            var thongDiepLoi = "Mã phản hồi HTTP \(statusCode)"
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errObj = json["error"] as? [String: Any],
+               let msg = errObj["message"] as? String {
+                thongDiepLoi = msg
+            }
+            let err = NSError(domain: "GeminiAI", code: statusCode, userInfo: [NSLocalizedDescriptionKey: thongDiepLoi])
+            hoanTat(.failure(err))
+        }.resume()
+    }
+}
+
+// MARK: - Bộ tạo gói ZIP (Store mode + CRC32 chuẩn) & Xuất file Excel (.xlsx) / PowerPoint (.pptx) thật
+
+enum BoXuatOfficeDMX {
+
+    /// Tạo file Excel (.xlsx) chuẩn OpenXML gồm 4 Sheet: Tổng quan & Phân tích, Thi đua Lũy kế, Thi đua Realtime, Nhân viên
+    static func xuatFileExcelXLSX(ngay: Date, noiDungPhanTich: String) -> URL? {
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
+        let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
+        let donVi = dl.thongTinDonVi.isEmpty ? "Siêu thị ĐMX" : dl.thongTinDonVi
+
+        // Sheet 1: Tổng quan & Phân tích AI
+        var dongSheet1: [[String]] = [
+            ["BÁO CÁO TỔNG HỢP KINH DOANH & THI ĐUA — \(donVi)"],
+            ["Ngày báo cáo", ngayStr, "Cập nhật lúc", dl.capNhatLuc],
+            [],
+            ["CHỈ SỐ DOANH THU", "DOANH THU THỰC", "TARGET THỰC", "DOANH THU QUY ĐỔI", "TARGET QUY ĐỔI", "% HT DỰ KIẾN", "LƯỢT KHÁCH"],
+            [
+                "Lũy kế tháng",
+                dl.doanhThu.doanhThuThuc.chuoiSoGonVN,
+                dl.doanhThu.targetThuc.chuoiSoGonVN,
+                dl.doanhThu.doanhThuQuyDoi.chuoiSoGonVN,
+                dl.doanhThu.targetQuyDoi.chuoiSoGonVN,
+                dl.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram,
+                String(Int(dl.doanhThu.luotKhach))
+            ],
+            [
+                "Realtime hôm nay",
+                dl.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN,
+                dl.doanhThuRealtime.targetThuc.chuoiSoGonVN,
+                dl.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN,
+                dl.doanhThuRealtime.targetQuyDoi.chuoiSoGonVN,
+                dl.doanhThuRealtime.phanTramHTQDDuKienHienThi.chuoiPhanTram,
+                String(Int(dl.doanhThuRealtime.luotKhach))
+            ],
+            [],
+            ["NỘI DUNG BẢN TIN PHÂN TÍCH (AI GEMINI / MẪU BÁO CÁO):"]
+        ]
+        for dong in noiDungPhanTich.components(separatedBy: .newlines) {
+            dongSheet1.append([dong])
         }
 
-        let dsNgay = dongCoTarget(s.dsHomNay).sorted { $0.phanTramHT < $1.phanTramHT }
-        let chuaCoSo = dsNgay.filter { $0.thucHien <= 0 }
-        let chuaDu = dsNgay.filter { $0.thucHien > 0 && $0.phanTramHT < 100 }
-        L += danhSachDanhDau("⚠ Môn hôm nay chưa có số:", chuaCoSo.prefix(6).map { "  - \($0.tenNganhHang)" })
-        L += danhSachDanhDau("◎ Môn đang có số nhưng chưa đủ target ngày:", chuaDu.prefix(4).map { "  - \($0.tenNganhHang): \($0.phanTramHT.chuoiPhanTram)" })
+        // Sheet 2: Thi đua Lũy kế
+        var dongSheet2: [[String]] = [
+            ["BẢNG THI ĐUA NGÀNH HÀNG — LŨY KẾ (\(ngayStr))"],
+            ["STT", "Ngành hàng", "ĐVT", "Thực hiện", "Target", "Còn thiếu", "% Hoàn thành", "Dự kiến cuối tháng", "% Dự kiến"]
+        ]
+        for (i, d) in dl.danhSachThiDua.enumerated() {
+            let thieu = max(0, d.target - d.thucHien)
+            dongSheet2.append([
+                String(i + 1),
+                d.tenNganhHang,
+                d.loaiChiTieu.maBang,
+                d.thucHien.chuoiSoGonVN,
+                d.target.chuoiSoGonVN,
+                thieu.chuoiSoGonVN,
+                d.phanTramHT.chuoiPhanTram,
+                d.duKienCuoiThang.chuoiSoGonVN,
+                d.phanTramDuBao.chuoiPhanTram
+            ])
+        }
 
-        let nvNgay = s.homNayNV.sorted { $0.doanhThuQD > $1.doanhThuQD }.filter { $0.doanhThuQD > 0 }
-        var bang: [String] = []
-        for (i, nv) in nvNgay.enumerated() {
-            bang.append("  \(i + 1). \(ten(nv.hoTen)): \(nv.doanhThuQD.chuoiSoGonVN)")
+        // Sheet 3: Thi đua Realtime
+        var dongSheet3: [[String]] = [
+            ["BẢNG THI ĐUA NGÀNH HÀNG — REALTIME (\(ngayStr))"],
+            ["STT", "Ngành hàng", "ĐVT", "Thực hiện hôm nay", "Target ngày", "Còn thiếu", "% Hoàn thành"]
+        ]
+        for (i, d) in dl.danhSachThiDuaRealtime.enumerated() {
+            let thieu = max(0, d.target - d.thucHien)
+            dongSheet3.append([
+                String(i + 1),
+                d.tenNganhHang,
+                d.loaiChiTieu.maBang,
+                d.thucHien.chuoiSoGonVN,
+                d.target.chuoiSoGonVN,
+                thieu.chuoiSoGonVN,
+                d.phanTramHT.chuoiPhanTram
+            ])
         }
-        L += danhSachDanhDau("★ Bảng nhanh nhân viên hôm nay:", bang)
-        L += doanTapTrung(loi)
 
-        var viec: [String] = []
-        if let m = chuaCoSo.first {
-            viec.append("Ưu tiên \(m.tenNganhHang) ngay trong 1 giờ tới.")
-        } else {
-            viec.append("Giữ nhịp chốt đơn, không để khách chờ.")
+        // Sheet 4: Xếp hạng Nhân viên
+        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: .luyKe)
+        let mapDTLK = Dictionary(uniqueKeysWithValues: dl.doanhThuNhanVienLuyKe.map { (KhoDuLieu.chuanHoaMaNV($0.maNV), $0) })
+        let mapDTRT = Dictionary(uniqueKeysWithValues: dl.doanhThuNhanVienRealtime.map { (KhoDuLieu.chuanHoaMaNV($0.maNV), $0) })
+        var dongSheet4: [[String]] = [
+            ["BẢNG XẾP HẠNG NHÂN VIÊN (\(ngayStr))"],
+            ["Hạng", "Mã NV", "Họ tên Nhân viên", "Số môn Đạt", "Tổng môn Giao", "% HT Trung bình", "DT Thực Lũy kế", "DT QĐ Lũy kế", "DT QĐ Realtime"]
+        ]
+        for (i, nv) in dsNV.enumerated() {
+            let ma = KhoDuLieu.chuanHoaMaNV(nv.nhanVien.maNV)
+            let dtLK = mapDTLK[ma]
+            let dtRT = mapDTRT[ma]
+            dongSheet4.append([
+                String(i + 1),
+                nv.nhanVien.maNV,
+                nv.nhanVien.hoTen,
+                String(nv.soMonDat),
+                String(nv.tongMonGiao),
+                nv.phanTramHTTB.chuoiPhanTram,
+                dtLK.map { $0.doanhThuThuc.chuoiSoGonVN } ?? "0",
+                dtLK.map { $0.doanhThuQD.chuoiSoGonVN } ?? "0",
+                dtRT.map { $0.doanhThuQD.chuoiSoGonVN } ?? "0"
+            ])
         }
-        if let m = chuaDu.first {
-            viec.append("\(m.tenNganhHang): \(hanhDong(cho: m.tenNganhHang)).")
+
+        let contentTypes = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">",
+            "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>",
+            "<Default Extension=\"xml\" ContentType=\"application/xml\"/>",
+            "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>",
+            "<Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>",
+            "<Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>",
+            "<Override PartName=\"/xl/worksheets/sheet2.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>",
+            "<Override PartName=\"/xl/worksheets/sheet3.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>",
+            "<Override PartName=\"/xl/worksheets/sheet4.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>",
+            "</Types>"
+        ].joined(separator: "\n")
+
+        let relsRoot = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">",
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>",
+            "</Relationships>"
+        ].joined(separator: "\n")
+
+        let workbookXML = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">",
+            "<sheets>",
+            "<sheet name=\"1_TongQuan_PhanTich\" sheetId=\"1\" r:id=\"rId1\"/>",
+            "<sheet name=\"2_ThiDua_LuyKe\" sheetId=\"2\" r:id=\"rId2\"/>",
+            "<sheet name=\"3_ThiDua_Realtime\" sheetId=\"3\" r:id=\"rId3\"/>",
+            "<sheet name=\"4_XepHang_NhanVien\" sheetId=\"4\" r:id=\"rId4\"/>",
+            "</sheets>",
+            "</workbook>"
+        ].joined(separator: "\n")
+
+        let workbookRels = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">",
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>",
+            "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet2.xml\"/>",
+            "<Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet3.xml\"/>",
+            "<Relationship Id=\"rId4\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet4.xml\"/>",
+            "<Relationship Id=\"rId5\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>",
+            "</Relationships>"
+        ].joined(separator: "\n")
+
+        let stylesXML = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">",
+            "<fonts count=\"2\">",
+            "<font><sz val=\"11\"/><name val=\"Arial\"/></font>",
+            "<font><b/><sz val=\"11\"/><name val=\"Arial\"/></font>",
+            "</fonts>",
+            "<fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill></fills>",
+            "<borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>",
+            "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>",
+            "<cellXfs count=\"2\">",
+            "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/>",
+            "<xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/>",
+            "</cellXfs>",
+            "</styleSheet>"
+        ].joined(separator: "\n")
+
+        let cacTep: [(String, Data)] = [
+            ("[Content_Types].xml", Data(contentTypes.utf8)),
+            ("_rels/.rels", Data(relsRoot.utf8)),
+            ("xl/workbook.xml", Data(workbookXML.utf8)),
+            ("xl/_rels/workbook.xml.rels", Data(workbookRels.utf8)),
+            ("xl/styles.xml", Data(stylesXML.utf8)),
+            ("xl/worksheets/sheet1.xml", Data(taoSheetXML(dongSheet1).utf8)),
+            ("xl/worksheets/sheet2.xml", Data(taoSheetXML(dongSheet2).utf8)),
+            ("xl/worksheets/sheet3.xml", Data(taoSheetXML(dongSheet3).utf8)),
+            ("xl/worksheets/sheet4.xml", Data(taoSheetXML(dongSheet4).utf8))
+        ]
+
+        let duLieuZip = dongGoiZipStore(cacTep: cacTep)
+        let tenTep = "BaoCao-DMX-\(dl.khoaNgay).xlsx"
+        let duongDan = FileManager.default.temporaryDirectory.appendingPathComponent(tenTep)
+        do {
+            try duLieuZip.write(to: duongDan, options: .atomic)
+            return duongDan
+        } catch {
+            return nil
         }
-        L += ["", loi.viec]
-        for (i, v) in viec.enumerated() { L.append("  \(i + 1). \(v)") }
-        L += ["", loi.ket]
-        return L.joined(separator: "\n")
     }
 
-    // MARK: Kết ca
+    /// Tạo file PowerPoint (.pptx) chuẩn OpenXML gồm 4 Slide báo cáo tổng hợp
+    static func xuatFilePowerPointPPTX(ngay: Date, noiDungPhanTich: String) -> URL? {
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
+        let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
+        let donVi = dl.thongTinDonVi.isEmpty ? "Siêu thị ĐMX" : dl.thongTinDonVi
 
-    private func vietKetCa() -> String {
-        guard s.coSoLieuHomNay else {
-            return "\(tieuDeBai("☾ ĐÁNH GIÁ CUỐI NGÀY"))\n\nChưa có số trong ngày. Nhập ảnh Realtime (Doanh thu + Thi đua) rồi quay lại viết đánh giá."
-        }
-        let loi = loiDan()
-        let t = s.homNay
-        let p = phanTramNgay(t)
-        let dungQD = t.targetQuyDoi > 0
-        let dt = dungQD ? t.doanhThuQuyDoi : t.doanhThuThuc
-        let tg = dungQD ? t.targetQuyDoi : t.targetThuc
-        let nhanLoai = dungQD ? "DT quy đổi" : "DT thực"
+        // Slide 1: Tóm tắt & Bản tin phân tích
+        let cacDongPhanTich = noiDungPhanTich
+            .replacingOccurrences(of: "**", with: "")
+            .components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .prefix(16)
+        let slide1Lines = ["BÁO CÁO KINH DOANH — \(donVi) (\(ngayStr))"] + Array(cacDongPhanTich)
 
-        let ds = dongCoTarget(s.dsHomNay)
-        let dat = ds.filter { $0.phanTramHT >= 99.995 }
-        let truot = ds.filter { $0.phanTramHT < 99.995 }.sorted { $0.phanTramHT < $1.phanTramHT }
-
-        var L: [String] = [tieuDeBai("☾ ĐÁNH GIÁ CUỐI NGÀY"), "", loi.mo]
-        if p >= 100 {
-            L.append(chon(["Hôm nay mình đạt \(p.chuoiPhanTram) target ngày — cảm ơn cả team đã chiến hết mình!",
-                           "Ngày hôm nay về đích \(p.chuoiPhanTram) target. Làm tốt lắm mọi người!"]))
-        } else if p >= 80 {
-            L.append(chon(["Hôm nay đạt \(p.chuoiPhanTram) target ngày — gần tới nhưng vẫn chưa đủ.",
-                           "Kết quả \(p.chuoiPhanTram) target ngày, hụt một chút. Ngày mai phải bù."]))
-        } else {
-            L.append(chon(["Hôm nay chỉ đạt \(p.chuoiPhanTram) target ngày, chưa đạt yêu cầu.",
-                           "Kết quả ngày \(p.chuoiPhanTram) — thấp. Mình cần nhìn lại cách làm."]))
-        }
-        L.append("• \(nhanLoai) hôm nay: \(dt.chuoiSoGonVN) / target ngày \(tg.chuoiSoGonVN).")
-        if !ds.isEmpty {
-            L.append("• Thi đua hôm nay: \(dat.count)/\(ds.count) môn đạt target ngày.")
-        }
-        L += danhSachDanhDau("✖ Môn chưa đạt hôm nay:", truot.prefix(5).map { "  - \($0.tenNganhHang): \($0.phanTramHT.chuoiPhanTram)" })
-
-        let nvCoSo = s.homNayNV.filter { $0.doanhThuQD > 0 }
-        let tb = nvCoSo.isEmpty ? 0 : nvCoSo.map { $0.doanhThuQD }.reduce(0, +) / Double(nvCoSo.count)
-        let nvYeu = nvCoSo.filter { $0.doanhThuQD < tb * 0.6 }.sorted { $0.doanhThuQD < $1.doanhThuQD }.prefix(2)
-        L += danhSachDanhDau("➤ Nhân sự chưa làm tốt hôm nay:", nvYeu.map { "  - \(ten($0.hoTen)): \($0.doanhThuQD.chuoiSoGonVN) (trung bình team \(tb.chuoiSoGonVN))" })
-        if let top = nvCoSo.max(by: { $0.doanhThuQD < $1.doanhThuQD }) {
-            L += ["", "★ Ghi nhận \(ten(top.hoTen)) cao nhất hôm nay: \(top.doanhThuQD.chuoiSoGonVN)."]
+        // Slide 2: Thi đua Lũy kế
+        var slide2Lines: [String] = [
+            "THI ĐUA NGÀNH HÀNG — LŨY KẾ (\(ngayStr))",
+            "Doanh thu Thực: \(dl.doanhThu.doanhThuThuc.chuoiSoGonVN) tr | Doanh thu QĐ: \(dl.doanhThu.doanhThuQuyDoi.chuoiSoGonVN) tr | Dự kiến: \(dl.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram)"
+        ]
+        for (i, d) in dl.danhSachThiDua.prefix(14).enumerated() {
+            slide2Lines.append("\(i + 1). \(d.tenNganhHang): TH \(d.thucHien.chuoiSoGonVN) / Target \(d.target.chuoiSoGonVN) — HT \(d.phanTramHT.chuoiPhanTram) (Dự kiến \(d.phanTramDuBao.chuoiPhanTram))")
         }
 
-        var viec: [String] = []
-        if let m = truot.first {
-            viec.append("Ngày mai mở ca bằng \(m.tenNganhHang) — mỗi bạn có ít nhất 1 đơn.")
+        // Slide 3: Thi đua Realtime
+        var slide3Lines: [String] = [
+            "THI ĐUA NGÀNH HÀNG — REALTIME TRONG NGÀY (\(ngayStr))",
+            "Doanh thu Thực: \(dl.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN) tr | Doanh thu QĐ: \(dl.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN) tr (\(dl.doanhThuRealtime.phanTramHTQDDuKienHienThi.chuoiPhanTram))"
+        ]
+        for (i, d) in dl.danhSachThiDuaRealtime.prefix(14).enumerated() {
+            slide3Lines.append("\(i + 1). \(d.tenNganhHang): TH \(d.thucHien.chuoiSoGonVN) / Target \(d.target.chuoiSoGonVN) — HT \(d.phanTramHT.chuoiPhanTram)")
         }
-        if !nvYeu.isEmpty {
-            let danhSachTen = nvYeu.map { ten($0.hoTen) }.joined(separator: ", ")
-            viec.append("\(danhSachTen): gặp quản lý đầu ca để cùng tìm cách tăng số.")
+
+        // Slide 4: Xếp hạng Nhân viên
+        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: .luyKe)
+        var slide4Lines: [String] = [
+            "BẢNG XẾP HẠNG NHÂN VIÊN — LŨY KẾ (\(ngayStr))"
+        ]
+        for (i, nv) in dsNV.prefix(15).enumerated() {
+            slide4Lines.append("Hạng \(i + 1). \(nv.nhanVien.hoTen) (\(nv.nhanVien.maNV)): Đạt \(nv.soMonDat)/\(nv.tongMonGiao) môn • Hoàn thành TB \(nv.phanTramHTTB.chuoiPhanTram)")
         }
-        viec.append(chon(["Rà lại khách hẹn quay lại, gọi chăm sóc trước 10h.",
-                          "Kiểm tra trưng bày, giá, quà tặng trước giờ mở cửa."]))
-        L += ["", giong == .binhThuong ? "✔ YÊU CẦU HÀNH ĐỘNG:" : loi.viec]
-        for (i, v) in viec.enumerated() { L.append("  \(i + 1). \(v)") }
-        L += ["", "✍ CAM KẾT NGÀY MAI:",
-              chon(["  Cả team cam kết đạt 100% target ngày và không để môn nào bằng 0.",
-                    "  Cam kết bù phần hụt hôm nay, đạt tối thiểu 100% target ngày mai."])]
-        L += ["", loi.ket]
-        return L.joined(separator: "\n")
+
+        let contentTypes = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">",
+            "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>",
+            "<Default Extension=\"xml\" ContentType=\"application/xml\"/>",
+            "<Override PartName=\"/ppt/presentation.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml\"/>",
+            "<Override PartName=\"/ppt/slideMasters/slideMaster1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml\"/>",
+            "<Override PartName=\"/ppt/slideLayouts/slideLayout1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml\"/>",
+            "<Override PartName=\"/ppt/slides/slide1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.slide+xml\"/>",
+            "<Override PartName=\"/ppt/slides/slide2.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.slide+xml\"/>",
+            "<Override PartName=\"/ppt/slides/slide3.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.slide+xml\"/>",
+            "<Override PartName=\"/ppt/slides/slide4.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.slide+xml\"/>",
+            "</Types>"
+        ].joined(separator: "\n")
+
+        let relsRoot = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">",
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"ppt/presentation.xml\"/>",
+            "</Relationships>"
+        ].joined(separator: "\n")
+
+        let presentationXML = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<p:presentation xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\">",
+            "<p:sldMasterIdLst><p:sldMasterId id=\"2147483648\" r:id=\"rId1\"/></p:sldMasterIdLst>",
+            "<p:sldIdLst>",
+            "<p:sldId id=\"256\" r:id=\"rId2\"/>",
+            "<p:sldId id=\"257\" r:id=\"rId3\"/>",
+            "<p:sldId id=\"258\" r:id=\"rId4\"/>",
+            "<p:sldId id=\"259\" r:id=\"rId5\"/>",
+            "</p:sldIdLst>",
+            "<p:sldSz cx=\"12192000\" cy=\"6858000\"/>",
+            "<p:notesSz cx=\"6858000\" cy=\"9144000\"/>",
+            "</p:presentation>"
+        ].joined(separator: "\n")
+
+        let presentationRels = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">",
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster\" Target=\"slideMasters/slideMaster1.xml\"/>",
+            "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide\" Target=\"slides/slide1.xml\"/>",
+            "<Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide\" Target=\"slides/slide2.xml\"/>",
+            "<Relationship Id=\"rId4\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide\" Target=\"slides/slide3.xml\"/>",
+            "<Relationship Id=\"rId5\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide\" Target=\"slides/slide4.xml\"/>",
+            "</Relationships>"
+        ].joined(separator: "\n")
+
+        let slideMasterXML = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<p:sldMaster xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\">",
+            "<p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>",
+            "<p:clrMap bg1=\"lt1\" tx1=\"dk1\" bg2=\"lt2\" tx2=\"dk2\" accent1=\"accent1\" accent2=\"accent2\" accent3=\"accent3\" accent4=\"accent4\" accent5=\"accent5\" accent6=\"accent6\" hlink=\"hlink\" folHlink=\"folHlink\"/>",
+            "<p:sldLayoutIdLst><p:sldLayoutId id=\"2147483649\" r:id=\"rId1\"/></p:sldLayoutIdLst>",
+            "</p:sldMaster>"
+        ].joined(separator: "\n")
+
+        let slideMasterRels = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">",
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout\" Target=\"../slideLayouts/slideLayout1.xml\"/>",
+            "</Relationships>"
+        ].joined(separator: "\n")
+
+        let slideLayoutXML = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<p:sldLayout xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\" type=\"blank\">",
+            "<p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>",
+            "</p:sldLayout>"
+        ].joined(separator: "\n")
+
+        let slideLayoutRels = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">",
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster\" Target=\"../slideMasters/slideMaster1.xml\"/>",
+            "</Relationships>"
+        ].joined(separator: "\n")
+
+        let slideRels = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">",
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout\" Target=\"../slideLayouts/slideLayout1.xml\"/>",
+            "</Relationships>"
+        ].joined(separator: "\n")
+
+        let cacTep: [(String, Data)] = [
+            ("[Content_Types].xml", Data(contentTypes.utf8)),
+            ("_rels/.rels", Data(relsRoot.utf8)),
+            ("ppt/presentation.xml", Data(presentationXML.utf8)),
+            ("ppt/_rels/presentation.xml.rels", Data(presentationRels.utf8)),
+            ("ppt/slideMasters/slideMaster1.xml", Data(slideMasterXML.utf8)),
+            ("ppt/slideMasters/_rels/slideMaster1.xml.rels", Data(slideMasterRels.utf8)),
+            ("ppt/slideLayouts/slideLayout1.xml", Data(slideLayoutXML.utf8)),
+            ("ppt/slideLayouts/_rels/slideLayout1.xml.rels", Data(slideLayoutRels.utf8)),
+            ("ppt/slides/slide1.xml", Data(taoSlideXML(cacDong: slide1Lines).utf8)),
+            ("ppt/slides/_rels/slide1.xml.rels", Data(slideRels.utf8)),
+            ("ppt/slides/slide2.xml", Data(taoSlideXML(cacDong: slide2Lines).utf8)),
+            ("ppt/slides/_rels/slide2.xml.rels", Data(slideRels.utf8)),
+            ("ppt/slides/slide3.xml", Data(taoSlideXML(cacDong: slide3Lines).utf8)),
+            ("ppt/slides/_rels/slide3.xml.rels", Data(slideRels.utf8)),
+            ("ppt/slides/slide4.xml", Data(taoSlideXML(cacDong: slide4Lines).utf8)),
+            ("ppt/slides/_rels/slide4.xml.rels", Data(slideRels.utf8))
+        ]
+
+        let duLieuZip = dongGoiZipStore(cacTep: cacTep)
+        let tenTep = "BaoCao-Slide-DMX-\(dl.khoaNgay).pptx"
+        let duongDan = FileManager.default.temporaryDirectory.appendingPathComponent(tenTep)
+        do {
+            try duLieuZip.write(to: duongDan, options: .atomic)
+            return duongDan
+        } catch {
+            return nil
+        }
+    }
+
+    // MARK: - Helpers sinh XML cho Excel & PowerPoint
+
+    private static func thoatXML(_ s: String) -> String {
+        s.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&apos;")
+    }
+
+    private static func tenCotExcel(_ chiSo: Int) -> String {
+        var n = chiSo + 1
+        var ketQua = ""
+        while n > 0 {
+            let du = (n - 1) % 26
+            ketQua = String(UnicodeScalar(65 + du)!) + ketQua
+            n = (n - 1) / 26
+        }
+        return ketQua
+    }
+
+    private static func taoSheetXML(_ cacDong: [[String]]) -> String {
+        var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+        xml += "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>"
+        for (rIdx, dong) in cacDong.enumerated() {
+            let soDong = rIdx + 1
+            xml += "<row r=\"\(soDong)\">"
+            for (cIdx, o) in dong.enumerated() {
+                let ref = "\(tenCotExcel(cIdx))\(soDong)"
+                let kieuInDam = (rIdx <= 1) ? " s=\"1\"" : ""
+                xml += "<c r=\"\(ref)\" t=\"inlineStr\"\(kieuInDam)><is><t>\(thoatXML(o))</t></is></c>"
+            }
+            xml += "</row>"
+        }
+        xml += "</sheetData></worksheet>"
+        return xml
+    }
+
+    private static func taoSlideXML(cacDong: [String]) -> String {
+        var doanVan = ""
+        for (idx, dong) in cacDong.enumerated() {
+            let coChu = (idx == 0) ? 2400 : 1550
+            let inDam = (idx == 0) ? " b=\"1\"" : ""
+            let mauChu = (idx == 0) ? "1D4ED8" : "0F172A"
+            doanVan += "<a:p><a:r><a:rPr lang=\"vi-VN\" sz=\"\(coChu)\"\(inDam)><a:solidFill><a:srgbClr val=\"\(mauChu)\"/></a:solidFill></a:rPr><a:t>\(thoatXML(dong))</a:t></a:r></a:p>"
+        }
+        return [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<p:sld xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\">",
+            "<p:cSld><p:spTree>",
+            "<p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>",
+            "<p:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/><a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"0\" cy=\"0\"/></a:xfrm></p:grpSpPr>",
+            "<p:sp>",
+            "<p:nvSpPr><p:cNvPr id=\"2\" name=\"TextBox 1\"/><p:cNvSpPr txBox=\"1\"/><p:nvPr/></p:nvSpPr>",
+            "<p:spPr><a:xfrm><a:off x=\"457200\" y=\"360000\"/><a:ext cx=\"11277600\" cy=\"6100000\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr>",
+            "<p:txBody><a:bodyPr wrap=\"square\"/><a:lstStyle/>\(doanVan)</p:txBody>",
+            "</p:sp>",
+            "</p:spTree></p:cSld>",
+            "</p:sld>"
+        ].joined(separator: "\n")
+    }
+
+    // MARK: - Bộ đóng gói ZIP (Store mode + CRC32 IEEE 802.3)
+
+    private static let bangCRC32: [UInt32] = {
+        (0..<256).map { i -> UInt32 in
+            var c = UInt32(i)
+            for _ in 0..<8 {
+                c = (c & 1 != 0) ? (0xEDB88320 ^ (c >> 1)) : (c >> 1)
+            }
+            return c
+        }
+    }()
+
+    private static func tinhCRC32(_ data: Data) -> UInt32 {
+        var crc: UInt32 = 0xFFFFFFFF
+        for byte in data {
+            let idx = Int((crc ^ UInt32(byte)) & 0xFF)
+            crc = (crc >> 8) ^ bangCRC32[idx]
+        }
+        return crc ^ 0xFFFFFFFF
+    }
+
+    private static func ghiUInt16LE(_ v: UInt16, vao data: inout Data) {
+        var le = v.littleEndian
+        withUnsafeBytes(of: &le) { data.append(contentsOf: $0) }
+    }
+
+    private static func ghiUInt32LE(_ v: UInt32, vao data: inout Data) {
+        var le = v.littleEndian
+        withUnsafeBytes(of: &le) { data.append(contentsOf: $0) }
+    }
+
+    private static func dongGoiZipStore(cacTep: [(String, Data)]) -> Data {
+        var zipData = Data()
+        var centralDir = Data()
+
+        for (ten, noiDung) in cacTep {
+            let tenBytes = Data(ten.utf8)
+            let crc = tinhCRC32(noiDung)
+            let kichThuoc = UInt32(noiDung.count)
+            let viTriOffset = UInt32(zipData.count)
+
+            // Local file header
+            ghiUInt32LE(0x04034B50, vao: &zipData)
+            ghiUInt16LE(20, vao: &zipData)
+            ghiUInt16LE(0, vao: &zipData)
+            ghiUInt16LE(0, vao: &zipData) // 0 = Store
+            ghiUInt16LE(0, vao: &zipData)
+            ghiUInt16LE(0x5421, vao: &zipData)
+            ghiUInt32LE(crc, vao: &zipData)
+            ghiUInt32LE(kichThuoc, vao: &zipData)
+            ghiUInt32LE(kichThuoc, vao: &zipData)
+            ghiUInt16LE(UInt16(tenBytes.count), vao: &zipData)
+            ghiUInt16LE(0, vao: &zipData)
+            zipData.append(tenBytes)
+            zipData.append(noiDung)
+
+            // Central directory header
+            ghiUInt32LE(0x02014B50, vao: &centralDir)
+            ghiUInt16LE(20, vao: &centralDir)
+            ghiUInt16LE(20, vao: &centralDir)
+            ghiUInt16LE(0, vao: &centralDir)
+            ghiUInt16LE(0, vao: &centralDir)
+            ghiUInt16LE(0, vao: &centralDir)
+            ghiUInt16LE(0x5421, vao: &centralDir)
+            ghiUInt32LE(crc, vao: &centralDir)
+            ghiUInt32LE(kichThuoc, vao: &centralDir)
+            ghiUInt32LE(kichThuoc, vao: &centralDir)
+            ghiUInt16LE(UInt16(tenBytes.count), vao: &centralDir)
+            ghiUInt16LE(0, vao: &centralDir)
+            ghiUInt16LE(0, vao: &centralDir)
+            ghiUInt16LE(0, vao: &centralDir)
+            ghiUInt16LE(0, vao: &centralDir)
+            ghiUInt32LE(0, vao: &centralDir)
+            ghiUInt32LE(viTriOffset, vao: &centralDir)
+            centralDir.append(tenBytes)
+        }
+
+        let cdOffset = UInt32(zipData.count)
+        let cdSize = UInt32(centralDir.count)
+        zipData.append(centralDir)
+
+        // End of central directory record
+        ghiUInt32LE(0x06054B50, vao: &zipData)
+        ghiUInt16LE(0, vao: &zipData)
+        ghiUInt16LE(0, vao: &zipData)
+        ghiUInt16LE(UInt16(cacTep.count), vao: &zipData)
+        ghiUInt16LE(UInt16(cacTep.count), vao: &zipData)
+        ghiUInt32LE(cdSize, vao: &zipData)
+        ghiUInt32LE(cdOffset, vao: &zipData)
+        ghiUInt16LE(0, vao: &zipData)
+
+        return zipData
     }
 }

@@ -1,10 +1,15 @@
 import UIKit
 
-/// Màn hình Bản tin & Phân tích: 3 khung (Đầu ca / Hiện tại / Kết ca) + 3 giọng văn.
-/// Không tự gửi: người dùng bấm "Gửi LINE" → LINE mở ra, tự chọn nhóm / người nhận.
+/// Màn hình Báo cáo & Phân tích AI (Nằm ngay dưới Tổng quan trong Menu và có thể mở độc lập).
+/// Thiết kế khớp chuẩn ảnh mẫu đính kèm:
+/// - PHÂN TÍCH (viết sẵn — sửa được) + nút [✨ AI Gemini] + [Phân tích lại]
+/// - Ô văn bản đánh số 1) 2) 3) 4) 5) có định dạng in đậm trực quan
+/// - Khung 📌 TẬP TRUNG BÀI VIẾT: ↺ Bỏ chọn hết, Giọng văn (Bình thường màu vàng sáng #FACC15 / Căng thẳng / Thảo mai),
+///   chọn Nhóm hàng tập trung & Nhân viên tập trung
+/// - Các nút Gửi LINE & Copy nội dung, Xuất ảnh báo cáo, Xuất Excel (.xlsx) & PowerPoint (.pptx)
 final class ManHinhBanTin: UIViewController, UITextViewDelegate {
 
-    private let ngay: Date
+    private var ngay: Date
     private let taoAnhBang: (KhungBanTin, SoLieuBanTin) -> [UIImage]
 
     private var khungDangChon: KhungBanTin = KhungBanTin.theoGio()
@@ -12,12 +17,28 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
     private var soLieu: SoLieuBanTin?
     private var bienThe = 0
 
+    private var nhomTapTrung: Set<String> = []
+    private var nvTapTrung: Set<String> = []
+
     private let cuon = UIScrollView()
     private let ngan = UIStackView()
-    private let chonKhung = UISegmentedControl(items: KhungBanTin.allCases.map { $0.tieuDe })
-    private let chonGiong = UISegmentedControl(items: GiongVanBanTin.allCases.map { $0.tieuDe })
-    private let nhanTrangThai = UILabel()
+
+    // Dòng trạng thái trên cùng giống ảnh chụp ("Bản tin đã lưu trên máy · bấm Phân tích lại nếu vừa đổi số")
+    private let nhanTrangThaiTren = UILabel()
+
+    // Khung thẻ PHÂN TÍCH chính
+    private let thePhanTich = UIView()
+    private let nhanTieuDePhanTich = UILabel()
+    private let nutAIGemini = UIButton(type: .system)
+    private let nutPhanTichLai = UIButton(type: .system)
     private let oVanBan = UITextView()
+
+    // Khung 📌 TẬP TRUNG BÀI VIẾT
+    private let nhanTapTrung = UILabel()
+    private let nutBoChonHet = UIButton(type: .system)
+    private var cacNutGiongVan: [UIButton] = []
+    private let nganChipNhomHang = UIStackView()
+    private let nganChipNhanVien = UIStackView()
 
     init(ngay: Date, taoAnhBang: @escaping (KhungBanTin, SoLieuBanTin) -> [UIImage]) {
         self.ngay = ngay
@@ -29,15 +50,21 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         fatalError("init(coder:) chưa được hỗ trợ")
     }
 
+    func capNhatNgay(_ ngayMoi: Date) {
+        self.ngay = ngayMoi
+        guard isViewLoaded else { return }
+        napBanTin(taoMoi: false)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Bản tin & Phân tích"
+        title = "Báo cáo & Phân tích AI"
         view.backgroundColor = BangMauBCTD.nenTrang
         dungGiaoDien()
         napBanTin(taoMoi: false)
     }
 
-    // MARK: Giao diện
+    // MARK: - Dựng giao diện chuẩn mẫu ảnh đính kèm
 
     private func dungGiaoDien() {
         cuon.translatesAutoresizingMaskIntoConstraints = false
@@ -46,7 +73,7 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         view.addSubview(cuon)
 
         ngan.axis = .vertical
-        ngan.spacing = 10
+        ngan.spacing = 12
         ngan.translatesAutoresizingMaskIntoConstraints = false
         cuon.addSubview(ngan)
 
@@ -55,74 +82,93 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
             cuon.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             cuon.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             cuon.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            ngan.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 10),
+
+            ngan.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 8),
             ngan.leadingAnchor.constraint(equalTo: cuon.frameLayoutGuide.leadingAnchor, constant: 12),
             ngan.trailingAnchor.constraint(equalTo: cuon.frameLayoutGuide.trailingAnchor, constant: -12),
-            ngan.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -24)
+            ngan.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -28)
         ])
 
-        let theDau = UIView()
-        theDau.backgroundColor = BangMauBCTD.nenMenuToi
-        theDau.layer.cornerRadius = 12
-        theDau.layer.borderWidth = 1
-        theDau.layer.borderColor = BangMauBCTD.vangChuDao.withAlphaComponent(0.38).cgColor
+        // 1. Dòng trạng thái phía trên thẻ
+        nhanTrangThaiTren.text = "Bản tin đã lưu trên máy · bấm Phân tích lại hoặc ✨ AI Gemini nếu vừa đổi số"
+        nhanTrangThaiTren.font = .systemFont(ofSize: 13.5, weight: .medium)
+        nhanTrangThaiTren.textColor = BangMauBCTD.chuPhu
+        nhanTrangThaiTren.numberOfLines = 0
+        nhanTrangThaiTren.lineBreakMode = .byWordWrapping
+        nhanTrangThaiTren.adjustsFontSizeToFitWidth = false
+        ngan.addArrangedSubview(nhanTrangThaiTren)
 
-        let lbKicker = UILabel()
-        lbKicker.text = "CHỌN KHUNG BẢN TIN & GIỌNG VĂN PHÂN TÍCH"
-        lbKicker.font = .systemFont(ofSize: 11.5, weight: .heavy)
-        lbKicker.textColor = BangMauBCTD.vangChuDao
-        lbKicker.numberOfLines = 0
-        lbKicker.lineBreakMode = .byWordWrapping
-        lbKicker.adjustsFontSizeToFitWidth = false
+        // 2. Thẻ PHÂN TÍCH (viết sẵn — sửa được)
+        thePhanTich.backgroundColor = BangMauBCTD.nenThe
+        thePhanTich.layer.cornerRadius = 16
+        thePhanTich.layer.borderWidth = 1
+        thePhanTich.layer.borderColor = BangMauBCTD.vienThe.cgColor
+        thePhanTich.translatesAutoresizingMaskIntoConstraints = false
 
-        [chonKhung, chonGiong].forEach { seg in
-            seg.backgroundColor = BangMauBCTD.nenMenuCon
-            seg.selectedSegmentTintColor = BangMauBCTD.nenDongChonMenu
-            seg.setTitleTextAttributes([
-                .font: UIFont.systemFont(ofSize: 12.0, weight: .semibold),
-                .foregroundColor: BangMauBCTD.chuTrenNenToi
-            ], for: .normal)
-            seg.setTitleTextAttributes([
-                .font: UIFont.systemFont(ofSize: 12.0, weight: .bold),
-                .foregroundColor: BangMauBCTD.vangChuDao
-            ], for: .selected)
-            seg.damBaoHienThiDayDuText()
-        }
-
-        chonKhung.selectedSegmentIndex = khungDangChon.rawValue
-        chonKhung.addTarget(self, action: #selector(doiKhung), for: .valueChanged)
-
-        let nhanGiong = UILabel()
-        nhanGiong.text = "Giọng văn bài phân tích:"
-        nhanGiong.font = .systemFont(ofSize: 12.0, weight: .semibold)
-        nhanGiong.textColor = BangMauBCTD.chuTrenNenToi
-        nhanGiong.numberOfLines = 0
-        nhanGiong.lineBreakMode = .byWordWrapping
-        nhanGiong.adjustsFontSizeToFitWidth = false
-
-        chonGiong.selectedSegmentIndex = giongDangChon.rawValue
-        chonGiong.addTarget(self, action: #selector(doiGiong), for: .valueChanged)
-
-        nhanTrangThai.numberOfLines = 0
-        nhanTrangThai.lineBreakMode = .byWordWrapping
-        nhanTrangThai.adjustsFontSizeToFitWidth = false
-        nhanTrangThai.font = .systemFont(ofSize: 12.5, weight: .semibold)
-
-        let nganDau = UIStackView(arrangedSubviews: [lbKicker, chonKhung, nhanGiong, chonGiong, nhanTrangThai])
-        nganDau.axis = .vertical
-        nganDau.spacing = 8
-        nganDau.translatesAutoresizingMaskIntoConstraints = false
-        theDau.addSubview(nganDau)
+        let nganTrongThe = UIStackView()
+        nganTrongThe.axis = .vertical
+        nganTrongThe.spacing = 10
+        nganTrongThe.translatesAutoresizingMaskIntoConstraints = false
+        thePhanTich.addSubview(nganTrongThe)
 
         NSLayoutConstraint.activate([
-            nganDau.topAnchor.constraint(equalTo: theDau.topAnchor, constant: 12),
-            nganDau.leadingAnchor.constraint(equalTo: theDau.leadingAnchor, constant: 12),
-            nganDau.trailingAnchor.constraint(equalTo: theDau.trailingAnchor, constant: -12),
-            nganDau.bottomAnchor.constraint(equalTo: theDau.bottomAnchor, constant: -12)
+            nganTrongThe.topAnchor.constraint(equalTo: thePhanTich.topAnchor, constant: 14),
+            nganTrongThe.leadingAnchor.constraint(equalTo: thePhanTich.leadingAnchor, constant: 14),
+            nganTrongThe.trailingAnchor.constraint(equalTo: thePhanTich.trailingAnchor, constant: -14),
+            nganTrongThe.bottomAnchor.constraint(equalTo: thePhanTich.bottomAnchor, constant: -14)
         ])
-        ngan.addArrangedSubview(theDau)
 
-        oVanBan.font = .systemFont(ofSize: 15)
+        // Hàng tiêu đề: PHÂN TÍCH (viết sẵn — sửa được) bên trái + [✨ AI Gemini] [Phân tích lại] bên phải
+        nhanTieuDePhanTich.text = "PHÂN TÍCH (viết sẵn — sửa được)"
+        nhanTieuDePhanTich.font = .systemFont(ofSize: 13.5, weight: .heavy)
+        nhanTieuDePhanTich.textColor = BangMauBCTD.mauChuTieuDePhanTich
+        nhanTieuDePhanTich.numberOfLines = 0
+        nhanTieuDePhanTich.lineBreakMode = .byWordWrapping
+        nhanTieuDePhanTich.adjustsFontSizeToFitWidth = false
+
+        nutAIGemini.setTitle("✨ AI Gemini", for: .normal)
+        nutAIGemini.titleLabel?.font = .systemFont(ofSize: 13.0, weight: .bold)
+        nutAIGemini.titleLabel?.numberOfLines = 0
+        nutAIGemini.titleLabel?.lineBreakMode = .byWordWrapping
+        nutAIGemini.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutAIGemini.backgroundColor = BangMauBCTD.nenHeaderBang
+        nutAIGemini.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+        nutAIGemini.layer.cornerRadius = 9
+        nutAIGemini.layer.borderWidth = 1
+        nutAIGemini.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
+        nutAIGemini.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+        nutAIGemini.setContentHuggingPriority(.required, for: .horizontal)
+        nutAIGemini.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutAIGemini.addTarget(self, action: #selector(bamPhanTichAIGemini), for: .touchUpInside)
+
+        nutPhanTichLai.setTitle("Phân tích lại", for: .normal)
+        nutPhanTichLai.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .semibold)
+        nutPhanTichLai.titleLabel?.numberOfLines = 0
+        nutPhanTichLai.titleLabel?.lineBreakMode = .byWordWrapping
+        nutPhanTichLai.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutPhanTichLai.backgroundColor = BangMauBCTD.nenThePhu
+        nutPhanTichLai.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutPhanTichLai.layer.cornerRadius = 9
+        nutPhanTichLai.layer.borderWidth = 1
+        nutPhanTichLai.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutPhanTichLai.contentEdgeInsets = UIEdgeInsets(top: 7, left: 12, bottom: 7, right: 12)
+        nutPhanTichLai.setContentHuggingPriority(.required, for: .horizontal)
+        nutPhanTichLai.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutPhanTichLai.addTarget(self, action: #selector(bamPhanTichLai), for: .touchUpInside)
+
+        let hangNutTrenPhai = UIStackView(arrangedSubviews: [nutAIGemini, nutPhanTichLai])
+        hangNutTrenPhai.axis = .horizontal
+        hangNutTrenPhai.spacing = 6
+        hangNutTrenPhai.alignment = .center
+
+        let hangTieuDeThe = UIStackView(arrangedSubviews: [nhanTieuDePhanTich, hangNutTrenPhai])
+        hangTieuDeThe.axis = .horizontal
+        hangTieuDeThe.spacing = 8
+        hangTieuDeThe.alignment = .center
+        nganTrongThe.addArrangedSubview(hangTieuDeThe)
+
+        // Ô soạn thảo văn bản báo cáo (sáng, sạch, hiển thị in đậm trực quan)
+        oVanBan.font = .systemFont(ofSize: 15.5, weight: .regular)
         oVanBan.textColor = BangMauBCTD.chuChinh
         oVanBan.backgroundColor = BangMauBCTD.nenThe
         oVanBan.layer.cornerRadius = 12
@@ -132,85 +178,354 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         oVanBan.isScrollEnabled = false
         oVanBan.delegate = self
         oVanBan.translatesAutoresizingMaskIntoConstraints = false
-        oVanBan.heightAnchor.constraint(greaterThanOrEqualToConstant: 360).isActive = true
-        ngan.addArrangedSubview(oVanBan)
+        oVanBan.heightAnchor.constraint(greaterThanOrEqualToConstant: 320).isActive = true
+        nganTrongThe.addArrangedSubview(oVanBan)
 
-        ngan.addArrangedSubview(taoNut("💬 Gửi vào LINE (chọn nhóm)", mau: BangMauBCTD.xanhDatVach, action: #selector(bamGuiLine)))
-        ngan.addArrangedSubview(taoNut("🖼 Chia sẻ ảnh bảng số của khung này", mau: BangMauBCTD.nenMenuToi, action: #selector(bamChiaSeAnhBang)))
-        ngan.addArrangedSubview(taoNut("📝 Chia sẻ ảnh bản tin (chữ phân tích)", mau: BangMauBCTD.indigoChuDao, action: #selector(bamChiaSeAnhChu)))
-        ngan.addArrangedSubview(taoNut("🔄 Phân tích lại (viết bài mới)", mau: BangMauBCTD.vangKhaVach, action: #selector(bamPhanTichLai)))
-        ngan.addArrangedSubview(taoNut("📋 Sao chép nội dung", mau: BangMauBCTD.chuPhu, action: #selector(bamSaoChep)))
+        // Khung 📌 TẬP TRUNG BÀI VIẾT
+        let hangTieuDeTapTrung = UIStackView()
+        hangTieuDeTapTrung.axis = .horizontal
+        hangTieuDeTapTrung.alignment = .center
+        hangTieuDeTapTrung.distribution = .equalSpacing
+
+        nhanTapTrung.text = "📌 TẬP TRUNG BÀI VIẾT"
+        nhanTapTrung.font = .systemFont(ofSize: 13.0, weight: .heavy)
+        nhanTapTrung.textColor = BangMauBCTD.mauChuTieuDePhanTich
+        nhanTapTrung.numberOfLines = 0
+        nhanTapTrung.lineBreakMode = .byWordWrapping
+        nhanTapTrung.adjustsFontSizeToFitWidth = false
+
+        nutBoChonHet.setTitle("↺ Bỏ chọn hết", for: .normal)
+        nutBoChonHet.titleLabel?.font = .systemFont(ofSize: 13.0, weight: .semibold)
+        nutBoChonHet.titleLabel?.numberOfLines = 0
+        nutBoChonHet.titleLabel?.lineBreakMode = .byWordWrapping
+        nutBoChonHet.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutBoChonHet.setTitleColor(BangMauBCTD.chuPhu, for: .normal)
+        nutBoChonHet.addTarget(self, action: #selector(bamBoChonHet), for: .touchUpInside)
+
+        hangTieuDeTapTrung.addArrangedSubview(nhanTapTrung)
+        hangTieuDeTapTrung.addArrangedSubview(nutBoChonHet)
+        nganTrongThe.addArrangedSubview(hangTieuDeTapTrung)
+
+        // Chọn Giọng văn: Bình thường (màu vàng sáng #FACC15 khi chọn như ảnh mẫu) | Căng thẳng | Thảo mai
+        let nhanGiong = taoNhanMucNho("Giọng văn")
+        nganTrongThe.addArrangedSubview(nhanGiong)
+
+        let hangGiong = UIStackView()
+        hangGiong.axis = .horizontal
+        hangGiong.spacing = 8
+        hangGiong.distribution = .fillProportionally
+        cacNutGiongVan.removeAll()
+        for giong in GiongVanBanTin.allCases {
+            let nut = UIButton(type: .custom)
+            nut.tag = giong.rawValue
+            nut.setTitle(giong.tieuDe, for: .normal)
+            nut.titleLabel?.font = .systemFont(ofSize: 14.0, weight: .bold)
+            nut.titleLabel?.numberOfLines = 0
+            nut.titleLabel?.lineBreakMode = .byWordWrapping
+            nut.titleLabel?.textAlignment = .center
+            nut.titleLabel?.adjustsFontSizeToFitWidth = false
+            nut.layer.cornerRadius = 10
+            nut.layer.borderWidth = 1
+            nut.contentEdgeInsets = UIEdgeInsets(top: 8, left: 14, bottom: 8, right: 14)
+            nut.addTarget(self, action: #selector(bamChonGiongVan(_:)), for: .touchUpInside)
+            cacNutGiongVan.append(nut)
+            hangGiong.addArrangedSubview(nut)
+        }
+        nganTrongThe.addArrangedSubview(hangGiong)
+
+        // Chọn Nhóm hàng tập trung
+        let nhanNhomHang = taoNhanMucNho("Nhóm hàng (bấm để chọn/bỏ nhóm cần nhắc trong bài)")
+        nganTrongThe.addArrangedSubview(nhanNhomHang)
+
+        nganChipNhomHang.axis = .vertical
+        nganChipNhomHang.spacing = 6
+        nganTrongThe.addArrangedSubview(nganChipNhomHang)
+
+        // Chọn Nhân viên tập trung
+        let nhanNV = taoNhanMucNho("Nhân viên (bấm để chọn/bỏ bạn cần nhắc trong bài)")
+        nganTrongThe.addArrangedSubview(nhanNV)
+
+        nganChipNhanVien.axis = .vertical
+        nganChipNhanVien.spacing = 6
+        nganTrongThe.addArrangedSubview(nganChipNhanVien)
+
+        ngan.addArrangedSubview(thePhanTich)
+
+        // 3. Cụm nút Gửi báo cáo LINE, Xuất ảnh, Xuất Excel (.xlsx) & PowerPoint (.pptx)
+        ngan.addArrangedSubview(taoNutHanhDong(
+            "💬 Gửi báo cáo vào LINE & Copy nội dung",
+            mauNen: BangMauBCTD.xanhDatVach,
+            mauChu: .white,
+            action: #selector(bamGuiLine)
+        ))
+        ngan.addArrangedSubview(taoNutHanhDong(
+            "🖼️ Xuất ảnh bảng số + Copy nội dung báo cáo gửi LINE",
+            mauNen: BangMauBCTD.xanhChuDao,
+            mauChu: .white,
+            action: #selector(bamChiaSeAnhBang)
+        ))
+        ngan.addArrangedSubview(taoNutHanhDong(
+            "📝 Xuất ảnh bản tin chữ phân tích + Copy nội dung",
+            mauNen: BangMauBCTD.xanhBienChuDao,
+            mauChu: .white,
+            action: #selector(bamChiaSeAnhChu)
+        ))
+
+        let hangOffice = UIStackView(arrangedSubviews: [
+            taoNutHanhDong("📗 Xuất Excel (.xlsx)", mauNen: BangMauBCTD.xanhLaDam, mauChu: .white, action: #selector(bamXuatExcel)),
+            taoNutHanhDong("📙 Xuất PowerPoint (.pptx)", mauNen: BangMauBCTD.vangKhaChu, mauChu: .white, action: #selector(bamXuatPowerPoint))
+        ])
+        hangOffice.axis = .horizontal
+        hangOffice.spacing = 8
+        hangOffice.distribution = .fillEqually
+        ngan.addArrangedSubview(hangOffice)
+
+        ngan.addArrangedSubview(taoNutHanhDong(
+            "📋 Chỉ sao chép nội dung văn bản",
+            mauNen: BangMauBCTD.nenThePhu,
+            mauChu: BangMauBCTD.chuChinh,
+            coVien: true,
+            action: #selector(bamSaoChep)
+        ))
+
+        capNhatMauNutGiongVan()
     }
 
-    private func taoNut(_ tieuDe: String, mau: UIColor, action: Selector) -> UIButton {
+    private func taoNhanMucNho(_ chu: String) -> UILabel {
+        let lb = UILabel()
+        lb.text = chu
+        lb.font = .systemFont(ofSize: 13.0, weight: .medium)
+        lb.textColor = BangMauBCTD.chuPhu
+        lb.numberOfLines = 0
+        lb.lineBreakMode = .byWordWrapping
+        lb.adjustsFontSizeToFitWidth = false
+        return lb
+    }
+
+    private func taoNutHanhDong(
+        _ tieuDe: String,
+        mauNen: UIColor,
+        mauChu: UIColor,
+        coVien: Bool = false,
+        action: Selector
+    ) -> UIButton {
         let nut = UIButton(type: .system)
         nut.setTitle(tieuDe, for: .normal)
-        nut.titleLabel?.font = .systemFont(ofSize: 15, weight: .bold)
+        nut.titleLabel?.font = .systemFont(ofSize: 14.5, weight: .bold)
         nut.titleLabel?.numberOfLines = 0
         nut.titleLabel?.lineBreakMode = .byWordWrapping
         nut.titleLabel?.textAlignment = .center
         nut.titleLabel?.adjustsFontSizeToFitWidth = false
-        nut.backgroundColor = mau
-        nut.tintColor = .white
-        nut.setTitleColor(.white, for: .normal)
+        nut.backgroundColor = mauNen
+        nut.tintColor = mauChu
+        nut.setTitleColor(mauChu, for: .normal)
         nut.layer.cornerRadius = 12
-        nut.contentEdgeInsets = UIEdgeInsets(top: 13, left: 14, bottom: 13, right: 14)
+        if coVien {
+            nut.layer.borderWidth = 1
+            nut.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        }
+        nut.contentEdgeInsets = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         nut.addTarget(self, action: action, for: .touchUpInside)
         return nut
     }
 
-    // MARK: Nạp & lưu bài
-
-    private func khoaLuu() -> String {
-        "bantin.\(TienIchNgay.khoa.string(from: ngay)).\(khungDangChon.rawValue).\(giongDangChon.rawValue)"
+    private func capNhatMauNutGiongVan() {
+        for nut in cacNutGiongVan {
+            let dangChon = (nut.tag == giongDangChon.rawValue)
+            if dangChon {
+                nut.backgroundColor = BangMauBCTD.vangSang
+                nut.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+                nut.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+            } else {
+                nut.backgroundColor = BangMauBCTD.nenThePhu
+                nut.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+                nut.layer.borderColor = BangMauBCTD.vienDam.cgColor
+            }
+        }
     }
 
-    /// taoMoi = true: bỏ bài đã lưu / đã sửa, viết bài mới
+    private func dungLaiCacChipTapTrung(soLieu s: SoLieuBanTin) {
+        nganChipNhomHang.arrangedSubviews.forEach {
+            nganChipNhomHang.removeArrangedSubview($0)
+            $0.removeFromSuperview()
+        }
+        nganChipNhanVien.arrangedSubviews.forEach {
+            nganChipNhanVien.removeArrangedSubview($0)
+            $0.removeFromSuperview()
+        }
+
+        let dsNganh = (!s.dsLuyKe.isEmpty ? s.dsLuyKe : s.dsHomNay)
+            .filter { $0.target > 0 }
+            .prefix(12)
+            .map(\.tenNganhHang)
+
+        if dsNganh.isEmpty {
+            let lb = taoNhanMucNho("Chưa có nhóm ngành hàng (nhập ảnh ở mục Nhập số để hiển thị)")
+            nganChipNhomHang.addArrangedSubview(lb)
+        } else {
+            themCacChipVaoNgan(
+                nganChipNhomHang,
+                danhSach: Array(dsNganh),
+                tapDangChon: nhomTapTrung,
+                laNhomHang: true
+            )
+        }
+
+        let dsTenNV = s.nhanVien.prefix(12).map { $0.nhanVien.hoTen }
+        if dsTenNV.isEmpty {
+            let lb = taoNhanMucNho("Chưa có danh sách nhân viên")
+            nganChipNhanVien.addArrangedSubview(lb)
+        } else {
+            themCacChipVaoNgan(
+                nganChipNhanVien,
+                danhSach: Array(dsTenNV),
+                tapDangChon: nvTapTrung,
+                laNhomHang: false
+            )
+        }
+    }
+
+    private func themCacChipVaoNgan(
+        _ ngan: UIStackView,
+        danhSach: [String],
+        tapDangChon: Set<String>,
+        laNhomHang: Bool
+    ) {
+        let soCot = 3
+        var hangHienTai: UIStackView?
+        for (i, ten) in danhSach.enumerated() {
+            if i % soCot == 0 {
+                let h = UIStackView()
+                h.axis = .horizontal
+                h.spacing = 6
+                h.distribution = .fillEqually
+                ngan.addArrangedSubview(h)
+                hangHienTai = h
+            }
+            let dangChon = tapDangChon.contains(ten)
+            let nut = UIButton(type: .custom)
+            nut.setTitle(ten, for: .normal)
+            nut.accessibilityIdentifier = ten
+            nut.tag = laNhomHang ? 1 : 2
+            nut.titleLabel?.font = .systemFont(ofSize: 12.0, weight: dangChon ? .bold : .medium)
+            nut.titleLabel?.numberOfLines = 0
+            nut.titleLabel?.lineBreakMode = .byWordWrapping
+            nut.titleLabel?.textAlignment = .center
+            nut.titleLabel?.adjustsFontSizeToFitWidth = false
+            nut.layer.cornerRadius = 8
+            nut.layer.borderWidth = 1
+            nut.contentEdgeInsets = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
+            if dangChon {
+                nut.backgroundColor = BangMauBCTD.vangSang
+                nut.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+                nut.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+            } else {
+                nut.backgroundColor = BangMauBCTD.nenThePhu
+                nut.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+                nut.layer.borderColor = BangMauBCTD.vienDam.cgColor
+            }
+            nut.addTarget(self, action: #selector(bamChipTapTrung(_:)), for: .touchUpInside)
+            hangHienTai?.addArrangedSubview(nut)
+        }
+    }
+
+    // MARK: - Định dạng văn bản có **in đậm** trực quan như ảnh chụp
+
+    static func dinhDangVanBanCoInDam(_ chuoi: String) -> NSAttributedString {
+        let kieuDoan = NSMutableParagraphStyle()
+        kieuDoan.lineSpacing = 4
+        kieuDoan.lineBreakMode = .byWordWrapping
+
+        let fontThuong = UIFont.systemFont(ofSize: 15.5, weight: .regular)
+        let fontDam = UIFont.systemFont(ofSize: 15.5, weight: .bold)
+
+        let ketQua = NSMutableAttributedString()
+        let cacPhan = chuoi.components(separatedBy: "**")
+        for (idx, phan) in cacPhan.enumerated() {
+            guard !phan.isEmpty else { continue }
+            let laInDam = (idx % 2 == 1)
+            let attr: [NSAttributedString.Key: Any] = [
+                .font: laInDam ? fontDam : fontThuong,
+                .foregroundColor: BangMauBCTD.chuChinh,
+                .paragraphStyle: kieuDoan
+            ]
+            ketQua.append(NSAttributedString(string: phan, attributes: attr))
+        }
+        return ketQua
+    }
+
+    private func ganVanBanHienThi(_ chuoi: String) {
+        oVanBan.attributedText = Self.dinhDangVanBanCoInDam(chuoi)
+        oVanBan.invalidateIntrinsicContentSize()
+    }
+
+    // MARK: - Nạp & lưu bài
+
+    private func khoaLuu() -> String {
+        "bantin.v2.\(TienIchNgay.khoa.string(from: ngay)).\(giongDangChon.rawValue)"
+    }
+
     private func napBanTin(taoMoi: Bool) {
+        khungDangChon = KhungBanTin.theoGio()
         let s = KhoDuLieu.dungChung.taoSoLieuBanTin(cho: ngay, khung: khungDangChon)
         soLieu = s
 
-        var thongBao: [String] = []
-        if s.tamTinh {
-            thongBao.append("⏳ Đầu ca TẠM TÍNH: lũy kế hôm qua + kết ca tối qua. Nhập ảnh Đầu ca hôm nay để có số thật.")
-        }
-        switch khungDangChon {
-        case .dauCa:
-            if !s.coSoLieuLuyKe { thongBao.append("⚠ Chưa có số Lũy kế.") }
-        case .hienTai, .ketCa:
-            if !s.coSoLieuHomNay { thongBao.append("⚠ Chưa có số Realtime hôm nay.") }
-        }
-        if s.nhanVien.isEmpty {
-            thongBao.append("ℹ️ Chưa có danh sách nhân viên (Công cụ → Quản lý nhân viên) nên chưa có phần nhắc nhở / tập trung.")
-        }
-        nhanTrangThai.text = thongBao.isEmpty ? "✅ Đủ số liệu cho khung \(khungDangChon.tenNgan)." : thongBao.joined(separator: "\n")
-        nhanTrangThai.textColor = thongBao.contains(where: { $0.hasPrefix("⚠") }) ? BangMauBCTD.vangChuDao : BangMauBCTD.chuTrenNenToi
+        capNhatMauNutGiongVan()
+        dungLaiCacChipTapTrung(soLieu: s)
 
-        if !taoMoi, let daLuu = UserDefaults.standard.string(forKey: khoaLuu()), !daLuu.isEmpty {
-            oVanBan.text = daLuu
+        if !taoMoi,
+           nhomTapTrung.isEmpty,
+           nvTapTrung.isEmpty,
+           let daLuu = UserDefaults.standard.string(forKey: khoaLuu()),
+           !daLuu.isEmpty {
+            ganVanBanHienThi(daLuu)
+            nhanTrangThaiTren.text = "Bản tin đã lưu trên máy · bấm Phân tích lại nếu vừa đổi số"
+            nhanTrangThaiTren.textColor = BangMauBCTD.chuPhu
         } else {
-            UserDefaults.standard.removeObject(forKey: khoaLuu())
-            oVanBan.text = BoVietBanTin(soLieu: s, giong: giongDangChon, bienThe: bienThe).viet()
+            let baiMoi = BoVietBanTin(soLieu: s, giong: giongDangChon, bienThe: bienThe)
+                .vietTheoMauAnhChup(nhomTapTrung: nhomTapTrung, nvTapTrung: nvTapTrung)
+            UserDefaults.standard.set(baiMoi, forKey: khoaLuu())
+            ganVanBanHienThi(baiMoi)
+            nhanTrangThaiTren.text = "Bản tin đã lưu trên máy · bấm Phân tích lại nếu vừa đổi số"
+            nhanTrangThaiTren.textColor = BangMauBCTD.chuPhu
         }
-        oVanBan.invalidateIntrinsicContentSize()
     }
 
     func textViewDidEndEditing(_ textView: UITextView) {
         UserDefaults.standard.set(textView.text ?? "", forKey: khoaLuu())
     }
 
-    // MARK: Hành động
+    // MARK: - Sự kiện tương tác
 
-    @objc private func doiKhung() {
-        khungDangChon = KhungBanTin(rawValue: chonKhung.selectedSegmentIndex) ?? .dauCa
+    @objc private func bamChonGiongVan(_ sender: UIButton) {
+        guard let giongMoi = GiongVanBanTin(rawValue: sender.tag) else { return }
+        giongDangChon = giongMoi
         bienThe = 0
-        napBanTin(taoMoi: false)
+        napBanTin(taoMoi: true)
     }
 
-    @objc private func doiGiong() {
-        giongDangChon = GiongVanBanTin(rawValue: chonGiong.selectedSegmentIndex) ?? .binhThuong
-        bienThe = 0
-        napBanTin(taoMoi: false)
+    @objc private func bamBoChonHet() {
+        nhomTapTrung.removeAll()
+        nvTapTrung.removeAll()
+        napBanTin(taoMoi: true)
+    }
+
+    @objc private func bamChipTapTrung(_ sender: UIButton) {
+        guard let ten = sender.accessibilityIdentifier else { return }
+        if sender.tag == 1 {
+            if nhomTapTrung.contains(ten) {
+                nhomTapTrung.remove(ten)
+            } else {
+                nhomTapTrung.insert(ten)
+            }
+        } else {
+            if nvTapTrung.contains(ten) {
+                nvTapTrung.remove(ten)
+            } else {
+                nvTapTrung.insert(ten)
+            }
+        }
+        napBanTin(taoMoi: true)
     }
 
     @objc private func bamPhanTichLai() {
@@ -219,18 +534,55 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         napBanTin(taoMoi: true)
     }
 
-    @objc private func bamSaoChep() {
+    @objc private func bamPhanTichAIGemini() {
         view.endEditing(true)
-        UIPasteboard.general.string = oVanBan.text
-        nhanTrangThai.text = "📋 Đã sao chép nội dung."
-        nhanTrangThai.textColor = .systemGreen
+        guard let s = soLieu else { return }
+        nutAIGemini.isEnabled = false
+        nutAIGemini.setTitle("⏳ Đang phân tích...", for: .normal)
+        nhanTrangThaiTren.text = "🤖 Đang kết nối Google Gemini (\(DichVuGeminiAI.dungChung.modelHienTai)) để phân tích số liệu..."
+        nhanTrangThaiTren.textColor = BangMauBCTD.xanhChuDao
+
+        DichVuGeminiAI.dungChung.phanTichBaoCao(
+            soLieu: s,
+            giong: giongDangChon,
+            nhomTapTrung: nhomTapTrung,
+            nvTapTrung: nvTapTrung
+        ) { [weak self] kq in
+            guard let self = self else { return }
+            self.nutAIGemini.isEnabled = true
+            self.nutAIGemini.setTitle("✨ AI Gemini", for: .normal)
+            switch kq {
+            case .success(let baiAI):
+                UserDefaults.standard.set(baiAI, forKey: self.khoaLuu())
+                self.ganVanBanHienThi(baiAI)
+                self.nhanTrangThaiTren.text = "✨ Đã tạo báo cáo bằng Google Gemini AI (\(DichVuGeminiAI.dungChung.modelHienTai)) · có thể chỉnh sửa trực tiếp"
+                self.nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
+            case .failure(let loi):
+                let baiOffline = BoVietBanTin(soLieu: s, giong: self.giongDangChon, bienThe: self.bienThe + 1)
+                    .vietTheoMauAnhChup(nhomTapTrung: self.nhomTapTrung, nvTapTrung: self.nvTapTrung)
+                self.ganVanBanHienThi(baiOffline)
+                self.nhanTrangThaiTren.text = "ℹ️ Đã tạo bản phân tích theo mẫu chuẩn (Gemini phản hồi: \(loi.localizedDescription))"
+                self.nhanTrangThaiTren.textColor = BangMauBCTD.vangKhaChu
+            }
+        }
     }
 
-    /// Mở LINE với nội dung đã soạn → LINE tự hiện màn chọn nhóm / bạn bè. Không có LINE hoặc nội dung quá dài → mở menu chia sẻ.
+    @objc private func bamSaoChep() {
+        view.endEditing(true)
+        let noiDung = oVanBan.text ?? ""
+        UIPasteboard.general.string = noiDung
+        nhanTrangThaiTren.text = "✅ Đã sao chép nội dung báo cáo vào bộ nhớ tạm ( sẵn sàng dán vào LINE )."
+        nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
+    }
+
     @objc private func bamGuiLine() {
         view.endEditing(true)
         let noiDung = oVanBan.text ?? ""
+        UIPasteboard.general.string = noiDung
         UserDefaults.standard.set(noiDung, forKey: khoaLuu())
+        nhanTrangThaiTren.text = "✅ Đã tự động copy nội dung báo cáo · đang mở LINE..."
+        nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
+
         guard let ma = noiDung.addingPercentEncoding(withAllowedCharacters: .alphanumerics),
               noiDung.count <= 1800,
               let url = URL(string: "line://msg/text/" + ma) else {
@@ -247,20 +599,49 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
     @objc private func bamChiaSeAnhBang() {
         view.endEditing(true)
         guard let s = soLieu else { return }
+        let noiDung = oVanBan.text ?? ""
+        UIPasteboard.general.string = noiDung
+
         let cacAnh = taoAnhBang(khungDangChon, s)
         if cacAnh.isEmpty {
-            nhanTrangThai.text = "⚠ Chưa có bảng số cho khung này để tạo ảnh."
-            nhanTrangThai.textColor = .systemRed
+            nhanTrangThaiTren.text = "⚠ Chưa có bảng số cho khung này để tạo ảnh. Đã copy nội dung chữ."
+            nhanTrangThaiTren.textColor = BangMauBCTD.doYeuChu
             return
         }
+        nhanTrangThaiTren.text = "✅ Đã copy nội dung trong ô văn bản! Hãy chọn LINE để gửi ảnh rồi Dán (Paste) nội dung."
+        nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
         chiaSe(cacAnh)
     }
 
     @objc private func bamChiaSeAnhChu() {
         view.endEditing(true)
-        let tieuDe = "BẢN TIN \(khungDangChon.tenNgan) · \(TienIchNgay.hienThiNgay.string(from: ngay))"
-        let anh = ManHinhBanTin.veAnhVanBan(oVanBan.text ?? "", tieuDe: tieuDe)
+        let noiDung = oVanBan.text ?? ""
+        UIPasteboard.general.string = noiDung
+        let tieuDe = "BÁO CÁO KINH DOANH · \(TienIchNgay.hienThiNgay.string(from: ngay))"
+        let anh = ManHinhBanTin.veAnhVanBan(noiDung, tieuDe: tieuDe)
+        nhanTrangThaiTren.text = "✅ Đã copy nội dung chữ & mở hộp thoại chia sẻ ảnh bản tin!"
+        nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
         chiaSe([anh])
+    }
+
+    @objc private func bamXuatExcel() {
+        view.endEditing(true)
+        let noiDung = oVanBan.text ?? ""
+        UIPasteboard.general.string = noiDung
+        guard let url = BoXuatOfficeDMX.xuatFileExcelXLSX(ngay: ngay, noiDungPhanTich: noiDung) else { return }
+        nhanTrangThaiTren.text = "📗 Đã tạo file Excel (.xlsx) gồm 4 Sheet & copy sẵn nội dung báo cáo!"
+        nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
+        chiaSe([url])
+    }
+
+    @objc private func bamXuatPowerPoint() {
+        view.endEditing(true)
+        let noiDung = oVanBan.text ?? ""
+        UIPasteboard.general.string = noiDung
+        guard let url = BoXuatOfficeDMX.xuatFilePowerPointPPTX(ngay: ngay, noiDungPhanTich: noiDung) else { return }
+        nhanTrangThaiTren.text = "📙 Đã tạo file PowerPoint (.pptx) gồm 4 Slide & copy sẵn nội dung báo cáo!"
+        nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
+        chiaSe([url])
     }
 
     private func chiaSe(_ muc: [Any]) {
@@ -272,18 +653,18 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         present(vc, animated: true)
     }
 
-    // MARK: Vẽ ảnh bản tin từ chữ (tự xuống dòng, không cắt chữ)
+    // MARK: - Vẽ ảnh bản tin từ chữ (nền sáng, header xanh tươi sáng, không cắt chữ)
 
     static func veAnhVanBan(_ chu: String, tieuDe: String) -> UIImage {
-        let rong: CGFloat = 900
+        let rong: CGFloat = 920
         let le: CGFloat = 36
         let rongChu = rong - le * 2
         let kieuChu = NSMutableParagraphStyle()
         kieuChu.lineBreakMode = .byWordWrapping
-        kieuChu.lineSpacing = 5
+        kieuChu.lineSpacing = 6
         let thuocTinhThan: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 26, weight: .regular),
-            .foregroundColor: UIColor(white: 0.1, alpha: 1),
+            .font: UIFont.systemFont(ofSize: 25, weight: .regular),
+            .foregroundColor: BangMauBCTD.chuChinh,
             .paragraphStyle: kieuChu
         ]
         let thuocTinhTieuDe: [NSAttributedString.Key: Any] = [
@@ -291,21 +672,22 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
             .foregroundColor: UIColor.white,
             .paragraphStyle: kieuChu
         ]
-        let than = NSAttributedString(string: chu, attributes: thuocTinhThan)
+        let chuSach = chu.replacingOccurrences(of: "**", with: "")
+        let than = NSAttributedString(string: chuSach, attributes: thuocTinhThan)
         let td = NSAttributedString(string: tieuDe, attributes: thuocTinhTieuDe)
         let khungToiDa = CGSize(width: rongChu, height: CGFloat.greatestFiniteMagnitude)
         let caoThan = ceil(than.boundingRect(with: khungToiDa, options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil).height)
         let caoTieuDe = ceil(td.boundingRect(with: khungToiDa, options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil).height)
-        let caoBang = caoTieuDe + 40
+        let caoBang = caoTieuDe + 42
         let tong = caoBang + caoThan + le * 2
 
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: rong, height: tong))
         return renderer.image { ctx in
             UIColor.white.setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: rong, height: tong))
-            BangMauBCTD.nenHeaderBang.setFill()
+            BangMauBCTD.xanhChuDao.setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: rong, height: caoBang))
-            BangMauBCTD.vangChuDao.setFill()
+            BangMauBCTD.vangSang.setFill()
             ctx.fill(CGRect(x: 0, y: caoBang - 6, width: rong, height: 6))
             td.draw(with: CGRect(x: le, y: 18, width: rongChu, height: caoTieuDe), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
             than.draw(with: CGRect(x: le, y: caoBang + le, width: rongChu, height: caoThan), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
