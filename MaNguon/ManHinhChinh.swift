@@ -1884,7 +1884,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 capNhatLuc: dl.capNhatLuc
             )
         case .xepHangNVLuyKe:
-            bangNhanVien.capNhat(cho: ngayHienTai, cheDo: .luyKe)
             return bangNhanVien.taoAnhBaoCaoNhanVien(
                 ngay: ngayHienTai,
                 cheDo: .luyKe,
@@ -1892,7 +1891,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 capNhatLuc: dl.capNhatLuc
             )
         case .xepHangNVRealtime:
-            bangNhanVien.capNhat(cho: ngayHienTai, cheDo: .realtime)
             return bangNhanVien.taoAnhBaoCaoNhanVien(
                 ngay: ngayHienTai,
                 cheDo: .realtime,
