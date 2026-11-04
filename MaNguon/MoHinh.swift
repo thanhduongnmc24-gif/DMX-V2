@@ -1,5 +1,148 @@
 import UIKit
 
+// MARK: - Bảng Màu & Phong Cách Chuẩn BaoCaoThiDua + Menu Trượt Bên Trái (#0F172A · #FFD200 · #6366F1)
+
+enum BangMauBCTD {
+    // Nền tối chủ đạo của Sidebar Menu & Header báo cáo (BaoCaoThiDua: #0F172A / #1E2329)
+    static let nenMenuToi = UIColor(red: 0.06, green: 0.09, blue: 0.16, alpha: 1.0)       // #0F172A Slate 900
+    static let nenDongChonMenu = UIColor(red: 0.12, green: 0.16, blue: 0.23, alpha: 1.0)  // #1E293B Slate 800
+    static let nenMenuCon = UIColor(red: 0.05, green: 0.07, blue: 0.13, alpha: 1.0)       // #0B1120
+    static let nenHeaderBang = UIColor(red: 0.12, green: 0.14, blue: 0.16, alpha: 1.0)    // #1E2329 (bulletin.py .hd)
+
+    // Màu nhấn thương hiệu: Vàng Gold (Menu trái & viền .hd) + Indigo chủ đạo (#6366F1 của BaoCaoThiDua)
+    static let vangChuDao = UIColor(red: 0.96, green: 0.71, blue: 0.09, alpha: 1.0)       // #F5B517 / #FFD200
+    static let vangSang = UIColor(red: 0.98, green: 0.80, blue: 0.08, alpha: 1.0)         // #FACC15
+    static let vangNhatNen = UIColor(red: 1.00, green: 0.95, blue: 0.78, alpha: 1.0)      // #FEF3C7
+    static let indigoChuDao = UIColor(red: 0.39, green: 0.40, blue: 0.95, alpha: 1.0)     // #6366F1
+    static let indigoDam = UIColor(red: 0.31, green: 0.27, blue: 0.90, alpha: 1.0)        // #4F46E5
+    static let indigoNhatNen = UIColor(red: 0.93, green: 0.95, blue: 1.00, alpha: 1.0)    // #EEF2FF
+    static let indigoVien = UIColor(red: 0.78, green: 0.82, blue: 0.99, alpha: 1.0)       // #C7D2FE
+    static let xanhBienChuDao = UIColor(red: 0.05, green: 0.65, blue: 0.91, alpha: 1.0)   // #0EA5E9
+
+    // Nền trang & thẻ sáng sạch chuẩn BaoCaoThiDua (#F1F5F9 / #FFFFFF / #E2E8F0)
+    static let nenTrang = UIColor(red: 0.95, green: 0.96, blue: 0.98, alpha: 1.0)         // #F1F5F9 Slate 100
+    static let nenThe = UIColor.white                                                     // #FFFFFF
+    static let nenThePhu = UIColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 1.0)        // #F8FAFC Slate 50
+    static let nenHeaderPhu = UIColor(red: 0.95, green: 0.96, blue: 0.98, alpha: 1.0)     // #F1F5F9
+    static let vienThe = UIColor(red: 0.89, green: 0.91, blue: 0.94, alpha: 1.0)          // #E2E8F0 Slate 200
+    static let vienDam = UIColor(red: 0.80, green: 0.84, blue: 0.88, alpha: 1.0)          // #CBD5E1 Slate 300
+
+    // Chữ phân cấp độ tương phản cao
+    static let chuChinh = UIColor(red: 0.06, green: 0.09, blue: 0.16, alpha: 1.0)         // #0F172A Slate 900
+    static let chuPhu = UIColor(red: 0.28, green: 0.33, blue: 0.41, alpha: 1.0)           // #475569 Slate 600
+    static let chuMo = UIColor(red: 0.40, green: 0.45, blue: 0.55, alpha: 1.0)            // #64748B Slate 500
+    static let chuTrenNenToi = UIColor(red: 0.82, green: 0.85, blue: 0.90, alpha: 1.0)    // #D1D5DB
+
+    // 3 mức trạng thái nghiệp vụ BaoCaoThiDua: >=100% Xanh (ok) · 80-99% Vàng (mid/near) · <80% Đỏ (no/di)
+    static let xanhDatChu = UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1.0)       // #15803D
+    static let xanhDatPill = UIColor(red: 0.86, green: 0.99, blue: 0.90, alpha: 1.0)      // #DCFCE7
+    static let xanhDatNenDong = UIColor(red: 0.94, green: 0.99, blue: 0.96, alpha: 1.0)   // #F0FDF4
+    static let xanhDatVach = UIColor(red: 0.09, green: 0.64, blue: 0.29, alpha: 1.0)      // #16A34A
+
+    static let vangKhaChu = UIColor(red: 0.63, green: 0.38, blue: 0.03, alpha: 1.0)       // #A16207
+    static let vangKhaPill = UIColor(red: 1.00, green: 0.95, blue: 0.78, alpha: 1.0)      // #FEF3C7
+    static let vangKhaNenDong = UIColor(red: 1.00, green: 0.98, blue: 0.92, alpha: 1.0)   // #FFFBEB
+    static let vangKhaVach = UIColor(red: 0.96, green: 0.62, blue: 0.04, alpha: 1.0)      // #F59E0B
+
+    static let doYeuChu = UIColor(red: 0.73, green: 0.11, blue: 0.11, alpha: 1.0)         // #B91C1C
+    static let doYeuPill = UIColor(red: 1.00, green: 0.89, blue: 0.89, alpha: 1.0)        // #FEE2E2
+    static let doYeuNenDong = UIColor(red: 1.00, green: 0.95, blue: 0.95, alpha: 1.0)     // #FEF2F2
+    static let doYeuVach = UIColor(red: 0.86, green: 0.15, blue: 0.15, alpha: 1.0)        // #DC2626
+
+    static func mauTrangThai(phanTram pt: Double) -> (chu: UIColor, pill: UIColor, nenDong: UIColor, vach: UIColor) {
+        if pt >= 99.995 {
+            return (xanhDatChu, xanhDatPill, xanhDatNenDong, xanhDatVach)
+        } else if pt >= 80.0 {
+            return (vangKhaChu, vangKhaPill, vangKhaNenDong, vangKhaVach)
+        } else {
+            return (doYeuChu, doYeuPill, doYeuNenDong, doYeuVach)
+        }
+    }
+
+    static func taoHeaderBannerBaoCao(
+        rong: CGFloat,
+        kicker: String,
+        tieuDe: String,
+        thongKePhu: String? = nil
+    ) -> (view: UIView, chieuCao: CGFloat) {
+        let le: CGFloat = 18
+        let rongChu = max(120, rong - le * 2)
+        let pLeft = NSMutableParagraphStyle()
+        pLeft.alignment = .left
+        pLeft.lineBreakMode = .byWordWrapping
+
+        let fontKicker = UIFont.systemFont(ofSize: 12.0, weight: .bold)
+        let fontTieuDe = UIFont.systemFont(ofSize: 19.0, weight: .heavy)
+        let fontPhu = UIFont.systemFont(ofSize: 12.5, weight: .semibold)
+
+        let caoKicker = max(18, ceil((kicker.uppercased() as NSString).boundingRect(
+            with: CGSize(width: rongChu, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: fontKicker, .paragraphStyle: pLeft],
+            context: nil
+        ).height))
+
+        let caoTieuDe = max(26, ceil((tieuDe as NSString).boundingRect(
+            with: CGSize(width: rongChu, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: fontTieuDe, .paragraphStyle: pLeft],
+            context: nil
+        ).height))
+
+        var caoPhu: CGFloat = 0
+        if let s = thongKePhu, !s.isEmpty {
+            caoPhu = max(18, ceil((s as NSString).boundingRect(
+                with: CGSize(width: rongChu, height: CGFloat.greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: [.font: fontPhu, .paragraphStyle: pLeft],
+                context: nil
+            ).height))
+        }
+
+        let tongCao = 14 + caoKicker + 4 + caoTieuDe + (caoPhu > 0 ? 4 + caoPhu : 0) + 14 + 5
+        let header = UIView(frame: CGRect(x: 0, y: 0, width: rong, height: tongCao))
+        header.backgroundColor = nenHeaderBang
+
+        let lbKicker = UILabel(frame: CGRect(x: le, y: 14, width: rongChu, height: caoKicker))
+        lbKicker.text = kicker.uppercased()
+        lbKicker.font = fontKicker
+        lbKicker.textColor = vangChuDao
+        lbKicker.numberOfLines = 0
+        lbKicker.lineBreakMode = .byWordWrapping
+        lbKicker.adjustsFontSizeToFitWidth = false
+        header.addSubview(lbKicker)
+
+        var y = 14 + caoKicker + 4
+        let lbTieuDe = UILabel(frame: CGRect(x: le, y: y, width: rongChu, height: caoTieuDe))
+        lbTieuDe.text = tieuDe
+        lbTieuDe.font = fontTieuDe
+        lbTieuDe.textColor = .white
+        lbTieuDe.numberOfLines = 0
+        lbTieuDe.lineBreakMode = .byWordWrapping
+        lbTieuDe.adjustsFontSizeToFitWidth = false
+        header.addSubview(lbTieuDe)
+        y += caoTieuDe
+
+        if let s = thongKePhu, !s.isEmpty, caoPhu > 0 {
+            y += 4
+            let lbPhu = UILabel(frame: CGRect(x: le, y: y, width: rongChu, height: caoPhu))
+            lbPhu.text = s
+            lbPhu.font = fontPhu
+            lbPhu.textColor = UIColor(red: 0.79, green: 0.81, blue: 0.83, alpha: 1.0)
+            lbPhu.numberOfLines = 0
+            lbPhu.lineBreakMode = .byWordWrapping
+            lbPhu.adjustsFontSizeToFitWidth = false
+            header.addSubview(lbPhu)
+        }
+
+        let vachVang = UIView(frame: CGRect(x: 0, y: tongCao - 5, width: rong, height: 5))
+        vachVang.backgroundColor = vangChuDao
+        header.addSubview(vachVang)
+
+        return (header, tongCao)
+    }
+}
+
 enum LoaiCheDoDoanhThu: Int, CaseIterable {
     case luyKe = 0
     case realtime = 1
@@ -105,13 +248,7 @@ enum MucMenuChinh: Int, CaseIterable {
     }
 
     var nhanDoPhai: String? {
-        switch self {
-        case .doSoXemSo: return "MỚI"
-        case .congCu: return "MỚI"
-        case .lenhTroLy: return "MỚI"
-        case .ketNoi: return "CẦN"
-        default: return nil
-        }
+        nil
     }
 
     var coMenuCon: Bool {
@@ -2257,28 +2394,38 @@ struct MucChonDMX {
 
 private final class NutHangMenuDMX: UIControl {
     private let nhan = UILabel()
+    private let vachChonTrai = UIView()
+    private let nenMacDinh: UIColor
     private var xuLyBam: (() -> Void)?
 
     init(muc: MucChonDMX, coChu: UIFont, canGiua: Bool, khiBam: @escaping () -> Void) {
         self.xuLyBam = khiBam
+        self.nenMacDinh = muc.dangChon ? BangMauBCTD.vangNhatNen.withAlphaComponent(0.45) : .clear
         super.init(frame: .zero)
-        backgroundColor = .clear
+        backgroundColor = nenMacDinh
+
+        vachChonTrai.backgroundColor = BangMauBCTD.vangChuDao
+        vachChonTrai.isHidden = !muc.dangChon
+        vachChonTrai.isUserInteractionEnabled = false
+        vachChonTrai.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(vachChonTrai)
 
         let chuHienThi = muc.dangChon ? "✓  \(muc.tieuDe)" : muc.tieuDe
         nhan.text = chuHienThi
-        nhan.font = coChu
+        nhan.font = muc.dangChon ? .systemFont(ofSize: coChu.pointSize, weight: .bold) : coChu
         nhan.numberOfLines = 0
         nhan.lineBreakMode = .byWordWrapping
         nhan.adjustsFontSizeToFitWidth = false
         nhan.textAlignment = canGiua ? .center : .left
+        nhan.isUserInteractionEnabled = false
 
         switch muc.kieu {
         case .nguyHiem:
-            nhan.textColor = .systemRed
+            nhan.textColor = BangMauBCTD.doYeuChu
         case .huy:
-            nhan.textColor = .systemBlue
+            nhan.textColor = BangMauBCTD.chuChinh
         case .macDinh:
-            nhan.textColor = .systemBlue
+            nhan.textColor = muc.dangChon ? BangMauBCTD.chuChinh : BangMauBCTD.indigoDam
         }
 
         nhan.translatesAutoresizingMaskIntoConstraints = false
@@ -2286,6 +2433,11 @@ private final class NutHangMenuDMX: UIControl {
         addSubview(nhan)
 
         NSLayoutConstraint.activate([
+            vachChonTrai.topAnchor.constraint(equalTo: topAnchor),
+            vachChonTrai.bottomAnchor.constraint(equalTo: bottomAnchor),
+            vachChonTrai.leadingAnchor.constraint(equalTo: leadingAnchor),
+            vachChonTrai.widthAnchor.constraint(equalToConstant: 4),
+
             nhan.topAnchor.constraint(equalTo: topAnchor, constant: 13),
             nhan.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -13),
             nhan.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
@@ -2302,7 +2454,7 @@ private final class NutHangMenuDMX: UIControl {
 
     override var isHighlighted: Bool {
         didSet {
-            backgroundColor = isHighlighted ? UIColor.label.withAlphaComponent(0.08) : .clear
+            backgroundColor = isHighlighted ? BangMauBCTD.indigoNhatNen : nenMacDinh
         }
     }
 
@@ -2375,6 +2527,12 @@ final class HopChonDMXController: UIViewController {
 
         if coTieuDe || coThongDiep {
             let khungHeader = UIView()
+            khungHeader.backgroundColor = BangMauBCTD.nenMenuToi
+            let vachVang = UIView()
+            vachVang.backgroundColor = BangMauBCTD.vangChuDao
+            vachVang.translatesAutoresizingMaskIntoConstraints = false
+            khungHeader.addSubview(vachVang)
+
             let nganHeader = UIStackView()
             nganHeader.axis = .vertical
             nganHeader.spacing = 4
@@ -2383,9 +2541,9 @@ final class HopChonDMXController: UIViewController {
 
             if coTieuDe, let td = tieuDeMenu {
                 let lbTieuDe = UILabel()
-                lbTieuDe.text = td
-                lbTieuDe.font = .systemFont(ofSize: 15, weight: .bold)
-                lbTieuDe.textColor = .label
+                lbTieuDe.text = td.uppercased()
+                lbTieuDe.font = .systemFont(ofSize: 14.5, weight: .heavy)
+                lbTieuDe.textColor = BangMauBCTD.vangChuDao
                 lbTieuDe.textAlignment = .center
                 lbTieuDe.numberOfLines = 0
                 lbTieuDe.lineBreakMode = .byWordWrapping
@@ -2396,8 +2554,8 @@ final class HopChonDMXController: UIViewController {
             if coThongDiep, let msg = thongDiepMenu {
                 let lbMsg = UILabel()
                 lbMsg.text = msg
-                lbMsg.font = .systemFont(ofSize: 13.5, weight: .regular)
-                lbMsg.textColor = .secondaryLabel
+                lbMsg.font = .systemFont(ofSize: 13, weight: .medium)
+                lbMsg.textColor = BangMauBCTD.chuTrenNenToi
                 lbMsg.textAlignment = .center
                 lbMsg.numberOfLines = 0
                 lbMsg.lineBreakMode = .byWordWrapping
@@ -2407,9 +2565,14 @@ final class HopChonDMXController: UIViewController {
 
             NSLayoutConstraint.activate([
                 nganHeader.topAnchor.constraint(equalTo: khungHeader.topAnchor, constant: 14),
-                nganHeader.bottomAnchor.constraint(equalTo: khungHeader.bottomAnchor, constant: -12),
+                nganHeader.bottomAnchor.constraint(equalTo: khungHeader.bottomAnchor, constant: -14),
                 nganHeader.leadingAnchor.constraint(equalTo: khungHeader.leadingAnchor, constant: 16),
-                nganHeader.trailingAnchor.constraint(equalTo: khungHeader.trailingAnchor, constant: -16)
+                nganHeader.trailingAnchor.constraint(equalTo: khungHeader.trailingAnchor, constant: -16),
+
+                vachVang.leadingAnchor.constraint(equalTo: khungHeader.leadingAnchor),
+                vachVang.trailingAnchor.constraint(equalTo: khungHeader.trailingAnchor),
+                vachVang.bottomAnchor.constraint(equalTo: khungHeader.bottomAnchor),
+                vachVang.heightAnchor.constraint(equalToConstant: 2.5)
             ])
             ngan.addArrangedSubview(khungHeader)
         }

@@ -42,7 +42,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Tài khoản & Hộp thư"
-        view.backgroundColor = .systemGroupedBackground
+        view.backgroundColor = BangMauBCTD.nenTrang
         chonKieuHienThi.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
         chonSoCotXuat.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
 
@@ -378,8 +378,19 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nhanMoTaCot.lineBreakMode = .byWordWrapping
         nhanMoTaCot.adjustsFontSizeToFitWidth = false
 
-        chonKieuHienThi.damBaoHienThiDayDuText()
-        chonSoCotXuat.damBaoHienThiDayDuText()
+        [chonKieuHienThi, chonSoCotXuat].forEach { seg in
+            seg.backgroundColor = BangMauBCTD.nenThePhu
+            seg.selectedSegmentTintColor = BangMauBCTD.nenMenuToi
+            seg.setTitleTextAttributes([
+                .font: UIFont.systemFont(ofSize: 12.0, weight: .semibold),
+                .foregroundColor: BangMauBCTD.chuPhu
+            ], for: .normal)
+            seg.setTitleTextAttributes([
+                .font: UIFont.systemFont(ofSize: 12.0, weight: .bold),
+                .foregroundColor: BangMauBCTD.vangChuDao
+            ], for: .selected)
+            seg.damBaoHienThiDayDuText()
+        }
 
         let nganKieu = UIStackView(arrangedSubviews: [nhanMoTaKieu, chonKieuHienThi, nhanMoTaCot, chonSoCotXuat])
         nganKieu.axis = .vertical
@@ -587,7 +598,7 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Quản lý Tài khoản"
-        view.backgroundColor = .systemGroupedBackground
+        view.backgroundColor = BangMauBCTD.nenTrang
 
         navigationItem.rightBarButtonItems = [
             UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(bamThemTaiKhoanMoi)),
