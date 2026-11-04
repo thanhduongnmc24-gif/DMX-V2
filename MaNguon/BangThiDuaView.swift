@@ -199,12 +199,12 @@ final class CumChiSoChinhView: UIControl {
     private var luoiThe: UIStackView!
 
     private let theDTThuc = TheDoanhThuView(
-        tieuDe: "💵 DOANH THU THỰC",
+        tieuDe: "💵 DT THỰC",
         mauBatDau: BangMauBCTD.indigoChuDao,
         mauKetThuc: BangMauBCTD.indigoDam
     )
     private let theDTQD = TheDoanhThuView(
-        tieuDe: "🎯 DOANH THU QĐ",
+        tieuDe: "🎯 DT QUY ĐỔI",
         mauBatDau: BangMauBCTD.xanhDatVach,
         mauKetThuc: BangMauBCTD.xanhDatChu,
         hienChamTron: true
@@ -566,7 +566,6 @@ final class OTheThiDuaCell: UICollectionViewCell {
         let pWrap = NSMutableParagraphStyle()
         pWrap.lineBreakMode = .byWordWrapping
 
-        let pt = xemDuKien ? dong.phanTramDuBao : dong.phanTramHT
         // Cố định độ rộng huy hiệu để các số % thẳng cột giữa mọi thẻ.
         let rongPT: CGFloat = laTheHep ? 74 : 82
         let caoPT: CGFloat = 21
@@ -585,7 +584,7 @@ final class OTheThiDuaCell: UICollectionViewCell {
         let caoKhoiTieuDe = caoTenChu + (tachPhanTramXuongDong ? caoPT + 4 : 0)
 
         let chuoiTrai = xemDuKien
-            ? "THỰC HIỆN\n\(dong.thucHien.chuoiSoVN)\n% HT THÁNG\n\(dong.phanTramHT.chuoiPhanTramVN)"
+            ? "THỰC HIỆN\n\(dong.thucHien.chuoiSoVN)"
             : "\(dong.thucHien.chuoiSoVN) / \(dong.target.chuoiSoVN) \(dong.loaiChiTieu.maThe)"
         let chuoiPhai = xemDuKien
             ? "TARGET\n\(dong.target.chuoiSoVN)\n\(dong.loaiChiTieu == .doanhThu ? "DT DỰ KIẾN" : "SL DỰ KIẾN")\n\(dong.duKien.chuoiSoVN)"
@@ -616,7 +615,7 @@ final class OTheThiDuaCell: UICollectionViewCell {
             caoPhai = max(17, ceil(rectPhai.height) + 1)
             caoKhuVucSo = caoTrai + 3 + caoPhai
         } else {
-            caoTrai = xemDuKien ? 72 : 19
+            caoTrai = xemDuKien ? 42 : 19
             caoPhai = xemDuKien ? 72 : 19
             caoKhuVucSo = xemDuKien ? 72 : 19
         }
@@ -696,9 +695,7 @@ final class OTheThiDuaCell: UICollectionViewCell {
             let tieuDe = UIFont.systemFont(ofSize: max(9.5, coChu - 1.5), weight: .semibold)
             let giaTri = UIFont.monospacedDigitSystemFont(ofSize: coChu + 1, weight: .bold)
             let attr = NSMutableAttributedString(string: "THỰC HIỆN\n", attributes: [.font: tieuDe, .foregroundColor: BangMauBCTD.chuMo, .paragraphStyle: pWrap])
-            attr.append(NSAttributedString(string: "\(dong.thucHien.chuoiSoVN)\n", attributes: [.font: giaTri, .foregroundColor: BangMauBCTD.chuChinh, .paragraphStyle: pWrap]))
-            attr.append(NSAttributedString(string: "% HT THÁNG\n", attributes: [.font: tieuDe, .foregroundColor: BangMauBCTD.chuMo, .paragraphStyle: pWrap]))
-            attr.append(NSAttributedString(string: dong.phanTramHT.chuoiPhanTramVN, attributes: [.font: giaTri, .foregroundColor: BangMauBCTD.chuChinh, .paragraphStyle: pWrap]))
+            attr.append(NSAttributedString(string: dong.thucHien.chuoiSoVN, attributes: [.font: giaTri, .foregroundColor: BangMauBCTD.chuChinh, .paragraphStyle: pWrap]))
             nhanThucHienTarget.attributedText = attr
             return
         }
@@ -2214,6 +2211,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     private let nutBieuDoRealtime = UIButton(type: .custom)
     private let nutBieuDoSucKhoeNV = UIButton(type: .custom)
     private let hangHaiNutBieuDo = UIStackView()
+    private var rangBuocCaoHangChonBieuDo: NSLayoutConstraint?
 
     private var doanhThuLuyKe = ThongTinDoanhThu()
     private var tatCaNgayTrongThang: [DuLieuRealtimeNgayTrongThang] = []
@@ -2277,7 +2275,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         hienChamTron: true
     )
 
-    private let chonCheDoNgay = UISegmentedControl(items: ["Cả tháng", "Ngày có số"])
+    private let chonCheDoNgay = UISegmentedControl(items: ["Tất cả", "Có số"])
     private let nhanTomTatRT = UILabel()
     private let cuonBieuDo = UIScrollView()
     private let veBieuDo = VeBieuDoCotRealtimeView()
@@ -2372,7 +2370,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nutSuaLK.addTarget(self, action: #selector(bamSuaLuyKe), for: .touchUpInside)
         nutSuaLK.setContentHuggingPriority(.required, for: .horizontal)
 
-        let hangDauLK = UIStackView(arrangedSubviews: [nhanTieuDeLuyKe, nutSuaLK])
+        let hangDauLK = UIStackView(arrangedSubviews: [nhanTieuDeLuyKe])
         hangDauLK.axis = .horizontal
         hangDauLK.spacing = 6
         hangDauLK.alignment = .center
@@ -2392,6 +2390,8 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nganLK.translatesAutoresizingMaskIntoConstraints = false
         khungLuyKe.addSubview(nganLK)
 
+        let rgCaoHangChon = hangHaiNutBieuDo.heightAnchor.constraint(greaterThanOrEqualToConstant: 38)
+        rangBuocCaoHangChonBieuDo = rgCaoHangChon
         NSLayoutConstraint.activate([
             nganLK.topAnchor.constraint(equalTo: khungLuyKe.topAnchor, constant: 10),
             nganLK.leadingAnchor.constraint(equalTo: khungLuyKe.leadingAnchor, constant: 10),
@@ -2527,9 +2527,9 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             hangHaiNutBieuDo.topAnchor.constraint(equalTo: topAnchor),
             hangHaiNutBieuDo.leadingAnchor.constraint(equalTo: leadingAnchor),
             hangHaiNutBieuDo.trailingAnchor.constraint(equalTo: trailingAnchor),
-            hangHaiNutBieuDo.heightAnchor.constraint(greaterThanOrEqualToConstant: 38),
+            rgCaoHangChon,
 
-            cuonDoc.topAnchor.constraint(equalTo: hangHaiNutBieuDo.bottomAnchor, constant: 8),
+            cuonDoc.topAnchor.constraint(equalTo: hangHaiNutBieuDo.bottomAnchor),
             cuonDoc.leadingAnchor.constraint(equalTo: leadingAnchor),
             cuonDoc.trailingAnchor.constraint(equalTo: trailingAnchor),
             cuonDoc.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -2745,6 +2745,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     func hienThiRieng(_ loai: LoaiBieuDoThang) {
         loaiBieuDoDangXem = loai
         hangHaiNutBieuDo.isHidden = true
+        rangBuocCaoHangChonBieuDo?.constant = 0
         capNhatGiaoDienHaiNutBieuDo()
         cuonDoc.setContentOffset(.zero, animated: false)
     }

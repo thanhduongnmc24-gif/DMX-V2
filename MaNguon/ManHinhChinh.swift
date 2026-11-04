@@ -503,7 +503,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutNgay.contentEdgeInsets = UIEdgeInsets(top: 5, left: 8, bottom: 5, right: 8)
         nutNgay.addTarget(self, action: #selector(moLichSuNgay), for: .touchUpInside)
 
-        let cumTrai = UIStackView(arrangedSubviews: [nutMoMenu, nutNgay])
+        let cumTrai = UIStackView(arrangedSubviews: [nutMoMenu, nutNgay, nutXuatNav])
         cumTrai.axis = .horizontal
         cumTrai.spacing = 6
         cumTrai.alignment = .center
@@ -833,7 +833,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutXuatAnhTrongXemSo.layer.cornerRadius = 9
         nutXuatAnhTrongXemSo.addTarget(self, action: #selector(moMenuXuatBaoCao), for: .touchUpInside)
 
-        hangNutQuet = UIStackView(arrangedSubviews: [nutThemAnhMoi, nutNhapDoanhThuNV, nutXoaQuetLai, nutThemThuCong, nutXuatAnhTrongXemSo])
+        hangNutQuet = UIStackView(arrangedSubviews: [nutThemAnhMoi, nutNhapDoanhThuNV, nutXoaQuetLai])
         hangNutQuet.axis = .horizontal
         hangNutQuet.spacing = 6
         nutThemAnhMoi.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -1521,8 +1521,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutCopyRieng.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
         nutCopyRieng.addTarget(self, action: #selector(bamChiCopyNoiDungXuatAnh), for: .touchUpInside)
 
-        let khungYeuCauXA = taoKhungYeuCauTrongXuatAnh()
-
         nutCopyJSONXuatAnh.setTitle("📋 Copy JSON + câu lệnh tạo Excel / PowerPoint bằng AI khác", for: .normal)
         nutCopyJSONXuatAnh.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
         nutCopyJSONXuatAnh.titleLabel?.numberOfLines = 0
@@ -1896,7 +1894,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
     @objc private func bamChonTabXemSo(_ sender: UIButton) {
         guard let tab = TabXemSo(rawValue: sender.tag) else { return }
-        mucMenuChinh = .doSoXemSo
+        let dangTrongMucNhanVien = (mucMenuChinh == .nhanVien)
+        if !dangTrongMucNhanVien { mucMenuChinh = .doSoXemSo }
         mucConDoSo = .xemSo
         tabXemSo = tab
         if tab == .luyKe {
@@ -1905,6 +1904,26 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             cheDoDoanhThu = .realtime
         }
         napDuLieu()
+        if dangTrongMucNhanVien, tab == .bieuDo {
+            bangRealtimeThang.hienThiRieng(.sucKhoeNhanVien)
+        }
+    }
+
+    private func capNhatNutTabXemSo(choNhanVien: Bool) {
+        guard cacNutTabXemSo.count >= 3 else { return }
+        if choNhanVien {
+            cacNutTabXemSo[0].tag = TabXemSo.nhanVien.rawValue
+            cacNutTabXemSo[0].setTitle("👥 Xếp hạng", for: .normal)
+            cacNutTabXemSo[1].tag = TabXemSo.bieuDo.rawValue
+            cacNutTabXemSo[1].setTitle("❤️‍🩹 Sức khỏe", for: .normal)
+            cacNutTabXemSo[2].isHidden = true
+        } else {
+            for (nut, tab) in zip(cacNutTabXemSo, TabXemSo.allCases) {
+                nut.tag = tab.rawValue
+                nut.setTitle("\(tab.bieuTuong) \(tab.tieuDe)", for: .normal)
+                nut.isHidden = false
+            }
+        }
     }
 
     private func cauHinhNutCheDoNV(_ nut: UIButton, tieuDe: String, tag: Int) {
@@ -1967,8 +1986,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         theChao.addSubview(lbKickerChao)
 
         nhanTomTatTongQuan.font = .systemFont(ofSize: 14, weight: .medium)
-        nhanTomTatTongQuan.textColor = .white
-        nhanTomTatTongQuan.backgroundColor = .clear
+        nhanTomTatTongQuan.textColor = BangMauBCTD.chuChinh
+        nhanTomTatTongQuan.backgroundColor = .white
+        nhanTomTatTongQuan.layer.cornerRadius = 10
         nhanTomTatTongQuan.isEditable = false
         nhanTomTatTongQuan.isScrollEnabled = true
         nhanTomTatTongQuan.showsVerticalScrollIndicator = true
@@ -2249,13 +2269,22 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         khungMucMoRong.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(khungMucMoRong)
 
+        let cuon = UIScrollView()
+        cuon.keyboardDismissMode = .interactive
+        cuon.alwaysBounceVertical = true
+        cuon.translatesAutoresizingMaskIntoConstraints = false
+        khungMucMoRong.addSubview(cuon)
+        let chamAnBanPhim = UITapGestureRecognizer(target: self, action: #selector(anBanPhimXuatFile))
+        chamAnBanPhim.cancelsTouchesInView = false
+        cuon.addGestureRecognizer(chamAnBanPhim)
+
         let the = UIView()
         the.backgroundColor = BangMauBCTD.nenThe
         the.layer.cornerRadius = 14
         the.layer.borderWidth = 1
         the.layer.borderColor = BangMauBCTD.vienThe.cgColor
         the.translatesAutoresizingMaskIntoConstraints = false
-        khungMucMoRong.addSubview(the)
+        cuon.addSubview(the)
 
         bieuTuongMucMoRong.tintColor = BangMauBCTD.xanhChuDao
         bieuTuongMucMoRong.contentMode = .scaleAspectFit
@@ -2291,9 +2320,15 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             khungMucMoRong.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             khungMucMoRong.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
 
-            the.topAnchor.constraint(equalTo: khungMucMoRong.topAnchor, constant: 16),
-            the.leadingAnchor.constraint(equalTo: khungMucMoRong.leadingAnchor, constant: 14),
-            the.trailingAnchor.constraint(equalTo: khungMucMoRong.trailingAnchor, constant: -14),
+            cuon.topAnchor.constraint(equalTo: khungMucMoRong.topAnchor),
+            cuon.leadingAnchor.constraint(equalTo: khungMucMoRong.leadingAnchor),
+            cuon.trailingAnchor.constraint(equalTo: khungMucMoRong.trailingAnchor),
+            cuon.bottomAnchor.constraint(equalTo: khungMucMoRong.bottomAnchor),
+
+            the.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 16),
+            the.leadingAnchor.constraint(equalTo: cuon.frameLayoutGuide.leadingAnchor, constant: 14),
+            the.trailingAnchor.constraint(equalTo: cuon.frameLayoutGuide.trailingAnchor, constant: -14),
+            the.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -24),
 
             bieuTuongMucMoRong.heightAnchor.constraint(equalToConstant: 44),
 
@@ -2302,6 +2337,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             ngan.trailingAnchor.constraint(equalTo: the.trailingAnchor, constant: -16),
             ngan.bottomAnchor.constraint(equalTo: the.bottomAnchor, constant: -20)
         ])
+    }
+
+    @objc private func anBanPhimXuatFile() {
+        view.endEditing(true)
     }
 
     private func taoMenuTruotBenTrai() {
@@ -2335,6 +2374,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             guard let self = self else { return }
             self.mucMenuChinh = muc
             if muc == .doSoXemSo { self.mucConDoSo = .xemSo }
+            if muc == .nhanVien { self.mucConDoSo = .xemSo; self.tabXemSo = .nhanVien }
             self.anMenu(animated: true)
             self.napDuLieu()
         }
@@ -2450,8 +2490,15 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             var cacDongTongQuan: [String] = [
                 "TỔNG QUAN NGÀY \(ngayStr)", "",
                 "1. DOANH THU",
-                "   a. Lũy kế: Thực \(duLieu.doanhThu.doanhThuThuc.chuoiSoGonVN) · Quy đổi \(duLieu.doanhThu.doanhThuQuyDoi.chuoiSoGonVN) · HT \(duLieu.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram)",
-                "   b. Realtime: Thực \(duLieu.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN) · Quy đổi \(duLieu.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN)", "",
+                "   a. Lũy kế:",
+                "      • DT thực: \(duLieu.doanhThu.doanhThuThuc.chuoiSoGonVN) / Target \(duLieu.doanhThu.targetThuc.chuoiSoGonVN) · HT \(duLieu.doanhThu.phanTramHTThucHienThi.chuoiPhanTram)",
+                "      • DT quy đổi: \(duLieu.doanhThu.doanhThuQuyDoi.chuoiSoGonVN) / Target \(duLieu.doanhThu.targetQuyDoi.chuoiSoGonVN)",
+                "      • Dự kiến cuối tháng: \(duLieu.doanhThu.duKienQuyDoi.chuoiSoGonVN) · HT dự kiến \(duLieu.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram)",
+                "      • Trả góp: \(duLieu.doanhThu.phanTramTraGop.chuoiPhanTram) · Khách \(duLieu.doanhThu.luotKhach.chuoiSoGonVN) · Bill \(duLieu.doanhThu.soBill.chuoiSoGonVN)",
+                "   b. Realtime:",
+                "      • DT thực: \(duLieu.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN)",
+                "      • DT quy đổi: \(duLieu.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN)",
+                "      • Trả góp: \(duLieu.doanhThuRealtime.phanTramTraGop.chuoiPhanTram) · Khách \(duLieu.doanhThuRealtime.luotKhach.chuoiSoGonVN) · Bill \(duLieu.doanhThuRealtime.soBill.chuoiSoGonVN)", "",
                 "2. NHÓM HÀNG BÁN TỐT (LŨY KẾ ĐẾN LẦN NHẬP GẦN NHẤT)"
             ]
             cacDongTongQuan.append(contentsOf: nhomTot.isEmpty ? ["   Chưa có dữ liệu"] : nhomTot)
@@ -2504,6 +2551,15 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         case .quanTri:
             break
 
+        case .nhanVien:
+            if tabXemSo == .bieuDo {
+                bangRealtimeThang.capNhat(cho: ngayHienTai)
+                bangRealtimeThang.hienThiRieng(.sucKhoeNhanVien)
+            } else {
+                tabXemSo = .nhanVien
+                bangNhanVien.capNhat(cho: ngayHienTai, cheDo: cheDoDoanhThu)
+            }
+
         case .trinhDuyet:
             manHinhTrinhDuyetNhung.capNhatNgay(ngayHienTai)
 
@@ -2513,7 +2569,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     }
 
     private func capNhatTrangThaiMuc() {
-        if mucMenuChinh == .doSoXemSo { mucConDoSo = .xemSo }
+        if mucMenuChinh == .doSoXemSo || mucMenuChinh == .nhanVien { mucConDoSo = .xemSo }
         menuBenTrai.capNhatTrangThai(mucChinh: mucMenuChinh, mucCon: mucConDoSo)
 
         let tieuDeNutMenu: String
@@ -2523,18 +2579,21 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let hienNutTrenNav = (mucMenuChinh == .doSoXemSo || mucMenuChinh == .tongQuan || mucMenuChinh == .baoCao || mucMenuChinh == .lichDoSo)
         nutNgay.isHidden = !hienNutTrenNav
         nutNhapTatCa.isHidden = (mucMenuChinh != .doSoXemSo)
-        nutXuatNav.isHidden = (mucMenuChinh != .doSoXemSo && mucMenuChinh != .tongQuan && mucMenuChinh != .baoCao)
+        nutXuatNav.isHidden = (mucMenuChinh != .doSoXemSo)
 
         let laCaiDat = (mucMenuChinh == .caiDat || mucMenuChinh == .taiKhoanHopThu)
-        khungDoSoXemSo.isHidden = (mucMenuChinh != .doSoXemSo)
+        let laManHinhNhanVien = (mucMenuChinh == .nhanVien)
+        khungDoSoXemSo.isHidden = (mucMenuChinh != .doSoXemSo && !laManHinhNhanVien)
         khungTongQuan.isHidden = (mucMenuChinh != .tongQuan)
         khungBaoCao.isHidden = (mucMenuChinh != .baoCao)
         khungTaiKhoanHopThu.isHidden = !laCaiDat
         khungQuanTri.isHidden = (mucMenuChinh != .quanTri)
         khungTrinhDuyet.isHidden = (mucMenuChinh != .trinhDuyet)
-        khungMucMoRong.isHidden = (mucMenuChinh == .doSoXemSo || mucMenuChinh == .tongQuan || mucMenuChinh == .baoCao || laCaiDat || mucMenuChinh == .quanTri || mucMenuChinh == .trinhDuyet)
+        khungMucMoRong.isHidden = (mucMenuChinh == .doSoXemSo || laManHinhNhanVien || mucMenuChinh == .tongQuan || mucMenuChinh == .baoCao || laCaiDat || mucMenuChinh == .quanTri || mucMenuChinh == .trinhDuyet)
 
-        guard mucMenuChinh == .doSoXemSo else { return }
+        guard mucMenuChinh == .doSoXemSo || laManHinhNhanVien else { return }
+
+        capNhatNutTabXemSo(choNhanVien: laManHinhNhanVien)
 
         // Highlight 3 nút mục con: 1. Xem số | 2. Nhập số | 3. Xuất ảnh
         for nut in cacNutMucConDoSo {
@@ -2652,9 +2711,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("📋 Copy câu lệnh & Xuất ảnh dữ liệu", action: #selector(bamCopyVaXuatAnhTaoFile)))
 
         case .nhanVien:
-            nhanMoTaMucMoRong.text = "Xem bảng xếp hạng doanh thu nhân viên hoặc theo dõi sức khỏe đội ngũ."
-            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("👥 Bảng xếp hạng nhân viên", action: #selector(moNhanVienTuMenu)))
-            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("❤️‍🩹 Sức khỏe nhân viên", action: #selector(moSucKhoeNhanVienTuMenu)))
+            break
 
         case .ketNoi:
             let tk = DichVuDongBo.dungChung.tenDangNhap.isEmpty ? "Chưa đăng nhập" : DichVuDongBo.dungChung.tenDangNhap
@@ -2725,6 +2782,15 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         oCauLenhXuatFile.layer.borderWidth = 1
         oCauLenhXuatFile.layer.borderColor = BangMauBCTD.vienDam.cgColor
         oCauLenhXuatFile.isScrollEnabled = true
+        if oCauLenhXuatFile.inputAccessoryView == nil {
+            let thanh = UIToolbar()
+            thanh.sizeToFit()
+            thanh.items = [
+                UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil),
+                UIBarButtonItem(title: "Xong", style: .done, target: self, action: #selector(anBanPhimXuatFile))
+            ]
+            oCauLenhXuatFile.inputAccessoryView = thanh
+        }
         if rangBuocCaoOCauLenhXuatFile == nil {
             let rangBuoc = oCauLenhXuatFile.heightAnchor.constraint(equalToConstant: 210)
             rangBuoc.isActive = true
@@ -3599,6 +3665,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     }
 
     @objc private func moMenuXuatBaoCao() {
+        hienBangNutXuatAnh()
+    }
+
+    private func moMenuXuatBaoCaoCu() {
         let dl = KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
         let kieu = KhoDuLieu.dungChung.caiDat.kieuHienThi
         let moTaKieu = (kieu == .bangChiTiet) ? "Bảng 8 cột" : "Thẻ \(KhoDuLieu.dungChung.caiDat.soCotXuatAnh) cột"
@@ -3722,6 +3792,81 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             thongDiep: "Chọn loại ảnh hoặc file dữ liệu báo cáo bạn muốn chia sẻ hoặc lưu về máy:",
             cacMuc: cacMuc
         )
+    }
+
+    private func hienBangNutXuatAnh() {
+        let hop = UIViewController()
+        hop.view.backgroundColor = BangMauBCTD.nenTrang
+        hop.title = "Xuất ảnh"
+
+        let cuon = UIScrollView()
+        let ngan = UIStackView()
+        cuon.translatesAutoresizingMaskIntoConstraints = false
+        ngan.axis = .vertical
+        ngan.spacing = 10
+        ngan.translatesAutoresizingMaskIntoConstraints = false
+        hop.view.addSubview(cuon)
+        cuon.addSubview(ngan)
+
+        let tieuDe = UILabel()
+        tieuDe.text = "CHỌN NỘI DUNG ẢNH"
+        tieuDe.font = .systemFont(ofSize: 15, weight: .heavy)
+        tieuDe.textColor = BangMauBCTD.xanhChuDaoDam
+        ngan.addArrangedSubview(tieuDe)
+
+        var hang: UIStackView?
+        for (chiSo, loai) in LoaiBaoCaoXuatAnh.allCases.enumerated() {
+            if chiSo % 2 == 0 {
+                let h = UIStackView()
+                h.axis = .horizontal
+                h.spacing = 10
+                h.distribution = .fillEqually
+                ngan.addArrangedSubview(h)
+                hang = h
+            }
+            let nut = UIButton(type: .system, primaryAction: UIAction { [weak self, weak hop] _ in
+                guard let self else { return }
+                hop?.dismiss(animated: true) {
+                    guard let anh = self.taoAnhTheoLoaiBaoCao(loai) else { return }
+                    self.chiaSe([anh])
+                }
+            })
+            nut.setTitle(loai.tieuDeNgan, for: .normal)
+            nut.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
+            nut.titleLabel?.numberOfLines = 0
+            nut.titleLabel?.textAlignment = .center
+            nut.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+            nut.backgroundColor = BangMauBCTD.nenThe
+            nut.layer.cornerRadius = 11
+            nut.layer.borderWidth = 1.2
+            nut.layer.borderColor = BangMauBCTD.xanhChuDao.cgColor
+            nut.heightAnchor.constraint(greaterThanOrEqualToConstant: 64).isActive = true
+            hang?.addArrangedSubview(nut)
+        }
+
+        let nutDong = UIButton(type: .system, primaryAction: UIAction { [weak hop] _ in hop?.dismiss(animated: true) })
+        nutDong.setTitle("Đóng", for: .normal)
+        nutDong.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+        nutDong.backgroundColor = BangMauBCTD.nenThePhu
+        nutDong.layer.cornerRadius = 10
+        ngan.addArrangedSubview(nutDong)
+
+        NSLayoutConstraint.activate([
+            cuon.topAnchor.constraint(equalTo: hop.view.safeAreaLayoutGuide.topAnchor),
+            cuon.leadingAnchor.constraint(equalTo: hop.view.leadingAnchor),
+            cuon.trailingAnchor.constraint(equalTo: hop.view.trailingAnchor),
+            cuon.bottomAnchor.constraint(equalTo: hop.view.bottomAnchor),
+            ngan.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 18),
+            ngan.leadingAnchor.constraint(equalTo: cuon.frameLayoutGuide.leadingAnchor, constant: 16),
+            ngan.trailingAnchor.constraint(equalTo: cuon.frameLayoutGuide.trailingAnchor, constant: -16),
+            ngan.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -24)
+        ])
+        let nav = UINavigationController(rootViewController: hop)
+        nav.modalPresentationStyle = .pageSheet
+        if let sheet = nav.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+        }
+        present(nav, animated: true)
     }
 
     private func saoChepGoiJSONXuatFile() {
