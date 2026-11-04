@@ -372,38 +372,38 @@ struct DoanhThuNhanVienItem: Codable, Hashable {
     ) {
         self.maNV = maNV
         self.hoTen = hoTen
-        self.soLuong = max(0, soLuong)
-        self.doanhThuThuc = max(0, doanhThuThuc)
-        self.doanhThuQD = max(0, doanhThuQD)
-        self.target = max(0, target)
-        self.dtQDKhoanVay = max(0, dtQDKhoanVay)
-        self.dtTraThangQD = max(0, dtTraThangQD)
-        self.dtTraGop = max(0, dtTraGop)
-        self.phanTramHT = max(0, phanTramHT)
-        self.phanTramQuyDoi = max(0, phanTramQuyDoi)
-        self.phanTramTraGop = max(0, phanTramTraGop)
-        self.gioCong = max(0, gioCong)
-        self.soNgayNghi = max(0, soNgayNghi)
-        self.nangSuat = max(0, nangSuat)
+        self.soLuong = soLuong
+        self.doanhThuThuc = doanhThuThuc
+        self.doanhThuQD = doanhThuQD
+        self.target = target
+        self.dtQDKhoanVay = dtQDKhoanVay
+        self.dtTraThangQD = dtTraThangQD
+        self.dtTraGop = dtTraGop
+        self.phanTramHT = phanTramHT
+        self.phanTramQuyDoi = phanTramQuyDoi
+        self.phanTramTraGop = phanTramTraGop
+        self.gioCong = gioCong
+        self.soNgayNghi = soNgayNghi
+        self.nangSuat = nangSuat
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         maNV = (try? c.decode(String.self, forKey: .maNV)) ?? ""
         hoTen = (try? c.decode(String.self, forKey: .hoTen)) ?? ""
-        soLuong = max(0, (try? c.decode(Double.self, forKey: .soLuong)) ?? 0)
-        doanhThuThuc = max(0, (try? c.decode(Double.self, forKey: .doanhThuThuc)) ?? 0)
-        doanhThuQD = max(0, (try? c.decode(Double.self, forKey: .doanhThuQD)) ?? 0)
-        target = max(0, (try? c.decode(Double.self, forKey: .target)) ?? 0)
-        dtQDKhoanVay = max(0, (try? c.decode(Double.self, forKey: .dtQDKhoanVay)) ?? 0)
-        dtTraThangQD = max(0, (try? c.decode(Double.self, forKey: .dtTraThangQD)) ?? 0)
-        dtTraGop = max(0, (try? c.decode(Double.self, forKey: .dtTraGop)) ?? 0)
-        phanTramHT = max(0, (try? c.decode(Double.self, forKey: .phanTramHT)) ?? 0)
-        phanTramQuyDoi = max(0, (try? c.decode(Double.self, forKey: .phanTramQuyDoi)) ?? 0)
-        phanTramTraGop = max(0, (try? c.decode(Double.self, forKey: .phanTramTraGop)) ?? 0)
-        gioCong = max(0, (try? c.decode(Double.self, forKey: .gioCong)) ?? 0)
-        soNgayNghi = max(0, (try? c.decode(Double.self, forKey: .soNgayNghi)) ?? 0)
-        nangSuat = max(0, (try? c.decode(Double.self, forKey: .nangSuat)) ?? 0)
+        soLuong = (try? c.decode(Double.self, forKey: .soLuong)) ?? 0
+        doanhThuThuc = (try? c.decode(Double.self, forKey: .doanhThuThuc)) ?? 0
+        doanhThuQD = (try? c.decode(Double.self, forKey: .doanhThuQD)) ?? 0
+        target = (try? c.decode(Double.self, forKey: .target)) ?? 0
+        dtQDKhoanVay = (try? c.decode(Double.self, forKey: .dtQDKhoanVay)) ?? 0
+        dtTraThangQD = (try? c.decode(Double.self, forKey: .dtTraThangQD)) ?? 0
+        dtTraGop = (try? c.decode(Double.self, forKey: .dtTraGop)) ?? 0
+        phanTramHT = (try? c.decode(Double.self, forKey: .phanTramHT)) ?? 0
+        phanTramQuyDoi = (try? c.decode(Double.self, forKey: .phanTramQuyDoi)) ?? 0
+        phanTramTraGop = (try? c.decode(Double.self, forKey: .phanTramTraGop)) ?? 0
+        gioCong = (try? c.decode(Double.self, forKey: .gioCong)) ?? 0
+        soNgayNghi = (try? c.decode(Double.self, forKey: .soNgayNghi)) ?? 0
+        nangSuat = (try? c.decode(Double.self, forKey: .nangSuat)) ?? 0
     }
 }
 
@@ -1128,19 +1128,9 @@ struct DuLieuNgayDMX: Codable {
     }
 
     mutating func ganDoanhThuNhanVien(_ ds: [DoanhThuNhanVienItem], theo cheDo: LoaiCheDoDoanhThu) {
-        let dsSach = ds.map { item in
-            DoanhThuNhanVienItem(
-                maNV: item.maNV, hoTen: item.hoTen,
-                soLuong: item.soLuong, doanhThuThuc: item.doanhThuThuc, doanhThuQD: item.doanhThuQD,
-                target: item.target, dtQDKhoanVay: item.dtQDKhoanVay, dtTraThangQD: item.dtTraThangQD,
-                dtTraGop: item.dtTraGop, phanTramHT: item.phanTramHT,
-                phanTramQuyDoi: item.phanTramQuyDoi, phanTramTraGop: item.phanTramTraGop,
-                gioCong: item.gioCong, soNgayNghi: item.soNgayNghi, nangSuat: item.nangSuat
-            )
-        }
         switch cheDo {
-        case .luyKe: doanhThuNhanVien = dsSach
-        case .realtime: doanhThuNhanVienRealtime = dsSach
+        case .luyKe: doanhThuNhanVien = ds
+        case .realtime: doanhThuNhanVienRealtime = ds
         }
     }
 }

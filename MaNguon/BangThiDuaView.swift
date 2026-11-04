@@ -571,15 +571,18 @@ final class OTheThiDuaCell: UICollectionViewCell {
         let rongPT = max(laTheHep ? 56 : 66, ceil((chuoiPT as NSString).size(withAttributes: [.font: fontDam]).width) + 8)
         let caoPT: CGFloat = 21
 
-        // Tên ngành hàng luôn có khung đo chính xác để hiển thị trọn vẹn 100% các dòng
-        let rongTen = max(56, rongTrong - rongPT - 6)
+        // Với thẻ hẹp, cho tên dùng trọn chiều ngang rồi đặt % ở hàng kế tiếp.
+        // Cách này tận dụng phần trống bên phải và tránh ép tên thành 5–7 dòng.
+        let tachPhanTramXuongDong = laTheHep || dong.tenNganhHang.count > 26
+        let rongTen = tachPhanTramXuongDong ? rongTrong : max(56, rongTrong - rongPT - 6)
         let rectTen = (dong.tenNganhHang as NSString).boundingRect(
             with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: fontDam, .paragraphStyle: pWrap],
             context: nil
         )
-        let caoTen = max(caoPT, ceil(rectTen.height) + 2)
+        let caoTenChu = max(caoPT, ceil(rectTen.height) + 2)
+        let caoKhoiTieuDe = caoTenChu + (tachPhanTramXuongDong ? caoPT + 4 : 0)
 
         let chuoiTrai = xemDuKien
             ? "THỰC HIỆN\n\(dong.thucHien.chuoiSoVN)\n% HT THÁNG\n\(dong.phanTramHT.chuoiPhanTramVN)"
@@ -618,11 +621,13 @@ final class OTheThiDuaCell: UICollectionViewCell {
             caoKhuVucSo = xemDuKien ? 72 : 19
         }
 
-        let caoToiThieu = 8 + caoTen + 8 + caoKhuVucSo + 6 + 5 + 8 + (xemDuKien ? 28 : 0)
+        let caoToiThieu = 8 + caoKhoiTieuDe + 8 + caoKhuVucSo + 6 + 5 + 8 + (xemDuKien ? 12 : 0)
         let tongCao = max(caoToiThieu, chieuCaoKhung ?? caoToiThieu)
 
-        let khungTen = CGRect(x: le, y: 8, width: rongTen, height: caoTen)
-        let khungPhanTram = CGRect(x: rongThe - le - rongPT, y: 8, width: rongPT, height: caoPT)
+        let khungTen = CGRect(x: le, y: 8, width: rongTen, height: caoTenChu)
+        let khungPhanTram = tachPhanTramXuongDong
+            ? CGRect(x: rongThe - le - rongPT, y: 8 + caoTenChu + 4, width: rongPT, height: caoPT)
+            : CGRect(x: rongThe - le - rongPT, y: 8, width: rongPT, height: caoPT)
         let khungThanh = CGRect(x: le, y: tongCao - 8 - 5, width: rongTrong, height: 5)
 
         let yDaySo = khungThanh.minY - 6

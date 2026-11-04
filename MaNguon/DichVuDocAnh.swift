@@ -1785,9 +1785,23 @@ final class DichVuDocAnh {
             guard !cacPhanTuSoCungHang.isEmpty else { continue }
 
             if !laBangRong {
+                // OCR đôi khi tách dấu trừ thành một box riêng nằm sát bên trái số.
+                // Ghép lại để các giá trị như -1, -2, -3 trong bảng nhân viên không bị đọc thành số dương.
+                func giaTriCoDau(_ pt: PhanTuVanBan) -> Double {
+                    let giaTri = chuyenChuoiThanhSoDoanhThu(pt.chu) ?? 0
+                    if giaTri < 0 { return giaTri }
+                    let coDauTruRoi = phanTu.contains { dau in
+                        let token = dau.chu.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let laDauTru = token == "-" || token == "−" || token == "–" || token == "—"
+                        let mepPhai = dau.x + dau.rong
+                        return laDauTru && abs(dau.y - pt.y) < 0.018 && mepPhai <= pt.x + 0.012 && pt.x - mepPhai < 0.035
+                    }
+                    return coDauTruRoi ? -abs(giaTri) : giaTri
+                }
+
                 func laySoTheoKhoangX(_ xMin: CGFloat, _ xMax: CGFloat) -> Double {
                     guard let pt = cacPhanTuSoCungHang.first(where: { $0.x >= xMin && $0.x < xMax }) else { return 0 }
-                    return chuyenChuoiThanhSoDoanhThu(pt.chu) ?? 0
+                    return giaTriCoDau(pt)
                 }
 
                 let soLuong = laySoTheoKhoangX(0.32, 0.48)
@@ -1807,7 +1821,17 @@ final class DichVuDocAnh {
                     dtTraThangQD: dtTraThangQD
                 ))
             } else {
-                let cacSo = cacPhanTuSoCungHang.map { chuyenChuoiThanhSoDoanhThu($0.chu) ?? 0 }
+                let cacSo = cacPhanTuSoCungHang.map { pt -> Double in
+                    let giaTri = chuyenChuoiThanhSoDoanhThu(pt.chu) ?? 0
+                    if giaTri < 0 { return giaTri }
+                    let coDauTruRoi = phanTu.contains { dau in
+                        let token = dau.chu.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let laDauTru = token == "-" || token == "−" || token == "–" || token == "—"
+                        let mepPhai = dau.x + dau.rong
+                        return laDauTru && abs(dau.y - pt.y) < 0.018 && mepPhai <= pt.x + 0.012 && pt.x - mepPhai < 0.035
+                    }
+                    return coDauTruRoi ? -abs(giaTri) : giaTri
+                }
                 func soTai(_ idx: Int) -> Double { idx < cacSo.count ? cacSo[idx] : 0 }
 
                 daXetMa.insert(maNV)
@@ -1896,6 +1920,9 @@ final class DichVuDocAnh {
             .replacingOccurrences(of: "…", with: "")
             .replacingOccurrences(of: "...", with: "")
             .replacingOccurrences(of: "+", with: "")
+            .replacingOccurrences(of: "−", with: "-")
+            .replacingOccurrences(of: "–", with: "-")
+            .replacingOccurrences(of: "—", with: "-")
             .replacingOccurrences(of: "^[^0-9\\-]+|[^0-9]+$", with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 

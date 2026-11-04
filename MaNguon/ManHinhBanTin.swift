@@ -305,9 +305,9 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         )
 
         let hangOffice = UIStackView(arrangedSubviews: [nutXuatExcelAI, nutXuatPowerPointAI])
-        hangOffice.axis = .horizontal
+        hangOffice.axis = .vertical
         hangOffice.spacing = 8
-        hangOffice.distribution = .fillEqually
+        hangOffice.distribution = .fill
         ngan.addArrangedSubview(hangOffice)
 
         ngan.addArrangedSubview(taoNutHanhDong(
@@ -568,7 +568,8 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         tapDangChon: Set<String>,
         laNhomHang: Bool
     ) {
-        let soCot = 3
+        // Hai cột đủ rộng để tên ngành/nhân viên không chồng chữ trên màn hình iPhone.
+        let soCot = 2
         var hangHienTai: UIStackView?
         for (i, ten) in danhSach.enumerated() {
             if i % soCot == 0 {
@@ -592,6 +593,7 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
             nut.layer.cornerRadius = 8
             nut.layer.borderWidth = 1
             nut.contentEdgeInsets = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
+            nut.heightAnchor.constraint(greaterThanOrEqualToConstant: laNhomHang ? 44 : 40).isActive = true
             if dangChon {
                 nut.backgroundColor = BangMauBCTD.vangSang
                 nut.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
