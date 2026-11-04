@@ -582,16 +582,16 @@ final class OTheThiDuaCell: UICollectionViewCell {
         let caoTen = max(caoPT, ceil(rectTen.height) + 2)
 
         let chuoiTrai = xemDuKien
-            ? "DK: \(dong.duKien.chuoiSoVN) / \(dong.target.chuoiSoVN) \(dong.loaiChiTieu.maThe)"
+            ? "THỰC HIỆN\n\(dong.thucHien.chuoiSoVN)\n% HT THÁNG\n\(dong.phanTramHT.chuoiPhanTramVN)"
             : "\(dong.thucHien.chuoiSoVN) / \(dong.target.chuoiSoVN) \(dong.loaiChiTieu.maThe)"
         let chuoiPhai = xemDuKien
-            ? (dong.conThieuDuKien > 0.005 ? "Còn DK: \(dong.conThieuDuKien.chuoiSoVN)" : "Vượt DK: \(dong.vuotMucDuKien.chuoiSoVN)")
+            ? "TARGET\n\(dong.target.chuoiSoVN)\n\(dong.loaiChiTieu == .doanhThu ? "DT DỰ KIẾN" : "SL DỰ KIẾN")\n\(dong.duKien.chuoiSoVN)"
             : (dong.conThieu > 0.005 ? "Còn: \(dong.conThieu.chuoiSoVN)" : "Vượt: \(dong.vuotMuc.chuoiSoVN)")
 
         let rongTrai1Dong = ceil((chuoiTrai as NSString).size(withAttributes: [.font: fontDam]).width) + 2
         let rongPhai1Dong = ceil((chuoiPhai as NSString).size(withAttributes: [.font: fontVua]).width) + 2
 
-        let xepChong2DongSo = laTheHep || (rongTrai1Dong + 6 + rongPhai1Dong > rongTrong)
+        let xepChong2DongSo = xemDuKien ? false : (laTheHep || (rongTrai1Dong + 6 + rongPhai1Dong > rongTrong))
         let caoTrai: CGFloat
         let caoPhai: CGFloat
         let caoKhuVucSo: CGFloat
@@ -613,12 +613,12 @@ final class OTheThiDuaCell: UICollectionViewCell {
             caoPhai = max(17, ceil(rectPhai.height) + 1)
             caoKhuVucSo = caoTrai + 3 + caoPhai
         } else {
-            caoTrai = 19
-            caoPhai = 19
-            caoKhuVucSo = 19
+            caoTrai = xemDuKien ? 72 : 19
+            caoPhai = xemDuKien ? 72 : 19
+            caoKhuVucSo = xemDuKien ? 72 : 19
         }
 
-        let caoToiThieu = 8 + caoTen + 8 + caoKhuVucSo + 6 + 5 + 8
+        let caoToiThieu = 8 + caoTen + 8 + caoKhuVucSo + 6 + 5 + 8 + (xemDuKien ? 28 : 0)
         let tongCao = max(caoToiThieu, chieuCaoKhung ?? caoToiThieu)
 
         let khungTen = CGRect(x: le, y: 8, width: rongTen, height: caoTen)
@@ -633,8 +633,10 @@ final class OTheThiDuaCell: UICollectionViewCell {
             khungConThieu = CGRect(x: le, y: yDaySo - caoPhai, width: rongTrong, height: caoPhai)
             khungThucHien = CGRect(x: le, y: khungConThieu.minY - 3 - caoTrai, width: rongTrong, height: caoTrai)
         } else {
-            khungThucHien = CGRect(x: le, y: yDaySo - caoTrai, width: max(50, rongTrong - rongPhai1Dong - 6), height: caoTrai)
-            khungConThieu = CGRect(x: rongThe - le - rongPhai1Dong, y: yDaySo - caoPhai, width: rongPhai1Dong, height: caoPhai)
+            let rongTrai = xemDuKien ? (rongTrong - 8) / 2 : max(50, rongTrong - rongPhai1Dong - 6)
+            let rongPhai = xemDuKien ? (rongTrong - 8) / 2 : rongPhai1Dong
+            khungThucHien = CGRect(x: le, y: yDaySo - caoTrai, width: rongTrai, height: caoTrai)
+            khungConThieu = CGRect(x: rongThe - le - rongPhai, y: yDaySo - caoPhai, width: rongPhai, height: caoPhai)
         }
 
         return BoCucThe(
@@ -685,6 +687,16 @@ final class OTheThiDuaCell: UICollectionViewCell {
     private func capNhatChuoiThucHien(dong: DongThiDua, xemDuKien: Bool, coChu: CGFloat) {
         let pWrap = NSMutableParagraphStyle()
         pWrap.lineBreakMode = .byWordWrapping
+        if xemDuKien {
+            let tieuDe = UIFont.systemFont(ofSize: max(9.5, coChu - 1.5), weight: .semibold)
+            let giaTri = UIFont.monospacedDigitSystemFont(ofSize: coChu + 1, weight: .bold)
+            let attr = NSMutableAttributedString(string: "THỰC HIỆN\n", attributes: [.font: tieuDe, .foregroundColor: BangMauBCTD.chuMo, .paragraphStyle: pWrap])
+            attr.append(NSAttributedString(string: "\(dong.thucHien.chuoiSoVN)\n", attributes: [.font: giaTri, .foregroundColor: BangMauBCTD.chuChinh, .paragraphStyle: pWrap]))
+            attr.append(NSAttributedString(string: "% HT THÁNG\n", attributes: [.font: tieuDe, .foregroundColor: BangMauBCTD.chuMo, .paragraphStyle: pWrap]))
+            attr.append(NSAttributedString(string: dong.phanTramHT.chuoiPhanTramVN, attributes: [.font: giaTri, .foregroundColor: BangMauBCTD.chuChinh, .paragraphStyle: pWrap]))
+            nhanThucHienTarget.attributedText = attr
+            return
+        }
         let chuoiDam = xemDuKien ? "DK: \(dong.duKien.chuoiSoVN)" : dong.thucHien.chuoiSoVN
         let chuoiMo = " / \(dong.target.chuoiSoVN) \(dong.loaiChiTieu.maThe)"
         let attr = NSMutableAttributedString(
@@ -722,13 +734,17 @@ final class OTheThiDuaCell: UICollectionViewCell {
         thanhMauTienDo.backgroundColor = mauTT.vach
 
         if xemDuKien {
-            if dong.conThieuDuKien > 0.005 {
-                nhanConThieu.text = "Còn DK: \(dong.conThieuDuKien.chuoiSoVN)"
-                nhanConThieu.textColor = .secondaryLabel
-            } else {
-                nhanConThieu.text = "Vượt DK: \(dong.vuotMucDuKien.chuoiSoVN)"
-                nhanConThieu.textColor = UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
-            }
+            let nhanDK = dong.loaiChiTieu == .doanhThu ? "DT DỰ KIẾN" : "SL DỰ KIẾN"
+            let tieuDe = UIFont.systemFont(ofSize: 10.5, weight: .semibold)
+            let giaTri = UIFont.monospacedDigitSystemFont(ofSize: 13.5, weight: .bold)
+            let p = NSMutableParagraphStyle()
+            p.alignment = .right
+            let attr = NSMutableAttributedString(string: "TARGET\n", attributes: [.font: tieuDe, .foregroundColor: BangMauBCTD.chuMo, .paragraphStyle: p])
+            attr.append(NSAttributedString(string: "\(dong.target.chuoiSoVN)\n", attributes: [.font: giaTri, .foregroundColor: BangMauBCTD.chuChinh, .paragraphStyle: p]))
+            attr.append(NSAttributedString(string: "\(nhanDK)\n", attributes: [.font: tieuDe, .foregroundColor: BangMauBCTD.chuMo, .paragraphStyle: p]))
+            let mauDK = dong.phanTramDuBao >= 100 ? UIColor(red: 0.04, green: 0.55, blue: 0.32, alpha: 1) : BangMauBCTD.chuChinh
+            attr.append(NSAttributedString(string: dong.duKien.chuoiSoVN, attributes: [.font: giaTri, .foregroundColor: mauDK, .paragraphStyle: p]))
+            nhanConThieu.attributedText = attr
         } else {
             if dong.conThieu > 0.005 {
                 nhanConThieu.text = "Còn: \(dong.conThieu.chuoiSoVN)"
@@ -1199,7 +1215,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let cheDoHienThi = cheDo ?? cheDoDoanhThu
         let tieuDe: [String]
         if cheDoHienThi == .luyKe && xemDuKien {
-            tieuDe = ["STT", "NGÀNH HÀNG (BẤM XEM NV)", "ĐVT", "DT/SL DỰ KIẾN", "TARGET", "THIẾU/VƯỢT DK", "% DỰ KIẾN", "% HT THÁNG"]
+            tieuDe = ["STT", "NGÀNH HÀNG (BẤM XEM NV)", "ĐVT", "THỰC HIỆN", "TARGET", "% HT THÁNG", "DT/SL DỰ KIẾN", "% DỰ KIẾN"]
         } else {
             let cotHT = (cheDoHienThi == .luyKe) ? "% HT THÁNG" : "% HT NGÀY"
             tieuDe = ["STT", "NGÀNH HÀNG (BẤM XEM NV)", "ĐVT", "THỰC HIỆN", "TARGET", "THIẾU/VƯỢT", cotHT, "% DỰ KIẾN"]
@@ -1211,7 +1227,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
             let nhan = UILabel(frame: CGRect(x: xHienTai + 4, y: 2, width: rong - 8, height: 37))
             nhan.text = chu
             nhan.font = .systemFont(ofSize: 10.5, weight: .bold)
-            nhan.textColor = (i == 6) ? BangMauBCTD.vangChuDao : .white
+            nhan.textColor = ((xemDuKien && i == 7) || (!xemDuKien && i == 6)) ? BangMauBCTD.vangChuDao : .white
             nhan.numberOfLines = 0
             nhan.lineBreakMode = .byWordWrapping
             nhan.adjustsFontSizeToFitWidth = false
@@ -1262,11 +1278,11 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
                 "\(stt)",
                 dong.tenNganhHang,
                 dong.loaiChiTieu.maBang,
-                dong.duKien.chuoiSoLieu,
+                dong.thucHien.chuoiSoLieu,
                 dong.target.chuoiSoLieu,
-                dong.chenhLechDuKien.chuoiChenhLech,
-                dong.phanTramDuBao.chuoiPhanTram,
-                dong.phanTramHT.chuoiPhanTram
+                dong.phanTramHT.chuoiPhanTram,
+                dong.duKien.chuoiSoLieu,
+                dong.phanTramDuBao.chuoiPhanTram
             ]
         } else {
             giaTriCot = [
@@ -1293,7 +1309,8 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
             let rong = chieuRongCot[i]
             let khungO = CGRect(x: xHienTai, y: 0, width: rong, height: chieuCao)
 
-            if i == 6 || i == 7 {
+            let laCotPhanTram = xemDuKien ? (i == 5 || i == 7) : (i == 6 || i == 7)
+            if laCotPhanTram {
                 let badge = UILabel(frame: khungO.insetBy(dx: 5, dy: max(4, (chieuCao - 30) / 2)))
                 badge.text = giaTriCot[i]
                 badge.font = fontDongNhat
@@ -1302,8 +1319,8 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
                 badge.lineBreakMode = .byWordWrapping
                 badge.adjustsFontSizeToFitWidth = false
                 if xemDuKien {
-                    badge.textColor = (i == 6) ? mauChuDuBao : mauChuHT
-                    badge.backgroundColor = (i == 6) ? mauNenDuBao : mauNenHT
+                    badge.textColor = (i == 7) ? mauChuDuBao : mauChuHT
+                    badge.backgroundColor = (i == 7) ? mauNenDuBao : mauNenHT
                 } else {
                     badge.textColor = (i == 6) ? mauChuHT : mauChuDuBao
                     badge.backgroundColor = (i == 6) ? mauNenHT : mauNenDuBao

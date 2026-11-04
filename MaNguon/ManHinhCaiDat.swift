@@ -365,7 +365,9 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutChonModelGemini.titleLabel?.adjustsFontSizeToFitWidth = false
         nutChonModelGemini.contentHorizontalAlignment = .left
         nutChonModelGemini.backgroundColor = BangMauBCTD.nenHeaderBang
-        nutChonModelGemini.tintColor = BangMauBCTD.xanhChuDaoDam
+        nutChonModelGemini.tintColor = .white
+        nutChonModelGemini.setTitleColor(.white, for: .normal)
+        nutChonModelGemini.setTitleColor(UIColor.white.withAlphaComponent(0.65), for: .disabled)
         nutChonModelGemini.layer.cornerRadius = 9
         nutChonModelGemini.layer.borderWidth = 1
         nutChonModelGemini.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
@@ -440,6 +442,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutDongBoNgay.titleLabel?.adjustsFontSizeToFitWidth = false
         nutDongBoNgay.backgroundColor = BangMauBCTD.nenHeaderBang
         nutDongBoNgay.tintColor = BangMauBCTD.xanhChuDao
+        nutDongBoNgay.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
         nutDongBoNgay.layer.cornerRadius = 9
         nutDongBoNgay.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
         nutDongBoNgay.addTarget(self, action: #selector(bamDongBoDamMayNgay), for: .touchUpInside)
@@ -471,6 +474,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutMoAdminTaiKhoan.contentHorizontalAlignment = .left
         nutMoAdminTaiKhoan.backgroundColor = BangMauBCTD.nenHeaderBang
         nutMoAdminTaiKhoan.tintColor = BangMauBCTD.xanhChuDao
+        nutMoAdminTaiKhoan.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
         nutMoAdminTaiKhoan.layer.cornerRadius = 10
         nutMoAdminTaiKhoan.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
         nutMoAdminTaiKhoan.addTarget(self, action: #selector(bamMoManHinhAdminTaiKhoan), for: .touchUpInside)
@@ -482,6 +486,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutDoiMatKhauNhanh.titleLabel?.adjustsFontSizeToFitWidth = false
         nutDoiMatKhauNhanh.backgroundColor = BangMauBCTD.nenThePhu
         nutDoiMatKhauNhanh.tintColor = BangMauBCTD.chuChinh
+        nutDoiMatKhauNhanh.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
         nutDoiMatKhauNhanh.layer.cornerRadius = 9
         nutDoiMatKhauNhanh.layer.borderWidth = 1
         nutDoiMatKhauNhanh.layer.borderColor = BangMauBCTD.vienDam.cgColor
@@ -495,6 +500,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutDangXuatNhanh.titleLabel?.adjustsFontSizeToFitWidth = false
         nutDangXuatNhanh.backgroundColor = BangMauBCTD.doYeuPill
         nutDangXuatNhanh.tintColor = BangMauBCTD.doYeuChu
+        nutDangXuatNhanh.setTitleColor(BangMauBCTD.doYeuChu, for: .normal)
         nutDangXuatNhanh.layer.cornerRadius = 9
         nutDangXuatNhanh.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
         nutDangXuatNhanh.addTarget(self, action: #selector(bamDangXuatTaiKhoan), for: .touchUpInside)
@@ -525,7 +531,9 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             nut.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
             nut.contentHorizontalAlignment = .left
             nut.backgroundColor = BangMauBCTD.nenHeaderBang
-            nut.tintColor = BangMauBCTD.xanhChuDaoDam
+            nut.tintColor = .white
+            nut.setTitleColor(.white, for: .normal)
+            nut.setTitleColor(UIColor.white.withAlphaComponent(0.65), for: .disabled)
             nut.layer.cornerRadius = 10
             nut.layer.borderWidth = 1
             nut.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor

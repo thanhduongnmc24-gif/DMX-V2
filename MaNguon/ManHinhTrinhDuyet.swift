@@ -95,7 +95,7 @@ final class ManHinhTrinhDuyet: UIViewController, WKNavigationDelegate, UITextFie
         ])
     }
 
-    @objc private func moCopilot() { moURL("https://m365.cloud.microsoft/chat") }
+    @objc private func moCopilot() { moURL("https://m365.cloud.microsoft/chat/") }
     @objc private func bamLui() { if webView.canGoBack { webView.goBack() } }
     @objc private func bamTien() { if webView.canGoForward { webView.goForward() } }
     @objc private func bamTaiLai() { webView.reload() }
