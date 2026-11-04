@@ -37,6 +37,7 @@ struct KetQuaQuetTatCaAnh {
 
     var capNhatLuc: String = ""
     var thongTinDonVi: String = ""
+    var thongBaoLoi: String = ""
 
     var coDuLieu: Bool {
         (doanhThu?.coDuLieu ?? false) ||
@@ -109,8 +110,10 @@ final class DichVuDocAnh {
                 switch ketQua {
                 case .success(let kq): hoanTat(kq)
                 case .failure(let loi):
+                    var kqLoi = KetQuaQuetTatCaAnh()
+                    kqLoi.thongBaoLoi = loi.localizedDescription
                     tienTrinh("Gemini không đọc được ảnh: \(loi.localizedDescription)")
-                    hoanTat(KetQuaQuetTatCaAnh())
+                    hoanTat(kqLoi)
                 }
             }
             return

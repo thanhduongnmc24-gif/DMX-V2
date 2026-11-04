@@ -37,8 +37,6 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
     // Ô nhập yêu cầu riêng của người dùng khi phân tích AI & xuất file Excel / PowerPoint
     private let oYeuCauRieng = UITextView()
     private let nhanGoiYYeuCau = UILabel()
-    private var nutXuatExcelAI: UIButton!
-    private var nutXuatPowerPointAI: UIButton!
 
     // Khung 📌 TẬP TRUNG BÀI VIẾT
     private let nhanTapTrung = UILabel()
@@ -291,25 +289,6 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
             action: #selector(bamChiaSeAnhChu)
         ))
 
-        nutXuatExcelAI = taoNutHanhDong(
-            "📗 Xuất Excel (.xlsx) Chi Tiết (7 Sheet • AI Gemini)",
-            mauNen: BangMauBCTD.xanhLaDam,
-            mauChu: .white,
-            action: #selector(bamXuatExcel)
-        )
-        nutXuatPowerPointAI = taoNutHanhDong(
-            "📙 Xuất PowerPoint (.pptx) Chi Tiết (6 Slide • AI Gemini)",
-            mauNen: BangMauBCTD.vangKhaChu,
-            mauChu: .white,
-            action: #selector(bamXuatPowerPoint)
-        )
-
-        let hangOffice = UIStackView(arrangedSubviews: [nutXuatExcelAI, nutXuatPowerPointAI])
-        hangOffice.axis = .vertical
-        hangOffice.spacing = 8
-        hangOffice.distribution = .fill
-        ngan.addArrangedSubview(hangOffice)
-
         ngan.addArrangedSubview(taoNutHanhDong(
             "📋 Chỉ sao chép nội dung văn bản",
             mauNen: BangMauBCTD.nenThePhu,
@@ -319,7 +298,7 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         ))
 
         ngan.addArrangedSubview(taoNutHanhDong(
-            "📊 Chỉ lấy số liệu để dán vào Copilot 365",
+            "📋 Copy JSON + câu lệnh tạo Excel / PowerPoint bằng AI khác",
             mauNen: BangMauBCTD.vangSang,
             mauChu: BangMauBCTD.chuChinh,
             coVien: true,
@@ -337,7 +316,7 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         hop.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
 
         let lbTieuDe = UILabel()
-        lbTieuDe.text = "💬 YÊU CẦU RIÊNG CỦA BẠN (ÁP DỤNG CHO AI GEMINI & XUẤT FILE EXCEL / POWERPOINT)"
+        lbTieuDe.text = "💬 YÊU CẦU RIÊNG CỦA BẠN (ÁP DỤNG CHO BÁO CÁO & GÓI JSON)"
         lbTieuDe.font = .systemFont(ofSize: 12.5, weight: .heavy)
         lbTieuDe.textColor = BangMauBCTD.xanhChuDaoDam
         lbTieuDe.numberOfLines = 0
@@ -360,7 +339,7 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         hangTren.alignment = .center
 
         let lbMoTa = UILabel()
-        lbMoTa.text = "Nhập yêu cầu phân tích riêng hoặc bấm chọn nhanh gợi ý bên dưới. Khi bấm [✨ AI Gemini], [📗 Xuất Excel] hoặc [📙 Xuất PowerPoint], AI sẽ thiết kế bảng chuyên đề và nhận xét bám sát yêu cầu này:"
+        lbMoTa.text = "Nhập yêu cầu phân tích riêng hoặc bấm chọn nhanh bên dưới. Yêu cầu này sẽ được đưa vào báo cáo và gói JSON để dán sang Copilot hoặc ứng dụng AI khác:"
         lbMoTa.font = .systemFont(ofSize: 12.5, weight: .medium)
         lbMoTa.textColor = BangMauBCTD.chuPhu
         lbMoTa.numberOfLines = 0
@@ -464,7 +443,7 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = noiDungGoiY
         capNhatTrangThaiPlaceholderYeuCau()
         oYeuCauRieng.invalidateIntrinsicContentSize()
-        nhanTrangThaiTren.text = "💬 Đã nạp yêu cầu: \"\(ds[sender.tag].nhan)\" · Bấm ✨ AI Gemini hoặc Xuất Excel / PowerPoint để tạo!"
+        nhanTrangThaiTren.text = "💬 Đã nạp yêu cầu: \"\(ds[sender.tag].nhan)\" · Có thể phân tích bằng Gemini hoặc copy gói JSON!"
         nhanTrangThaiTren.textColor = BangMauBCTD.xanhChuDaoDam
     }
 
@@ -776,21 +755,11 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
 
     @objc private func bamSaoChepSoLieu() {
         view.endEditing(true)
-        let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
-        var dong = [
-            "DU LIEU BAO CAO DMX - \(TienIchNgay.hienThiNgay.string(from: ngay))",
-            "Don vi\t\(dl.thongTinDonVi)",
-            "Chi so\tThuc hien\tTarget\tTy le",
-            "Doanh thu thuc\t\(dl.doanhThu.doanhThuThuc)\t\(dl.doanhThu.targetThuc)\t\(dl.doanhThu.phanTramHTThucHienThi)",
-            "Doanh thu quy doi\t\(dl.doanhThu.doanhThuQuyDoi)\t\(dl.doanhThu.targetQuyDoi)\t\(dl.doanhThu.phanTramHTQuyDoi)",
-            "",
-            "NGANH HANG\tDON VI\tTHUC HIEN\tTARGET\tPHAN TRAM HT\tPHAN TRAM DU KIEN"
-        ]
-        dong.append(contentsOf: dl.danhSachThiDua.map {
-            "\($0.tenNganhHang)\t\($0.loaiChiTieu.maBang)\t\($0.thucHien)\t\($0.target)\t\($0.phanTramHT)\t\($0.phanTramDuBao)"
-        })
-        UIPasteboard.general.string = dong.joined(separator: "\n")
-        nhanTrangThaiTren.text = "✅ Đã copy riêng số liệu dạng bảng. Mở Trình duyệt Copilot, dán và yêu cầu tạo Excel/PowerPoint."
+        guard let s = soLieu else { return }
+        let yc = (oYeuCauRieng.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = yc
+        UIPasteboard.general.string = GoiDuLieuXuatAI.tao(soLieu: s, noiDungBaoCao: oVanBan.text ?? "", yeuCau: yc)
+        nhanTrangThaiTren.text = "✅ Đã copy JSON kèm câu lệnh. Mở Copilot hoặc ứng dụng AI khác, dán vào và yêu cầu tạo Excel/PowerPoint."
         nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
     }
 
@@ -841,62 +810,6 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         nhanTrangThaiTren.text = "✅ Đã copy nội dung chữ & mở hộp thoại chia sẻ ảnh bản tin!"
         nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
         chiaSe([anh])
-    }
-
-    @objc private func bamXuatExcel() {
-        view.endEditing(true)
-        let noiDung = oVanBan.text ?? ""
-        let yc = (oYeuCauRieng.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = yc
-        UIPasteboard.general.string = noiDung
-
-        nutXuatExcelAI.isEnabled = false
-        nutXuatExcelAI.setTitle("⏳ AI Gemini đang thiết kế Excel 7 Sheet...", for: .normal)
-        nhanTrangThaiTren.text = "🤖 Đang gọi Google Gemini AI phân tích chuyên sâu & thiết kế file Excel (.xlsx) 7 Sheet có công thức và màu sắc..."
-        nhanTrangThaiTren.textColor = BangMauBCTD.xanhChuDao
-
-        BoXuatOfficeDMX.taoFileExcelBangAIGemini(
-            ngay: ngay,
-            noiDungPhanTich: noiDung,
-            yeuCauNguoiDung: yc
-        ) { [weak self] url, dungAIThat, tenModel in
-            guard let self = self else { return }
-            self.nutXuatExcelAI.isEnabled = true
-            self.nutXuatExcelAI.setTitle("📗 Xuất Excel (.xlsx) Chi Tiết (7 Sheet • AI Gemini)", for: .normal)
-            guard let url else { return }
-            let nguon = dungAIThat ? "Google Gemini (\(tenModel))" : "Bộ phân tích thông minh"
-            self.nhanTrangThaiTren.text = "📗 Đã tạo file Excel (.xlsx) 7 Sheet chi tiết bằng \(nguon) & copy sẵn nội dung báo cáo!"
-            self.nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
-            self.chiaSe([url])
-        }
-    }
-
-    @objc private func bamXuatPowerPoint() {
-        view.endEditing(true)
-        let noiDung = oVanBan.text ?? ""
-        let yc = (oYeuCauRieng.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = yc
-        UIPasteboard.general.string = noiDung
-
-        nutXuatPowerPointAI.isEnabled = false
-        nutXuatPowerPointAI.setTitle("⏳ AI Gemini đang thiết kế 6 Slide...", for: .normal)
-        nhanTrangThaiTren.text = "🤖 Đang gọi Google Gemini AI thiết kế bộ 6 Slide PowerPoint (.pptx) trình chiếu điều hành..."
-        nhanTrangThaiTren.textColor = BangMauBCTD.xanhChuDao
-
-        BoXuatOfficeDMX.taoFilePowerPointBangAIGemini(
-            ngay: ngay,
-            noiDungPhanTich: noiDung,
-            yeuCauNguoiDung: yc
-        ) { [weak self] url, dungAIThat, tenModel in
-            guard let self = self else { return }
-            self.nutXuatPowerPointAI.isEnabled = true
-            self.nutXuatPowerPointAI.setTitle("📙 Xuất PowerPoint (.pptx) Chi Tiết (6 Slide • AI Gemini)", for: .normal)
-            guard let url else { return }
-            let nguon = dungAIThat ? "Google Gemini (\(tenModel))" : "Bộ phân tích thông minh"
-            self.nhanTrangThaiTren.text = "📙 Đã tạo file PowerPoint (.pptx) 6 Slide chuyên nghiệp bằng \(nguon) & copy sẵn nội dung báo cáo!"
-            self.nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
-            self.chiaSe([url])
-        }
     }
 
     private func chiaSe(_ muc: [Any]) {

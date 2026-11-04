@@ -119,6 +119,78 @@ struct SoLieuBanTin {
     }
 }
 
+// MARK: - Gói JSON để chuyển sang Copilot hoặc ứng dụng AI khác tạo file
+
+enum GoiDuLieuXuatAI {
+    static func tao(soLieu s: SoLieuBanTin, noiDungBaoCao: String, yeuCau: String) -> String {
+        func doanhThu(_ d: ThongTinDoanhThu) -> [String: Any] {
+            [
+                "doanh_thu_thuc": d.doanhThuThuc,
+                "target_thuc": d.targetThuc,
+                "du_kien_thuc": d.duKienThuc,
+                "phan_tram_hoan_thanh_thuc": d.phanTramHTThucHienThi,
+                "doanh_thu_quy_doi": d.doanhThuQuyDoi,
+                "target_quy_doi": d.targetQuyDoi,
+                "du_kien_quy_doi": d.duKienQuyDoi,
+                "phan_tram_hoan_thanh_quy_doi": d.phanTramHTQDDuKienHienThi,
+                "phan_tram_tra_gop": d.phanTramTraGop,
+                "luot_khach": d.luotKhach,
+                "so_bill": d.soBill
+            ]
+        }
+        func nganhHang(_ ds: [DongThiDua]) -> [[String: Any]] {
+            ds.map {
+                [
+                    "ten": $0.tenNganhHang,
+                    "don_vi": $0.loaiChiTieu.maBang,
+                    "thuc_hien": $0.thucHien,
+                    "target": $0.target,
+                    "phan_tram_hien_tai": $0.phanTramHT,
+                    "du_kien": $0.duKien,
+                    "phan_tram_du_kien": $0.phanTramDuBao
+                ]
+            }
+        }
+        let nhanVien: [[String: Any]] = s.nhanVien.map {
+            [
+                "ma_nhan_vien": $0.nhanVien.maNV,
+                "ho_ten": $0.nhanVien.hoTen,
+                "so_mon_dat": $0.soMonDat,
+                "tong_mon_giao": $0.tongMonGiao,
+                "phan_tram_hoan_thanh_trung_binh": $0.phanTramHTTB,
+                "so_luong": $0.soLuongDon,
+                "doanh_thu_quy_doi": $0.doanhThuQD,
+                "doanh_thu_khoan_vay": $0.dtQDKhoanVay,
+                "phan_tram_ti_trong": $0.phanTramTiTrong
+            ]
+        }
+        let yeuCauSach = yeuCau.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cauLenh = """
+        Hãy dùng toàn bộ dữ liệu JSON bên dưới để tạo file Excel hoặc PowerPoint theo yêu cầu của tôi. Giữ nguyên số âm, số 0, phần trăm và tên nhân viên/ngành hàng; không tự bịa số liệu. Excel cần có bảng rõ ràng, tiêu đề, định dạng số, bộ lọc và biểu đồ phù hợp. PowerPoint cần trình bày ngắn gọn, dễ đọc, có bảng/biểu đồ và kết luận hành động. Khi hoàn tất, hãy cung cấp file để tải xuống.
+        Yêu cầu riêng: \(yeuCauSach.isEmpty ? "Tự chọn bố cục chuyên nghiệp và phân tích toàn diện." : yeuCauSach)
+        """
+        let goi: [String: Any] = [
+            "cau_lenh": cauLenh,
+            "yeu_cau_nguoi_dung": yeuCauSach,
+            "noi_dung_bao_cao_hien_tai": noiDungBaoCao,
+            "du_lieu": [
+                "ngay": TienIchNgay.khoa.string(from: s.ngay),
+                "khung_bao_cao": s.khung.tenNgan,
+                "don_vi": s.tenDonVi,
+                "cap_nhat_luc": s.capNhatLuc,
+                "luy_ke": doanhThu(s.luyKe),
+                "nganh_hang_luy_ke": nganhHang(s.dsLuyKe),
+                "realtime": doanhThu(s.homNay),
+                "nganh_hang_realtime": nganhHang(s.dsHomNay),
+                "nhan_vien": nhanVien
+            ]
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: goi, options: [.prettyPrinted, .sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else { return "{}" }
+        return json
+    }
+}
+
 extension KhoDuLieu {
     /// Gom số liệu cho bản tin. Đầu ca chưa có số hôm nay → tự dựng "Đầu ca tạm tính".
     func taoSoLieuBanTin(cho ngay: Date, khung: KhungBanTin) -> SoLieuBanTin {
