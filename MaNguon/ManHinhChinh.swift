@@ -1472,7 +1472,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         oVanBanXuatAnh.translatesAutoresizingMaskIntoConstraints = false
         oVanBanXuatAnh.heightAnchor.constraint(greaterThanOrEqualToConstant: 210).isActive = true
 
-        nhanTrangThaiXuatAnh.text = "💡 Khi ấn nút "XUẤT ẢNH THẬT & COPY NỘI DUNG GỬI LINE" bên dưới, ứng dụng sẽ tự động Copy nội dung ô chữ này và mở hộp thoại chia sẻ ảnh qua LINE."
+        nhanTrangThaiXuatAnh.text = "💡 Khi ấn nút \"XUẤT ẢNH THẬT & COPY NỘI DUNG GỬI LINE\" bên dưới, ứng dụng sẽ tự động Copy nội dung ô chữ này và mở hộp thoại chia sẻ ảnh qua LINE."
         nhanTrangThaiXuatAnh.font = .systemFont(ofSize: 12.5, weight: .medium)
         nhanTrangThaiXuatAnh.textColor = BangMauBCTD.chuPhu
         nhanTrangThaiXuatAnh.numberOfLines = 0
@@ -1604,7 +1604,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         guard let loai = LoaiBaoCaoXuatAnh(rawValue: sender.tag) else { return }
         loaiXuatAnhDangChon = loai
         capNhatGiaoDienKhungXuatAnh(taoMoiVanBan: true)
-        nhanTrangThaiXuatAnh.text = "✅ Đã nạp nội dung báo cáo cho phần "\(loai.tieuDeNgan)". Bạn có thể sửa chữ rồi bấm nút XUẤT ẢNH THẬT bên dưới."
+        nhanTrangThaiXuatAnh.text = "✅ Đã nạp nội dung báo cáo cho phần \"\(loai.tieuDeNgan)\". Bạn có thể sửa chữ rồi bấm nút XUẤT ẢNH THẬT bên dưới."
         nhanTrangThaiXuatAnh.textColor = BangMauBCTD.xanhChuDaoDam
     }
 
@@ -1624,7 +1624,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let s = KhoDuLieu.dungChung.taoSoLieuBanTin(cho: ngayHienTai, khung: KhungBanTin.theoGio())
         nutAIGeminiXuatAnh.isEnabled = false
         nutAIGeminiXuatAnh.setTitle("⏳ Đang viết...", for: .normal)
-        nhanTrangThaiXuatAnh.text = "🤖 Đang kết nối Google Gemini (\(DichVuGeminiAI.dungChung.modelHienTai)) để phân tích phần "\(loaiXuatAnhDangChon.tieuDeNgan)"..."
+        nhanTrangThaiXuatAnh.text = "🤖 Đang kết nối Google Gemini (\(DichVuGeminiAI.dungChung.modelHienTai)) để phân tích phần \"\(loaiXuatAnhDangChon.tieuDeNgan)\"..."
         nhanTrangThaiXuatAnh.textColor = BangMauBCTD.xanhChuDao
 
         DichVuGeminiAI.dungChung.phanTichBaoCao(
@@ -1665,7 +1665,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         UIPasteboard.general.string = noiDungText
 
         guard let anh = taoAnhTheoLoaiBaoCao(loaiXuatAnhDangChon) else {
-            nhanTrangThaiXuatAnh.text = "⚠️ Chưa có dữ liệu bảng của phần "\(loaiXuatAnhDangChon.tieuDeNgan)" để vẽ ảnh (Đã copy sẵn nội dung chữ)."
+            nhanTrangThaiXuatAnh.text = "⚠️ Chưa có dữ liệu bảng của phần \"\(loaiXuatAnhDangChon.tieuDeNgan)\" để vẽ ảnh (Đã copy sẵn nội dung chữ)."
             nhanTrangThaiXuatAnh.textColor = BangMauBCTD.doYeuChu
             return
         }
