@@ -389,8 +389,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     private var cacNutLoaiXuatAnh: [UIButton] = []
     private var cacNutGiongXuatAnh: [UIButton] = []
     private let oVanBanXuatAnh = UITextView()
+    private let oYeuCauRiengXuatAnh = UITextView()
+    private let nhanGoiYYeuCauXuatAnh = UILabel()
     private let nhanTrangThaiXuatAnh = UILabel()
     private let nutAIGeminiXuatAnh = UIButton(type: .system)
+    private let nutXuatExcelXuatAnh = UIButton(type: .system)
+    private let nutXuatPPTXXuatAnh = UIButton(type: .system)
 
     // 1. Cụm 8 thẻ Chỉ số chính
     private let cumChiSoChinh = CumChiSoChinhView(coLon: false, anHangNutCheDo: true)
@@ -1508,33 +1512,33 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutCopyRieng.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
         nutCopyRieng.addTarget(self, action: #selector(bamChiCopyNoiDungXuatAnh), for: .touchUpInside)
 
-        let nutXuatExcel = UIButton(type: .system)
-        nutXuatExcel.setTitle("📗 Xuất file Excel (.xlsx)", for: .normal)
-        nutXuatExcel.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nutXuatExcel.titleLabel?.numberOfLines = 0
-        nutXuatExcel.titleLabel?.lineBreakMode = .byWordWrapping
-        nutXuatExcel.titleLabel?.textAlignment = .center
-        nutXuatExcel.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutXuatExcel.backgroundColor = BangMauBCTD.xanhChuDao
-        nutXuatExcel.setTitleColor(.white, for: .normal)
-        nutXuatExcel.layer.cornerRadius = 10
-        nutXuatExcel.contentEdgeInsets = UIEdgeInsets(top: 12, left: 10, bottom: 12, right: 10)
-        nutXuatExcel.addTarget(self, action: #selector(bamXuatExcelTuMucXuatAnh), for: .touchUpInside)
+        let khungYeuCauXA = taoKhungYeuCauTrongXuatAnh()
 
-        let nutXuatPPTX = UIButton(type: .system)
-        nutXuatPPTX.setTitle("📙 Xuất PowerPoint (.pptx)", for: .normal)
-        nutXuatPPTX.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nutXuatPPTX.titleLabel?.numberOfLines = 0
-        nutXuatPPTX.titleLabel?.lineBreakMode = .byWordWrapping
-        nutXuatPPTX.titleLabel?.textAlignment = .center
-        nutXuatPPTX.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutXuatPPTX.backgroundColor = BangMauBCTD.vangKhaChu
-        nutXuatPPTX.setTitleColor(.white, for: .normal)
-        nutXuatPPTX.layer.cornerRadius = 10
-        nutXuatPPTX.contentEdgeInsets = UIEdgeInsets(top: 12, left: 10, bottom: 12, right: 10)
-        nutXuatPPTX.addTarget(self, action: #selector(bamXuatPowerPointTuMucXuatAnh), for: .touchUpInside)
+        nutXuatExcelXuatAnh.setTitle("📗 Xuất Excel (.xlsx) Chi Tiết (7 Sheet • AI Gemini)", for: .normal)
+        nutXuatExcelXuatAnh.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutXuatExcelXuatAnh.titleLabel?.numberOfLines = 0
+        nutXuatExcelXuatAnh.titleLabel?.lineBreakMode = .byWordWrapping
+        nutXuatExcelXuatAnh.titleLabel?.textAlignment = .center
+        nutXuatExcelXuatAnh.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutXuatExcelXuatAnh.backgroundColor = BangMauBCTD.xanhLaDam
+        nutXuatExcelXuatAnh.setTitleColor(.white, for: .normal)
+        nutXuatExcelXuatAnh.layer.cornerRadius = 10
+        nutXuatExcelXuatAnh.contentEdgeInsets = UIEdgeInsets(top: 12, left: 10, bottom: 12, right: 10)
+        nutXuatExcelXuatAnh.addTarget(self, action: #selector(bamXuatExcelTuMucXuatAnh), for: .touchUpInside)
 
-        let hangOffice = UIStackView(arrangedSubviews: [nutXuatExcel, nutXuatPPTX])
+        nutXuatPPTXXuatAnh.setTitle("📙 Xuất PowerPoint (.pptx) Chi Tiết (6 Slide • AI Gemini)", for: .normal)
+        nutXuatPPTXXuatAnh.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutXuatPPTXXuatAnh.titleLabel?.numberOfLines = 0
+        nutXuatPPTXXuatAnh.titleLabel?.lineBreakMode = .byWordWrapping
+        nutXuatPPTXXuatAnh.titleLabel?.textAlignment = .center
+        nutXuatPPTXXuatAnh.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutXuatPPTXXuatAnh.backgroundColor = BangMauBCTD.vangKhaChu
+        nutXuatPPTXXuatAnh.setTitleColor(.white, for: .normal)
+        nutXuatPPTXXuatAnh.layer.cornerRadius = 10
+        nutXuatPPTXXuatAnh.contentEdgeInsets = UIEdgeInsets(top: 12, left: 10, bottom: 12, right: 10)
+        nutXuatPPTXXuatAnh.addTarget(self, action: #selector(bamXuatPowerPointTuMucXuatAnh), for: .touchUpInside)
+
+        let hangOffice = UIStackView(arrangedSubviews: [nutXuatExcelXuatAnh, nutXuatPPTXXuatAnh])
         hangOffice.axis = .horizontal
         hangOffice.spacing = 8
         hangOffice.distribution = .fillEqually
@@ -1543,6 +1547,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             hangTrenVB,
             hangGiongXA,
             oVanBanXuatAnh,
+            khungYeuCauXA,
             nhanTrangThaiXuatAnh,
             nutXuatAnhThat,
             hangOffice,
@@ -1589,6 +1594,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             }
         }
 
+        let ycLuu = DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai
+        if (oYeuCauRiengXuatAnh.text ?? "") != ycLuu {
+            oYeuCauRiengXuatAnh.text = ycLuu
+            capNhatPlaceholderYeuCauXuatAnh()
+        }
+
         if taoMoiVanBan || (oVanBanXuatAnh.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let noiDung = BoVietBanTin.taoNoiDungBaoCao(
                 loai: loaiXuatAnhDangChon,
@@ -1597,6 +1608,144 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             )
             oVanBanXuatAnh.attributedText = ManHinhBanTin.dinhDangVanBanCoInDam(noiDung)
             oVanBanXuatAnh.invalidateIntrinsicContentSize()
+        }
+    }
+
+    private func taoKhungYeuCauTrongXuatAnh() -> UIView {
+        let hop = UIView()
+        hop.backgroundColor = BangMauBCTD.nenHeaderBang
+        hop.layer.cornerRadius = 12
+        hop.layer.borderWidth = 1.2
+        hop.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
+
+        let lbTieuDe = UILabel()
+        lbTieuDe.text = "💬 YÊU CẦU RIÊNG CỦA NGƯỜI DÙNG KHI XUẤT BÁO CÁO / EXCEL / POWERPOINT"
+        lbTieuDe.font = .systemFont(ofSize: 12.0, weight: .heavy)
+        lbTieuDe.textColor = BangMauBCTD.xanhChuDaoDam
+        lbTieuDe.numberOfLines = 0
+        lbTieuDe.lineBreakMode = .byWordWrapping
+        lbTieuDe.adjustsFontSizeToFitWidth = false
+
+        let nutXoaYC = UIButton(type: .system)
+        nutXoaYC.setTitle("Xoá", for: .normal)
+        nutXoaYC.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .bold)
+        nutXoaYC.titleLabel?.numberOfLines = 0
+        nutXoaYC.titleLabel?.lineBreakMode = .byWordWrapping
+        nutXoaYC.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutXoaYC.setTitleColor(BangMauBCTD.doYeuChu, for: .normal)
+        nutXoaYC.setContentHuggingPriority(.required, for: .horizontal)
+        nutXoaYC.addTarget(self, action: #selector(bamXoaYeuCauTrongXuatAnh), for: .touchUpInside)
+
+        let hangTren = UIStackView(arrangedSubviews: [lbTieuDe, nutXoaYC])
+        hangTren.axis = .horizontal
+        hangTren.spacing = 6
+        hangTren.alignment = .center
+
+        oYeuCauRiengXuatAnh.font = .systemFont(ofSize: 13.5, weight: .medium)
+        oYeuCauRiengXuatAnh.textColor = BangMauBCTD.chuChinh
+        oYeuCauRiengXuatAnh.backgroundColor = BangMauBCTD.nenThe
+        oYeuCauRiengXuatAnh.layer.cornerRadius = 9
+        oYeuCauRiengXuatAnh.layer.borderWidth = 1
+        oYeuCauRiengXuatAnh.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        oYeuCauRiengXuatAnh.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+        oYeuCauRiengXuatAnh.isScrollEnabled = false
+        oYeuCauRiengXuatAnh.delegate = self
+        oYeuCauRiengXuatAnh.text = DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai
+        oYeuCauRiengXuatAnh.translatesAutoresizingMaskIntoConstraints = false
+        oYeuCauRiengXuatAnh.heightAnchor.constraint(greaterThanOrEqualToConstant: 62).isActive = true
+
+        nhanGoiYYeuCauXuatAnh.text = "Nhập yêu cầu riêng (VD: Soi sâu các ngành dưới 80%, chia chỉ tiêu ngày còn lại và giao từng NV kèm cặp Top 5 yếu...)"
+        nhanGoiYYeuCauXuatAnh.font = .italicSystemFont(ofSize: 12.5)
+        nhanGoiYYeuCauXuatAnh.textColor = BangMauBCTD.chuPhu
+        nhanGoiYYeuCauXuatAnh.numberOfLines = 0
+        nhanGoiYYeuCauXuatAnh.lineBreakMode = .byWordWrapping
+        nhanGoiYYeuCauXuatAnh.adjustsFontSizeToFitWidth = false
+        nhanGoiYYeuCauXuatAnh.translatesAutoresizingMaskIntoConstraints = false
+        oYeuCauRiengXuatAnh.addSubview(nhanGoiYYeuCauXuatAnh)
+
+        NSLayoutConstraint.activate([
+            nhanGoiYYeuCauXuatAnh.topAnchor.constraint(equalTo: oYeuCauRiengXuatAnh.topAnchor, constant: 8),
+            nhanGoiYYeuCauXuatAnh.leadingAnchor.constraint(equalTo: oYeuCauRiengXuatAnh.leadingAnchor, constant: 12),
+            nhanGoiYYeuCauXuatAnh.trailingAnchor.constraint(equalTo: oYeuCauRiengXuatAnh.frameLayoutGuide.trailingAnchor, constant: -12)
+        ])
+        capNhatPlaceholderYeuCauXuatAnh()
+
+        let nganGoiY = UIStackView()
+        nganGoiY.axis = .vertical
+        nganGoiY.spacing = 6
+        let dsGoiY = DichVuGeminiAI.cacGoiYYeuCauNhanh
+        var hangGY: UIStackView?
+        for (idx, item) in dsGoiY.enumerated() {
+            if idx % 2 == 0 {
+                let h = UIStackView()
+                h.axis = .horizontal
+                h.spacing = 6
+                h.distribution = .fillEqually
+                nganGoiY.addArrangedSubview(h)
+                hangGY = h
+            }
+            let nut = UIButton(type: .system)
+            nut.tag = idx
+            nut.setTitle(item.nhan, for: .normal)
+            nut.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .semibold)
+            nut.titleLabel?.numberOfLines = 0
+            nut.titleLabel?.lineBreakMode = .byWordWrapping
+            nut.titleLabel?.textAlignment = .center
+            nut.titleLabel?.adjustsFontSizeToFitWidth = false
+            nut.backgroundColor = BangMauBCTD.nenThe
+            nut.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+            nut.layer.cornerRadius = 8
+            nut.layer.borderWidth = 1
+            nut.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
+            nut.contentEdgeInsets = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
+            nut.addTarget(self, action: #selector(bamChonGoiYTrongXuatAnh(_:)), for: .touchUpInside)
+            hangGY?.addArrangedSubview(nut)
+        }
+
+        let nganHop = UIStackView(arrangedSubviews: [hangTren, oYeuCauRiengXuatAnh, nganGoiY])
+        nganHop.axis = .vertical
+        nganHop.spacing = 6
+        nganHop.translatesAutoresizingMaskIntoConstraints = false
+        hop.addSubview(nganHop)
+
+        NSLayoutConstraint.activate([
+            nganHop.topAnchor.constraint(equalTo: hop.topAnchor, constant: 10),
+            nganHop.leadingAnchor.constraint(equalTo: hop.leadingAnchor, constant: 10),
+            nganHop.trailingAnchor.constraint(equalTo: hop.trailingAnchor, constant: -10),
+            nganHop.bottomAnchor.constraint(equalTo: hop.bottomAnchor, constant: -10)
+        ])
+        return hop
+    }
+
+    private func capNhatPlaceholderYeuCauXuatAnh() {
+        let trong = (oYeuCauRiengXuatAnh.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        nhanGoiYYeuCauXuatAnh.isHidden = !trong
+    }
+
+    @objc private func bamXoaYeuCauTrongXuatAnh() {
+        oYeuCauRiengXuatAnh.text = ""
+        DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = ""
+        capNhatPlaceholderYeuCauXuatAnh()
+        oYeuCauRiengXuatAnh.invalidateIntrinsicContentSize()
+    }
+
+    @objc private func bamChonGoiYTrongXuatAnh(_ sender: UIButton) {
+        let ds = DichVuGeminiAI.cacGoiYYeuCauNhanh
+        guard sender.tag >= 0 && sender.tag < ds.count else { return }
+        let noiDung = ds[sender.tag].noiDung
+        oYeuCauRiengXuatAnh.text = noiDung
+        DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = noiDung
+        capNhatPlaceholderYeuCauXuatAnh()
+        oYeuCauRiengXuatAnh.invalidateIntrinsicContentSize()
+        nhanTrangThaiXuatAnh.text = "💬 Đã chọn yêu cầu: \"\(ds[sender.tag].nhan)\" · Ấn [✨ AI Gemini viết] hoặc [📗 Xuất Excel] / [📙 Xuất PowerPoint] bên dưới!"
+        nhanTrangThaiXuatAnh.textColor = BangMauBCTD.xanhChuDaoDam
+    }
+
+    func textViewDidChange(_ textView: UITextView) {
+        if textView === oYeuCauRiengXuatAnh {
+            capNhatPlaceholderYeuCauXuatAnh()
+            DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = textView.text ?? ""
+            oYeuCauRiengXuatAnh.invalidateIntrinsicContentSize()
         }
     }
 
@@ -1622,15 +1771,19 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     @objc private func bamAIGeminiTrongXuatAnh() {
         view.endEditing(true)
         let s = KhoDuLieu.dungChung.taoSoLieuBanTin(cho: ngayHienTai, khung: KhungBanTin.theoGio())
+        let yc = (oYeuCauRiengXuatAnh.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = yc
+
         nutAIGeminiXuatAnh.isEnabled = false
         nutAIGeminiXuatAnh.setTitle("⏳ Đang viết...", for: .normal)
-        nhanTrangThaiXuatAnh.text = "🤖 Đang kết nối Google Gemini (\(DichVuGeminiAI.dungChung.modelHienTai)) để phân tích phần \"\(loaiXuatAnhDangChon.tieuDeNgan)\"..."
+        nhanTrangThaiXuatAnh.text = "🤖 Đang kết nối Google Gemini (\(DichVuGeminiAI.dungChung.modelHienTai)) để phân tích phần \"\(loaiXuatAnhDangChon.tieuDeNgan)\"\(yc.isEmpty ? "" : " theo yêu cầu riêng")..."
         nhanTrangThaiXuatAnh.textColor = BangMauBCTD.xanhChuDao
 
         DichVuGeminiAI.dungChung.phanTichBaoCao(
             soLieu: s,
             giong: giongXuatAnhDangChon,
-            loaiBaoCao: loaiXuatAnhDangChon
+            loaiBaoCao: loaiXuatAnhDangChon,
+            yeuCauRieng: yc
         ) { [weak self] kq in
             guard let self = self else { return }
             self.nutAIGeminiXuatAnh.isEnabled = true
@@ -1744,21 +1897,57 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     @objc private func bamXuatExcelTuMucXuatAnh() {
         view.endEditing(true)
         let noiDung = oVanBanXuatAnh.text ?? ""
+        let yc = (oYeuCauRiengXuatAnh.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = yc
         UIPasteboard.general.string = noiDung
-        guard let url = BoXuatOfficeDMX.xuatFileExcelXLSX(ngay: ngayHienTai, noiDungPhanTich: noiDung) else { return }
-        nhanTrangThaiXuatAnh.text = "📗 Đã xuất file Excel (.xlsx) gồm 4 Sheet & copy sẵn nội dung báo cáo!"
-        nhanTrangThaiXuatAnh.textColor = BangMauBCTD.xanhLaDam
-        chiaSe([url])
+
+        nutXuatExcelXuatAnh.isEnabled = false
+        nutXuatExcelXuatAnh.setTitle("⏳ AI Gemini đang tạo Excel...", for: .normal)
+        nhanTrangThaiXuatAnh.text = "🤖 Đang kết nối Google Gemini AI để thiết kế file Excel (.xlsx) 7 Sheet chi tiết theo yêu cầu..."
+        nhanTrangThaiXuatAnh.textColor = BangMauBCTD.xanhChuDao
+
+        BoXuatOfficeDMX.taoFileExcelBangAIGemini(
+            ngay: ngayHienTai,
+            noiDungPhanTich: noiDung,
+            yeuCauNguoiDung: yc
+        ) { [weak self] url, dungAIThat, tenModel in
+            guard let self = self else { return }
+            self.nutXuatExcelXuatAnh.isEnabled = true
+            self.nutXuatExcelXuatAnh.setTitle("📗 Xuất Excel (.xlsx) Chi Tiết (7 Sheet • AI Gemini)", for: .normal)
+            guard let url else { return }
+            let nguon = dungAIThat ? "Google Gemini (\(tenModel))" : "Bộ phân tích thông minh"
+            self.nhanTrangThaiXuatAnh.text = "📗 Đã xuất file Excel (.xlsx) 7 Sheet chi tiết bằng \(nguon) & copy sẵn nội dung báo cáo!"
+            self.nhanTrangThaiXuatAnh.textColor = BangMauBCTD.xanhLaDam
+            self.chiaSe([url])
+        }
     }
 
     @objc private func bamXuatPowerPointTuMucXuatAnh() {
         view.endEditing(true)
         let noiDung = oVanBanXuatAnh.text ?? ""
+        let yc = (oYeuCauRiengXuatAnh.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = yc
         UIPasteboard.general.string = noiDung
-        guard let url = BoXuatOfficeDMX.xuatFilePowerPointPPTX(ngay: ngayHienTai, noiDungPhanTich: noiDung) else { return }
-        nhanTrangThaiXuatAnh.text = "📙 Đã xuất file PowerPoint (.pptx) gồm 4 Slide & copy sẵn nội dung báo cáo!"
-        nhanTrangThaiXuatAnh.textColor = BangMauBCTD.xanhLaDam
-        chiaSe([url])
+
+        nutXuatPPTXXuatAnh.isEnabled = false
+        nutXuatPPTXXuatAnh.setTitle("⏳ AI Gemini đang tạo 6 Slide...", for: .normal)
+        nhanTrangThaiXuatAnh.text = "🤖 Đang kết nối Google Gemini AI để thiết kế bộ 6 Slide PowerPoint (.pptx) chi tiết theo yêu cầu..."
+        nhanTrangThaiXuatAnh.textColor = BangMauBCTD.xanhChuDao
+
+        BoXuatOfficeDMX.taoFilePowerPointBangAIGemini(
+            ngay: ngayHienTai,
+            noiDungPhanTich: noiDung,
+            yeuCauNguoiDung: yc
+        ) { [weak self] url, dungAIThat, tenModel in
+            guard let self = self else { return }
+            self.nutXuatPPTXXuatAnh.isEnabled = true
+            self.nutXuatPPTXXuatAnh.setTitle("📙 Xuất PowerPoint (.pptx) Chi Tiết (6 Slide • AI Gemini)", for: .normal)
+            guard let url else { return }
+            let nguon = dungAIThat ? "Google Gemini (\(tenModel))" : "Bộ phân tích thông minh"
+            self.nhanTrangThaiXuatAnh.text = "📙 Đã xuất file PowerPoint (.pptx) 6 Slide chuyên nghiệp bằng \(nguon) & copy sẵn nội dung báo cáo!"
+            self.nhanTrangThaiXuatAnh.textColor = BangMauBCTD.xanhLaDam
+            self.chiaSe([url])
+        }
     }
 
     @objc private func bamChonMucConTrenThanh(_ sender: UIButton) {
@@ -3325,19 +3514,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 self?.mucConDoSo = .xuatAnh
                 self?.napDuLieu()
             },
-            MucChonDMX(tieuDe: "📗 Xuất file Excel (.xlsx) (Đầy đủ 4 Sheet báo cáo)") { [weak self] in
-                guard let self = self else { return }
-                let s = KhoDuLieu.dungChung.taoSoLieuBanTin(cho: self.ngayHienTai, khung: KhungBanTin.theoGio())
-                let text = BoVietBanTin(soLieu: s, giong: .binhThuong).vietTheoMauAnhChup()
-                guard let url = BoXuatOfficeDMX.xuatFileExcelXLSX(ngay: self.ngayHienTai, noiDungPhanTich: text) else { return }
-                self.chiaSe([url])
+            MucChonDMX(tieuDe: "📗 Xuất file Excel (.xlsx) Chi Tiết (7 Sheet • Có ô nhập yêu cầu AI Gemini)") { [weak self] in
+                self?.hienHopNhapYeuCauXuatFileOffice(laExcel: true)
             },
-            MucChonDMX(tieuDe: "📙 Xuất file PowerPoint (.pptx) (4 Slide báo cáo)") { [weak self] in
-                guard let self = self else { return }
-                let s = KhoDuLieu.dungChung.taoSoLieuBanTin(cho: self.ngayHienTai, khung: KhungBanTin.theoGio())
-                let text = BoVietBanTin(soLieu: s, giong: .binhThuong).vietTheoMauAnhChup()
-                guard let url = BoXuatOfficeDMX.xuatFilePowerPointPPTX(ngay: self.ngayHienTai, noiDungPhanTich: text) else { return }
-                self.chiaSe([url])
+            MucChonDMX(tieuDe: "📙 Xuất file PowerPoint (.pptx) Chi Tiết (6 Slide • Có ô nhập yêu cầu AI Gemini)") { [weak self] in
+                self?.hienHopNhapYeuCauXuatFileOffice(laExcel: false)
             },
             MucChonDMX(tieuDe: "📊 Ảnh Thi đua Lũy kế — Thực hiện & Target (\(moTaKieu))") { [weak self] in
                 guard let self = self,
@@ -3445,6 +3626,53 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             thongDiep: "Chọn loại ảnh hoặc file dữ liệu báo cáo bạn muốn chia sẻ hoặc lưu về máy:",
             cacMuc: cacMuc
         )
+    }
+
+    private func hienHopNhapYeuCauXuatFileOffice(laExcel: Bool) {
+        let tenLoai = laExcel ? "Excel (.xlsx) 7 Sheet" : "PowerPoint (.pptx) 6 Slide"
+        let alert = UIAlertController(
+            title: "✨ Xuất \(tenLoai) bằng AI Gemini",
+            message: "Nhập yêu cầu phân tích riêng của bạn (hoặc để trống để AI tự phân tích toàn diện Doanh thu, Ngành hàng, Nhân viên & Top 5 yếu liên tiếp):",
+            preferredStyle: .alert
+        )
+        alert.addTextField { tf in
+            tf.placeholder = "VD: Soi sâu ngành dưới 80%, chia chỉ tiêu ngày còn lại..."
+            tf.text = DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai
+            tf.clearButtonMode = .whileEditing
+        }
+        alert.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+        alert.addAction(UIAlertAction(title: "🤖 Tạo bằng AI Gemini & Tải về", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            let yc = (alert.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = yc
+            let s = KhoDuLieu.dungChung.taoSoLieuBanTin(cho: self.ngayHienTai, khung: KhungBanTin.theoGio())
+            let text = BoVietBanTin(soLieu: s, giong: .binhThuong).vietTheoMauAnhChup()
+            if laExcel {
+                BoXuatOfficeDMX.taoFileExcelBangAIGemini(ngay: self.ngayHienTai, noiDungPhanTich: text, yeuCauNguoiDung: yc) { [weak self] url, _, _ in
+                    guard let self = self, let url else { return }
+                    self.chiaSe([url])
+                }
+            } else {
+                BoXuatOfficeDMX.taoFilePowerPointBangAIGemini(ngay: self.ngayHienTai, noiDungPhanTich: text, yeuCauNguoiDung: yc) { [weak self] url, _, _ in
+                    guard let self = self, let url else { return }
+                    self.chiaSe([url])
+                }
+            }
+        })
+        alert.addAction(UIAlertAction(title: "⚡ Xuất nhanh tức thì (Không chờ mạng)", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            let yc = (alert.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            DichVuGeminiAI.dungChung.yeuCauTuyChinhHienTai = yc
+            let s = KhoDuLieu.dungChung.taoSoLieuBanTin(cho: self.ngayHienTai, khung: KhungBanTin.theoGio())
+            let text = BoVietBanTin(soLieu: s, giong: .binhThuong).vietTheoMauAnhChup()
+            let url = laExcel
+                ? BoXuatOfficeDMX.xuatFileExcelXLSX(ngay: self.ngayHienTai, noiDungPhanTich: text, yeuCauNguoiDung: yc)
+                : BoXuatOfficeDMX.xuatFilePowerPointPPTX(ngay: self.ngayHienTai, noiDungPhanTich: text, yeuCauNguoiDung: yc)
+            if let url {
+                self.chiaSe([url])
+            }
+        })
+        present(alert, animated: true)
     }
 
     private func moChonNhanVienChiaSeAnh(cheDo: LoaiCheDoDoanhThu) {
