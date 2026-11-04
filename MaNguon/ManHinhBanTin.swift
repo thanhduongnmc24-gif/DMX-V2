@@ -32,7 +32,7 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Bản tin & Phân tích"
-        view.backgroundColor = .systemGroupedBackground
+        view.backgroundColor = BangMauBCTD.nenTrang
         dungGiaoDien()
         napBanTin(taoMoi: false)
     }
@@ -46,7 +46,7 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         view.addSubview(cuon)
 
         ngan.axis = .vertical
-        ngan.spacing = 12
+        ngan.spacing = 10
         ngan.translatesAutoresizingMaskIntoConstraints = false
         cuon.addSubview(ngan)
 
@@ -55,36 +55,79 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
             cuon.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             cuon.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             cuon.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            ngan.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 12),
-            ngan.leadingAnchor.constraint(equalTo: cuon.frameLayoutGuide.leadingAnchor, constant: 14),
-            ngan.trailingAnchor.constraint(equalTo: cuon.frameLayoutGuide.trailingAnchor, constant: -14),
+            ngan.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 10),
+            ngan.leadingAnchor.constraint(equalTo: cuon.frameLayoutGuide.leadingAnchor, constant: 12),
+            ngan.trailingAnchor.constraint(equalTo: cuon.frameLayoutGuide.trailingAnchor, constant: -12),
             ngan.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -24)
         ])
 
+        let theDau = UIView()
+        theDau.backgroundColor = BangMauBCTD.nenMenuToi
+        theDau.layer.cornerRadius = 12
+        theDau.layer.borderWidth = 1
+        theDau.layer.borderColor = BangMauBCTD.vangChuDao.withAlphaComponent(0.38).cgColor
+
+        let lbKicker = UILabel()
+        lbKicker.text = "CHỌN KHUNG BẢN TIN & GIỌNG VĂN PHÂN TÍCH"
+        lbKicker.font = .systemFont(ofSize: 11.5, weight: .heavy)
+        lbKicker.textColor = BangMauBCTD.vangChuDao
+        lbKicker.numberOfLines = 0
+        lbKicker.lineBreakMode = .byWordWrapping
+        lbKicker.adjustsFontSizeToFitWidth = false
+
+        [chonKhung, chonGiong].forEach { seg in
+            seg.backgroundColor = BangMauBCTD.nenMenuCon
+            seg.selectedSegmentTintColor = BangMauBCTD.nenDongChonMenu
+            seg.setTitleTextAttributes([
+                .font: UIFont.systemFont(ofSize: 12.0, weight: .semibold),
+                .foregroundColor: BangMauBCTD.chuTrenNenToi
+            ], for: .normal)
+            seg.setTitleTextAttributes([
+                .font: UIFont.systemFont(ofSize: 12.0, weight: .bold),
+                .foregroundColor: BangMauBCTD.vangChuDao
+            ], for: .selected)
+            seg.damBaoHienThiDayDuText()
+        }
+
         chonKhung.selectedSegmentIndex = khungDangChon.rawValue
         chonKhung.addTarget(self, action: #selector(doiKhung), for: .valueChanged)
-        ngan.addArrangedSubview(chonKhung)
 
         let nhanGiong = UILabel()
-        nhanGiong.text = "Giọng văn bài phân tích"
-        nhanGiong.font = .systemFont(ofSize: 13, weight: .semibold)
-        nhanGiong.textColor = .secondaryLabel
-        ngan.addArrangedSubview(nhanGiong)
+        nhanGiong.text = "Giọng văn bài phân tích:"
+        nhanGiong.font = .systemFont(ofSize: 12.0, weight: .semibold)
+        nhanGiong.textColor = BangMauBCTD.chuTrenNenToi
+        nhanGiong.numberOfLines = 0
+        nhanGiong.lineBreakMode = .byWordWrapping
+        nhanGiong.adjustsFontSizeToFitWidth = false
 
         chonGiong.selectedSegmentIndex = giongDangChon.rawValue
         chonGiong.addTarget(self, action: #selector(doiGiong), for: .valueChanged)
-        ngan.addArrangedSubview(chonGiong)
 
         nhanTrangThai.numberOfLines = 0
         nhanTrangThai.lineBreakMode = .byWordWrapping
-        nhanTrangThai.font = .systemFont(ofSize: 13, weight: .medium)
-        ngan.addArrangedSubview(nhanTrangThai)
+        nhanTrangThai.adjustsFontSizeToFitWidth = false
+        nhanTrangThai.font = .systemFont(ofSize: 12.5, weight: .semibold)
+
+        let nganDau = UIStackView(arrangedSubviews: [lbKicker, chonKhung, nhanGiong, chonGiong, nhanTrangThai])
+        nganDau.axis = .vertical
+        nganDau.spacing = 8
+        nganDau.translatesAutoresizingMaskIntoConstraints = false
+        theDau.addSubview(nganDau)
+
+        NSLayoutConstraint.activate([
+            nganDau.topAnchor.constraint(equalTo: theDau.topAnchor, constant: 12),
+            nganDau.leadingAnchor.constraint(equalTo: theDau.leadingAnchor, constant: 12),
+            nganDau.trailingAnchor.constraint(equalTo: theDau.trailingAnchor, constant: -12),
+            nganDau.bottomAnchor.constraint(equalTo: theDau.bottomAnchor, constant: -12)
+        ])
+        ngan.addArrangedSubview(theDau)
 
         oVanBan.font = .systemFont(ofSize: 15)
-        oVanBan.backgroundColor = .systemBackground
+        oVanBan.textColor = BangMauBCTD.chuChinh
+        oVanBan.backgroundColor = BangMauBCTD.nenThe
         oVanBan.layer.cornerRadius = 12
         oVanBan.layer.borderWidth = 1
-        oVanBan.layer.borderColor = UIColor.separator.cgColor
+        oVanBan.layer.borderColor = BangMauBCTD.vienDam.cgColor
         oVanBan.textContainerInset = UIEdgeInsets(top: 12, left: 10, bottom: 12, right: 10)
         oVanBan.isScrollEnabled = false
         oVanBan.delegate = self
@@ -92,11 +135,11 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         oVanBan.heightAnchor.constraint(greaterThanOrEqualToConstant: 360).isActive = true
         ngan.addArrangedSubview(oVanBan)
 
-        ngan.addArrangedSubview(taoNut("💬 Gửi vào LINE (chọn nhóm)", mau: UIColor(red: 0.02, green: 0.70, blue: 0.30, alpha: 1), action: #selector(bamGuiLine)))
-        ngan.addArrangedSubview(taoNut("🖼 Chia sẻ ảnh bảng số của khung này", mau: .systemBlue, action: #selector(bamChiaSeAnhBang)))
-        ngan.addArrangedSubview(taoNut("📝 Chia sẻ ảnh bản tin (chữ phân tích)", mau: .systemIndigo, action: #selector(bamChiaSeAnhChu)))
-        ngan.addArrangedSubview(taoNut("🔄 Phân tích lại (viết bài mới)", mau: .systemOrange, action: #selector(bamPhanTichLai)))
-        ngan.addArrangedSubview(taoNut("📋 Sao chép nội dung", mau: .systemGray, action: #selector(bamSaoChep)))
+        ngan.addArrangedSubview(taoNut("💬 Gửi vào LINE (chọn nhóm)", mau: BangMauBCTD.xanhDatVach, action: #selector(bamGuiLine)))
+        ngan.addArrangedSubview(taoNut("🖼 Chia sẻ ảnh bảng số của khung này", mau: BangMauBCTD.nenMenuToi, action: #selector(bamChiaSeAnhBang)))
+        ngan.addArrangedSubview(taoNut("📝 Chia sẻ ảnh bản tin (chữ phân tích)", mau: BangMauBCTD.indigoChuDao, action: #selector(bamChiaSeAnhChu)))
+        ngan.addArrangedSubview(taoNut("🔄 Phân tích lại (viết bài mới)", mau: BangMauBCTD.vangKhaVach, action: #selector(bamPhanTichLai)))
+        ngan.addArrangedSubview(taoNut("📋 Sao chép nội dung", mau: BangMauBCTD.chuPhu, action: #selector(bamSaoChep)))
     }
 
     private func taoNut(_ tieuDe: String, mau: UIColor, action: Selector) -> UIButton {
@@ -141,7 +184,7 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
             thongBao.append("ℹ️ Chưa có danh sách nhân viên (Công cụ → Quản lý nhân viên) nên chưa có phần nhắc nhở / tập trung.")
         }
         nhanTrangThai.text = thongBao.isEmpty ? "✅ Đủ số liệu cho khung \(khungDangChon.tenNgan)." : thongBao.joined(separator: "\n")
-        nhanTrangThai.textColor = thongBao.contains(where: { $0.hasPrefix("⚠") }) ? .systemRed : .secondaryLabel
+        nhanTrangThai.textColor = thongBao.contains(where: { $0.hasPrefix("⚠") }) ? BangMauBCTD.vangChuDao : BangMauBCTD.chuTrenNenToi
 
         if !taoMoi, let daLuu = UserDefaults.standard.string(forKey: khoaLuu()), !daLuu.isEmpty {
             oVanBan.text = daLuu
@@ -260,9 +303,11 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         return renderer.image { ctx in
             UIColor.white.setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: rong, height: tong))
-            UIColor(red: 0.12, green: 0.25, blue: 0.69, alpha: 1).setFill()
+            BangMauBCTD.nenHeaderBang.setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: rong, height: caoBang))
-            td.draw(with: CGRect(x: le, y: 20, width: rongChu, height: caoTieuDe), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+            BangMauBCTD.vangChuDao.setFill()
+            ctx.fill(CGRect(x: 0, y: caoBang - 6, width: rong, height: 6))
+            td.draw(with: CGRect(x: le, y: 18, width: rongChu, height: caoTieuDe), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
             than.draw(with: CGRect(x: le, y: caoBang + le, width: rongChu, height: caoThan), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
         }
     }
