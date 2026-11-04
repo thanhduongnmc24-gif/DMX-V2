@@ -1344,7 +1344,12 @@ final class KhoDuLieu {
         khoaTruyCap.lock()
         let khoa = TienIchNgay.khoa.string(from: ngay)
         let tienTo = String(khoa.prefix(7))
-        for k in cacNgay.keys where k.hasPrefix(tienTo) {
+        let doanhThuTrong = ThongTinDoanhThu()
+        var khoaCanDongBo = Set(cacNgay.keys.filter { k in
+            k.hasPrefix(tienTo) && cacNgay[k]?.doanhThu != doanhThuTrong
+        })
+        khoaCanDongBo.insert(khoa)
+        for k in khoaCanDongBo {
             cacNgay[k]?.doanhThu = ThongTinDoanhThu()
         }
         xoaBoNhoDem()
@@ -1356,7 +1361,11 @@ final class KhoDuLieu {
         khoaTruyCap.unlock()
 
         ThuMucDuLieu.dungChung.ghiNgayBatDongBo(banSaoNgay)
-        DichVuDongBo.dungChung.dayDuLieuNgay(dl)
+        for k in khoaCanDongBo {
+            if let ngayDaXoa = banSaoNgay[k] {
+                DichVuDongBo.dungChung.dayDuLieuNgay(ngayDaXoa)
+            }
+        }
     }
 
     /// Khóa tháng dạng "yyyy-MM"

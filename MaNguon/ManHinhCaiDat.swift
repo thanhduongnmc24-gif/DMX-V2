@@ -12,8 +12,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
     private let chonKieuHienThi = UISegmentedControl(items: ["Bảng 8 cột (Chi tiết)", "Thẻ tiến độ (Gọn)"])
     private let chonSoCotXuat = UISegmentedControl(items: ["1 cột", "2 cột", "3 cột", "4 cột"])
-    private let nutChiaTarget = UIButton(type: .system)
-    private let nutQuanLyNV = UIButton(type: .system)
     private let oNhapCumTu = UITextField()
     private let bangCumTu = UITableView(frame: .zero, style: .plain)
     private var danhSachCumTu: [String] = []
@@ -32,7 +30,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         chonSoCotXuat.selectedSegmentIndex = max(0, min(3, cd.soCotXuatAnh - 1))
         bangCumTu.reloadData()
         capNhatThongTinTaiKhoanUI()
-        capNhatTieuDeNutNhanVien()
     }
 
     required init?(coder: NSCoder) {
@@ -69,13 +66,11 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
 
         taoGiaoDien()
         capNhatThongTinTaiKhoanUI()
-        capNhatTieuDeNutNhanVien()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         capNhatThongTinTaiKhoanUI()
-        capNhatTieuDeNutNhanVien()
     }
 
     private func capNhatThongTinTaiKhoanUI() {
@@ -96,13 +91,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     @objc private func bamDongBoDamMayNgay() {
         DichVuDongBo.dungChung.taiDuLieu()
         hienThongBao(tieuDe: "🔄 Đang đồng bộ", noiDung: "Đã gửi yêu cầu đồng bộ dữ liệu mới nhất từ đám mây.")
-    }
-
-    private func capNhatTieuDeNutNhanVien() {
-        let cd = KhoDuLieu.dungChung.caiDat
-        let soMH = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay).count
-        nutChiaTarget.setTitle("🎯 1. Chia Target mặt hàng (\(soMH) mặt hàng) ▸", for: .normal)
-        nutQuanLyNV.setTitle("👥 2. Danh sách nhân viên quản lý (\(cd.danhSachNhanVien.count) NV) ▸", for: .normal)
     }
 
     @objc private func bamMoManHinhAdminTaiKhoan() {
@@ -217,16 +205,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         KhoDuLieu.dungChung.luuCaiDat(moi)
     }
 
-    @objc private func moChiaTarget() {
-        dongBoTamCaiDat()
-        navigationController?.pushViewController(ManHinhChiaTarget(ngay: ngay), animated: true)
-    }
-
-    @objc private func moQuanLyNhanVien() {
-        dongBoTamCaiDat()
-        navigationController?.pushViewController(ManHinhQuanLyNhanVien(), animated: true)
-    }
-
     private func taoGiaoDien() {
         let cuon = UIScrollView()
         cuon.alwaysBounceVertical = true
@@ -335,39 +313,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nganTK.translatesAutoresizingMaskIntoConstraints = false
         khungTK.addSubview(nganTK)
 
-        let tieuDeNV = taoTieuDeNhom("1 & 2. CHIA TARGET MẶT HÀNG & QUẢN LÝ NHÂN VIÊN")
-        let khungNV = UIView()
-        khungNV.backgroundColor = BangMauBCTD.nenThe
-        khungNV.layer.cornerRadius = 12
-        khungNV.layer.borderWidth = 1
-        khungNV.layer.borderColor = BangMauBCTD.vienThe.cgColor
-
-        [nutChiaTarget, nutQuanLyNV].forEach { nut in
-            nut.titleLabel?.numberOfLines = 0
-            nut.titleLabel?.lineBreakMode = .byWordWrapping
-            nut.titleLabel?.adjustsFontSizeToFitWidth = false
-            nut.titleLabel?.textAlignment = .left
-            nut.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
-            nut.contentHorizontalAlignment = .left
-            nut.backgroundColor = BangMauBCTD.nenHeaderBang
-            nut.tintColor = .white
-            nut.setTitleColor(.white, for: .normal)
-            nut.setTitleColor(UIColor.white.withAlphaComponent(0.65), for: .disabled)
-            nut.layer.cornerRadius = 10
-            nut.layer.borderWidth = 1
-            nut.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
-            nut.contentEdgeInsets = UIEdgeInsets(top: 11, left: 12, bottom: 11, right: 12)
-        }
-        nutChiaTarget.addTarget(self, action: #selector(moChiaTarget), for: .touchUpInside)
-        nutQuanLyNV.addTarget(self, action: #selector(moQuanLyNhanVien), for: .touchUpInside)
-
-        let nganNV = UIStackView(arrangedSubviews: [nutChiaTarget, nutQuanLyNV])
-        nganNV.axis = .vertical
-        nganNV.spacing = 8
-        nganNV.translatesAutoresizingMaskIntoConstraints = false
-        khungNV.addSubview(nganNV)
-
-        let tieuDeKieu = taoTieuDeNhom("3. KIỂU HIỂN THỊ & XUẤT BÁO CÁO")
+        let tieuDeKieu = taoTieuDeNhom("KIỂU HIỂN THỊ & XUẤT BÁO CÁO")
         let khungKieu = UIView()
         khungKieu.backgroundColor = BangMauBCTD.nenThe
         khungKieu.layer.cornerRadius = 12
@@ -410,7 +356,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nganKieu.translatesAutoresizingMaskIntoConstraints = false
         khungKieu.addSubview(nganKieu)
 
-        let tieuDeLoc = taoTieuDeNhom("4. CỤM TỪ LỌC BỎ TRONG TẤT CẢ NGÀNH HÀNG")
+        let tieuDeLoc = taoTieuDeNhom("CỤM TỪ LỌC BỎ TRONG TẤT CẢ NGÀNH HÀNG")
         let khungLoc = UIView()
         khungLoc.backgroundColor = BangMauBCTD.nenThe
         khungLoc.layer.cornerRadius = 12
@@ -458,7 +404,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         }
 
         [
-            tieuDeNV, khungNV,
             tieuDeKieu, khungKieu,
             tieuDeLoc, khungLoc,
             tieuDeHopThu, khungHopThu
@@ -487,11 +432,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             nganTK.leadingAnchor.constraint(equalTo: khungTK.leadingAnchor, constant: 12),
             nganTK.trailingAnchor.constraint(equalTo: khungTK.trailingAnchor, constant: -12),
             nganTK.bottomAnchor.constraint(equalTo: khungTK.bottomAnchor, constant: -10),
-
-            nganNV.topAnchor.constraint(equalTo: khungNV.topAnchor, constant: 10),
-            nganNV.leadingAnchor.constraint(equalTo: khungNV.leadingAnchor, constant: 10),
-            nganNV.trailingAnchor.constraint(equalTo: khungNV.trailingAnchor, constant: -10),
-            nganNV.bottomAnchor.constraint(equalTo: khungNV.bottomAnchor, constant: -10),
 
             nganKieu.topAnchor.constraint(equalTo: khungKieu.topAnchor, constant: 10),
             nganKieu.leadingAnchor.constraint(equalTo: khungKieu.leadingAnchor, constant: 12),

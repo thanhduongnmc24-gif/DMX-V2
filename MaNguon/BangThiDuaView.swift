@@ -840,7 +840,8 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
 
     private var boLoc: BoLocThiDua = .tatCa
     private var kieuSapXep: KieuSapXepThiDua = .phanTramCaoThap
-    private var soCotTrenDienThoai: Int = 1
+    private static let khoaSoCotTrenDienThoai = "dmx.thiDua.soCotTrenDienThoai"
+    private var soCotTrenDienThoai = UserDefaults.standard.integer(forKey: BangThiDuaView.khoaSoCotTrenDienThoai) == 2 ? 2 : 1
     private let tieuDeTrong = UILabel()
     private let phuDeTrong = UILabel()
 
@@ -919,8 +920,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         nutSapXep.layer.borderColor = BangMauBCTD.vienDam.cgColor
         nutSapXep.addTarget(self, action: #selector(bamMoMenuSapXep), for: .touchUpInside)
 
-        nutSoCot.setTitle(" 1 cột", for: .normal)
-        nutSoCot.setImage(UIImage(systemName: "rectangle.grid.1x2"), for: .normal)
+        capNhatNutSoCot()
         cauHinhNutDieuKhien(nutSoCot)
         nutSoCot.backgroundColor = BangMauBCTD.nenThePhu
         nutSoCot.tintColor = BangMauBCTD.chuChinh
@@ -964,13 +964,13 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         iconTrong.tintColor = .systemBlue
         iconTrong.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 42, weight: .regular)
 
-        tieuDeTrong.text = "Chạm để chọn ảnh Thi đua (Lũy kế)"
+        tieuDeTrong.text = "Chưa có số Thi đua (Lũy kế)"
         tieuDeTrong.font = .systemFont(ofSize: 15, weight: .bold)
         tieuDeTrong.textAlignment = .center
         tieuDeTrong.numberOfLines = 0
         tieuDeTrong.lineBreakMode = .byWordWrapping
 
-        phuDeTrong.text = "Bảng Thi đua Lũy kế và Thi đua Realtime được lưu riêng biệt.\nChạm vào đây hoặc nút Thêm ảnh để tải ảnh Thi đua."
+        phuDeTrong.text = "Chạm cụm doanh thu để mở tùy chọn nhập ảnh."
         phuDeTrong.font = .systemFont(ofSize: 12.5, weight: .regular)
         phuDeTrong.textColor = .secondaryLabel
         phuDeTrong.textAlignment = .center
@@ -1108,8 +1108,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         chonBoLoc.damBaoHienThiDayDuText()
 
         let nhanCheDo = (cheDoDoanhThu == .luyKe) ? "Lũy kế" : "Realtime"
-        tieuDeTrong.text = "Chạm để chọn ảnh Thi đua (\(nhanCheDo))"
-        phuDeTrong.text = "Bảng Thi đua Lũy kế và Thi đua Realtime được lưu riêng biệt.\nChạm vào đây hoặc nút Thêm ảnh để tải ảnh Thi đua \(nhanCheDo)."
+        tieuDeTrong.text = "Chưa có số Thi đua (\(nhanCheDo))"
 
         danhSachHienThi = locVaSapXep(danhSachGoc, xemDuKien: xemDK)
         let kieu: KieuHienThiBaoCao = xemDK ? .theGon : KhoDuLieu.dungChung.caiDat.kieuHienThi
@@ -1136,11 +1135,16 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
 
     @objc private func doiSoCot() {
         soCotTrenDienThoai = (soCotTrenDienThoai == 1) ? 2 : 1
+        UserDefaults.standard.set(soCotTrenDienThoai, forKey: Self.khoaSoCotTrenDienThoai)
+        capNhatNutSoCot()
+        luoi.collectionViewLayout.invalidateLayout()
+        luoi.reloadData()
+    }
+
+    private func capNhatNutSoCot() {
         let icon = (soCotTrenDienThoai == 1) ? "rectangle.grid.1x2" : "square.grid.2x2"
         nutSoCot.setTitle(" \(soCotTrenDienThoai) cột", for: .normal)
         nutSoCot.setImage(UIImage(systemName: icon), for: .normal)
-        luoi.collectionViewLayout.invalidateLayout()
-        luoi.reloadData()
     }
 
     @objc private func bamQuet() {
