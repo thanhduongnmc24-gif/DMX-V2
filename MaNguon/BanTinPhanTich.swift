@@ -742,7 +742,7 @@ struct HoSoBaoCaoOfficeAI: Codable {
             let tenTopNV = dsNV.prefix(3).map { "\($0.nhanVien.hoTen) (\($0.soMonDat)/\($0.tongMonGiao) môn)" }.joined(separator: ", ")
             let tenYeuNV = bcSucKhoe.top5CanhBaoYeu.prefix(3).map { "\($0.nhanVien.hoTen) (\($0.chuoiCanhBaoYeu))" }.joined(separator: ", ")
             phanTichYC = [
-                "📌 ĐÁP ỨNG YÊU CẦU CỦA BẠN: \"\(yeuCauSach)\"",
+                "📌 PHÂN TÍCH TRỌNG TÂM",
                 "• Phân tích dữ liệu thực tế: Lũy kế QĐ đạt \(dtLK.doanhThuQuyDoi.chuoiSoGonVN)/\(dtLK.targetQuyDoi.chuoiSoGonVN) tr (\(dtLK.phanTramHTQDDuKienHienThi.chuoiPhanTram)). Với \(s.soNgayConLai) ngày còn lại, định mức cần chạy mỗi ngày là \(max(0, (dtLK.targetQuyDoi - dtLK.doanhThuQuyDoi) / Double(max(1, s.soNgayConLai))).chuoiSoGonVN) tr QĐ/ngày.",
                 "• Nhóm ngành trọng điểm cần xử lý ngay: \(tenHut.isEmpty ? "Tất cả ngành đang trong ngưỡng kiểm soát" : tenHut).",
                 "• Phân bổ nhân sự thực thi: Nhân sự dẫn đầu làm nòng cốt (\(tenTopNV.isEmpty ? "Đang cập nhật" : tenTopNV)); Quản lý ca kèm sát nhóm cần hỗ trợ (\(tenYeuNV.isEmpty ? "Không có NV yếu kéo dài" : tenYeuNV))."
@@ -822,16 +822,6 @@ struct HoSoBaoCaoOfficeAI: Codable {
                 mucUuTien: "CAO"
             ))
         }
-        if !yeuCauSach.isEmpty {
-            dsHanhDong.append(HangMucHanhDongAI(
-                hangMuc: "Thực thi yêu cầu trọng tâm: \(yeuCauSach)",
-                mucTieuSoLieu: "Bám sát chỉ đạo riêng và báo cáo kết quả trực tiếp trên nhóm LINE",
-                nguoiPhuTrach: "Toàn đội ngũ siêu thị",
-                thoiHan: "Trong ngày \(ngayStr)",
-                mucUuTien: "TRỌNG TÂM"
-            ))
-        }
-
         var dongChuyenDe: [[String]] = []
         let dsUuTien = dl.danhSachThiDua
             .filter { $0.target > 0 }
@@ -866,12 +856,8 @@ struct HoSoBaoCaoOfficeAI: Codable {
 
         let bangCD = BangChuyenDeAI(
             tenSheet: "2_ChuyenDe_TheoYeuCau",
-            tieuDeBang: yeuCauSach.isEmpty
-                ? "CHUYÊN ĐỀ: PHÂN BỔ MỤC TIÊU BÙ HỤT MỖI NGÀY & GIAO TRÁCH NHIỆM NHÂN SỰ (\(ngayStr))"
-                : "CHUYÊN ĐỀ THEO YÊU CẦU: \(yeuCauSach.uppercased()) (\(ngayStr))",
-            moTaNgan: yeuCauSach.isEmpty
-                ? "Bảng tính chi tiết lượng còn thiếu, định mức cần chạy mỗi ngày trong \(s.soNgayConLai) ngày còn lại và danh sách nhân sự cần kèm cặp theo từng ngành hàng."
-                : "Phân tích chuyên sâu theo yêu cầu người dùng: \"\(yeuCauSach)\" — Kết hợp định mức mục tiêu \(s.soNgayConLai) ngày cuối tháng.",
+            tieuDeBang: "CHUYÊN ĐỀ: PHÂN BỔ MỤC TIÊU BÙ HỤT MỖI NGÀY & GIAO TRÁCH NHIỆM NHÂN SỰ (\(ngayStr))",
+            moTaNgan: "Bảng tính chi tiết lượng còn thiếu, định mức cần chạy mỗi ngày trong \(s.soNgayConLai) ngày còn lại và danh sách nhân sự cần kèm cặp theo từng ngành hàng.",
             cacCot: [
                 "STT", "Ngành hàng", "ĐVT", "Thực hiện", "Target tháng", "Còn thiếu",
                 "% Dự kiến", "Định mức/Ngày còn lại", "Mức độ ưu tiên",
@@ -903,12 +889,10 @@ final class DichVuGeminiAI {
     /// Key mặc định do người dùng cung cấp để kiểm tra và dùng thử ngay
     static let khoaMacDinh = "AIzaSyBLV7N_qUxSuiJ3B3FETmj2Ta67CKeVKWo"
 
-    /// Danh sách các model Google Gemini miễn phí (Free-tier trong Google AI Studio)
+    /// Chỉ dùng dòng Gemini 2.5; không tự hạ xuống model đời thấp hơn.
     static let cacModelMienPhi: [(ma: String, ten: String)] = [
-        ("gemini-2.5-flash", "Gemini 2.5 Flash (Miễn phí · 500–1.500 lượt/ngày · Thông minh nhất)"),
-        ("gemini-2.0-flash", "Gemini 2.0 Flash (Miễn phí · 1.500 lượt/ngày · Ổn định, Tốc độ cao)"),
-        ("gemini-2.0-flash-lite", "Gemini 2.0 Flash-Lite (Miễn phí · 1.500 lượt/ngày · Siêu nhanh)"),
-        ("gemini-1.5-flash", "Gemini 1.5 Flash (Miễn phí · 1.500 lượt/ngày · Tương thích rộng)")
+        ("gemini-2.5-pro", "Gemini 2.5 Pro (Chuyên sâu · chất lượng cao nhất)"),
+        ("gemini-2.5-flash", "Gemini 2.5 Flash (Nhanh · báo cáo chi tiết)")
     ]
 
     /// Các gợi ý yêu cầu nhanh để người dùng bấm 1 chạm khi xuất báo cáo / Excel / PowerPoint
@@ -940,7 +924,7 @@ final class DichVuGeminiAI {
 
     var modelHienTai: String {
         let luu = KhoDuLieu.dungChung.caiDat.geminiModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        return luu.isEmpty ? "gemini-2.5-flash" : luu
+        return luu.hasPrefix("gemini-2.5-") ? luu : "gemini-2.5-flash"
     }
 
     /// Kiểm tra API Key trực tiếp với máy chủ Google Gemini (tự động thử model dự phòng miễn phí nếu model đầu bận)
@@ -956,7 +940,8 @@ final class DichVuGeminiAI {
             return
         }
 
-        let modelUuTien = (model ?? modelHienTai).trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelYeuCau = (model ?? modelHienTai).trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelUuTien = modelYeuCau.hasPrefix("gemini-2.5-") ? modelYeuCau : "gemini-2.5-flash"
         var danhSachThu: [String] = [modelUuTien]
         for m in Self.cacModelMienPhi.map(\.ma) where !danhSachThu.contains(m) {
             danhSachThu.append(m)
@@ -1004,7 +989,7 @@ final class DichVuGeminiAI {
             yeuCauRieng: yc
         )
 
-        goiTiepModel(danhSachModel: danhSachThu, chiSo: 0, apiKey: key, prompt: prompt, maxTokens: 3072) { kq in
+        goiTiepModel(danhSachModel: danhSachThu, chiSo: 0, apiKey: key, prompt: prompt, maxTokens: 8192) { kq in
             DispatchQueue.main.async {
                 switch kq {
                 case .success(let ketQua):
@@ -1056,7 +1041,7 @@ final class DichVuGeminiAI {
             chiSo: 0,
             apiKey: key,
             prompt: prompt,
-            maxTokens: 4096,
+            maxTokens: 8192,
             epKieuJSON: true
         ) { kq in
             DispatchQueue.main.async {
@@ -1103,7 +1088,8 @@ final class DichVuGeminiAI {
 
         return [
             "Bạn là Chuyên gia Phân tích Dữ liệu Kinh doanh Cao cấp của hệ thống Điện Máy Xanh.",
-            "Nhiệm vụ: Tạo dữ liệu phân tích chuyên sâu dạng JSON để xuất ra file Báo cáo Excel (.xlsx) và PowerPoint (.pptx) thật chi tiết, sắc sảo như khi tạo trực tiếp trên Gemini.",
+            "Nhiệm vụ: Tạo dữ liệu phân tích chuyên sâu dạng JSON để xuất ra Excel và PowerPoint thật chi tiết, sắc sảo.",
+            "Yêu cầu của người dùng chỉ là chỉ dẫn nội bộ. Tuyệt đối không chép lại câu lệnh/yêu cầu này trong tiêu đề, nội dung, bảng, kế hoạch hành động hoặc file đầu ra; chỉ thể hiện kết quả phân tích.",
             "",
             "YÊU CẦU ĐẶC BIỆT CỦA NGƯỜI DÙNG KHI XUẤT BÁO CÁO:",
             "\"\(dongYeuCau)\"",
@@ -1123,9 +1109,9 @@ final class DichVuGeminiAI {
             "",
             "Hãy trả về ĐÚNG 1 ĐỐI TƯỢNG JSON HỢP LỆ (không bọc trong markdown hay giải thích ngoài JSON) theo cấu trúc sau:",
             "{",
-            "  \"tieuDeBaoCao\": \"Tiêu đề báo cáo chuyên nghiệp bám sát yêu cầu người dùng\",",
+            "  \"tieuDeBaoCao\": \"Tiêu đề báo cáo chuyên nghiệp, không nhắc tới câu lệnh hay yêu cầu người dùng\",",
             "  \"tomTatDieuHanh\": \"Đoạn tóm tắt điều hành sâu sắc (3-4 câu) nêu bật bức tranh doanh thu, điểm sáng và điểm nghẽn lớn nhất\",",
-            "  \"phanTichTheoYeuCau\": \"Bài phân tích chi tiết (chia các ý rõ ràng) giải quyết trực tiếp yêu cầu của người dùng dựa trên con số thật ở trên\",",
+            "  \"phanTichTheoYeuCau\": \"Bài phân tích chi tiết (chia các ý rõ ràng), chỉ chứa kết quả và khuyến nghị\",",
             "  \"keHoachHanhDong\": [",
             "    {\"hangMuc\": \"Tên đầu việc cụ thể\", \"mucTieuSoLieu\": \"Con số mục tiêu rõ ràng\", \"nguoiPhuTrach\": \"Bộ phận/Cá nhân\", \"thoiHan\": \"Mốc thời gian\", \"mucUuTien\": \"KHẨN CẤP / CAO / TRỌNG TÂM\"}",
             "  ],",
@@ -1212,6 +1198,31 @@ final class DichVuGeminiAI {
                 cacDong: cacDong,
                 ketLuanChuyenDe: ketLuan
             )
+        }
+        // Phòng trường hợp model vẫn lặp nguyên chỉ dẫn: loại câu lệnh trước khi
+        // dữ liệu được chuyển thành ô Excel hoặc textbox PowerPoint.
+        let chiDan = goc.yeuCauNguoiDung.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !chiDan.isEmpty {
+            func sach(_ value: String) -> String {
+                value.replacingOccurrences(of: chiDan, with: "", options: [.caseInsensitive])
+                    .replacingOccurrences(of: "\"\"", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            ketQua.tieuDeBaoCao = sach(ketQua.tieuDeBaoCao)
+            ketQua.tomTatDieuHanh = sach(ketQua.tomTatDieuHanh)
+            ketQua.phanTichTheoYeuCau = sach(ketQua.phanTichTheoYeuCau)
+            ketQua.keHoachHanhDong = ketQua.keHoachHanhDong.map {
+                HangMucHanhDongAI(hangMuc: sach($0.hangMuc), mucTieuSoLieu: sach($0.mucTieuSoLieu), nguoiPhuTrach: $0.nguoiPhuTrach, thoiHan: $0.thoiHan, mucUuTien: $0.mucUuTien)
+            }
+            ketQua.nhanXetNganhHang = ketQua.nhanXetNganhHang.mapValues(sach)
+            ketQua.nhanXetNhanVien = ketQua.nhanXetNhanVien.mapValues(sach)
+            if var bang = ketQua.bangChuyenDe {
+                bang.tieuDeBang = sach(bang.tieuDeBang)
+                bang.moTaNgan = sach(bang.moTaNgan)
+                bang.cacDong = bang.cacDong.map { $0.map(sach) }
+                bang.ketLuanChuyenDe = sach(bang.ketLuanChuyenDe)
+                ketQua.bangChuyenDe = bang
+            }
         }
         return ketQua
     }
@@ -1536,7 +1547,7 @@ enum BoXuatOfficeDMX {
 
         let tieuDeYC = yc.isEmpty
             ? "🎯 PHÂN TÍCH CHUYÊN SÂU & ĐỊNH HƯỚNG ĐIỀU HÀNH CA TRỰC"
-            : "🎯 PHÂN TÍCH THEO YÊU CẦU NGƯỜI DÙNG: \"\(yc)\""
+            : "🎯 PHÂN TÍCH TRỌNG TÂM"
         let rTieuDeYC = d1.count + 1
         d1.append(DongExcel(taoHangGop(tieuDeYC, soCot: 8, kieu: .tieuDeMuc), chieuCao: 25))
         merge1.append("A\(rTieuDeYC):H\(rTieuDeYC)")
@@ -2352,7 +2363,7 @@ enum BoXuatOfficeDMX {
             tieuDeBang: "BẢNG TỔNG HỢP CHỈ SỐ DOANH THU & DỰ BÁO ĐIỀU HÀNH",
             doRongCotBang: [1900000, 1400000, 1500000, 1500000, 1300000, 3677600],
             cacDongBang: bangSlide1,
-            tieuDeHopAI: yc.isEmpty ? "🤖 NHẬN ĐỊNH TRỌNG TÂM TỪ AI GEMINI" : "🎯 PHÂN TÍCH THEO YÊU CẦU: \"\(yc)\"",
+            tieuDeHopAI: "🤖 NHẬN ĐỊNH TRỌNG TÂM TỪ AI GEMINI",
             noiDungHopAI: hoSo.phanTichTheoYeuCau
         )
 
@@ -2371,7 +2382,7 @@ enum BoXuatOfficeDMX {
         }
         let slide2XML = taoSlideChuyenNghiepXML(
             tieuDe: "KẾ HOẠCH HÀNH ĐỘNG & CHUYÊN ĐỀ THEO YÊU CẦU NGƯỜI DÙNG",
-            phuDe: yc.isEmpty ? "Phân công mục tiêu cụ thể theo ca trực — \(donVi) (\(ngayStr))" : "Yêu cầu trọng tâm: \(yc)",
+            phuDe: "Phân công mục tiêu cụ thể theo ca trực — \(donVi) (\(ngayStr))",
             theKPI: [],
             tieuDeBang: "BẢNG PHÂN CÔNG HÀNH ĐỘNG TRỌNG TÂM (ACTION PLAN)",
             doRongCotBang: [650000, 3100000, 3300000, 1800000, 1327600, 1100000],

@@ -39,7 +39,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         danhSachCumTu = cd.danhSachCumTuLocBo
         chonSoCotXuat.selectedSegmentIndex = max(0, min(3, cd.soCotXuatAnh - 1))
         oNhapGeminiKey.text = cd.geminiApiKey.isEmpty ? DichVuGeminiAI.khoaMacDinh : cd.geminiApiKey
-        modelGeminiDangChon = cd.geminiModel.isEmpty ? "gemini-2.5-flash" : cd.geminiModel
+        modelGeminiDangChon = cd.geminiModel.hasPrefix("gemini-2.5-") ? cd.geminiModel : "gemini-2.5-flash"
         capNhatTieuDeNutModelGemini()
         bangCumTu.reloadData()
         capNhatThongTinTaiKhoanUI()
@@ -78,7 +78,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let chiSoCot = max(0, min(3, cd.soCotXuatAnh - 1))
         chonSoCotXuat.selectedSegmentIndex = chiSoCot
         oNhapGeminiKey.text = cd.geminiApiKey.isEmpty ? DichVuGeminiAI.khoaMacDinh : cd.geminiApiKey
-        modelGeminiDangChon = cd.geminiModel.isEmpty ? "gemini-2.5-flash" : cd.geminiModel
+        modelGeminiDangChon = cd.geminiModel.hasPrefix("gemini-2.5-") ? cd.geminiModel : "gemini-2.5-flash"
 
         taoGiaoDien()
         capNhatTieuDeNutModelGemini()

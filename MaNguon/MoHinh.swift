@@ -257,6 +257,7 @@ enum MucMenuChinh: Int, CaseIterable {
     case hoTro = 11
     case lienHeVip = 12
     case quanTri = 13
+    case trinhDuyet = 14
 
     var tieuDe: String {
         switch self {
@@ -274,6 +275,7 @@ enum MucMenuChinh: Int, CaseIterable {
         case .hoTro: return "Hỗ trợ"
         case .lienHeVip: return "Liên hệ & gói VIP"
         case .quanTri: return "Quản trị"
+        case .trinhDuyet: return "Trình duyệt Copilot"
         }
     }
 
@@ -293,6 +295,7 @@ enum MucMenuChinh: Int, CaseIterable {
         case .hoTro: return "questionmark.circle"
         case .lienHeVip: return "phone.fill"
         case .quanTri: return "crown.fill"
+        case .trinhDuyet: return "globe"
         }
     }
 

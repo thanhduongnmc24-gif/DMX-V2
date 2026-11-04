@@ -318,6 +318,14 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
             action: #selector(bamSaoChep)
         ))
 
+        ngan.addArrangedSubview(taoNutHanhDong(
+            "📊 Chỉ lấy số liệu để dán vào Copilot 365",
+            mauNen: BangMauBCTD.vangSang,
+            mauChu: BangMauBCTD.chuChinh,
+            coVien: true,
+            action: #selector(bamSaoChepSoLieu)
+        ))
+
         capNhatMauNutGiongVan()
     }
 
@@ -616,6 +624,7 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
             let attr: [NSAttributedString.Key: Any] = [
                 .font: laInDam ? fontDam : fontThuong,
                 .foregroundColor: BangMauBCTD.chuChinh,
+                .backgroundColor: UIColor.clear,
                 .paragraphStyle: kieuDoan
             ]
             ketQua.append(NSAttributedString(string: phan, attributes: attr))
@@ -624,7 +633,9 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
     }
 
     private func ganVanBanHienThi(_ chuoi: String) {
+        oVanBan.backgroundColor = BangMauBCTD.nenThe
         oVanBan.attributedText = Self.dinhDangVanBanCoInDam(chuoi)
+        oVanBan.typingAttributes[.backgroundColor] = UIColor.clear
         oVanBan.invalidateIntrinsicContentSize()
     }
 
@@ -758,6 +769,26 @@ final class ManHinhBanTin: UIViewController, UITextViewDelegate {
         let noiDung = oVanBan.text ?? ""
         UIPasteboard.general.string = noiDung
         nhanTrangThaiTren.text = "✅ Đã sao chép nội dung báo cáo vào bộ nhớ tạm ( sẵn sàng dán vào LINE )."
+        nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
+    }
+
+    @objc private func bamSaoChepSoLieu() {
+        view.endEditing(true)
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
+        var dong = [
+            "DU LIEU BAO CAO DMX - \(TienIchNgay.hienThiNgay.string(from: ngay))",
+            "Don vi\t\(dl.thongTinDonVi)",
+            "Chi so\tThuc hien\tTarget\tTy le",
+            "Doanh thu thuc\t\(dl.doanhThu.doanhThuThuc)\t\(dl.doanhThu.targetThuc)\t\(dl.doanhThu.phanTramHTThucHienThi)",
+            "Doanh thu quy doi\t\(dl.doanhThu.doanhThuQuyDoi)\t\(dl.doanhThu.targetQuyDoi)\t\(dl.doanhThu.phanTramHTQuyDoi)",
+            "",
+            "NGANH HANG\tDON VI\tTHUC HIEN\tTARGET\tPHAN TRAM HT\tPHAN TRAM DU KIEN"
+        ]
+        dong.append(contentsOf: dl.danhSachThiDua.map {
+            "\($0.tenNganhHang)\t\($0.loaiChiTieu.maBang)\t\($0.thucHien)\t\($0.target)\t\($0.phanTramHT)\t\($0.phanTramDuBao)"
+        })
+        UIPasteboard.general.string = dong.joined(separator: "\n")
+        nhanTrangThaiTren.text = "✅ Đã copy riêng số liệu dạng bảng. Mở Trình duyệt Copilot, dán và yêu cầu tạo Excel/PowerPoint."
         nhanTrangThaiTren.textColor = BangMauBCTD.xanhLaDam
     }
 
