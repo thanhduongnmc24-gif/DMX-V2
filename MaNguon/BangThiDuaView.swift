@@ -567,8 +567,8 @@ final class OTheThiDuaCell: UICollectionViewCell {
         pWrap.lineBreakMode = .byWordWrapping
 
         let pt = xemDuKien ? dong.phanTramDuBao : dong.phanTramHT
-        let chuoiPT = " \(pt.chuoiPhanTramVN) "
-        let rongPT = max(laTheHep ? 56 : 66, ceil((chuoiPT as NSString).size(withAttributes: [.font: fontDam]).width) + 8)
+        // Cố định độ rộng huy hiệu để các số % thẳng cột giữa mọi thẻ.
+        let rongPT: CGFloat = laTheHep ? 74 : 82
         let caoPT: CGFloat = 21
 
         // Với thẻ hẹp, cho tên dùng trọn chiều ngang rồi đặt % ở hàng kế tiếp.

@@ -989,7 +989,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         let khung = UIView(frame: CGRect(x: 0, y: 0, width: tongChieuRongBang, height: 42))
         khung.backgroundColor = BangMauBCTD.nenHeaderBang
 
-        let tieuDe = ["HẠNG", "NHÂN VIÊN (CHẠM XEM MÔN)", "SỐ MÔN ĐẠT", "% HT TB", "SỐ LƯỢNG", "DOANH THU QĐ", "DT KHOẢN VAY", "DT TRẢ THẲNG"]
+        let tieuDe = ["HẠNG", "NHÂN VIÊN (CHẠM XEM MÔN)", "SỐ MÔN ĐẠT", "% HT TB", "SỐ LƯỢNG", "DOANH THU QĐ", "DT KHOẢN VAY", "% TỈ TRỌNG"]
         var xHienTai: CGFloat = 0
         for (i, chu) in tieuDe.enumerated() {
             let w = chieuRongCot[i]
@@ -1108,9 +1108,9 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
                 khung.addSubview(lb)
             case 4:
                 let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
-                lb.text = row.soLuongDon > 0 ? row.soLuongDon.chuoiSoNguyenVN : "--"
+                lb.text = row.soLuongDon.chuoiSoNguyenVN
                 lb.font = fontDongNhat
-                lb.textColor = .secondaryLabel
+                lb.textColor = row.soLuongDon < 0 ? .systemRed : .secondaryLabel
                 lb.textAlignment = .right
                 lb.numberOfLines = 0
                 lb.lineBreakMode = .byWordWrapping
@@ -1118,9 +1118,9 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
                 khung.addSubview(lb)
             case 5:
                 let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
-                lb.text = row.doanhThuQD > 0 ? row.doanhThuQD.chuoiSoLieu : "--"
+                lb.text = row.doanhThuQD.chuoiSoLieu
                 lb.font = fontDongNhat
-                lb.textColor = UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
+                lb.textColor = row.doanhThuQD < 0 ? .systemRed : UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
                 lb.textAlignment = .right
                 lb.numberOfLines = 0
                 lb.lineBreakMode = .byWordWrapping
@@ -1138,8 +1138,9 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
                 khung.addSubview(lb)
             case 7:
                 let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
-                lb.text = row.dtTraThangQD > 0 ? row.dtTraThangQD.chuoiSoLieu : "--"
+                lb.text = String(format: "%.1f%%", row.phanTramTiTrong)
                 lb.font = fontDongNhat
+                lb.textColor = row.phanTramTiTrong < 0 ? .systemRed : BangMauBCTD.chuChinh
                 lb.textAlignment = .right
                 lb.numberOfLines = 0
                 lb.lineBreakMode = .byWordWrapping

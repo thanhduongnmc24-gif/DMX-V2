@@ -438,6 +438,7 @@ struct TongHopNhanVien: Hashable {
     var soLuongDon: Double
     var dtQDKhoanVay: Double
     var dtTraThangQD: Double
+    var phanTramTiTrong: Double = 0
     var cacMonGiao: [MonThiDuaNhanVien]
     var doanhThuCaNhan: DoanhThuNhanVienItem?
 }
@@ -1919,6 +1920,9 @@ final class KhoDuLieu {
                 soLuongDon: dtCaNhan?.soLuong ?? 0,
                 dtQDKhoanVay: dtCaNhan?.dtQDKhoanVay ?? 0,
                 dtTraThangQD: (dtCaNhan?.dtTraThangQD ?? 0) > 0 ? (dtCaNhan?.dtTraThangQD ?? 0) : (dtCaNhan?.doanhThuThuc ?? 0),
+                phanTramTiTrong: (dtCaNhan?.phanTramQuyDoi ?? 0) != 0
+                    ? (dtCaNhan?.phanTramQuyDoi ?? 0)
+                    : (dtCaNhan?.dtTraThangQD ?? 0),
                 cacMonGiao: cacMonGiao,
                 doanhThuCaNhan: dtCaNhan
             )

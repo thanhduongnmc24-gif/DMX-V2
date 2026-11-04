@@ -1807,7 +1807,7 @@ final class DichVuDocAnh {
                 let soLuong = laySoTheoKhoangX(0.32, 0.48)
                 let doanhThuQD = laySoTheoKhoangX(0.48, 0.65)
                 let dtQDKhoanVay = laySoTheoKhoangX(0.65, 0.80)
-                let dtTraThangQD = laySoTheoKhoangX(0.80, 1.00)
+                let phanTramTiTrong = laySoTheoKhoangX(0.80, 1.00)
 
                 daXetMa.insert(maNV)
                 ketQua.append(DoanhThuNhanVienItem(
@@ -1818,7 +1818,7 @@ final class DichVuDocAnh {
                     doanhThuQD: doanhThuQD,
                     target: 0,
                     dtQDKhoanVay: dtQDKhoanVay,
-                    dtTraThangQD: dtTraThangQD
+                    phanTramQuyDoi: phanTramTiTrong
                 ))
             } else {
                 let cacSo = cacPhanTuSoCungHang.map { pt -> Double in
