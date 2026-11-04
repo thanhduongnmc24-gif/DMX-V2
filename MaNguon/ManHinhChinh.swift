@@ -1429,6 +1429,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
 
         case .congCu:
             nhanMoTaMucMoRong.text = "Bộ công cụ tiện ích hỗ trợ chia Target ngành hàng, quản lý danh sách nhân viên và xuất báo cáo tổng hợp."
+            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("📰 Bản tin & Phân tích (Đầu ca · Hiện tại · Kết ca) → Gửi LINE", action: #selector(moBanTin)))
             nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("🎯 Chia Target mặt hàng cho Nhân viên", action: #selector(moNhanhChiaTarget)))
             nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("👥 Quản lý danh sách Nhân viên", action: #selector(moNhanhQuanLyNV)))
             nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("📤 Xuất ảnh & file báo cáo CSV", action: #selector(moMenuXuatBaoCao)))
@@ -1464,6 +1465,45 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         mucMenuChinh = .doSoXemSo
         mucConDoSo = .bieuDo
         napDuLieu()
+    }
+
+    /// Mở màn hình Bản tin & Phân tích (3 khung giờ, 3 giọng văn, gửi LINE bằng cách mở app LINE)
+    @objc private func moBanTin() {
+        let ngay = ngayHienTai
+        let man = ManHinhBanTin(ngay: ngay) { [weak self] khung, soLieu in
+            self?.taoAnhBangChoBanTin(khung: khung, soLieu: soLieu) ?? []
+        }
+        navigationController?.pushViewController(man, animated: true)
+    }
+
+    private func taoAnhBangChoBanTin(khung: KhungBanTin, soLieu: SoLieuBanTin) -> [UIImage] {
+        let anh: UIImage?
+        switch khung {
+        case .dauCa:
+            guard soLieu.coSoLieuLuyKe else { return [] }
+            anh = bangThiDua.taoAnhBaoCao(
+                ngay: soLieu.ngay,
+                doanhThu: soLieu.luyKe,
+                danhSach: soLieu.dsLuyKe,
+                cheDoDoanhThu: .luyKe,
+                xemDuKien: true,
+                thongTinDonVi: soLieu.tenDonVi,
+                capNhatLuc: soLieu.capNhatLuc
+            )
+        case .hienTai, .ketCa:
+            guard soLieu.coSoLieuHomNay else { return [] }
+            anh = bangThiDua.taoAnhBaoCao(
+                ngay: soLieu.ngay,
+                doanhThu: soLieu.homNay,
+                danhSach: soLieu.dsHomNay,
+                cheDoDoanhThu: .realtime,
+                xemDuKien: false,
+                thongTinDonVi: soLieu.tenDonVi,
+                capNhatLuc: soLieu.capNhatLuc
+            )
+        }
+        if let anh = anh { return [anh] }
+        return []
     }
 
     @objc private func moNhanhChiaTarget() {
@@ -2228,6 +2268,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate {
         let dsDangChon = dl.danhSachThiDua(theo: cheDoCSV)
 
         let cacMuc: [MucChonDMX] = [
+            MucChonDMX(tieuDe: "📰 Bản tin & Phân tích (Đầu ca · Hiện tại · Kết ca) → Gửi LINE") { [weak self] in
+                self?.moBanTin()
+            },
             MucChonDMX(tieuDe: "📊 Ảnh Thi đua Lũy kế — Thực hiện & Target (\(moTaKieu))") { [weak self] in
                 guard let self = self,
                       let anh = self.bangThiDua.taoAnhBaoCao(
