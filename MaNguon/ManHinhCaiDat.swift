@@ -99,7 +99,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     private func capNhatThongTinTaiKhoanUI() {
         let ten = DichVuDongBo.dungChung.tenDangNhap.isEmpty ? "Chưa đăng nhập" : DichVuDongBo.dungChung.tenDangNhap
         let laAdmin = DichVuDongBo.dungChung.laAdmin
-        let vaiTro = laAdmin ? "🛡️ Quản trị viên (Admin)" : "👑 Thành viên Cao cấp"
+        let vaiTro = laAdmin ? "🛡️ Quản trị viên (Admin)" : "Thành viên"
         nhanThongTinTaiKhoan.text = "Tài khoản: \(ten)   •   \(vaiTro)"
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
         nhanHopThuThongBao.text = "📩 Hệ thống ĐMX (\(ngayStr)): Dữ liệu và cài đặt của tài khoản \(ten) được đồng bộ đám mây tự động."
@@ -659,8 +659,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             tieuDeNV, khungNV,
             tieuDeKieu, khungKieu,
             tieuDeLoc, khungLoc,
-            tieuDeHopThu, khungHopThu,
-            tieuDeTK, khungTK
+            tieuDeHopThu, khungHopThu
         ].forEach {
             nganTong.addArrangedSubview($0)
         }
@@ -823,6 +822,8 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
     private let nutThemTaiKhoan = UIButton(type: .system)
     private let bang = UITableView(frame: .zero, style: .insetGrouped)
     private let vongQuay = UIActivityIndicatorView(style: .medium)
+    private let nutDoiMatKhauCaNhan = UIButton(type: .system)
+    private let nutDangXuat = UIButton(type: .system)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -835,7 +836,13 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
         ]
 
         taoGiaoDien()
-        taiDanhSach()
+        if DichVuDongBo.dungChung.laAdmin {
+            taiDanhSach()
+        } else {
+            navigationItem.rightBarButtonItems = nil
+            nutThemTaiKhoan.isHidden = true
+            bang.isHidden = true
+        }
     }
 
     private func taoGiaoDien() {
@@ -850,7 +857,25 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
         nhanTomTat.numberOfLines = 0
         nhanTomTat.lineBreakMode = .byWordWrapping
         nhanTomTat.adjustsFontSizeToFitWidth = false
-        nhanTomTat.text = "Chạm vào từng tài khoản bên dưới để Đổi mật khẩu, Set/Gỡ quyền Admin hoặc Xoá."
+        let tenHienTai = DichVuDongBo.dungChung.tenDangNhap
+        nhanTomTat.text = "Tài khoản hiện tại: \(tenHienTai.isEmpty ? "Chưa đăng nhập" : tenHienTai)."
+
+        nutDoiMatKhauCaNhan.setTitle("🔑 Đổi mật khẩu của tôi", for: .normal)
+        nutDangXuat.setTitle("🚪 Đăng xuất", for: .normal)
+        [nutDoiMatKhauCaNhan, nutDangXuat].forEach { nut in
+            nut.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
+            nut.titleLabel?.numberOfLines = 0
+            nut.layer.cornerRadius = 9
+            nut.backgroundColor = BangMauBCTD.nenThePhu
+            nut.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+            nut.contentEdgeInsets = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 10)
+        }
+        nutDoiMatKhauCaNhan.addTarget(self, action: #selector(bamDoiMatKhauCaNhan), for: .touchUpInside)
+        nutDangXuat.addTarget(self, action: #selector(bamDangXuat), for: .touchUpInside)
+        let hangTaiKhoan = UIStackView(arrangedSubviews: [nutDoiMatKhauCaNhan, nutDangXuat])
+        hangTaiKhoan.axis = .horizontal
+        hangTaiKhoan.spacing = 8
+        hangTaiKhoan.distribution = .fillEqually
 
         nutThemTaiKhoan.setImage(UIImage(systemName: "person.badge.plus"), for: .normal)
         nutThemTaiKhoan.setTitle(" Thêm tài khoản mới", for: .normal)
@@ -864,7 +889,7 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
         nutThemTaiKhoan.contentEdgeInsets = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 10)
         nutThemTaiKhoan.addTarget(self, action: #selector(bamThemTaiKhoanMoi), for: .touchUpInside)
 
-        let nganDau = UIStackView(arrangedSubviews: [nhanTomTat, nutThemTaiKhoan, vongQuay])
+        let nganDau = UIStackView(arrangedSubviews: [nhanTomTat, hangTaiKhoan, nutThemTaiKhoan, vongQuay])
         nganDau.axis = .vertical
         nganDau.spacing = 8
         nganDau.translatesAutoresizingMaskIntoConstraints = false
@@ -895,6 +920,33 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
             bang.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             bang.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+    }
+
+    @objc private func bamDoiMatKhauCaNhan() {
+        let hop = UIAlertController(title: "Đổi mật khẩu", message: "Nhập mật khẩu mới tối thiểu 6 ký tự.", preferredStyle: .alert)
+        hop.addTextField { tf in tf.placeholder = "Mật khẩu mới"; tf.isSecureTextEntry = true }
+        hop.addTextField { tf in tf.placeholder = "Nhập lại mật khẩu"; tf.isSecureTextEntry = true }
+        hop.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+        hop.addAction(UIAlertAction(title: "Lưu", style: .default) { [weak self] _ in
+            let mk1 = hop.textFields?[0].text ?? ""
+            let mk2 = hop.textFields?[1].text ?? ""
+            guard mk1.count >= 6, mk1 == mk2 else {
+                self?.hienThongBao(tieuDe: "Chưa hợp lệ", noiDung: "Mật khẩu phải có ít nhất 6 ký tự và hai lần nhập phải giống nhau.")
+                return
+            }
+            DichVuDongBo.dungChung.doiMatKhauCaNhan(matKhauMoi: mk1) { [weak self] kq in
+                switch kq {
+                case .success: self?.hienThongBao(tieuDe: "Thành công", noiDung: "Đã đổi mật khẩu.")
+                case .failure(let loi): self?.hienThongBao(tieuDe: "Không đổi được mật khẩu", noiDung: loi.localizedDescription)
+                }
+            }
+        })
+        present(hop, animated: true)
+    }
+
+    @objc private func bamDangXuat() {
+        DichVuDongBo.dungChung.dangXuat()
+        (UIApplication.shared.delegate as? UyQuyenUngDung)?.hienThiDangNhap()
     }
 
     @objc private func taiDanhSach() {

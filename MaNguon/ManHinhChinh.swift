@@ -53,7 +53,8 @@ final class MenuDieuHuongBenTraiView: UIView {
         khungHuyHieu.translatesAutoresizingMaskIntoConstraints = false
         khungDau.addSubview(khungHuyHieu)
 
-        nhanHuyHieu.text = "👑 CAO CẤP"
+        nhanHuyHieu.text = ""
+        khungHuyHieu.isHidden = true
         nhanHuyHieu.font = .systemFont(ofSize: 11.5, weight: .heavy)
         nhanHuyHieu.textColor = BangMauBCTD.chuChinh
         nhanHuyHieu.numberOfLines = 0
@@ -124,7 +125,7 @@ final class MenuDieuHuongBenTraiView: UIView {
         } else {
             nhanTenTaiKhoan.text = tenTK.uppercased()
         }
-        nhanHuyHieu.text = "👑 CAO CẤP"
+        nhanHuyHieu.text = ""
     }
 
     func capNhatTrangThai(mucChinh: MucMenuChinh, mucCon: MucConDoSo) {
@@ -203,20 +204,6 @@ final class MenuDieuHuongBenTraiView: UIView {
         nganPhai.isUserInteractionEnabled = false
         nganPhai.translatesAutoresizingMaskIntoConstraints = false
         nut.addSubview(nganPhai)
-
-        if muc == .baoCao {
-            let nhanAI = UILabel()
-            nhanAI.text = "✨ AI"
-            nhanAI.font = .systemFont(ofSize: 10.5, weight: .heavy)
-            nhanAI.textColor = BangMauBCTD.chuChinh
-            nhanAI.backgroundColor = BangMauBCTD.vangSang
-            nhanAI.layer.cornerRadius = 5
-            nhanAI.clipsToBounds = true
-            nhanAI.numberOfLines = 0
-            nhanAI.lineBreakMode = .byWordWrapping
-            nhanAI.adjustsFontSizeToFitWidth = false
-            nganPhai.addArrangedSubview(nhanAI)
-        }
 
         if muc.coMenuCon {
             let tenMuiTen = dangMoMenuConDoSo ? "chevron.down" : "chevron.right"
@@ -551,11 +538,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutCaiDatNav.heightAnchor.constraint(equalToConstant: 31).isActive = true
         nutCaiDatNav.addTarget(self, action: #selector(bamMoCaiDatNhanh), for: .touchUpInside)
 
-        let cumPhai = UIStackView(arrangedSubviews: [nutNhapTatCa, nutXuatNav, nutCaiDatNav])
-        cumPhai.axis = .horizontal
-        cumPhai.spacing = 5
-        cumPhai.alignment = .center
-        navigationItem.rightBarButtonItem = UIBarButtonItem(customView: cumPhai)
+        navigationItem.rightBarButtonItem = nil
     }
 
     @objc private func bamMoCaiDatNhanh() {
@@ -1985,8 +1968,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nhanHuongDan.adjustsFontSizeToFitWidth = false
 
         let nutMoBaoCao = taoNutLoiTatTongQuan(
-            tieuDe: "📰 Báo cáo & Phân tích AI Gemini (Gửi LINE)",
-            moTa: "Tạo bản tin báo cáo 5 mục theo mẫu chuẩn bằng AI Gemini, chọn giọng văn & gửi LINE",
+            tieuDe: "📰 Báo cáo",
+            moTa: "Chọn nội dung, nhóm hàng và nhân viên cần nhắc; xuất ảnh và tự động copy nội dung",
             mau: BangMauBCTD.vangChuDao,
             tag: 100
         )
@@ -2617,12 +2600,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("📅 Chọn ngày xem / đổ số báo cáo", action: #selector(moLichSuNgay)))
             nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("📈 Mở Biểu đồ & Tổng hợp Realtime tháng", action: #selector(moNhanhBieuDoTuMucMoRong)))
 
-        case .congCu:
-            nhanMoTaMucMoRong.text = "Bộ công cụ tiện ích hỗ trợ phân tích AI Gemini, chia Target ngành hàng, quản lý nhân viên và xuất báo cáo."
-            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("📰 Mở mục Báo cáo & Phân tích AI Gemini → Gửi LINE", action: #selector(moBanTin)))
-            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("🎯 Chia Target mặt hàng cho Nhân viên", action: #selector(moNhanhChiaTarget)))
-            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("👥 Quản lý danh sách Nhân viên", action: #selector(moNhanhQuanLyNV)))
-            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("🖼️ Mở mục 3. Xuất ảnh & Copy JSON tạo file", action: #selector(moMenuXuatBaoCao)))
+        case .xuatFileBaoCao:
+            nhanMoTaMucMoRong.text = "Sao chép toàn bộ số liệu dạng JSON kèm câu lệnh để dán vào Copilot hoặc ứng dụng AI khác và yêu cầu tạo Excel/PowerPoint."
+            nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("📋 Copy JSON + câu lệnh tạo file", action: #selector(bamCopyJSONXuatFileTuMenu)))
 
         case .ketNoi:
             let tk = DichVuDongBo.dungChung.tenDangNhap.isEmpty ? "Chưa đăng nhập" : DichVuDongBo.dungChung.tenDangNhap
@@ -3485,7 +3465,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let dsDangChon = dl.danhSachThiDua(theo: cheDoCSV)
 
         let cacMuc: [MucChonDMX] = [
-            MucChonDMX(tieuDe: "📰 Mở mục Báo cáo & Phân tích AI Gemini → Gửi LINE") { [weak self] in
+            MucChonDMX(tieuDe: "📰 Mở mục Báo cáo") { [weak self] in
                 self?.mucMenuChinh = .baoCao
                 self?.napDuLieu()
             },
@@ -3613,6 +3593,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let thongBao = UIAlertController(title: "Đã copy JSON", message: "Đã sao chép toàn bộ số liệu và câu lệnh. Hãy mở Copilot hoặc ứng dụng AI khác, dán vào rồi yêu cầu tạo Excel/PowerPoint.", preferredStyle: .alert)
         thongBao.addAction(UIAlertAction(title: "Đóng", style: .default))
         present(thongBao, animated: true)
+    }
+
+    @objc private func bamCopyJSONXuatFileTuMenu() {
+        saoChepGoiJSONXuatFile()
     }
 
     private func moChonNhanVienChiaSeAnh(cheDo: LoaiCheDoDoanhThu) {

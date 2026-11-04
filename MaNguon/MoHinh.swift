@@ -248,7 +248,7 @@ enum MucMenuChinh: Int, CaseIterable {
     case doSoXemSo = 2
     case caiDat = 3
     case lichDoSo = 4
-    case congCu = 5
+    case xuatFileBaoCao = 5
     case lenhTroLy = 6
     case taiKhoanHopThu = 7
     case ketNoi = 8
@@ -259,6 +259,10 @@ enum MucMenuChinh: Int, CaseIterable {
     case quanTri = 13
     case trinhDuyet = 14
 
+    static var allCases: [MucMenuChinh] {
+        [.tongQuan, .baoCao, .doSoXemSo, .xuatFileBaoCao, .caiDat, .quanTri]
+    }
+
     var tieuDe: String {
         switch self {
         case .tongQuan: return "Tổng quan"
@@ -266,7 +270,7 @@ enum MucMenuChinh: Int, CaseIterable {
         case .doSoXemSo: return "Đổ số - Xem số"
         case .caiDat: return "Cài đặt"
         case .lichDoSo: return "Lịch đổ số"
-        case .congCu: return "Công cụ"
+        case .xuatFileBaoCao: return "Xuất file báo cáo"
         case .lenhTroLy: return "Lệnh trợ lý"
         case .taiKhoanHopThu: return "Tài khoản & Hộp thư"
         case .ketNoi: return "Kết nối"
@@ -286,7 +290,7 @@ enum MucMenuChinh: Int, CaseIterable {
         case .doSoXemSo: return "tablecells.fill"
         case .caiDat: return "gearshape.fill"
         case .lichDoSo: return "calendar.badge.clock"
-        case .congCu: return "wrench.and.screwdriver.fill"
+        case .xuatFileBaoCao: return "doc.on.clipboard.fill"
         case .lenhTroLy: return "terminal.fill"
         case .taiKhoanHopThu: return "person.crop.circle"
         case .ketNoi: return "icloud.and.arrow.up"
