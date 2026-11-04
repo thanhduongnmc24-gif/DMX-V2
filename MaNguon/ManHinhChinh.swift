@@ -2373,7 +2373,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         menuBenTrai.khiChonMucChinh = { [weak self] muc in
             guard let self = self else { return }
             self.mucMenuChinh = muc
-            if muc == .doSoXemSo { self.mucConDoSo = .xemSo }
+            if muc == .doSoXemSo {
+                self.mucConDoSo = .xemSo
+                self.tabXemSo = .luyKe
+                self.cheDoDoanhThu = .luyKe
+            }
             if muc == .nhanVien { self.mucConDoSo = .xemSo; self.tabXemSo = .nhanVien }
             self.anMenu(animated: true)
             self.napDuLieu()
@@ -2636,11 +2640,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let laThiDua = (tabXemSo == .luyKe || tabXemSo == .realtime)
         let laNhanVien = (tabXemSo == .nhanVien)
         let laBieuDo = (tabXemSo == .bieuDo)
+        let anCumDoanhThu = laBieuDo || laNhanVien
 
-        khungCumDoanhThu.isHidden = laBieuDo
+        khungCumDoanhThu.isHidden = anCumDoanhThu
         vachNganHaiCum.isHidden = true
-        rangBuocTopKhungDuoiTheoVach?.isActive = !laBieuDo
-        rangBuocTopKhungDuoiTheoDinh?.isActive = laBieuDo
+        rangBuocTopKhungDuoiTheoVach?.isActive = !anCumDoanhThu
+        rangBuocTopKhungDuoiTheoDinh?.isActive = anCumDoanhThu
 
         hangChonCheDoNV.isHidden = !laNhanVien
         hangNutQuet.isHidden = laBieuDo

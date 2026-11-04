@@ -518,9 +518,10 @@ final class OTheThiDuaCell: UICollectionViewCell {
         contentView.addSubview(khungThe)
 
         nhanTen.textColor = BangMauBCTD.chuChinh
-        nhanTen.numberOfLines = 0
+        nhanTen.numberOfLines = 2
         nhanTen.lineBreakMode = .byWordWrapping
-        nhanTen.adjustsFontSizeToFitWidth = false
+        nhanTen.adjustsFontSizeToFitWidth = true
+        nhanTen.minimumScaleFactor = 0.68
 
         nhanPhanTram.textAlignment = .center
         nhanPhanTram.numberOfLines = 1
@@ -557,8 +558,9 @@ final class OTheThiDuaCell: UICollectionViewCell {
         xemDuKien: Bool
     ) -> BoCucThe {
         let laTheHep = (rongThe < 240)
-        let coChu: CGFloat = laTheHep ? 11.5 : 12.5
-        let le: CGFloat = laTheHep ? 8 : 10
+        let doDaiTen = dong.tenNganhHang.count
+        let coChu: CGFloat = doDaiTen > 48 ? 9.0 : (doDaiTen > 32 ? 10.0 : (laTheHep ? 11.0 : 12.0))
+        let le: CGFloat = laTheHep ? 6 : 8
         let rongTrong = max(80, rongThe - le * 2)
 
         let fontDam = UIFont.systemFont(ofSize: coChu, weight: .bold)
@@ -572,7 +574,7 @@ final class OTheThiDuaCell: UICollectionViewCell {
 
         // Với thẻ hẹp, cho tên dùng trọn chiều ngang rồi đặt % ở hàng kế tiếp.
         // Cách này tận dụng phần trống bên phải và tránh ép tên thành 5–7 dòng.
-        let tachPhanTramXuongDong = laTheHep || dong.tenNganhHang.count > 26
+        let tachPhanTramXuongDong = laTheHep
         let rongTen = tachPhanTramXuongDong ? rongTrong : max(56, rongTrong - rongPT - 6)
         let rectTen = (dong.tenNganhHang as NSString).boundingRect(
             with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
@@ -580,8 +582,9 @@ final class OTheThiDuaCell: UICollectionViewCell {
             attributes: [.font: fontDam, .paragraphStyle: pWrap],
             context: nil
         )
-        let caoTenChu = max(caoPT, ceil(rectTen.height) + 2)
-        let caoKhoiTieuDe = caoTenChu + (tachPhanTramXuongDong ? caoPT + 4 : 0)
+        let caoTenToiDa = ceil(fontDam.lineHeight * 2) + 1
+        let caoTenChu = max(caoPT, min(caoTenToiDa, ceil(rectTen.height) + 1))
+        let caoKhoiTieuDe = caoTenChu + (tachPhanTramXuongDong ? caoPT + 2 : 0)
 
         let chuoiTrai = xemDuKien
             ? "THỰC HIỆN\n\(dong.thucHien.chuoiSoVN)"
@@ -620,16 +623,16 @@ final class OTheThiDuaCell: UICollectionViewCell {
             caoKhuVucSo = xemDuKien ? 72 : 19
         }
 
-        let caoToiThieu = 8 + caoKhoiTieuDe + 8 + caoKhuVucSo + 6 + 5 + 8 + (xemDuKien ? 12 : 0)
+        let caoToiThieu = 5 + caoKhoiTieuDe + 4 + caoKhuVucSo + 3 + 4 + 5 + (xemDuKien ? 6 : 0)
         let tongCao = max(caoToiThieu, chieuCaoKhung ?? caoToiThieu)
 
-        let khungTen = CGRect(x: le, y: 8, width: rongTen, height: caoTenChu)
+        let khungTen = CGRect(x: le, y: 5, width: rongTen, height: caoTenChu)
         let khungPhanTram = tachPhanTramXuongDong
-            ? CGRect(x: rongThe - le - rongPT, y: 8 + caoTenChu + 4, width: rongPT, height: caoPT)
-            : CGRect(x: rongThe - le - rongPT, y: 8, width: rongPT, height: caoPT)
-        let khungThanh = CGRect(x: le, y: tongCao - 8 - 5, width: rongTrong, height: 5)
+            ? CGRect(x: rongThe - le - rongPT, y: 5 + caoTenChu + 2, width: rongPT, height: caoPT)
+            : CGRect(x: rongThe - le - rongPT, y: 5, width: rongPT, height: caoPT)
+        let khungThanh = CGRect(x: le, y: tongCao - 5 - 4, width: rongTrong, height: 4)
 
-        let yDaySo = khungThanh.minY - 6
+        let yDaySo = khungThanh.minY - 3
         let khungThucHien: CGRect
         let khungConThieu: CGRect
 
@@ -799,8 +802,8 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
 
     private lazy var luoi: UICollectionView = {
         let boCuc = UICollectionViewFlowLayout()
-        boCuc.minimumLineSpacing = 8
-        boCuc.minimumInteritemSpacing = 8
+        boCuc.minimumLineSpacing = 5
+        boCuc.minimumInteritemSpacing = 6
         let cv = UICollectionView(frame: .zero, collectionViewLayout: boCuc)
         cv.backgroundColor = .clear
         cv.dataSource = self
@@ -1110,7 +1113,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let dong = danhSachHienThi[indexPath.item]
         let xemDK = hieuLucXemDuKien
         if soCotTrenDienThoai == 2 {
-            let rongCot = floor((rong - 8) / 2.0)
+            let rongCot = floor((rong - 6) / 2.0)
             // Hai ô cùng 1 hàng luôn có kích thước (chiều rộng & chiều cao) bằng nhau theo ô cao hơn trong hàng
             let chiSoDauHang = (indexPath.item / 2) * 2
             let chiSoCuoiHang = min(danhSachHienThi.count - 1, chiSoDauHang + 1)
@@ -2573,8 +2576,8 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nutSapXepSK.contentEdgeInsets = UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
         nutSapXepSK.addTarget(self, action: #selector(bamDoiSapXepSK), for: .touchUpInside)
 
-        nutXuatAnhSK.setTitle("📸 Xuất ảnh SK", for: .normal)
-        nutXuatAnhSK.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
+        nutXuatAnhSK.setTitle("📸 XUẤT ẢNH SỨC KHỎE NHÂN VIÊN", for: .normal)
+        nutXuatAnhSK.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
         nutXuatAnhSK.titleLabel?.numberOfLines = 0
         nutXuatAnhSK.titleLabel?.lineBreakMode = .byWordWrapping
         nutXuatAnhSK.titleLabel?.textAlignment = .center
@@ -2585,15 +2588,15 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nutXuatAnhSK.layer.cornerRadius = 8
         nutXuatAnhSK.layer.borderWidth = 1
         nutXuatAnhSK.layer.borderColor = BangMauBCTD.vangChuDao.withAlphaComponent(0.5).cgColor
-        nutXuatAnhSK.contentEdgeInsets = UIEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+        nutXuatAnhSK.contentEdgeInsets = UIEdgeInsets(top: 11, left: 12, bottom: 11, right: 12)
+        nutXuatAnhSK.heightAnchor.constraint(greaterThanOrEqualToConstant: 46).isActive = true
         nutXuatAnhSK.addTarget(self, action: #selector(bamXuatAnhSucKhoe), for: .touchUpInside)
 
-        let hangCongCuSK = UIStackView(arrangedSubviews: [chonCheDoSK, nutSapXepSK, nutXuatAnhSK])
+        let hangCongCuSK = UIStackView(arrangedSubviews: [chonCheDoSK, nutSapXepSK])
         hangCongCuSK.axis = .horizontal
         hangCongCuSK.spacing = 6
         hangCongCuSK.alignment = .fill
         nutSapXepSK.setContentHuggingPriority(.required, for: .horizontal)
-        nutXuatAnhSK.setContentHuggingPriority(.required, for: .horizontal)
 
         // 2. Cụm 4 thẻ chỉ số sức khỏe đội ngũ
         let hangTheSK = UIStackView(arrangedSubviews: [theSKKhoe, theSKTrungBinh, theSKYeu, theSKDiemDoi])
@@ -2725,7 +2728,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             nganTrongMaTran.bottomAnchor.constraint(equalTo: khungMaTran.bottomAnchor, constant: -10)
         ])
 
-        [hangCongCuSK, hangTheSK, khungCanhBao, khungBieuDoSK, khungMaTran].forEach {
+        [hangCongCuSK, nutXuatAnhSK, hangTheSK, khungCanhBao, khungBieuDoSK, khungMaTran].forEach {
             nganSucKhoeNV.addArrangedSubview($0)
         }
     }
