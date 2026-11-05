@@ -315,6 +315,19 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         case excel = "Excel"
         case powerPoint = "PowerPoint"
     }
+    private enum CaBaoCaoTongQuan: Int, CaseIterable {
+        case dauCa = 0
+        case giuaCa = 1
+        case cuoiCa = 2
+
+        var tieuDe: String {
+            switch self {
+            case .dauCa: return "Đầu ca"
+            case .giuaCa: return "Giữa ca"
+            case .cuoiCa: return "Cuối ca"
+            }
+        }
+    }
     private enum CheDoQuetAnh {
         case doanhThu(LoaiCheDoDoanhThu)
         case thiDua(LoaiCheDoDoanhThu)
@@ -413,6 +426,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
     // 5. Khung nội dung cho các mục khác trong Menu (Tổng quan, Báo cáo AI, Cài đặt, Quản trị, Mở rộng)
     private let khungTongQuan = UIView()
+    private var caTongQuanDangChon: CaBaoCaoTongQuan = .dauCa
+    private let nutChonCaTongQuan = UIButton(type: .system)
     private let nhanTomTatTongQuan = UITextView()
     private let khungBaoCao = UIView()
     private lazy var manHinhBanTinNhung = ManHinhBanTin(ngay: ngayHienTai) { [weak self] khung, soLieu in
@@ -2077,6 +2092,25 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         lbKickerChao.translatesAutoresizingMaskIntoConstraints = false
         theChao.addSubview(lbKickerChao)
 
+        nutChonCaTongQuan.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutChonCaTongQuan.titleLabel?.numberOfLines = 0
+        nutChonCaTongQuan.titleLabel?.lineBreakMode = .byWordWrapping
+        nutChonCaTongQuan.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutChonCaTongQuan.backgroundColor = BangMauBCTD.vangSang
+        nutChonCaTongQuan.tintColor = BangMauBCTD.chuChinh
+        nutChonCaTongQuan.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutChonCaTongQuan.setTitleColor(BangMauBCTD.chuChinh, for: .highlighted)
+        nutChonCaTongQuan.layer.cornerRadius = 8
+        nutChonCaTongQuan.layer.borderWidth = 1
+        nutChonCaTongQuan.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        nutChonCaTongQuan.contentEdgeInsets = UIEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+        nutChonCaTongQuan.setContentHuggingPriority(.required, for: .horizontal)
+        nutChonCaTongQuan.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutChonCaTongQuan.showsMenuAsPrimaryAction = true
+        nutChonCaTongQuan.translatesAutoresizingMaskIntoConstraints = false
+        theChao.addSubview(nutChonCaTongQuan)
+        capNhatMenuCaTongQuan()
+
         nhanTomTatTongQuan.font = .systemFont(ofSize: 14, weight: .medium)
         nhanTomTatTongQuan.textColor = BangMauBCTD.chuChinh
         nhanTomTatTongQuan.backgroundColor = .white
@@ -2151,11 +2185,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             vachVangChao.leadingAnchor.constraint(equalTo: theChao.leadingAnchor),
             vachVangChao.widthAnchor.constraint(equalToConstant: 5),
 
-            lbKickerChao.topAnchor.constraint(equalTo: theChao.topAnchor, constant: 12),
+            lbKickerChao.centerYAnchor.constraint(equalTo: nutChonCaTongQuan.centerYAnchor),
             lbKickerChao.leadingAnchor.constraint(equalTo: vachVangChao.trailingAnchor, constant: 12),
-            lbKickerChao.trailingAnchor.constraint(equalTo: theChao.trailingAnchor, constant: -14),
+            lbKickerChao.trailingAnchor.constraint(lessThanOrEqualTo: nutChonCaTongQuan.leadingAnchor, constant: -8),
 
-            nhanTomTatTongQuan.topAnchor.constraint(equalTo: lbKickerChao.bottomAnchor, constant: 6),
+            nutChonCaTongQuan.topAnchor.constraint(equalTo: theChao.topAnchor, constant: 10),
+            nutChonCaTongQuan.trailingAnchor.constraint(equalTo: theChao.trailingAnchor, constant: -14),
+
+            nhanTomTatTongQuan.topAnchor.constraint(equalTo: nutChonCaTongQuan.bottomAnchor, constant: 8),
             nhanTomTatTongQuan.leadingAnchor.constraint(equalTo: vachVangChao.trailingAnchor, constant: 12),
             nhanTomTatTongQuan.trailingAnchor.constraint(equalTo: theChao.trailingAnchor, constant: -14),
             nhanTomTatTongQuan.bottomAnchor.constraint(equalTo: theChao.bottomAnchor, constant: -14),
@@ -2241,6 +2278,19 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         napDuLieu()
     }
 
+    private func capNhatMenuCaTongQuan() {
+        nutChonCaTongQuan.setTitle("Ca: \(caTongQuanDangChon.tieuDe) ▾", for: .normal)
+        let cacMuc = CaBaoCaoTongQuan.allCases.map { ca in
+            UIAction(title: ca.tieuDe, state: ca == caTongQuanDangChon ? .on : .off) { [weak self] _ in
+                guard let self else { return }
+                self.caTongQuanDangChon = ca
+                self.capNhatMenuCaTongQuan()
+                self.napDuLieu()
+            }
+        }
+        nutChonCaTongQuan.menu = UIMenu(title: "Chọn ca báo cáo", children: cacMuc)
+    }
+
     @objc private func saoChepTongQuan() {
         UIPasteboard.general.string = nhanTomTatTongQuan.text
         let tb = UIAlertController(title: "Đã sao chép", message: "Thông tin tổng quan đã được lưu vào clipboard.", preferredStyle: .alert)
@@ -2254,7 +2304,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         doiChieu: [DongThiDua] = [],
         nhanDoiChieu: String = ""
     ) -> [String] {
-        guard !ds.isEmpty else { return ["      \(rong)"] }
+        guard !ds.isEmpty else { return ["• \(rong)"] }
         return ds.prefix(5).enumerated().map { viTri, dong in
             let thucHien = dong.thucHien.chuoiSoGonVN
             let target = dong.target.chuoiSoGonVN
@@ -2264,7 +2314,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 $0.loaiChiTieu == dong.loaiChiTieu && KhoDuLieu.chuanHoaKhoaSoSanh($0.tenNganhHang) == khoa
             }
             let soSanh = cungNganh.map { " · \(nhanDoiChieu) \($0.phanTramHT.chuoiPhanTram)" } ?? ""
-            return "      \(viTri + 1). \(dong.tenNganhHang): \(thucHien)/\(target) (\(tyLe))\(soSanh)"
+            return "\(viTri + 1). \(dong.tenNganhHang): \(thucHien)/\(target) (\(tyLe))\(soSanh)"
         }
     }
 
@@ -2578,6 +2628,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
         switch mucMenuChinh {
         case .tongQuan:
+            capNhatMenuCaTongQuan()
             let ngayStr = TienIchNgay.hienThiNgay.string(from: ngayHienTai)
             let kho = KhoDuLieu.dungChung
             let khoaNgay = duLieu.khoaNgay
@@ -2588,50 +2639,123 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             }.max()
             let ngayLuyKe = khoaLuyKe.flatMap { TienIchNgay.khoa.date(from: $0) }
             let danhSachLuyKe = ngayLuyKe.map { kho.duLieu(cho: $0).danhSachThiDua } ?? []
-            let chuNgayLuyKe = ngayLuyKe.map { " (\(TienIchNgay.hienThiNgay.string(from: $0)))" } ?? ""
             let nganhLuyKe = danhSachLuyKe.filter { $0.target > 0 }
             let nganhRealtime = duLieu.danhSachThiDuaRealtime.filter { $0.target > 0 }
             let nhomTotLuyKe = nganhLuyKe.filter { $0.thucHien > 0 }.sorted { $0.phanTramHT > $1.phanTramHT }
             let nhomTotRealtime = nganhRealtime.filter { $0.thucHien > 0 }.sorted { $0.phanTramHT > $1.phanTramHT }
             let nhomKemLuyKe = nganhLuyKe.filter { $0.phanTramHT < 100 }.sorted { $0.phanTramHT < $1.phanTramHT }
-            let tatCaNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .doanhThuQD, cheDo: .luyKe)
-            let topNV = tatCaNV.prefix(5).enumerated().map {
-                "   \($0.offset + 1). \($0.element.nhanVien.hoTen): \($0.element.doanhThuQD.chuoiSoGonVN) QĐ · \($0.element.soLuongDon.chuoiSoGonVN) SL"
-            }
-            let kemNV = tatCaNV.suffix(5).reversed().enumerated().map {
-                "   \($0.offset + 1). \($0.element.nhanVien.hoTen): \($0.element.doanhThuQD.chuoiSoGonVN) QĐ · \($0.element.soLuongDon.chuoiSoGonVN) SL"
-            }
-            var cacDongTongQuan: [String] = [
-                "TỔNG QUAN NGÀY \(ngayStr)", "",
-                "1. DOANH THU",
-                "   a. Lũy kế:",
-                "      • DT thực: \(duLieu.doanhThu.doanhThuThuc.chuoiSoGonVN) / Target \(duLieu.doanhThu.targetThuc.chuoiSoGonVN) · HT \(duLieu.doanhThu.phanTramHTThucHienThi.chuoiPhanTram)",
-                "      • DT quy đổi: \(duLieu.doanhThu.doanhThuQuyDoi.chuoiSoGonVN) / Target \(duLieu.doanhThu.targetQuyDoi.chuoiSoGonVN)",
-                "      • Dự kiến cuối tháng: \(duLieu.doanhThu.duKienQuyDoi.chuoiSoGonVN) · HT dự kiến \(duLieu.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram)",
-                "      • Trả góp: \(duLieu.doanhThu.phanTramTraGop.chuoiPhanTram) · Khách \(duLieu.doanhThu.luotKhach.chuoiSoGonVN) · Bill \(duLieu.doanhThu.soBill.chuoiSoGonVN)",
-                "   b. Realtime:",
-                "      • DT thực: \(duLieu.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN)",
-                "      • DT quy đổi: \(duLieu.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN)",
-                "      • Trả góp: \(duLieu.doanhThuRealtime.phanTramTraGop.chuoiPhanTram) · Khách \(duLieu.doanhThuRealtime.luotKhach.chuoiSoGonVN) · Bill \(duLieu.doanhThuRealtime.soBill.chuoiSoGonVN)", "",
-                "2. NHÓM HÀNG BÁN TỐT THEO % TARGET",
-                "   a. Realtime:"
-            ]
-            cacDongTongQuan.append(contentsOf: dongNhomHangTongQuan(
-                nhomTotRealtime, rong: "Chưa có nhóm hàng có số bán và target",
-                doiChieu: nganhLuyKe, nhanDoiChieu: "Lũy kế"
-            ))
-            cacDongTongQuan.append("   b. Lũy kế\(chuNgayLuyKe):")
-            cacDongTongQuan.append(contentsOf: dongNhomHangTongQuan(
-                nhomTotLuyKe, rong: "Chưa có nhóm hàng có số bán và target",
-                doiChieu: nganhRealtime, nhanDoiChieu: "Realtime"
-            ))
-            cacDongTongQuan.append(contentsOf: ["", "3. NHÓM HÀNG BÁN KÉM (LŨY KẾ DƯỚI TARGET)\(chuNgayLuyKe)"])
             let khongCoNhomKem = nganhLuyKe.isEmpty ? "Chưa có target lũy kế" : "Tất cả nhóm có target đều đã đạt"
-            cacDongTongQuan.append(contentsOf: dongNhomHangTongQuan(nhomKemLuyKe, rong: khongCoNhomKem))
-            cacDongTongQuan.append(contentsOf: ["", "4. NHÂN VIÊN BÁN TỐT (TOP 5)"])
-            cacDongTongQuan.append(contentsOf: topNV.isEmpty ? ["   Chưa có dữ liệu"] : topNV)
-            cacDongTongQuan.append(contentsOf: ["", "5. NHÂN VIÊN BÁN KÉM (TOP 5)"])
-            cacDongTongQuan.append(contentsOf: kemNV.isEmpty ? ["   Chưa có dữ liệu"] : kemNV)
+
+            var cacDongTongQuan: [String] = []
+            if caTongQuanDangChon == .dauCa {
+                let tatCaNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .doanhThuQD, cheDo: .luyKe)
+                let huyHieuTop = ["🥇 TOP 1", "🥈 TOP 2", "🥉 TOP 3", "🏅 TOP 4", "🏅 TOP 5"]
+                let topNV = tatCaNV.prefix(5).enumerated().map { viTri, item in
+                    let nhanTop = viTri < huyHieuTop.count ? huyHieuTop[viTri] : "🏅 TOP \(viTri + 1)"
+                    return "\(nhanTop): \(item.nhanVien.hoTen) – \(item.doanhThuQD.chuoiSoGonVN) QĐ · \(item.soLuongDon.chuoiSoGonVN) SL"
+                }
+
+                cacDongTongQuan = [
+                    "📊 BÁO CÁO KINH DOANH NGÀY \(ngayStr)",
+                    "━━━━━━━━━━━━━━━━━━",
+                    "1. 💰 TÌNH HÌNH DOANH THU",
+                    "",
+                    "🔹 A. LŨY KẾ",
+                    "• DT thực tế: \(duLieu.doanhThu.doanhThuThuc.chuoiSoGonVN) / Target: \(duLieu.doanhThu.targetThuc.chuoiSoGonVN)",
+                    "• DT quy đổi: \(duLieu.doanhThu.doanhThuQuyDoi.chuoiSoGonVN) / Target: \(duLieu.doanhThu.targetQuyDoi.chuoiSoGonVN)",
+                    "• Dự kiến cuối tháng: \(duLieu.doanhThu.duKienQuyDoi.chuoiSoGonVN) (\(duLieu.doanhThu.phanTramHTQDDuKienHienThi.chuoiPhanTram) Target)",
+                    "",
+                    "📌 Chỉ số chung:",
+                    "• Trả góp: \(duLieu.doanhThu.phanTramTraGop.chuoiPhanTram)",
+                    "• Khách hàng: \(duLieu.doanhThu.luotKhach.chuoiSoGonVN)",
+                    "• Tổng Bill: \(duLieu.doanhThu.soBill.chuoiSoGonVN)",
+                    "━━━━━━━━━━━━━━━━━━",
+                    "2. 🔥 NHÓM HÀNG BÁN TỐT",
+                    "(Xếp hạng theo % Target)",
+                    "",
+                    "📍 LŨY KẾ:",
+                    ""
+                ]
+                cacDongTongQuan.append(contentsOf: dongNhomHangTongQuan(
+                    nhomTotLuyKe, rong: "Chưa có nhóm hàng có số bán và target",
+                    doiChieu: nganhRealtime, nhanDoiChieu: "Realtime"
+                ))
+                cacDongTongQuan.append(contentsOf: [
+                    "━━━━━━━━━━━━━━━━━━",
+                    "3. ⚠️ NHÓM HÀNG BÁN KÉM",
+                    "(Lũy kế dưới Target)",
+                    ""
+                ])
+                cacDongTongQuan.append(contentsOf: dongNhomHangTongQuan(nhomKemLuyKe, rong: khongCoNhomKem))
+                cacDongTongQuan.append(contentsOf: [
+                    "━━━━━━━━━━━━━━━━━━",
+                    "4. 🏆 TOP 5 NHÂN VIÊN BÁN TỐT",
+                    ""
+                ])
+                cacDongTongQuan.append(contentsOf: topNV.isEmpty ? ["• Chưa có dữ liệu"] : topNV)
+                cacDongTongQuan.append(contentsOf: [
+                    "",
+                    "━━━━━━━━━━━━━━━━━━",
+                    "🔥 MỤC TIÊU: TĂNG TỐC DOANH THU – ĐẨY MẠNH NHÓM HÀNG – HOÀN THÀNH 100% TARGET!"
+                ])
+            } else {
+                let dsNVRT = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .doanhThuQD, cheDo: .realtime)
+                let coDuLieuNVRT = dsNVRT.contains { $0.doanhThuQD != 0 || $0.soLuongDon != 0 || $0.soMonDat > 0 }
+                let nguonNV = coDuLieuNVRT
+                    ? dsNVRT
+                    : KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .doanhThuQD, cheDo: .luyKe)
+                let kemNV = nguonNV.suffix(5).reversed().enumerated().map { viTri, item in
+                    "✖️ TOP \(viTri + 1): \(item.nhanVien.hoTen) – \(item.doanhThuQD.chuoiSoGonVN) QĐ · \(item.soLuongDon.chuoiSoGonVN) SL"
+                }
+                let traGopRT = duLieu.doanhThuRealtime.phanTramTraGop > 0
+                    ? duLieu.doanhThuRealtime.phanTramTraGop.chuoiPhanTram
+                    : "0"
+
+                cacDongTongQuan = [
+                    "📊 BÁO CÁO KINH DOANH NGÀY \(ngayStr)",
+                    "━━━━━━━━━━━━━━━━━━",
+                    "",
+                    "1. 💰 TÌNH HÌNH DOANH THU",
+                    "",
+                    "🔹  REALTIME",
+                    "• DT thực tế: \(duLieu.doanhThuRealtime.doanhThuThuc.chuoiSoGonVN)",
+                    "• DT quy đổi: \(duLieu.doanhThuRealtime.doanhThuQuyDoi.chuoiSoGonVN)",
+                    "• Trả góp: \(traGopRT)",
+                    "• Khách hàng: \(duLieu.doanhThuRealtime.luotKhach.chuoiSoGonVN)",
+                    "• Tổng Bill: \(duLieu.doanhThuRealtime.soBill.chuoiSoGonVN)",
+                    "📌 Chỉ số chung:",
+                    "• Trả góp: \(duLieu.doanhThu.phanTramTraGop.chuoiPhanTram)",
+                    "• Khách hàng: \(duLieu.doanhThu.luotKhach.chuoiSoGonVN)",
+                    "• Tổng Bill: \(duLieu.doanhThu.soBill.chuoiSoGonVN)",
+                    "━━━━━━━━━━━━━━━━━━",
+                    "2. 🔥 NHÓM HÀNG BÁN TỐT",
+                    "(Xếp hạng theo % Target)",
+                    "",
+                    "📍 REALTIME:"
+                ]
+                cacDongTongQuan.append(contentsOf: dongNhomHangTongQuan(
+                    nhomTotRealtime, rong: "Chưa có nhóm hàng có số bán và target",
+                    doiChieu: nganhLuyKe, nhanDoiChieu: "Lũy kế"
+                ))
+                cacDongTongQuan.append(contentsOf: [
+                    "━━━━━━━━━━━━━━━━━━",
+                    "3. ⚠️ NHÓM HÀNG BÁN KÉM",
+                    "(Lũy kế dưới Target)",
+                    ""
+                ])
+                cacDongTongQuan.append(contentsOf: dongNhomHangTongQuan(nhomKemLuyKe, rong: khongCoNhomKem))
+                cacDongTongQuan.append(contentsOf: [
+                    "━━━━━━━━━━━━━━━━━━",
+                    "4. 🆘 TOP 5 NHÂN VIÊN YẾU",
+                    ""
+                ])
+                cacDongTongQuan.append(contentsOf: kemNV.isEmpty ? ["• Chưa có dữ liệu"] : kemNV)
+                cacDongTongQuan.append(contentsOf: [
+                    "",
+                    "━━━━━━━━━━━━━━━━━━",
+                    "🔥 MỤC TIÊU: TĂNG TỐC DOANH THU – ĐẨY MẠNH NHÓM HÀNG – HOÀN THÀNH min 120% TARGET!"
+                ])
+            }
             nhanTomTatTongQuan.text = cacDongTongQuan.joined(separator: "\n")
 
         case .baoCao:
