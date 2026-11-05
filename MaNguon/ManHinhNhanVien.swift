@@ -781,18 +781,30 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
     var khiChonNhanVien: ((TongHopNhanVien) -> Void)?
     var khiBamQuetDoanhThuNV: (() -> Void)?
     var khiBamMoCaiDatNV: (() -> Void)?
+    var khiBamChiaSeAnhNV: (() -> Void)?
 
+    private static let khoaKieuSapXepNhanVien = "dmx.nhanVien.kieuSapXep"
     private var ngayHienTai = Date()
     private(set) var cheDoDoanhThu: LoaiCheDoDoanhThu = .luyKe
-    private var kieuSapXep: KieuSapXepNhanVien = .soMonHoanThanh
+    private var kieuSapXep: KieuSapXepNhanVien = {
+        if UserDefaults.standard.object(forKey: BangNhanVienView.khoaKieuSapXepNhanVien) != nil,
+           let luu = KieuSapXepNhanVien(rawValue: UserDefaults.standard.integer(forKey: BangNhanVienView.khoaKieuSapXepNhanVien)) {
+            return luu
+        }
+        return .doanhThuQD
+    }()
     private var danhSach: [TongHopNhanVien] = []
     private var danhSachDaNapUI: [TongHopNhanVien]?
     private var cheDoDaNapUI: LoaiCheDoDoanhThu?
+    private var khoaNgayDaNapUI: String = ""
+    private var phienBanDaNapUI: Int = -1
+    private var sapXepDaNapUI: KieuSapXepNhanVien?
 
-    private let chieuRongCot: [CGFloat] = [44, 170, 78, 96, 84, 78, 92, 92]
+    private let chieuRongCot: [CGFloat] = [44, 170, 78, 92, 84, 78, 96, 92]
     private var tongChieuRongBang: CGFloat { chieuRongCot.reduce(0, +) }
 
     private let nhanTieuDe = UILabel()
+    private let nutChiaSeAnh = UIButton(type: .system)
     private let nutSapXep = UIButton(type: .system)
     private let cuonNgang = UIScrollView()
     private let bang = UITableView(frame: .zero, style: .plain)
@@ -834,7 +846,24 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         nutSapXep.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutSapXep.addTarget(self, action: #selector(bamMoMenuSapXep), for: .touchUpInside)
 
-        let thanhDieuKhien = UIStackView(arrangedSubviews: [nhanTieuDe, nutSapXep])
+        let cfgShare = UIImage.SymbolConfiguration(pointSize: 11.5, weight: .bold)
+        nutChiaSeAnh.setImage(UIImage(systemName: "square.and.arrow.up", withConfiguration: cfgShare), for: .normal)
+        nutChiaSeAnh.setTitle(" Chia sẻ ảnh", for: .normal)
+        nutChiaSeAnh.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
+        nutChiaSeAnh.titleLabel?.numberOfLines = 0
+        nutChiaSeAnh.titleLabel?.lineBreakMode = .byWordWrapping
+        nutChiaSeAnh.titleLabel?.textAlignment = .center
+        nutChiaSeAnh.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutChiaSeAnh.backgroundColor = BangMauBCTD.xanhDatVach
+        nutChiaSeAnh.tintColor = .white
+        nutChiaSeAnh.setTitleColor(.white, for: .normal)
+        nutChiaSeAnh.layer.cornerRadius = 8
+        nutChiaSeAnh.contentEdgeInsets = UIEdgeInsets(top: 6, left: 9, bottom: 6, right: 9)
+        nutChiaSeAnh.setContentHuggingPriority(.required, for: .horizontal)
+        nutChiaSeAnh.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutChiaSeAnh.addTarget(self, action: #selector(bamChiaSeAnh), for: .touchUpInside)
+
+        let thanhDieuKhien = UIStackView(arrangedSubviews: [nhanTieuDe, nutChiaSeAnh, nutSapXep])
         thanhDieuKhien.axis = .horizontal
         thanhDieuKhien.spacing = 8
         thanhDieuKhien.alignment = .center
@@ -916,6 +945,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
             MucChonDMX(tieuDe: kieu.nhan, dangChon: kieu == kieuSapXep) { [weak self] in
                 guard let self = self else { return }
                 self.kieuSapXep = kieu
+                UserDefaults.standard.set(kieu.rawValue, forKey: Self.khoaKieuSapXepNhanVien)
                 self.nutSapXep.setTitle(" ⇅ \(kieu.nhanNgan)", for: .normal)
                 self.danhSachDaNapUI = nil
                 self.capNhat(cho: self.ngayHienTai, cheDo: self.cheDoDoanhThu)
@@ -929,23 +959,38 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         khiBamMoCaiDatNV?()
     }
 
+    @objc private func bamChiaSeAnh() {
+        khiBamChiaSeAnhNV?()
+    }
+
     func capNhat(cho ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) {
         ngayHienTai = ngay
         cheDoDoanhThu = cheDo
-        let moi = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: kieuSapXep, cheDo: cheDo)
-        let soMonThang = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay, cheDo: cheDo).count
+        let kho = KhoDuLieu.dungChung
+        let khoaNgay = TienIchNgay.khoa.string(from: ngay)
+        if phienBanDaNapUI == kho.phienBanDuLieu,
+           khoaNgayDaNapUI == khoaNgay,
+           cheDoDaNapUI == cheDo,
+           sapXepDaNapUI == kieuSapXep,
+           danhSachDaNapUI != nil {
+            return
+        }
+        phienBanDaNapUI = kho.phienBanDuLieu
+        khoaNgayDaNapUI = khoaNgay
+        cheDoDaNapUI = cheDo
+        sapXepDaNapUI = kieuSapXep
+
+        let moi = kho.tongHopNhanVien(den: ngay, sapXep: kieuSapXep, cheDo: cheDo)
+        let soMonThang = kho.danhSachMatHangThang(den: ngay, cheDo: cheDo).count
         nhanTieuDe.text = "🏆 Xếp Hạng \(cheDo.tieuDe) (\(moi.count) NV • \(soMonThang) môn)"
 
         let trong = moi.isEmpty
         khungTrong.isHidden = !trong
         cuonNgang.isHidden = trong
 
-        if danhSachDaNapUI != moi || cheDoDaNapUI != cheDo {
-            danhSach = moi
-            danhSachDaNapUI = moi
-            cheDoDaNapUI = cheDo
-            bang.reloadData()
-        }
+        danhSach = moi
+        danhSachDaNapUI = moi
+        bang.reloadData()
     }
 
     func gan(_ moi: [TongHopNhanVien]) {
@@ -989,7 +1034,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         let khung = UIView(frame: CGRect(x: 0, y: 0, width: tongChieuRongBang, height: 42))
         khung.backgroundColor = BangMauBCTD.nenHeaderBang
 
-        let tieuDe = ["HẠNG", "NHÂN VIÊN (CHẠM XEM MÔN)", "% TỈ TRỌNG", "SỐ MÔN ĐẠT", "% HT TB", "SỐ LƯỢNG", "DOANH THU QĐ", "DT KHOẢN VAY"]
+        let tieuDe = ["HẠNG", "NHÂN VIÊN (CHẠM XEM MÔN)", "% TỈ TRỌNG", "DOANH THU QĐ", "% HT TB", "SỐ LƯỢNG", "SỐ MÔN ĐẠT", "DT KHOẢN VAY"]
         var xHienTai: CGFloat = 0
         for (i, chu) in tieuDe.enumerated() {
             let w = chieuRongCot[i]
@@ -1000,7 +1045,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
             nhan.numberOfLines = 0
             nhan.lineBreakMode = .byWordWrapping
             nhan.adjustsFontSizeToFitWidth = false
-            nhan.textAlignment = (i == 1) ? .left : (i >= 4 ? .right : .center)
+            nhan.textAlignment = (i == 1) ? .left : ((i == 0 || i == 4 || i == 6) ? .center : .right)
             khung.addSubview(nhan)
 
             xHienTai += w
@@ -1095,18 +1140,15 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
                 lb.adjustsFontSizeToFitWidth = false
                 khung.addSubview(lb)
             case 3:
-                let pill = UILabel(frame: rect.insetBy(dx: 5, dy: max(6, (caoDong - 34) / 2)))
-                pill.text = "🏆 \(row.soMonDat)/\(row.tongMonGiao) môn"
-                pill.font = fontChuDongNhat
-                pill.textAlignment = .center
-                pill.numberOfLines = 0
-                pill.lineBreakMode = .byWordWrapping
-                pill.adjustsFontSizeToFitWidth = false
-                pill.layer.cornerRadius = 8
-                pill.clipsToBounds = true
-                pill.backgroundColor = row.soMonDat > 0 ? UIColor.systemGreen.withAlphaComponent(0.16) : UIColor.systemRed.withAlphaComponent(0.14)
-                pill.textColor = row.soMonDat > 0 ? UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1) : UIColor(red: 0.78, green: 0.14, blue: 0.14, alpha: 1)
-                khung.addSubview(pill)
+                let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
+                lb.text = row.doanhThuQD.chuoiSoLieu
+                lb.font = fontDongNhat
+                lb.textColor = row.doanhThuQD < 0 ? .systemRed : UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
+                lb.textAlignment = .right
+                lb.numberOfLines = 0
+                lb.lineBreakMode = .byWordWrapping
+                lb.adjustsFontSizeToFitWidth = false
+                khung.addSubview(lb)
             case 4:
                 let lb = UILabel(frame: rect.insetBy(dx: 4, dy: 2))
                 lb.text = row.tongMonGiao > 0 ? String(format: "%.1f%%", row.phanTramHTTB) : "--"
@@ -1127,15 +1169,18 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
                 lb.adjustsFontSizeToFitWidth = false
                 khung.addSubview(lb)
             case 6:
-                let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
-                lb.text = row.doanhThuQD.chuoiSoLieu
-                lb.font = fontDongNhat
-                lb.textColor = row.doanhThuQD < 0 ? .systemRed : UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
-                lb.textAlignment = .right
-                lb.numberOfLines = 0
-                lb.lineBreakMode = .byWordWrapping
-                lb.adjustsFontSizeToFitWidth = false
-                khung.addSubview(lb)
+                let pill = UILabel(frame: rect.insetBy(dx: 5, dy: max(6, (caoDong - 34) / 2)))
+                pill.text = "🏆 \(row.soMonDat)/\(row.tongMonGiao) môn"
+                pill.font = fontChuDongNhat
+                pill.textAlignment = .center
+                pill.numberOfLines = 0
+                pill.lineBreakMode = .byWordWrapping
+                pill.adjustsFontSizeToFitWidth = false
+                pill.layer.cornerRadius = 8
+                pill.clipsToBounds = true
+                pill.backgroundColor = row.soMonDat > 0 ? UIColor.systemGreen.withAlphaComponent(0.16) : UIColor.systemRed.withAlphaComponent(0.14)
+                pill.textColor = row.soMonDat > 0 ? UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1) : UIColor(red: 0.78, green: 0.14, blue: 0.14, alpha: 1)
+                khung.addSubview(pill)
             case 7:
                 let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
                 lb.text = row.dtQDKhoanVay > 0 ? row.dtQDKhoanVay.chuoiSoLieu : "0"
@@ -1711,7 +1756,7 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
     // MARK: - Xuất / Chia sẻ ảnh Sức khoẻ chi tiết
 
     @objc private func bamChiaSeAnhSucKhoe() {
-        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: cheDo)
+        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .tenAZ, cheDo: cheDo)
 
         var cacMuc: [MucChonDMX] = [
             MucChonDMX(tieuDe: "👤 Xuất 1 nhân viên này (\(tongHop.nhanVien.hoTen))") { [weak self] in
@@ -1756,7 +1801,7 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
     }
 
     static func taoTatCaAnhSucKhoe(cho ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) -> [UIImage] {
-        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: cheDo)
+        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .tenAZ, cheDo: cheDo)
         return dsNV.compactMap { taoAnhSucKhoe(cho: $0, ngay: ngay, cheDo: cheDo) }
     }
 

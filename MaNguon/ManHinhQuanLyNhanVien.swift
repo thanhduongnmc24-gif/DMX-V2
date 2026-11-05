@@ -3,7 +3,7 @@ import UIKit
 // MARK: - 1. Màn hình Quản lý Nhân viên (Thêm / Sửa / Xoá / Dán nhanh nhiều NV / Nạp 16 NV mẫu)
 
 final class ManHinhQuanLyNhanVien: UITableViewController {
-    private var danhSach = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
+    private var danhSach = NhanVienQuanLy.sapXepAZ(KhoDuLieu.dungChung.caiDat.danhSachNhanVien)
     var khiLuuXong: (([NhanVienQuanLy]) -> Void)?
 
     override func viewDidLoad() {
@@ -104,6 +104,7 @@ final class ManHinhQuanLyNhanVien: UITableViewController {
             } else {
                 self.danhSach.append(moi)
             }
+            self.danhSach = NhanVienQuanLy.sapXepAZ(self.danhSach)
             self.title = "Nhân viên (\(self.danhSach.count))"
             self.tableView.reloadData()
         })
@@ -165,17 +166,19 @@ final class ManHinhQuanLyNhanVien: UITableViewController {
                 danhSach.append(nv)
             }
         }
+        danhSach = NhanVienQuanLy.sapXepAZ(danhSach)
         title = "Nhân viên (\(danhSach.count))"
         tableView.reloadData()
     }
 
     @objc private func napMau() {
-        danhSach = CaiDatDMX.nhanVienMau
+        danhSach = NhanVienQuanLy.sapXepAZ(CaiDatDMX.nhanVienMau)
         title = "Nhân viên (\(danhSach.count))"
         tableView.reloadData()
     }
 
     @objc private func luu() {
+        danhSach = NhanVienQuanLy.sapXepAZ(danhSach)
         var cd = KhoDuLieu.dungChung.caiDat
         cd.danhSachNhanVien = danhSach
         cd.chiaTargetNganhHang = cd.chiaTargetNganhHang.mapValues { ds in
@@ -214,6 +217,7 @@ final class ManHinhChiaTarget: UIViewController, UITableViewDataSource, UITableV
 
     private func napLaiDanhSachMatHang() {
         caiDat = KhoDuLieu.dungChung.caiDat
+        caiDat.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(caiDat.danhSachNhanVien)
         let khoaDangChonHienTai = matHangHienTai.map { KhoDuLieu.chuanHoaKhoaSoSanh($0.tenNganhHang) } ?? khoaNganhChonMacDinh
         danhSachMatHang = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay)
         if let khoa = khoaDangChonHienTai,

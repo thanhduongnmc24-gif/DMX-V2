@@ -318,12 +318,14 @@ enum MucMenuChinh: Int, CaseIterable {
 }
 
 enum KieuSapXepNhanVien: Int, CaseIterable {
-    case soMonHoanThanh = 0
-    case doanhThuQD = 1
-    case phanTramTB = 2
+    case tenAZ = 0
+    case soMonHoanThanh = 1
+    case doanhThuQD = 2
+    case phanTramTB = 3
 
     var nhan: String {
         switch self {
+        case .tenAZ: return "🔤 Tên nhân viên (A → Z)"
         case .soMonHoanThanh: return "🏆 Số môn hoàn thành (Cao → Thấp)"
         case .doanhThuQD: return "🎯 Doanh thu QĐ (Cao → Thấp)"
         case .phanTramTB: return "📈 % HT thi đua TB (Cao → Thấp)"
@@ -332,6 +334,7 @@ enum KieuSapXepNhanVien: Int, CaseIterable {
 
     var nhanNgan: String {
         switch self {
+        case .tenAZ: return "Tên A-Z"
         case .soMonHoanThanh: return "Số môn HT"
         case .doanhThuQD: return "DT QĐ"
         case .phanTramTB: return "% HT TB"
@@ -340,9 +343,25 @@ enum KieuSapXepNhanVien: Int, CaseIterable {
 }
 
 struct NhanVienQuanLy: Codable, Hashable, Identifiable {
+    private static let localeVN = Locale(identifier: "vi_VN")
+
     var maNV: String
     var hoTen: String
     var id: String { maNV }
+
+    static func soSanhAZ(_ a: NhanVienQuanLy, _ b: NhanVienQuanLy) -> Bool {
+        let tenA = a.hoTen.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tenB = b.hoTen.trimmingCharacters(in: .whitespacesAndNewlines)
+        let kq = tenA.compare(tenB, options: [.caseInsensitive], range: nil, locale: localeVN)
+        if kq != .orderedSame {
+            return kq == .orderedAscending
+        }
+        return a.maNV.compare(b.maNV, options: [.numeric]) == .orderedAscending
+    }
+
+    static func sapXepAZ(_ danhSach: [NhanVienQuanLy]) -> [NhanVienQuanLy] {
+        danhSach.sorted(by: soSanhAZ)
+    }
 }
 
 struct DoanhThuNhanVienItem: Codable, Hashable {
@@ -806,7 +825,7 @@ struct DongThiDua: Codable, Hashable, Identifiable {
         duKienGoc: Double? = nil
     ) {
         self.id = id
-        let goc = tenNganhHangGoc ?? tenNganhHang
+        let goc = KhoDuLieu.chuanHoaTenMonThiDuaChuan(tenNganhHangGoc ?? tenNganhHang)
         self.tenNganhHangGoc = goc
         self.tenNganhHang = KhoDuLieu.apDungLocTuCaiDat(goc)
         self.loaiChiTieu = loaiChiTieu
@@ -866,7 +885,7 @@ struct DongThiDua: Codable, Hashable, Identifiable {
     var phanTramHT: Double {
         if target > 0.0001 {
             let htTinh = (thucHien / target) * 100.0
-            if let goc = phanTramHTGoc, goc > 0, abs(htTinh - goc) <= 1.2 {
+            if let goc = phanTramHTGoc, abs(goc) > 0.0001, abs(htTinh - goc) <= 1.2 {
                 return goc
             }
             return htTinh
@@ -907,8 +926,8 @@ struct DongThiDua: Codable, Hashable, Identifiable {
     }
 
     var phanTramDuBao: Double {
-        if let goc = phanTramDuBaoGoc, goc > 0 {
-            if let htGoc = phanTramHTGoc, htGoc > 0.1, target > 0.0001 {
+        if let goc = phanTramDuBaoGoc, abs(goc) > 0.0001 {
+            if let htGoc = phanTramHTGoc, abs(htGoc) > 0.1, target > 0.0001 {
                 let htMoi = (thucHien / target) * 100.0
                 if abs(htMoi - htGoc) > 1.5 {
                     let tyLe = goc / htGoc
@@ -916,6 +935,9 @@ struct DongThiDua: Codable, Hashable, Identifiable {
                 }
             }
             return goc
+        }
+        if let goc = phanTramDuBaoGoc, abs(goc) <= 0.0001, abs(thucHien) <= 0.0001 {
+            return 0
         }
         if let dk = duKienGoc, dk > 0, target > 0.0001 {
             return (dk / target) * 100.0
@@ -959,22 +981,22 @@ struct CaiDatDMX: Codable {
     }
 
     static let nhanVienMau: [NhanVienQuanLy] = [
-        .init(maNV: "24939", hoTen: "Phan Hoàng Sơn"),
-        .init(maNV: "201962", hoTen: "Nguyễn Thị Kim Loan"),
-        .init(maNV: "261423", hoTen: "Trần Nam Tùng"),
-        .init(maNV: "23986", hoTen: "Nguyễn Ngọc Đẩu"),
-        .init(maNV: "65255", hoTen: "Nguyễn Thị Thu Thảo"),
-        .init(maNV: "285688", hoTen: "Lê Tuấn"),
         .init(maNV: "116719", hoTen: "Đinh Thị Quỳnh Nga"),
-        .init(maNV: "186532", hoTen: "Đỗ Thị Mỹ Linh"),
-        .init(maNV: "207241", hoTen: "Huỳnh Tấn Thành"),
-        .init(maNV: "194649", hoTen: "Nguyễn Hoàn Điện"),
         .init(maNV: "34922", hoTen: "Đỗ Thị Chanh"),
-        .init(maNV: "293044", hoTen: "Võ Ngọc Vĩ"),
+        .init(maNV: "186532", hoTen: "Đỗ Thị Mỹ Linh"),
         .init(maNV: "285681", hoTen: "Hồ Ngọc Châu Ánh"),
+        .init(maNV: "207241", hoTen: "Huỳnh Tấn Thành"),
         .init(maNV: "280417", hoTen: "Huỳnh Thành Đạt"),
+        .init(maNV: "23997", hoTen: "Lê Thị Kim Phượng"),
+        .init(maNV: "285688", hoTen: "Lê Tuấn"),
+        .init(maNV: "194649", hoTen: "Nguyễn Hoàn Điện"),
         .init(maNV: "39665", hoTen: "Nguyễn Hữu Kha"),
-        .init(maNV: "23997", hoTen: "Lê Thị Kim Phượng")
+        .init(maNV: "23986", hoTen: "Nguyễn Ngọc Đẩu"),
+        .init(maNV: "201962", hoTen: "Nguyễn Thị Kim Loan"),
+        .init(maNV: "65255", hoTen: "Nguyễn Thị Thu Thảo"),
+        .init(maNV: "24939", hoTen: "Phan Hoàng Sơn"),
+        .init(maNV: "261423", hoTen: "Trần Nam Tùng"),
+        .init(maNV: "293044", hoTen: "Võ Ngọc Vĩ")
     ]
 
     init(
@@ -991,7 +1013,7 @@ struct CaiDatDMX: Codable {
         self.kieuHienThi = kieuHienThi
         self.danhSachCumTuLocBo = danhSachCumTuLocBo
         self.soCotXuatAnh = soCotXuatAnh
-        self.danhSachNhanVien = danhSachNhanVien
+        self.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(danhSachNhanVien.isEmpty ? Self.nhanVienMau : danhSachNhanVien)
         self.chiaTargetNganhHang = chiaTargetNganhHang
         self.mucTieuDoanhThuQDThang = mucTieuDoanhThuQDThang
         self.geminiApiKey = geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Self.geminiKeyMacDinh : geminiApiKey
@@ -1006,7 +1028,7 @@ struct CaiDatDMX: Codable {
         let cot = (try? c.decode(Int.self, forKey: .soCotXuatAnh)) ?? 3
         soCotXuatAnh = (cot >= 1 && cot <= 4) ? cot : 3
         let dsNV = (try? c.decode([NhanVienQuanLy].self, forKey: .danhSachNhanVien)) ?? []
-        danhSachNhanVien = dsNV.isEmpty ? Self.nhanVienMau : dsNV
+        danhSachNhanVien = NhanVienQuanLy.sapXepAZ(dsNV.isEmpty ? Self.nhanVienMau : dsNV)
         chiaTargetNganhHang = (try? c.decode([String: [String]].self, forKey: .chiaTargetNganhHang)) ?? [:]
         mucTieuDoanhThuQDThang = (try? c.decode([String: Double].self, forKey: .mucTieuDoanhThuQDThang)) ?? [:]
         let rawKey = (try? c.decode(String.self, forKey: .geminiApiKey))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1233,11 +1255,25 @@ final class KhoDuLieu {
     private(set) var cacNgay: [String: DuLieuNgayDMX] = [:]
     var caiDat = CaiDatDMX()
 
-    /// Bộ nhớ đệm trong RAM giúp chuyển đổi qua lại giữa các tab cực nhanh, không phải chạy lại Regex chuẩn hoá chuỗi lặp đi lặp lại
+    /// Bộ nhớ đệm trong RAM giúp chuyển đổi qua lại giữa các tab tức thì (0ms), không phải chạy lại Regex hay vòng lặp tổng hợp nhiều ngày
+    private(set) var phienBanDuLieu: Int = 1
     private var boNhoDemDuLieuNgay: [String: DuLieuNgayDMX] = [:]
+    private var boNhoDemMatHangThang: [String: [DongThiDua]] = [:]
+    private var boNhoDemThucHienNVThang: [String: [String: [String: Double]]] = [:]
+    private var boNhoDemTongHopNV: [String: [TongHopNhanVien]] = [:]
+    private var boNhoDemBaoCaoSucKhoe: [String: BaoCaoSucKhoeDoiNgu] = [:]
+    private var boNhoDemRealtimeThang: [String: [DuLieuRealtimeNgayTrongThang]] = [:]
+    private var boNhoDemDuBaoThang: [String: DuBaoQuyDoiThang] = [:]
+    private var boNhoDemDTLuyKeThang: [String: ThongTinDoanhThu] = [:]
+    private var boNhoDemDTNVLuyKeThang: [String: [DoanhThuNhanVienItem]] = [:]
+
     private static let khoaBoNhoDemTinh = NSLock()
     private static var boNhoDemKhoaSoSanh: [String: String] = [:]
     private static var boNhoDemLocTen: [String: String] = [:]
+    private static var boNhoDemTenChuan: [String: String] = [:]
+    private static var boNhoDemKhoaCoBan: [String: String] = [:]
+    private static var boNhoDemKhoaLienMach: [String: String] = [:]
+    private static var boNhoDemKhoaLMKhongThang: [String: String] = [:]
 
     private init() {
         doc()
@@ -1252,7 +1288,16 @@ final class KhoDuLieu {
 
     private func xoaBoNhoDem(xoaonLocTen: Bool = false) {
         khoaTruyCap.lock()
+        phienBanDuLieu &+= 1
         boNhoDemDuLieuNgay.removeAll(keepingCapacity: true)
+        boNhoDemMatHangThang.removeAll(keepingCapacity: true)
+        boNhoDemThucHienNVThang.removeAll(keepingCapacity: true)
+        boNhoDemTongHopNV.removeAll(keepingCapacity: true)
+        boNhoDemBaoCaoSucKhoe.removeAll(keepingCapacity: true)
+        boNhoDemRealtimeThang.removeAll(keepingCapacity: true)
+        boNhoDemDuBaoThang.removeAll(keepingCapacity: true)
+        boNhoDemDTLuyKeThang.removeAll(keepingCapacity: true)
+        boNhoDemDTNVLuyKeThang.removeAll(keepingCapacity: true)
         khoaTruyCap.unlock()
         if xoaonLocTen {
             Self.khoaBoNhoDemTinh.lock()
@@ -1284,16 +1329,23 @@ final class KhoDuLieu {
         khoaTruyCap.lock()
         defer { khoaTruyCap.unlock() }
         let khoa = TienIchNgay.khoa.string(from: ngay)
+        if let daDem = boNhoDemDTLuyKeThang[khoa] {
+            return daDem
+        }
         let tienTo = String(khoa.prefix(7))
         if let hienTai = cacNgay[khoa]?.doanhThu, hienTai.coDuLieu {
+            boNhoDemDTLuyKeThang[khoa] = hienTai
             return hienTai
         }
         for k in cacNgay.keys.filter({ $0.hasPrefix(tienTo) }).sorted(by: >) {
             if let dt = cacNgay[k]?.doanhThu, dt.coDuLieu {
+                boNhoDemDTLuyKeThang[khoa] = dt
                 return dt
             }
         }
-        return ThongTinDoanhThu()
+        let trong = ThongTinDoanhThu()
+        boNhoDemDTLuyKeThang[khoa] = trong
+        return trong
     }
 
     /// Lấy Doanh thu Lũy kế Nhân viên của tháng (khi nhập mới sẽ thay thế dữ liệu cũ)
@@ -1301,15 +1353,21 @@ final class KhoDuLieu {
         khoaTruyCap.lock()
         defer { khoaTruyCap.unlock() }
         let khoa = TienIchNgay.khoa.string(from: ngay)
+        if let daDem = boNhoDemDTNVLuyKeThang[khoa] {
+            return daDem
+        }
         let tienTo = String(khoa.prefix(7))
         if let hienTai = cacNgay[khoa]?.doanhThuNhanVien, !hienTai.isEmpty {
+            boNhoDemDTNVLuyKeThang[khoa] = hienTai
             return hienTai
         }
         for k in cacNgay.keys.filter({ $0.hasPrefix(tienTo) }).sorted(by: >) {
             if let ds = cacNgay[k]?.doanhThuNhanVien, !ds.isEmpty {
+                boNhoDemDTNVLuyKeThang[khoa] = ds
                 return ds
             }
         }
+        boNhoDemDTNVLuyKeThang[khoa] = []
         return []
     }
 
@@ -1390,6 +1448,12 @@ final class KhoDuLieu {
 
     /// Tính toán Dự báo Doanh thu QĐ cuối tháng, % HT QĐ dự kiến & % Quy đổi dự kiến cho bảng Biểu đồ tháng.
     func tinhDuBaoQuyDoiTuRealtime(cho ngay: Date, cheDoDangXem: LoaiCheDoDoanhThu = .realtime) -> DuBaoQuyDoiThang {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
+        let khoaDem = "\(TienIchNgay.khoa.string(from: ngay))|\(cheDoDangXem.rawValue)"
+        if let daDem = boNhoDemDuBaoThang[khoaDem] {
+            return daDem
+        }
         let soNgay = max(1, soNgayTrongThang(cho: ngay))
         let lk = doanhThuLuyKeThang(cho: ngay)
         let mucTieuThang = lk.targetQuyDoi
@@ -1449,7 +1513,7 @@ final class KhoDuLieu {
             phanTramQDDuKien = dt.phanTramQuyDoi
         }
 
-        return DuBaoQuyDoiThang(
+        let ketQua = DuBaoQuyDoiThang(
             mucTieuThang: mucTieuThang,
             soNgayTrongThang: soNgay,
             mucTieuMoiNgay: mucTieuNgay,
@@ -1463,6 +1527,8 @@ final class KhoDuLieu {
             phanTramHTQDDuKien: phanTramHTQDDuKien,
             phanTramQuyDoiDuKien: phanTramQDDuKien
         )
+        boNhoDemDuBaoThang[khoaDem] = ketQua
+        return ketQua
     }
 
     /// Danh sách Doanh thu Realtime (Thực & Quy đổi) theo từng ngày trong tháng để vẽ đồ thị cột và bảng tổng hợp
@@ -1472,6 +1538,10 @@ final class KhoDuLieu {
         let lich = TienIchNgay.lich
         let nam = lich.component(.year, from: ngay)
         let thang = lich.component(.month, from: ngay)
+        let khoaThangDem = String(format: "%04d-%02d", nam, thang)
+        if let daDem = boNhoDemRealtimeThang[khoaThangDem] {
+            return daDem
+        }
         let soNgay = lich.range(of: .day, in: .month, for: ngay)?.count ?? 30
 
         var ketQua: [DuLieuRealtimeNgayTrongThang] = []
@@ -1493,6 +1563,7 @@ final class KhoDuLieu {
                 )
             )
         }
+        boNhoDemRealtimeThang[khoaThangDem] = ketQua
         return ketQua
     }
 
@@ -1633,6 +1704,8 @@ final class KhoDuLieu {
 
     func luuCaiDat(_ moi: CaiDatDMX) {
         khoaTruyCap.lock()
+        var moi = moi
+        moi.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(moi.danhSachNhanVien)
         let doiCumTu = (caiDat.danhSachCumTuLocBo != moi.danhSachCumTuLocBo)
         caiDat = moi
         xoaBoNhoDem(xoaonLocTen: doiCumTu)
@@ -1668,7 +1741,10 @@ final class KhoDuLieu {
     /// Chuẩn hoá dữ liệu tải về từ đám mây trên luồng nền rồi gán nhanh vào bộ nhớ để tránh làm khựng giao diện người dùng
     func nhapDuLieuDamMay(caiDat moi: CaiDatDMX?, cacNgay ngayMoi: [String: DuLieuNgayDMX]) {
         khoaTruyCap.lock()
-        if let moi { caiDat = moi }
+        if var moi {
+            moi.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(moi.danhSachNhanVien)
+            caiDat = moi
+        }
         xoaBoNhoDem(xoaonLocTen: true)
         for (khoa, var duLieu) in ngayMoi {
             duLieu.khoaNgay = khoa
@@ -1711,12 +1787,17 @@ final class KhoDuLieu {
     func danhSachMatHangThang(den ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) -> [DongThiDua] {
         khoaTruyCap.lock()
         defer { khoaTruyCap.unlock() }
+        let khoaDen = TienIchNgay.khoa.string(from: ngay)
+        let khoaDem = "\(khoaDen)|\(cheDo.rawValue)"
+        if let daDem = boNhoDemMatHangThang[khoaDem] {
+            return daDem
+        }
         let dlNgay = duLieu(cho: ngay)
         if cheDo == .realtime {
             if !dlNgay.danhSachThiDuaRealtime.isEmpty {
+                boNhoDemMatHangThang[khoaDem] = dlNgay.danhSachThiDuaRealtime
                 return dlNgay.danhSachThiDuaRealtime
             }
-            let khoaDen = TienIchNgay.khoa.string(from: ngay)
             let tienTo = String(khoaDen.prefix(7))
             let cacKhoa = cacNgay.keys.filter { $0.hasPrefix(tienTo) && $0 <= khoaDen }.sorted(by: >)
             for khoa in cacKhoa {
@@ -1725,17 +1806,20 @@ final class KhoDuLieu {
                     for i in ds.indices {
                         ds[i].tenNganhHang = Self.apDungLocTuCaiDat(ds[i].tenNganhHangGoc)
                     }
-                    return Self.gopDanhSachThiDua(cu: [], moi: ds)
+                    let kq = Self.gopDanhSachThiDua(cu: [], moi: ds)
+                    boNhoDemMatHangThang[khoaDem] = kq
+                    return kq
                 }
             }
             if !dlNgay.danhSachThiDua.isEmpty {
+                boNhoDemMatHangThang[khoaDem] = dlNgay.danhSachThiDua
                 return dlNgay.danhSachThiDua
             }
         } else {
             if !dlNgay.danhSachThiDua.isEmpty {
+                boNhoDemMatHangThang[khoaDem] = dlNgay.danhSachThiDua
                 return dlNgay.danhSachThiDua
             }
-            let khoaDen = TienIchNgay.khoa.string(from: ngay)
             let tienTo = String(khoaDen.prefix(7))
             let cacKhoa = cacNgay.keys.filter { $0.hasPrefix(tienTo) && $0 <= khoaDen }.sorted(by: >)
             for khoa in cacKhoa {
@@ -1744,13 +1828,17 @@ final class KhoDuLieu {
                     for i in ds.indices {
                         ds[i].tenNganhHang = Self.apDungLocTuCaiDat(ds[i].tenNganhHangGoc)
                     }
-                    return Self.gopDanhSachThiDua(cu: [], moi: ds)
+                    let kq = Self.gopDanhSachThiDua(cu: [], moi: ds)
+                    boNhoDemMatHangThang[khoaDem] = kq
+                    return kq
                 }
             }
             if !dlNgay.danhSachThiDuaRealtime.isEmpty {
+                boNhoDemMatHangThang[khoaDem] = dlNgay.danhSachThiDuaRealtime
                 return dlNgay.danhSachThiDuaRealtime
             }
         }
+        boNhoDemMatHangThang[khoaDem] = []
         return []
     }
 
@@ -1825,11 +1913,17 @@ final class KhoDuLieu {
     func thucHienNhanVienTheoMatHangThang(den ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) -> [String: [String: Double]] {
         khoaTruyCap.lock()
         defer { khoaTruyCap.unlock() }
+        let khoaDen = TienIchNgay.khoa.string(from: ngay)
+        let khoaDem = "\(khoaDen)|\(cheDo.rawValue)"
+        if let daDem = boNhoDemThucHienNVThang[khoaDem] {
+            return daDem
+        }
         if cheDo == .realtime {
-            return duLieu(cho: ngay).thiDuaNhanVienRealtime
+            let kq = duLieu(cho: ngay).thiDuaNhanVienRealtime
+            boNhoDemThucHienNVThang[khoaDem] = kq
+            return kq
         }
 
-        let khoaDen = TienIchNgay.khoa.string(from: ngay)
         let tienTo = String(khoaDen.prefix(7))
         var cacKhoa = cacNgay.keys.filter { $0.hasPrefix(tienTo) && $0 <= khoaDen }.sorted()
         if !cacKhoa.contains(khoaDen) {
@@ -1844,6 +1938,7 @@ final class KhoDuLieu {
                 ketQua[khoaNganh, default: [:]].merge(bangNV) { _, moi in moi }
             }
         }
+        boNhoDemThucHienNVThang[khoaDem] = ketQua
         return ketQua
     }
 
@@ -1874,18 +1969,44 @@ final class KhoDuLieu {
             if abs($0.phanTramHT - $1.phanTramHT) > 0.001 {
                 return $0.phanTramHT > $1.phanTramHT
             }
-            return $0.thucHien > $1.thucHien
+            if abs($0.thucHien - $1.thucHien) > 0.001 {
+                return $0.thucHien > $1.thucHien
+            }
+            return NhanVienQuanLy.soSanhAZ(
+                NhanVienQuanLy(maNV: $0.maNV, hoTen: $0.hoTen),
+                NhanVienQuanLy(maNV: $1.maNV, hoTen: $1.hoTen)
+            )
         }
     }
 
     /// Bảng tổng hợp nhân viên (chia theo Lũy kế hoặc Realtime).
     func tongHopNhanVien(
         den ngay: Date,
-        sapXep: KieuSapXepNhanVien = .soMonHoanThanh,
+        sapXep: KieuSapXepNhanVien = .tenAZ,
         cheDo: LoaiCheDoDoanhThu = .luyKe
     ) -> [TongHopNhanVien] {
         khoaTruyCap.lock()
         defer { khoaTruyCap.unlock() }
+        let khoaNgay = TienIchNgay.khoa.string(from: ngay)
+        let khoaDem = "\(khoaNgay)|\(cheDo.rawValue)|\(sapXep.rawValue)"
+        if let daDem = boNhoDemTongHopNV[khoaDem] {
+            return daDem
+        }
+
+        let dsNV = NhanVienQuanLy.sapXepAZ(caiDat.danhSachNhanVien)
+        guard !dsNV.isEmpty else {
+            boNhoDemTongHopNV[khoaDem] = []
+            return []
+        }
+
+        // Nếu đã tính cho cùng ngày + chế độ ở kiểu sắp xếp khác thì chỉ cần sắp xếp lại mảng 16 NV (0ms)
+        let tienToNgayCheDo = "\(khoaNgay)|\(cheDo.rawValue)|"
+        if let daCoCungCheDo = boNhoDemTongHopNV.first(where: { $0.key.hasPrefix(tienToNgayCheDo) })?.value {
+            let sapXepLai = Self.sapXepDanhSachTongHopNV(daCoCungCheDo, theo: sapXep)
+            boNhoDemTongHopNV[khoaDem] = sapXepLai
+            return sapXepLai
+        }
+
         let matHang = danhSachMatHangThang(den: ngay, cheDo: cheDo)
         let thucHienTheoNganh = thucHienNhanVienTheoMatHangThang(den: ngay, cheDo: cheDo)
         let dlHienTai = duLieu(cho: ngay)
@@ -1898,29 +2019,68 @@ final class KhoDuLieu {
             dtNVList = dlHienTai.doanhThuNhanVienRealtime
         }
 
-        let dsNV = caiDat.danhSachNhanVien
-        var ketQua: [TongHopNhanVien] = dsNV.map { nv in
-            var cacMonGiao: [MonThiDuaNhanVien] = []
-            cacMonGiao.reserveCapacity(matHang.count)
-            for mh in matHang {
-                let khoa = Self.chuanHoaKhoaSoSanh(mh.tenNganhHang)
-                let dsMaDuocGiao = danhSachMaNVChiaTarget(cho: mh)
-                guard dsMaDuocGiao.contains(nv.maNV) else { continue }
+        // Tiền tính toán thông tin mặt hàng và chia Target 1 lần duy nhất thay vì lặp lại 16 x 35 lần
+        let tatCaMaSet = Set(dsNV.map(\.maNV))
+        let bangChiaTarget = caiDat.chiaTargetNganhHang
+        struct ThongTinMatHangTienXuLy {
+            let mh: DongThiDua
+            let khoa: String
+            let tapMaDuocGiao: Set<String>
+            let targetCaNhan: Double
+            let phanTramSieuThi: Double
+            let bangTHNganh: [String: Double]
+        }
+        let danhSachMHTienXuLy: [ThongTinMatHangTienXuLy] = matHang.map { mh in
+            let k1 = Self.chuanHoaKhoaSoSanh(mh.tenNganhHang)
+            let k2 = Self.chuanHoaKhoaSoSanh(mh.tenNganhHangGoc)
+            let tapMa: Set<String>
+            if let dsChon = bangChiaTarget[k1] ?? bangChiaTarget[k2] {
+                tapMa = Set(dsChon).intersection(tatCaMaSet)
+            } else {
+                tapMa = tatCaMaSet
+            }
+            let soNguoi = max(1, tapMa.count)
+            return ThongTinMatHangTienXuLy(
+                mh: mh,
+                khoa: k1,
+                tapMaDuocGiao: tapMa,
+                targetCaNhan: mh.target / Double(soNguoi),
+                phanTramSieuThi: mh.target > 0.0001 ? (mh.thucHien / mh.target) * 100.0 : 0,
+                bangTHNganh: thucHienTheoNganh[k1] ?? [:]
+            )
+        }
 
-                let soNguoiNhan = max(1, dsMaDuocGiao.count)
-                let targetCaNhan = mh.target / Double(soNguoiNhan)
-                let thucHien = thucHienTheoNganh[khoa]?[nv.maNV] ?? 0
-                let phanTramHT = targetCaNhan > 0.0001 ? (thucHien / targetCaNhan) * 100.0 : 0
-                let phanTramSieuThi = mh.target > 0.0001 ? (mh.thucHien / mh.target) * 100.0 : 0
+        // Tiền ánh xạ doanh thu cá nhân theo mã NV 1 lần duy nhất
+        var mapDTCaNhan: [String: DoanhThuNhanVienItem] = [:]
+        for item in dtNVList {
+            let maChuan = Self.chuanHoaMaNV(item.maNV)
+            if tatCaMaSet.contains(maChuan) {
+                if mapDTCaNhan[maChuan] == nil {
+                    mapDTCaNhan[maChuan] = item
+                }
+            } else if let khop = Self.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsNV) {
+                if mapDTCaNhan[khop.maNV] == nil {
+                    mapDTCaNhan[khop.maNV] = item
+                }
+            }
+        }
+
+        let ketQuaChuaXep: [TongHopNhanVien] = dsNV.map { nv in
+            var cacMonGiao: [MonThiDuaNhanVien] = []
+            cacMonGiao.reserveCapacity(danhSachMHTienXuLy.count)
+            for info in danhSachMHTienXuLy {
+                guard info.tapMaDuocGiao.contains(nv.maNV) else { continue }
+                let thucHien = info.bangTHNganh[nv.maNV] ?? 0
+                let phanTramHT = info.targetCaNhan > 0.0001 ? (thucHien / info.targetCaNhan) * 100.0 : 0
 
                 cacMonGiao.append(MonThiDuaNhanVien(
-                    khoaNganh: khoa,
-                    tenNganhHang: mh.tenNganhHang,
-                    loaiChiTieu: mh.loaiChiTieu,
+                    khoaNganh: info.khoa,
+                    tenNganhHang: info.mh.tenNganhHang,
+                    loaiChiTieu: info.mh.loaiChiTieu,
                     thucHien: thucHien,
-                    targetCaNhan: targetCaNhan,
+                    targetCaNhan: info.targetCaNhan,
                     phanTramHT: phanTramHT,
-                    phanTramSieuThi: phanTramSieuThi
+                    phanTramSieuThi: info.phanTramSieuThi
                 ))
             }
 
@@ -1928,11 +2088,7 @@ final class KhoDuLieu {
             let soMonDat = cacMonGiao.filter(\.daDat).count
             let tongMonGiao = cacMonGiao.count
             let phanTramHTTB = tongMonGiao > 0 ? cacMonGiao.map(\.phanTramHT).reduce(0, +) / Double(tongMonGiao) : 0
-
-            let dtCaNhan = dtNVList.first(where: {
-                Self.chuanHoaMaNV($0.maNV) == nv.maNV ||
-                Self.khopNhanVienQuetVoiQuanLy(maQuet: $0.maNV, tenQuet: $0.hoTen, dsQuanLy: [nv]) != nil
-            })
+            let dtCaNhan = mapDTCaNhan[nv.maNV]
 
             return TongHopNhanVien(
                 nhanVien: nv,
@@ -1951,22 +2107,34 @@ final class KhoDuLieu {
             )
         }
 
+        let ketQua = Self.sapXepDanhSachTongHopNV(ketQuaChuaXep, theo: sapXep)
+        boNhoDemTongHopNV[khoaDem] = ketQua
+        return ketQua
+    }
+
+    private static func sapXepDanhSachTongHopNV(_ ds: [TongHopNhanVien], theo sapXep: KieuSapXepNhanVien) -> [TongHopNhanVien] {
+        var ketQua = ds
         switch sapXep {
+        case .tenAZ:
+            ketQua.sort { NhanVienQuanLy.soSanhAZ($0.nhanVien, $1.nhanVien) }
         case .soMonHoanThanh:
             ketQua.sort {
                 if $0.soMonDat != $1.soMonDat { return $0.soMonDat > $1.soMonDat }
                 if abs($0.phanTramHTTB - $1.phanTramHTTB) > 0.001 { return $0.phanTramHTTB > $1.phanTramHTTB }
-                return $0.doanhThuQD > $1.doanhThuQD
+                if abs($0.doanhThuQD - $1.doanhThuQD) > 0.001 { return $0.doanhThuQD > $1.doanhThuQD }
+                return NhanVienQuanLy.soSanhAZ($0.nhanVien, $1.nhanVien)
             }
         case .doanhThuQD:
             ketQua.sort {
                 if abs($0.doanhThuQD - $1.doanhThuQD) > 0.001 { return $0.doanhThuQD > $1.doanhThuQD }
-                return $0.soMonDat > $1.soMonDat
+                if $0.soMonDat != $1.soMonDat { return $0.soMonDat > $1.soMonDat }
+                return NhanVienQuanLy.soSanhAZ($0.nhanVien, $1.nhanVien)
             }
         case .phanTramTB:
             ketQua.sort {
                 if abs($0.phanTramHTTB - $1.phanTramHTTB) > 0.001 { return $0.phanTramHTTB > $1.phanTramHTTB }
-                return $0.soMonDat > $1.soMonDat
+                if $0.soMonDat != $1.soMonDat { return $0.soMonDat > $1.soMonDat }
+                return NhanVienQuanLy.soSanhAZ($0.nhanVien, $1.nhanVien)
             }
         }
         return ketQua
@@ -2007,12 +2175,17 @@ final class KhoDuLieu {
 
             var bangCu = ketQua[khoaNganh] ?? [:]
             for item in khoi.danhSach {
-                let nvKhop = Self.khopNhanVienQuetVoiQuanLy(
-                    maQuet: item.maNV,
-                    tenQuet: item.hoTen,
-                    dsQuanLy: caiDat.danhSachNhanVien
-                )
-                let maLuu = nvKhop?.maNV ?? Self.chuanHoaMaNV(item.maNV)
+                let maLuu: String
+                if !caiDat.danhSachNhanVien.isEmpty {
+                    guard let nvKhop = Self.khopNhanVienQuetVoiQuanLy(
+                        maQuet: item.maNV,
+                        tenQuet: item.hoTen,
+                        dsQuanLy: caiDat.danhSachNhanVien
+                    ) else { continue }
+                    maLuu = nvKhop.maNV
+                } else {
+                    maLuu = Self.chuanHoaMaNV(item.maNV)
+                }
                 guard !maLuu.isEmpty else { continue }
                 if item.thucHien >= 0 {
                     bangCu[maLuu] = item.thucHien
@@ -2023,6 +2196,202 @@ final class KhoDuLieu {
         return ketQua
     }
 
+    /// Danh mục tên môn thi đua chuẩn ĐMX để khôi phục dấu tiếng Việt và khoảng cách chuẩn xác 100% khi OCR bị dính chữ
+    private static let danhSachTenMonThiDuaChuanDMX: [String] = [
+        "Máy Lạnh",
+        "Đồng hồ & Smartwatch",
+        "Cáp sạc",
+        "Đèn năng lượng mặt trời",
+        "Điện thoại Realme",
+        "Laptop",
+        "Loa Phụ Kiện",
+        "Máy lọc KK - Hút bụi - Hút ẩm",
+        "Máy lọc nước",
+        "Máy sấy / Máy rửa chén",
+        "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO",
+        "Phụ kiện công nghệ",
+        "Tivi TCL",
+        "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN",
+        "Trả chậm Homecredit",
+        "Vay tiền mặt",
+        "Bảo hiểm Thợ ĐMX",
+        "Trả Chậm Điện máy & Gia dụng",
+        "Bảo hiểm Tổng",
+        "Nạp rút",
+        "Điện tử",
+        "Máy giặt",
+        "Camera",
+        "Máy nước nóng",
+        "ĐIỆN THOẠI & TABLET ANDROID",
+        "Tai nghe",
+        "Quạt gió",
+        "CE LG",
+        "Nồi cơm & Nồi chiên",
+        "Điện tử Samsung",
+        "Sim ĐMX",
+        "Điện thoại Vivo",
+        "Sạc dự phòng",
+        "VAS",
+        "Tủ Lạnh / Đông / Mát"
+    ]
+
+    private static let bangAnhXaKhoaLienMachChuanDMX: [String: String] = {
+        var map: [String: String] = [:]
+        for ten in danhSachTenMonThiDuaChuanDMX {
+            let k = taoKhoaLienMachKhongThang(ten)
+            if !k.isEmpty {
+                map[k] = ten
+            }
+        }
+        return map
+    }()
+
+    private static func khoangCachLevenshtein(_ a: String, _ b: String) -> Int {
+        let s1 = Array(a.utf8)
+        let s2 = Array(b.utf8)
+        let m = s1.count
+        let n = s2.count
+        if m == 0 { return n }
+        if n == 0 { return m }
+        if abs(m - n) > 3 { return abs(m - n) }
+        var prev = Array(0...n)
+        var curr = Array(repeating: 0, count: n + 1)
+        for i in 1...m {
+            curr[0] = i
+            for j in 1...n {
+                let cost = (s1[i - 1] == s2[j - 1]) ? 0 : 1
+                curr[j] = min(min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost)
+            }
+            swap(&prev, &curr)
+        }
+        return prev[n]
+    }
+
+    static func taoKhoaLienMachKhongThang(_ ten: String) -> String {
+        khoaBoNhoDemTinh.lock()
+        if let daDem = boNhoDemKhoaLMKhongThang[ten] {
+            khoaBoNhoDemTinh.unlock()
+            return daDem
+        }
+        khoaBoNhoDemTinh.unlock()
+
+        let khongDau = ten
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN"))
+            .replacingOccurrences(of: "đ", with: "d")
+            .replacingOccurrences(of: "Đ", with: "D")
+            .uppercased()
+        let boHauTo = khongDau
+            .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|SE|RI|BT)\\b\\s*$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+\\b(CE|ICT|1CT|LCT|LER|DV|BV|OV|0V|MDA|SDA|GD)\\b\\s*$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "^[^A-Z0-9]+", with: "", options: .regularExpression)
+            // Cắt triệt để mọi tiền tố tháng lặp nhiều lần ở đầu (như "T11 - 11 T11 - ", "11 T11 - ", "711 - ")
+            .replacingOccurrences(of: "^(?:(?:[A-Z0-9]{1,3}\\s+)*(?:[T71IL]\\d{0,2}|\\d{1,2})\\s*[-–—]\\s*)+", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "^(?:(?:T\\d{1,2}|[71IL]{2,3})\\s*[-–—]?\\s*)+", with: "", options: .regularExpression)
+            // Bỏ số 11/T11 nhiễu bị dính ở cuối (ví dụ "CE LG 11")
+            .replacingOccurrences(of: "\\s+\\b(?:11|I1|1I|T11)\\b\\s*$", with: "", options: .regularExpression)
+        let ketQua = boHauTo.replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression)
+
+        khoaBoNhoDemTinh.lock()
+        boNhoDemKhoaLMKhongThang[ten] = ketQua
+        khoaBoNhoDemTinh.unlock()
+        return ketQua
+    }
+
+    /// Làm sạch và chuẩn hoá tên môn thi đua (loại bỏ nhãn CE/ICT/DV, DT/SL, ký hiệu sao, hậu tố #2, tiền tố T11 lặp và khôi phục tên chuẩn ĐMX)
+    static func chuanHoaTenMonThiDuaChuan(_ tenGoc: String, tienToThangMacDinh: String? = nil) -> String {
+        let khoaDem = tienToThangMacDinh == nil ? tenGoc : "\(tenGoc)|\(tienToThangMacDinh!)"
+        khoaBoNhoDemTinh.lock()
+        if let daDem = boNhoDemTenChuan[khoaDem] {
+            khoaBoNhoDemTinh.unlock()
+            return daDem
+        }
+        khoaBoNhoDemTinh.unlock()
+
+        var s = tenGoc
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "^[^A-Za-zÀ-ỹĐđ0-9]+", with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !s.isEmpty else { return "" }
+
+        // Chuẩn hoá tiền tố tháng bị OCR đọc lệch hoặc lặp nhiều lần (như "T11 - 11 T11 -", "11 T11 -", "711 -", "11 -", "gy T1-")
+        var tienToThang = ""
+        let uDau = s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
+        if let rThang = uDau.range(of: "^(?:(?:[A-Z0-9]{1,3}\\s+)*(?:[T71IL]\\d{0,2}|\\d{1,2})\\s*[-–—]\\s*)+", options: .regularExpression) {
+            let phanTruocGach = String(uDau[rThang])
+            if phanTruocGach.contains("11") || phanTruocGach.contains("I1") || phanTruocGach.contains("1I") {
+                tienToThang = "T11"
+            } else if let rSo = phanTruocGach.range(of: "1[0-2]|[1-9]", options: .regularExpression) {
+                let soThang = String(phanTruocGach[rSo])
+                tienToThang = tienToThangMacDinh ?? "T\(soThang)"
+            } else {
+                tienToThang = tienToThangMacDinh ?? "T11"
+            }
+            while let rGoc = s.range(of: "^(?:[^\\-–—]{1,12})[-–—]\\s*", options: .regularExpression) {
+                let truoc = String(s[rGoc]).folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
+                if truoc.range(of: "^(?:[A-Z0-9]{1,3}\\s+)*(?:[T71IL]\\d{0,2}|\\d{1,2})\\s*[-–—]\\s*$", options: .regularExpression) != nil {
+                    s = String(s[rGoc.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                } else {
+                    break
+                }
+            }
+            s = s.replacingOccurrences(of: "^(?:(?:T\\d{1,2}|11)\\s+)+", with: "", options: [.regularExpression, .caseInsensitive])
+        } else if let macDinh = tienToThangMacDinh, !macDinh.isEmpty {
+            tienToThang = macDinh
+        }
+
+        // Bỏ hậu tố đánh số (#2), đơn vị (DT/SL), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối
+        s = s
+            .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|SE|RI|BT)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "\\s+\\b(CE|ICT|1CT|LCT|LER|DV|BV|OV|0V|MDA|SDA|GD)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "\\s+\\b(?:11|T11)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "\\bCELG\\b", with: "CE LG", options: .regularExpression)
+            .replacingOccurrences(of: "\\bBMX\\b", with: "ĐMX", options: .regularExpression)
+            .replacingOccurrences(of: "\\s*/\\s*", with: " / ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s*,\\s*", with: ", ", options: .regularExpression)
+            .replacingOccurrences(of: "\\.{2,}|…", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "^[\\s\\|¦\\-–—−•◦○●⊕⊖/\\\\.:;,…]+", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "[\\s\\|¦\\-–—−•◦○●⊕⊖/\\\\.:;,…]+$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let klm = taoKhoaLienMachKhongThang(s)
+        var tenChuan = s
+        if let khopChinhXac = bangAnhXaKhoaLienMachChuanDMX[klm] {
+            tenChuan = khopChinhXac
+        } else if klm == "DIENTHOAITABLET" || klm.hasPrefix("DIENTHOAITABLET") {
+            tenChuan = "ĐIỆN THOẠI & TABLET ANDROID"
+        } else if klm == "SAMSUNG" || (klm.hasSuffix("SAMSUNG") && !klm.contains("FECREDIT")) {
+            tenChuan = "Điện tử Samsung"
+        } else if klm.count >= 6 {
+            let nguong = (klm.count >= 8) ? 2 : 1
+            var totNhat: (ten: String, kc: Int)?
+            for (kMau, tenMau) in bangAnhXaKhoaLienMachChuanDMX {
+                guard abs(klm.count - kMau.count) <= nguong else { continue }
+                let kc = khoangCachLevenshtein(klm, kMau)
+                if kc <= nguong {
+                    if totNhat == nil || kc < totNhat!.kc {
+                        totNhat = (tenMau, kc)
+                    }
+                }
+            }
+            if let totNhat {
+                tenChuan = totNhat.ten
+            }
+        }
+
+        let ketQuaCuoi = !tienToThang.isEmpty ? "\(tienToThang) - \(tenChuan)" : tenChuan
+        khoaBoNhoDemTinh.lock()
+        boNhoDemTenChuan[khoaDem] = ketQuaCuoi
+        if tienToThangMacDinh == nil {
+            boNhoDemTenChuan[ketQuaCuoi] = ketQuaCuoi
+        }
+        khoaBoNhoDemTinh.unlock()
+        return ketQuaCuoi
+    }
+
     static func apDungLocTuCaiDat(_ tenGoc: String) -> String {
         khoaBoNhoDemTinh.lock()
         if let daDem = boNhoDemLocTen[tenGoc] {
@@ -2031,13 +2400,7 @@ final class KhoDuLieu {
         }
         khoaBoNhoDemTinh.unlock()
 
-        var s = tenGoc
-            .replacingOccurrences(of: "\n", with: " ")
-            .replacingOccurrences(of: "^[\\s\\-–—−•◦○●⊕⊖|¦/\\\\,:;]+", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦]\\s*)\\b(DT|SL|5L|0T)\\b\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\.\\.\\.|…", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var s = chuanHoaTenMonThiDuaChuan(tenGoc)
 
         let danhSachLoc = KhoDuLieu.dungChung.caiDat.danhSachCumTuLocBo
         for cumTu in danhSachLoc {
@@ -2060,54 +2423,116 @@ final class KhoDuLieu {
         return ketQua
     }
 
+    /// Chuẩn hoá khóa tên ngành hàng cơ bản (bỏ hậu tố đánh số trùng như "(#2)", "#2", nhãn CE/ICT/DV, DT/SL) để so sánh và lọc trùng 100%
+    static func chuanHoaKhoaCoBanThiDua(_ ten: String) -> String {
+        khoaBoNhoDemTinh.lock()
+        if let daDem = boNhoDemKhoaCoBan[ten] {
+            khoaBoNhoDemTinh.unlock()
+            return daDem
+        }
+        khoaBoNhoDemTinh.unlock()
+
+        let sach = chuanHoaTenMonThiDuaChuan(ten)
+        let ketQua = chuanHoaKhoaSoSanh(sach)
+            .replacingOccurrences(of: "\\s*\\(?#?\\d+\\)?$", with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        khoaBoNhoDemTinh.lock()
+        boNhoDemKhoaCoBan[ten] = ketQua
+        khoaBoNhoDemTinh.unlock()
+        return ketQua
+    }
+
+    /// Khóa tên môn thi đua không tính tiền tố tháng (ví dụ "T11 - Máy Lạnh" và "Máy Lạnh" đều có khóa "MAYLANH")
+    static func chuanHoaKhoaLienMachThiDua(_ ten: String) -> String {
+        khoaBoNhoDemTinh.lock()
+        if let daDem = boNhoDemKhoaLienMach[ten] {
+            khoaBoNhoDemTinh.unlock()
+            return daDem
+        }
+        khoaBoNhoDemTinh.unlock()
+
+        let sach = chuanHoaTenMonThiDuaChuan(ten)
+        let k = taoKhoaLienMachKhongThang(sach)
+        let ketQua = !k.isEmpty ? k : chuanHoaKhoaCoBanThiDua(sach).replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression)
+
+        khoaBoNhoDemTinh.lock()
+        boNhoDemKhoaLienMach[ten] = ketQua
+        khoaBoNhoDemTinh.unlock()
+        return ketQua
+    }
+
+    /// Gộp và lọc trùng danh sách môn thi đua với độ phức tạp O(N) qua bảng băm:
+    /// So sánh giữa các môn mới quét được với nhau và so sánh với các môn có sẵn; nếu tên môn giống nhau 100% thì chỉ giữ lại 1 môn duy nhất.
     static func gopDanhSachThiDua(cu: [DongThiDua], moi: [DongThiDua]) -> [DongThiDua] {
-        var ketQua = cu
-        for var dongMoi in moi {
+        let tatCa = cu.isEmpty ? moi : (cu + moi)
+        guard !tatCa.isEmpty else { return [] }
+
+        var ketQua: [DongThiDua] = []
+        ketQua.reserveCapacity(tatCa.count)
+        var chiSoTheoKhoaCoBan: [String: Int] = [:]
+        var chiSoTheoKhoaLM: [String: Int] = [:]
+
+        for var dongMoi in tatCa {
+            let tenKiemTra = dongMoi.tenNganhHangGoc.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !tenKiemTra.isEmpty else { continue }
+
+            let gocSach = chuanHoaTenMonThiDuaChuan(dongMoi.tenNganhHangGoc)
+            dongMoi.tenNganhHangGoc = gocSach.isEmpty ? dongMoi.tenNganhHangGoc : gocSach
             dongMoi.tenNganhHang = apDungLocTuCaiDat(dongMoi.tenNganhHangGoc)
-            let khoaGocMoi = chuanHoaKhoaSoSanh(dongMoi.tenNganhHangGoc)
-            let khoaMoi = khoaGocMoi.isEmpty ? chuanHoaKhoaSoSanh(dongMoi.tenNganhHang) : khoaGocMoi
-            guard !khoaMoi.isEmpty else { continue }
 
-            let khoaCoBanMoi = khoaMoi.replacingOccurrences(of: "\\s*#?\\d+$", with: "", options: .regularExpression)
+            let khoaCoBanMoi = chuanHoaKhoaCoBanThiDua(dongMoi.tenNganhHangGoc)
+            let khoaCoBanHienThiMoi = chuanHoaKhoaCoBanThiDua(dongMoi.tenNganhHang)
+            let khoaLienMachGocMoi = chuanHoaKhoaLienMachThiDua(dongMoi.tenNganhHangGoc)
+            let khoaLienMachHTMoi = chuanHoaKhoaLienMachThiDua(dongMoi.tenNganhHang)
 
-            // Ưu tiên khớp theo cùng tên cơ bản + cùng Target (để các dòng trùng tên bị cắt cụt như 2 dòng "T11 - Trả chậm..." khớp đúng Target 57.51 hay 91.08 khi quét nối tiếp nhiều ảnh)
-            let viTriKhopTarget: Int? = (dongMoi.target > 0) ? ketQua.firstIndex(where: {
-                let kg = chuanHoaKhoaSoSanh($0.tenNganhHangGoc)
-                let k = kg.isEmpty ? chuanHoaKhoaSoSanh($0.tenNganhHang) : kg
-                let kCoBan = k.replacingOccurrences(of: "\\s*#?\\d+$", with: "", options: .regularExpression)
-                return kCoBan == khoaCoBanMoi && abs($0.target - dongMoi.target) < 0.01
-            }) : nil
+            guard !khoaCoBanMoi.isEmpty || !khoaLienMachGocMoi.isEmpty else { continue }
 
-            let viTriKhopTen = ketQua.firstIndex(where: {
-                let kg = chuanHoaKhoaSoSanh($0.tenNganhHangGoc)
-                return (kg.isEmpty ? chuanHoaKhoaSoSanh($0.tenNganhHang) : kg) == khoaMoi
-            })
+            // Tra cứu trùng 100% tên môn trong O(1) bằng Dictionary thay vì duyệt O(N^2)
+            let viTriTrungTen: Int? =
+                (!khoaCoBanMoi.isEmpty ? chiSoTheoKhoaCoBan[khoaCoBanMoi] : nil) ??
+                (!khoaCoBanHienThiMoi.isEmpty ? chiSoTheoKhoaCoBan[khoaCoBanHienThiMoi] : nil) ??
+                (!khoaLienMachGocMoi.isEmpty ? chiSoTheoKhoaLM[khoaLienMachGocMoi] : nil) ??
+                (!khoaLienMachHTMoi.isEmpty ? chiSoTheoKhoaLM[khoaLienMachHTMoi] : nil)
 
-            if let viTri = viTriKhopTarget ?? viTriKhopTen {
+            if let viTri = viTriTrungTen {
                 var dongCu = ketQua[viTri]
-                if dongMoi.tenNganhHangGoc.count > dongCu.tenNganhHangGoc.count && !dongMoi.tenNganhHangGoc.hasSuffix("...") {
+                // Ưu tiên giữ tên gốc đầy đủ có tiền tố tháng (ví dụ "T11 - Máy Lạnh")
+                let moiCoTienToT = dongMoi.tenNganhHangGoc.hasPrefix("T") && dongMoi.tenNganhHangGoc.contains("-")
+                let cuCoTienToT = dongCu.tenNganhHangGoc.hasPrefix("T") && dongCu.tenNganhHangGoc.contains("-")
+                if (moiCoTienToT && !cuCoTienToT) ||
+                   (moiCoTienToT == cuCoTienToT && dongMoi.tenNganhHangGoc.count >= dongCu.tenNganhHangGoc.count) {
                     dongCu.tenNganhHangGoc = dongMoi.tenNganhHangGoc
                     dongCu.tenNganhHang = dongMoi.tenNganhHang
                 }
                 dongCu.loaiChiTieu = dongMoi.loaiChiTieu
-                if dongMoi.thucHien > 0 {
+                if abs(dongMoi.thucHien) > 0.0001 || (dongMoi.target > 0 && dongMoi.phanTramHTGoc != nil) {
                     dongCu.thucHien = dongMoi.thucHien
                 }
                 if dongMoi.target > 0 {
                     dongCu.target = dongMoi.target
                 }
-                if let htGoc = dongMoi.phanTramHTGoc, htGoc > 0 {
+                if let htGoc = dongMoi.phanTramHTGoc {
                     dongCu.phanTramHTGoc = htGoc
                 }
-                if let dbGoc = dongMoi.phanTramDuBaoGoc, dbGoc > 0 {
+                if let dbGoc = dongMoi.phanTramDuBaoGoc {
                     dongCu.phanTramDuBaoGoc = dbGoc
                 }
                 if let dkGoc = dongMoi.duKienGoc, dkGoc > 0 {
                     dongCu.duKienGoc = dkGoc
                 }
                 ketQua[viTri] = dongCu
+                if !khoaCoBanMoi.isEmpty { chiSoTheoKhoaCoBan[khoaCoBanMoi] = viTri }
+                if !khoaCoBanHienThiMoi.isEmpty { chiSoTheoKhoaCoBan[khoaCoBanHienThiMoi] = viTri }
+                if !khoaLienMachGocMoi.isEmpty { chiSoTheoKhoaLM[khoaLienMachGocMoi] = viTri }
+                if !khoaLienMachHTMoi.isEmpty { chiSoTheoKhoaLM[khoaLienMachHTMoi] = viTri }
             } else {
+                let viTriMoi = ketQua.count
                 ketQua.append(dongMoi)
+                if !khoaCoBanMoi.isEmpty { chiSoTheoKhoaCoBan[khoaCoBanMoi] = viTriMoi }
+                if !khoaCoBanHienThiMoi.isEmpty { chiSoTheoKhoaCoBan[khoaCoBanHienThiMoi] = viTriMoi }
+                if !khoaLienMachGocMoi.isEmpty { chiSoTheoKhoaLM[khoaLienMachGocMoi] = viTriMoi }
+                if !khoaLienMachHTMoi.isEmpty { chiSoTheoKhoaLM[khoaLienMachHTMoi] = viTriMoi }
             }
         }
         return ketQua
@@ -2153,13 +2578,53 @@ final class KhoDuLieu {
             if let theoMa = dsQuanLy.first(where: { $0.maNV == maSach }) {
                 return theoMa
             }
+            if maSach.count >= 6 {
+                let boDauKyTu = String(maSach.dropFirst())
+                if let theoMaBoDau = dsQuanLy.first(where: { $0.maNV == boDauKyTu }) {
+                    return theoMaBoDau
+                }
+            }
         }
+
         let tenKhongSo = tenQuet
             .replacingOccurrences(of: "\\d+", with: "", options: .regularExpression)
             .replacingOccurrences(of: "[-–—]", with: " ", options: .regularExpression)
         let tenChuan = chuanHoaKhoaSoSanh(tenKhongSo)
-        guard !tenChuan.isEmpty else { return nil }
 
+        // Nếu có mã NV quét được bị lệch tối đa 1 chữ số và phần tên khớp đầu tên nhân viên trong danh sách
+        if maSach.count >= 4 {
+            let ungVienGanMa = dsQuanLy.filter { nv in
+                guard abs(nv.maNV.count - maSach.count) <= 1 else { return false }
+                let a = Array(nv.maNV)
+                let b = Array(maSach)
+                if a.count == b.count {
+                    return zip(a, b).filter { $0 != $1 }.count <= 1
+                } else {
+                    return nv.maNV.contains(maSach) || maSach.contains(nv.maNV)
+                }
+            }
+            if ungVienGanMa.count == 1, !tenChuan.isEmpty {
+                let nv = ungVienGanMa[0]
+                let nvChuan = chuanHoaKhoaSoSanh(nv.hoTen)
+                if nvChuan.hasPrefix(tenChuan) || nvChuan.contains(tenChuan) {
+                    return nv
+                }
+            } else if ungVienGanMa.count > 1, !tenChuan.isEmpty {
+                if let khop = ungVienGanMa.first(where: { chuanHoaKhoaSoSanh($0.hoTen).hasPrefix(tenChuan) }) {
+                    return khop
+                }
+            }
+            // Nếu đã có mã NV 4-7 chữ số rõ ràng nhưng hoàn toàn khác mã với mọi NV trong danh sách (ví dụ NV mới 65257),
+            // tuyệt đối không ghép bừa theo họ phổ biến (như "Nguyễn", "Huỳnh", "Đỗ Thị", "Phan") để tránh ghi đè nhầm NV khác
+            if !tenChuan.isEmpty {
+                if let khopHoTenDayDu = dsQuanLy.first(where: { chuanHoaKhoaSoSanh($0.hoTen) == tenChuan }) {
+                    return khopHoTenDayDu
+                }
+            }
+            return nil
+        }
+
+        guard !tenChuan.isEmpty else { return nil }
         for nv in dsQuanLy {
             let nvChuan = chuanHoaKhoaSoSanh(nv.hoTen)
             if nvChuan == tenChuan || nvChuan.hasSuffix(tenChuan) || tenChuan.hasSuffix(nvChuan) || nvChuan.contains(tenChuan) {
@@ -2186,7 +2651,13 @@ final class KhoDuLieu {
         khoaTruyCap.lock()
         defer { khoaTruyCap.unlock() }
 
-        let dsNV = caiDat.danhSachNhanVien
+        let khoaDen = TienIchNgay.khoa.string(from: ngay)
+        let khoaDem = "\(khoaDen)|\(cheDo.rawValue)"
+        if let daDem = boNhoDemBaoCaoSucKhoe[khoaDem] {
+            return daDem
+        }
+
+        let dsNV = NhanVienQuanLy.sapXepAZ(caiDat.danhSachNhanVien)
         guard !dsNV.isEmpty else {
             return BaoCaoSucKhoeDoiNgu(
                 ngayBaoCao: ngay,
@@ -2202,7 +2673,6 @@ final class KhoDuLieu {
             )
         }
 
-        let khoaDen = TienIchNgay.khoa.string(from: ngay)
         let tienToThang = String(khoaDen.prefix(7))
 
         // Lấy các ngày trong tháng hiện tại (và tối đa 10 ngày cuối tháng trước nếu đầu tháng) có dữ liệu nhân viên
@@ -2458,7 +2928,7 @@ final class KhoDuLieu {
         let cacNhanNgay = cacBanGhiNgay.suffix(8).map(\.nhanNgay)
         let soNgayCoSo = cacBanGhiNgay.filter { bg in bg.bangDiem.values.contains(where: { $0.mucDo != .chuaCoSo }) }.count
 
-        return BaoCaoSucKhoeDoiNgu(
+        let baoCao = BaoCaoSucKhoeDoiNgu(
             ngayBaoCao: ngay,
             cheDo: cheDo,
             soNgayDaTheoDoi: max(soNgayCoSo, cacBanGhiNgay.isEmpty ? 0 : 1),
@@ -2470,6 +2940,8 @@ final class KhoDuLieu {
             top5CanhBaoYeu: top5,
             danhSachTatCa: hoSoTam
         )
+        boNhoDemBaoCaoSucKhoe[khoaDem] = baoCao
+        return baoCao
     }
 }
 
