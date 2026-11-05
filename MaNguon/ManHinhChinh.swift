@@ -344,10 +344,13 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     private var cheDoQuet: CheDoQuetAnh = .thiDua(.luyKe)
     private var thayTheBangThiDuaKhiQuet: Bool = false
 
-    // Bộ nhớ đệm trạng thái bảng để bấm chuyển qua lại giữa các mục mượt tức thì
+    // Bộ nhớ đệm trạng thái bảng để bấm chuyển qua lại giữa các mục mượt tức thì (0ms)
     private var dsThiDuaDaNapUI: [DongThiDua]?
     private var cheDoThiDuaDaNapUI: LoaiCheDoDoanhThu?
     private var kieuHienThiDaNapUI: KieuHienThiBaoCao?
+    private var phienBanThiDuaDaNapUI: Int = -1
+    private var khoaNgayThiDuaDaNapUI: String = ""
+    private var khoaCumChiSoDaNapUI: String = "" 
 
     // Thanh điều hướng trên cùng (nằm trong nền của tab, bên dưới Menu trượt)
     private let khungThanhDieuHuong = UIView()
@@ -2012,6 +2015,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let dangTrongMucNhanVien = (mucMenuChinh == .nhanVien)
         if !dangTrongMucNhanVien { mucMenuChinh = .doSoXemSo }
         mucConDoSo = .xemSo
+        if tabXemSo == tab && ((dangTrongMucNhanVien && mucMenuChinh == .nhanVien) || (!dangTrongMucNhanVien && mucMenuChinh == .doSoXemSo)) {
+            return
+        }
         tabXemSo = tab
         if tab == .luyKe {
             cheDoDoanhThu = .luyKe
@@ -2019,9 +2025,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             cheDoDoanhThu = .realtime
         }
         napDuLieu()
-        if dangTrongMucNhanVien, tab == .bieuDo {
-            bangRealtimeThang.hienThiRieng(.sucKhoeNhanVien)
-        }
     }
 
     private func capNhatNutTabXemSo(choNhanVien: Bool) {
@@ -2908,23 +2911,35 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     // MARK: - Nạp dữ liệu & Chuyển đổi mượt mà giữa các mục trong Menu
 
     private func napDuLieu() {
-        nutNgay.setTitle("📅 \(TienIchNgay.hienThiNgay.string(from: ngayHienTai)) ▾", for: .normal)
-        nutNgay.sizeToFit()
+        let chuoiNgay = "📅 \(TienIchNgay.hienThiNgay.string(from: ngayHienTai)) ▾"
+        if nutNgay.title(for: .normal) != chuoiNgay {
+            nutNgay.setTitle(chuoiNgay, for: .normal)
+            nutNgay.sizeToFit()
+        }
 
-        let dl = KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
+        let kho = KhoDuLieu.dungChung
+        let dl = kho.duLieu(cho: ngayHienTai)
         let dsThiDuaDangChon = dl.danhSachThiDua(theo: cheDoDoanhThu)
-        let xemDK = (cheDoDoanhThu == .luyKe && bangThiDua.dangXemDuKien)
-        let soDat = dsThiDuaDangChon.filter { xemDK ? $0.daHoanThanhDuBao : $0.daDat }.count
-        let dtDangChon = (cheDoDoanhThu == .luyKe) ? dl.doanhThu : dl.doanhThuRealtime
 
-        cumChiSoChinh.capNhat(
-            doanhThu: dtDangChon,
-            soNganhDat: soDat,
-            tongSoNganh: dsThiDuaDangChon.count,
-            ngay: ngayHienTai,
-            cheDo: cheDoDoanhThu,
-            dangXemBieuDo: (tabXemSo == .bieuDo)
-        )
+        // Chỉ cập nhật cụm 8 thẻ doanh thu khi đang ở tab Lũy kế hoặc Realtime của mục Xem số (tránh tính toán thừa khi ẩn)
+        let canHienCumDoanhThu = (mucMenuChinh == .doSoXemSo && mucConDoSo == .xemSo && (tabXemSo == .luyKe || tabXemSo == .realtime))
+        if canHienCumDoanhThu {
+            let xemDK = (cheDoDoanhThu == .luyKe && bangThiDua.dangXemDuKien)
+            let khoaCum = "\(dl.khoaNgay)|\(kho.phienBanDuLieu)|\(cheDoDoanhThu.rawValue)|\(xemDK)"
+            if khoaCumChiSoDaNapUI != khoaCum {
+                khoaCumChiSoDaNapUI = khoaCum
+                let soDat = dsThiDuaDangChon.filter { xemDK ? $0.daHoanThanhDuBao : $0.daDat }.count
+                let dtDangChon = (cheDoDoanhThu == .luyKe) ? dl.doanhThu : dl.doanhThuRealtime
+                cumChiSoChinh.capNhat(
+                    doanhThu: dtDangChon,
+                    soNganhDat: soDat,
+                    tongSoNganh: dsThiDuaDangChon.count,
+                    ngay: ngayHienTai,
+                    cheDo: cheDoDoanhThu,
+                    dangXemBieuDo: false
+                )
+            }
+        }
 
         capNhatTrangThaiMuc()
         capNhatNoiDungTheoMucDangChon(dl: dl, dsThiDuaDangChon: dsThiDuaDangChon)
@@ -3079,8 +3094,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 switch tabXemSo {
                 case .luyKe, .realtime:
                     let ds = dsThiDuaDangChon ?? duLieu.danhSachThiDua(theo: cheDoDoanhThu)
-                    let kieuHienTai = KhoDuLieu.dungChung.caiDat.kieuHienThi
-                    if dsThiDuaDaNapUI != ds || cheDoThiDuaDaNapUI != cheDoDoanhThu || kieuHienThiDaNapUI != kieuHienTai {
+                    let kho = KhoDuLieu.dungChung
+                    let kieuHienTai = kho.caiDat.kieuHienThi
+                    if phienBanThiDuaDaNapUI != kho.phienBanDuLieu ||
+                       khoaNgayThiDuaDaNapUI != duLieu.khoaNgay ||
+                       cheDoThiDuaDaNapUI != cheDoDoanhThu ||
+                       kieuHienThiDaNapUI != kieuHienTai {
+                        phienBanThiDuaDaNapUI = kho.phienBanDuLieu
+                        khoaNgayThiDuaDaNapUI = duLieu.khoaNgay
                         dsThiDuaDaNapUI = ds
                         cheDoThiDuaDaNapUI = cheDoDoanhThu
                         kieuHienThiDaNapUI = kieuHienTai
@@ -3115,8 +3136,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
         case .nhanVien:
             if tabXemSo == .bieuDo {
-                bangRealtimeThang.capNhat(cho: ngayHienTai)
                 bangRealtimeThang.hienThiRieng(.sucKhoeNhanVien)
+                bangRealtimeThang.capNhat(cho: ngayHienTai)
             } else {
                 tabXemSo = .nhanVien
                 bangNhanVien.capNhat(cho: ngayHienTai, cheDo: cheDoDoanhThu)

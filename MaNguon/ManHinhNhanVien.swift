@@ -789,6 +789,9 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
     private var danhSach: [TongHopNhanVien] = []
     private var danhSachDaNapUI: [TongHopNhanVien]?
     private var cheDoDaNapUI: LoaiCheDoDoanhThu?
+    private var khoaNgayDaNapUI: String = ""
+    private var phienBanDaNapUI: Int = -1
+    private var sapXepDaNapUI: KieuSapXepNhanVien?
 
     private let chieuRongCot: [CGFloat] = [44, 170, 78, 96, 84, 78, 92, 92]
     private var tongChieuRongBang: CGFloat { chieuRongCot.reduce(0, +) }
@@ -955,20 +958,31 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
     func capNhat(cho ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) {
         ngayHienTai = ngay
         cheDoDoanhThu = cheDo
-        let moi = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: kieuSapXep, cheDo: cheDo)
-        let soMonThang = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay, cheDo: cheDo).count
+        let kho = KhoDuLieu.dungChung
+        let khoaNgay = TienIchNgay.khoa.string(from: ngay)
+        if phienBanDaNapUI == kho.phienBanDuLieu,
+           khoaNgayDaNapUI == khoaNgay,
+           cheDoDaNapUI == cheDo,
+           sapXepDaNapUI == kieuSapXep,
+           danhSachDaNapUI != nil {
+            return
+        }
+        phienBanDaNapUI = kho.phienBanDuLieu
+        khoaNgayDaNapUI = khoaNgay
+        cheDoDaNapUI = cheDo
+        sapXepDaNapUI = kieuSapXep
+
+        let moi = kho.tongHopNhanVien(den: ngay, sapXep: kieuSapXep, cheDo: cheDo)
+        let soMonThang = kho.danhSachMatHangThang(den: ngay, cheDo: cheDo).count
         nhanTieuDe.text = "🏆 Xếp Hạng \(cheDo.tieuDe) (\(moi.count) NV • \(soMonThang) môn)"
 
         let trong = moi.isEmpty
         khungTrong.isHidden = !trong
         cuonNgang.isHidden = trong
 
-        if danhSachDaNapUI != moi || cheDoDaNapUI != cheDo {
-            danhSach = moi
-            danhSachDaNapUI = moi
-            cheDoDaNapUI = cheDo
-            bang.reloadData()
-        }
+        danhSach = moi
+        danhSachDaNapUI = moi
+        bang.reloadData()
     }
 
     func gan(_ moi: [TongHopNhanVien]) {

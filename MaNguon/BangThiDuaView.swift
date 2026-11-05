@@ -1141,9 +1141,14 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         luoi.isHidden = trong || (kieu != .theGon)
         nutSoCot.isHidden = (kieu != .theGon)
 
-        bang8Cot.reloadData()
-        luoi.collectionViewLayout.invalidateLayout()
-        luoi.reloadData()
+        if !trong {
+            if kieu == .bangChiTiet {
+                bang8Cot.reloadData()
+            } else {
+                luoi.collectionViewLayout.invalidateLayout()
+                luoi.reloadData()
+            }
+        }
     }
 
     private func tenDeSapXep(_ ten: String) -> String {
@@ -2304,6 +2309,14 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     private var danhSachBieuDo: [DuLieuRealtimeNgayTrongThang] = []
     private var chiHienNgayCoSo: Bool = false
 
+    // Bộ nhớ đệm trạng thái giao diện giúp chuyển qua lại giữa Biểu đồ / Realtime / Sức khỏe NV tức thì (0ms)
+    private var khoaNgayDaNapRT: String = ""
+    private var phienBanDaNapRT: Int = -1
+    private var chiHienCoSoDaNapRT: Bool?
+    private var khoaNgayDaNapSK: String = ""
+    private var phienBanDaNapSK: Int = -1
+    private var cheDoDaNapSK: LoaiCheDoDoanhThu?
+
     private let cuonDoc = UIScrollView()
     private let nganTong = UIStackView()
     private let nganNoiDung = UIStackView()
@@ -2820,20 +2833,29 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         guard let loai = LoaiBieuDoThang(rawValue: sender.tag), loai != loaiBieuDoDangXem else { return }
         loaiBieuDoDangXem = loai
         capNhatGiaoDienHaiNutBieuDo()
+        capNhatTheoLoaiDangXem()
         cuonDoc.setContentOffset(.zero, animated: true)
     }
 
     func chonLoaiBieuDo(_ loai: LoaiBieuDoThang) {
+        let doiLoai = (loaiBieuDoDangXem != loai)
         loaiBieuDoDangXem = loai
         capNhatGiaoDienHaiNutBieuDo()
+        if doiLoai {
+            capNhatTheoLoaiDangXem()
+        }
     }
 
     func hienThiRieng(_ loai: LoaiBieuDoThang) {
+        let doiLoai = (loaiBieuDoDangXem != loai)
         loaiBieuDoDangXem = loai
         hangHaiNutBieuDo.isHidden = true
         rangBuocCaoHangChonBieuDo?.constant = 0
         capNhatGiaoDienHaiNutBieuDo()
-        cuonDoc.setContentOffset(.zero, animated: false)
+        if doiLoai {
+            capNhatTheoLoaiDangXem()
+            cuonDoc.setContentOffset(.zero, animated: false)
+        }
     }
 
     func hienThiBieuDoRealtime() {
@@ -2992,7 +3014,20 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         return the
     }
 
-    private func capNhatDuLieuSucKhoeNV() {
+    private func capNhatDuLieuSucKhoeNV(epCapNhat: Bool = false) {
+        let khoaNgay = TienIchNgay.khoa.string(from: ngayHienTai)
+        let phienBan = KhoDuLieu.dungChung.phienBanDuLieu
+        if !epCapNhat,
+           khoaNgayDaNapSK == khoaNgay,
+           phienBanDaNapSK == phienBan,
+           cheDoDaNapSK == cheDoSucKhoe,
+           baoCaoSucKhoeHienTai != nil {
+            return
+        }
+        khoaNgayDaNapSK = khoaNgay
+        phienBanDaNapSK = phienBan
+        cheDoDaNapSK = cheDoSucKhoe
+
         let bc = KhoDuLieu.dungChung.tinhBaoCaoSucKhoeNhanVien(den: ngayHienTai, cheDo: cheDoSucKhoe)
         baoCaoSucKhoeHienTai = bc
 
@@ -3220,15 +3255,25 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
     @objc private func doiCheDoLocNgay() {
         chiHienNgayCoSo = (chonCheDoNgay.selectedSegmentIndex == 1)
-        capNhatDuLieuHienThi()
+        capNhatDuLieuHienThi(epCapNhat: true)
     }
 
     func capNhat(cho ngay: Date) {
         self.ngayHienTai = ngay
-        self.doanhThuLuyKe = KhoDuLieu.dungChung.doanhThuLuyKeThang(cho: ngay)
-        self.tatCaNgayTrongThang = KhoDuLieu.dungChung.danhSachRealtimeTheoNgayTrongThang(cho: ngay)
+        capNhatTheoLoaiDangXem()
+    }
+
+    private func capNhatTheoLoaiDangXem() {
+        if loaiBieuDoDangXem == .realtime {
+            capNhatDuLieuHienThi()
+        } else {
+            capNhatDuLieuSucKhoeNV()
+        }
+    }
+
+    private func damBaoDuLieuRealtimeThang(cho ngay: Date) {
+        self.ngayHienTai = ngay
         capNhatDuLieuHienThi()
-        capNhatDuLieuSucKhoeNV()
     }
 
     private func taoNoiDungTomTatThang(
@@ -3256,7 +3301,22 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         }
     }
 
-    private func capNhatDuLieuHienThi() {
+    private func capNhatDuLieuHienThi(epCapNhat: Bool = false) {
+        let khoaNgay = TienIchNgay.khoa.string(from: ngayHienTai)
+        let phienBan = KhoDuLieu.dungChung.phienBanDuLieu
+        if !epCapNhat,
+           khoaNgayDaNapRT == khoaNgay,
+           phienBanDaNapRT == phienBan,
+           chiHienCoSoDaNapRT == chiHienNgayCoSo,
+           !tatCaNgayTrongThang.isEmpty {
+            return
+        }
+        khoaNgayDaNapRT = khoaNgay
+        phienBanDaNapRT = phienBan
+        chiHienCoSoDaNapRT = chiHienNgayCoSo
+        self.doanhThuLuyKe = KhoDuLieu.dungChung.doanhThuLuyKeThang(cho: ngayHienTai)
+        self.tatCaNgayTrongThang = KhoDuLieu.dungChung.danhSachRealtimeTheoNgayTrongThang(cho: ngayHienTai)
+
         let thang = TienIchNgay.lich.component(.month, from: ngayHienTai)
         let nam = TienIchNgay.lich.component(.year, from: ngayHienTai)
         let ngayChon = TienIchNgay.lich.component(.day, from: ngayHienTai)
@@ -3538,7 +3598,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     // MARK: - Xuất Ảnh Bảng Tổng Hợp & Đồ Thị Cột Realtime Tháng
 
     func taoAnhBaoCaoRealtimeThang(ngay: Date, thongTinDonVi: String = "", capNhatLuc: String = "") -> UIImage? {
-        capNhat(cho: ngay)
+        damBaoDuLieuRealtimeThang(cho: ngay)
         let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
         let donVi = !thongTinDonVi.isEmpty ? thongTinDonVi : (dl.thongTinDonVi.isEmpty ? "ĐIỆN MÁY XANH" : dl.thongTinDonVi)
         let thang = TienIchNgay.lich.component(.month, from: ngay)
@@ -3751,7 +3811,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     // MARK: - Xuất File Excel (.csv) cho Bảng Biểu Đồ & Tổng Hợp Realtime Tháng
 
     func taoChuoiExcelCSVBieuDoThang(ngay: Date, thongTinDonVi: String = "", capNhatLuc: String = "") -> String {
-        capNhat(cho: ngay)
+        damBaoDuLieuRealtimeThang(cho: ngay)
         let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
         let donVi = !thongTinDonVi.isEmpty ? thongTinDonVi : (dl.thongTinDonVi.isEmpty ? "ĐIỆN MÁY XANH" : dl.thongTinDonVi)
         let thang = TienIchNgay.lich.component(.month, from: ngay)
