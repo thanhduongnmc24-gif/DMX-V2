@@ -140,7 +140,7 @@ final class DichVuQuetAnhGemini {
         Bạn là hệ thống OCR bảng số liệu Điện Máy Xanh. Đọc TẤT CẢ ảnh, giữ nguyên số âm, dấu thập phân và phần trăm. Chế độ: \(cheDo.tieuDe).
         Trả đúng một JSON, không giải thích:
         {"capNhatLuc":"","thongTinDonVi":"","doanhThu":{"doanhThuThuc":0,"targetThuc":0,"duKienThuc":0,"phanTramHTThuc":0,"doanhThuQuyDoi":0,"targetQuyDoi":0,"duKienQuyDoi":0,"phanTramHTQuyDoi":0},"nganhHang":[{"ten":"","loai":"DT hoặc SL","thucHien":0,"target":0,"phanTramHT":0,"duKien":0,"phanTramDuKien":0}],"nhanVien":[{"maNV":"","hoTen":"","soLuong":0,"doanhThuQD":0,"dtKhoanVay":0,"phanTramTiTrong":0}]}
-        Quy tắc: không bỏ dòng có số 0 hoặc số âm; % tỉ trọng phải giữ dấu âm; không suy diễn số không nhìn thấy; ảnh không có nhóm dữ liệu nào thì trả mảng rỗng/đối tượng rỗng tương ứng.
+        Quy tắc: đọc đầy đủ mọi môn thi đua trên ảnh (từ 1, 3 đến 8+ môn/ảnh); không đưa nhãn phân nhóm (CE, ICT, DV), đơn vị (DT, SL), ngôi sao hay dòng phụ (Chạy theo thương hiệu) vào tên môn; không bỏ dòng có số 0 hoặc số âm; % tỉ trọng và % HT phải giữ dấu âm; nếu các môn có tên giống nhau 100% thì chỉ giữ 1 môn duy nhất; không suy diễn số không nhìn thấy; ảnh không có nhóm dữ liệu nào thì trả mảng rỗng/đối tượng rỗng tương ứng.
         """
     }
 

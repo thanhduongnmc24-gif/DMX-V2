@@ -3889,7 +3889,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                     let cu = dl.danhSachThiDua(theo: cheDoTab)
                     let gop = KhoDuLieu.gopDanhSachThiDua(cu: cu, moi: kq.danhSachThiDua)
                     dl.ganDanhSachThiDua(gop, theo: cheDoTab)
-                    cacMucDaDien.append("• Thi đua \(tenCheDo) (\(kq.soAnhThiDua) ảnh): \(kq.danhSachThiDua.count) ngành hàng")
+                    cacMucDaDien.append("• Thi đua \(tenCheDo) (\(kq.soAnhThiDua) ảnh): \(gop.count) ngành hàng (đã lọc trùng)")
                 }
 
                 if !kq.doanhThuNhanVien.isEmpty {

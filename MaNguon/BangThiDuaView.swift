@@ -1088,7 +1088,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
 
     func ganDanhSach(_ ds: [DongThiDua], cheDo: LoaiCheDoDoanhThu = .luyKe) {
         cheDoDoanhThu = cheDo
-        danhSachGoc = ds
+        danhSachGoc = KhoDuLieu.gopDanhSachThiDua(cu: [], moi: ds)
         capNhatGiaoDienNutDuKien()
         capNhatDanhSach()
     }
