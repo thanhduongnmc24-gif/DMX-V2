@@ -3589,6 +3589,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                             if !ma.isEmpty { mapDTNV[ma] = item }
                         }
                     }
+                    var daQuetTrongDot = Set<String>()
                     for item in kq.doanhThuNhanVien {
                         let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsQuanLy)
                         let ma = nvKhop?.maNV ?? KhoDuLieu.chuanHoaMaNV(item.maNV)
@@ -3597,6 +3598,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                         var capNhat = item
                         capNhat.maNV = ma
                         capNhat.hoTen = ten
+                        if daQuetTrongDot.contains(ma), let daCo = mapDTNV[ma] {
+                            let daCoSo = abs(daCo.doanhThuQD) > 0.001 || abs(daCo.soLuong) > 0.001 || abs(daCo.phanTramQuyDoi) > 0.01
+                            let moiCoSo = abs(capNhat.doanhThuQD) > 0.001 || abs(capNhat.soLuong) > 0.001 || abs(capNhat.phanTramQuyDoi) > 0.01
+                            if daCoSo && !moiCoSo { continue }
+                        }
+                        daQuetTrongDot.insert(ma)
                         mapDTNV[ma] = capNhat
                     }
                     dl.ganDoanhThuNhanVien(Array(mapDTNV.values), theo: cheDoTab)
@@ -3747,6 +3754,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                         if !ma.isEmpty { mapDTNV[ma] = item }
                     }
                 }
+                var daQuetTrongDot = Set<String>()
                 for item in dsQuet {
                     let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsQuanLy)
                     let ma = nvKhop?.maNV ?? KhoDuLieu.chuanHoaMaNV(item.maNV)
@@ -3755,6 +3763,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                     var capNhat = item
                     capNhat.maNV = ma
                     capNhat.hoTen = ten
+                    if daQuetTrongDot.contains(ma), let daCo = mapDTNV[ma] {
+                        let daCoSo = abs(daCo.doanhThuQD) > 0.001 || abs(daCo.soLuong) > 0.001 || abs(daCo.phanTramQuyDoi) > 0.01
+                        let moiCoSo = abs(capNhat.doanhThuQD) > 0.001 || abs(capNhat.soLuong) > 0.001 || abs(capNhat.phanTramQuyDoi) > 0.01
+                        if daCoSo && !moiCoSo { continue }
+                    }
+                    daQuetTrongDot.insert(ma)
                     mapDTNV[ma] = capNhat
                 }
                 dl.ganDoanhThuNhanVien(Array(mapDTNV.values), theo: loai)

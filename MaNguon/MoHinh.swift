@@ -1928,7 +1928,21 @@ final class KhoDuLieu {
             dtNVList = dlHienTai.doanhThuNhanVienRealtime
         }
 
-        let dsNV = NhanVienQuanLy.sapXepAZ(caiDat.danhSachNhanVien)
+        var dsNV = NhanVienQuanLy.sapXepAZ(caiDat.danhSachNhanVien)
+        var tapMaDaCo = Set(dsNV.map(\.maNV))
+        for item in dtNVList {
+            let ma = Self.chuanHoaMaNV(item.maNV)
+            guard !ma.isEmpty, !tapMaDaCo.contains(ma) else { continue }
+            if let khop = Self.khopNhanVienQuetVoiQuanLy(maQuet: ma, tenQuet: item.hoTen, dsQuanLy: dsNV) {
+                tapMaDaCo.insert(khop.maNV)
+                continue
+            }
+            let tenHienThi = item.hoTen.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "NV \(ma)" : item.hoTen
+            dsNV.append(NhanVienQuanLy(maNV: ma, hoTen: tenHienThi))
+            tapMaDaCo.insert(ma)
+        }
+        dsNV = NhanVienQuanLy.sapXepAZ(dsNV)
+
         var ketQua: [TongHopNhanVien] = dsNV.map { nv in
             var cacMonGiao: [MonThiDuaNhanVien] = []
             cacMonGiao.reserveCapacity(matHang.count)
@@ -1961,7 +1975,7 @@ final class KhoDuLieu {
 
             let dtCaNhan = dtNVList.first(where: {
                 Self.chuanHoaMaNV($0.maNV) == nv.maNV ||
-                Self.khopNhanVienQuetVoiQuanLy(maQuet: $0.maNV, tenQuet: $0.hoTen, dsQuanLy: [nv]) != nil
+                Self.khopNhanVienQuetVoiQuanLy(maQuet: $0.maNV, tenQuet: $0.hoTen, dsQuanLy: dsNV)?.maNV == nv.maNV
             })
 
             return TongHopNhanVien(
@@ -2188,13 +2202,53 @@ final class KhoDuLieu {
             if let theoMa = dsQuanLy.first(where: { $0.maNV == maSach }) {
                 return theoMa
             }
+            if maSach.count >= 6 {
+                let boDauKyTu = String(maSach.dropFirst())
+                if let theoMaBoDau = dsQuanLy.first(where: { $0.maNV == boDauKyTu }) {
+                    return theoMaBoDau
+                }
+            }
         }
+
         let tenKhongSo = tenQuet
             .replacingOccurrences(of: "\\d+", with: "", options: .regularExpression)
             .replacingOccurrences(of: "[-–—]", with: " ", options: .regularExpression)
         let tenChuan = chuanHoaKhoaSoSanh(tenKhongSo)
-        guard !tenChuan.isEmpty else { return nil }
 
+        // Nếu có mã NV quét được bị lệch tối đa 1 chữ số và phần tên khớp đầu tên nhân viên trong danh sách
+        if maSach.count >= 4 {
+            let ungVienGanMa = dsQuanLy.filter { nv in
+                guard abs(nv.maNV.count - maSach.count) <= 1 else { return false }
+                let a = Array(nv.maNV)
+                let b = Array(maSach)
+                if a.count == b.count {
+                    return zip(a, b).filter { $0 != $1 }.count <= 1
+                } else {
+                    return nv.maNV.contains(maSach) || maSach.contains(nv.maNV)
+                }
+            }
+            if ungVienGanMa.count == 1 {
+                let nv = ungVienGanMa[0]
+                let nvChuan = chuanHoaKhoaSoSanh(nv.hoTen)
+                if tenChuan.isEmpty || nvChuan.hasPrefix(tenChuan) || nvChuan.contains(tenChuan) {
+                    return nv
+                }
+            } else if ungVienGanMa.count > 1, !tenChuan.isEmpty {
+                if let khop = ungVienGanMa.first(where: { chuanHoaKhoaSoSanh($0.hoTen).hasPrefix(tenChuan) }) {
+                    return khop
+                }
+            }
+            // Nếu đã có mã NV 4-7 chữ số rõ ràng nhưng hoàn toàn khác mã với mọi NV trong danh sách (ví dụ NV mới 65257),
+            // tuyệt đối không ghép bừa theo họ phổ biến (như "Nguyễn", "Huỳnh", "Đỗ Thị", "Phan") để tránh ghi đè nhầm NV khác
+            if !tenChuan.isEmpty {
+                if let khopHoTenDayDu = dsQuanLy.first(where: { chuanHoaKhoaSoSanh($0.hoTen) == tenChuan }) {
+                    return khopHoTenDayDu
+                }
+            }
+            return nil
+        }
+
+        guard !tenChuan.isEmpty else { return nil }
         for nv in dsQuanLy {
             let nvChuan = chuanHoaKhoaSoSanh(nv.hoTen)
             if nvChuan == tenChuan || nvChuan.hasSuffix(tenChuan) || tenChuan.hasSuffix(nvChuan) || nvChuan.contains(tenChuan) {
