@@ -2178,7 +2178,7 @@ final class KhoDuLieu {
             } else {
                 tienToThang = tienToThangMacDinh ?? "T11"
             }
-            if let rGoc = s.range(of: "^(?:[^\-–—]{1,7})[-–—]\\s*", options: .regularExpression) {
+            if let rGoc = s.range(of: "^(?:[^\\-–—]{1,7})[-–—]\\s*", options: .regularExpression) {
                 s = String(s[rGoc.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
             }
         } else if let macDinh = tienToThangMacDinh, !macDinh.isEmpty {

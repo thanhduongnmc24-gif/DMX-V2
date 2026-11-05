@@ -1032,7 +1032,6 @@ final class DichVuDocAnh {
         guard cacHangY.count >= 2 else { return [] }
 
         var danhSachKetQua: [DongThiDua] = []
-        var demTenTrungTrongBang: [String: Int] = [:]
 
         for (k, yHang) in cacHangY.enumerated() {
             let yTren: CGFloat = (k == 0)
@@ -1166,12 +1165,11 @@ final class DichVuDocAnh {
                 }
             }
 
-            var tenSach = lamSachTenChuongTrinh(cacChuoiDong.joined(separator: " "))
+            let tenSach = lamSachTenChuongTrinh(cacChuoiDong.joined(separator: " "))
             guard tenSach.count >= 2, !laTenTheDoanhThuKhongPhaiThiDua(tenSach) else { continue }
 
             let soTH = thucHien ?? 0.0
             let soTG = target ?? 0.0
-            _ = demTenTrungTrongBang
 
             let dong = DongThiDua(
                 tenNganhHangGoc: tenSach,
