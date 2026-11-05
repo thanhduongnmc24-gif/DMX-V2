@@ -336,7 +336,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     private var cheDoThiDuaDaNapUI: LoaiCheDoDoanhThu?
     private var kieuHienThiDaNapUI: KieuHienThiBaoCao?
 
-    // Thanh điều hướng trên cùng
+    // Thanh điều hướng trên cùng (nằm trong nền của tab, bên dưới Menu trượt)
+    private let khungThanhDieuHuong = UIView()
     private let nutMoMenu = UIButton(type: .system)
     private let nutNgay = UIButton(type: .system)
     private let nutNhapTatCa = UIButton(type: .system)
@@ -451,6 +452,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = BangMauBCTD.nenTrang
+        navigationController?.setNavigationBarHidden(true, animated: false)
         cauHinhThanhDieuHuong()
         taoGiaoDien()
         napDuLieu()
@@ -462,7 +464,15 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(true, animated: animated)
         napDuLieu()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if (navigationController?.viewControllers.count ?? 0) > 1 {
+            navigationController?.setNavigationBarHidden(false, animated: animated)
+        }
     }
 
     deinit { NotificationCenter.default.removeObserver(self) }
@@ -511,7 +521,18 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         cumTrai.axis = .horizontal
         cumTrai.spacing = 6
         cumTrai.alignment = .center
-        navigationItem.leftBarButtonItem = UIBarButtonItem(customView: cumTrai)
+        cumTrai.translatesAutoresizingMaskIntoConstraints = false
+
+        khungThanhDieuHuong.backgroundColor = BangMauBCTD.nenTrang
+        khungThanhDieuHuong.translatesAutoresizingMaskIntoConstraints = false
+        khungThanhDieuHuong.addSubview(cumTrai)
+        NSLayoutConstraint.activate([
+            cumTrai.topAnchor.constraint(equalTo: khungThanhDieuHuong.topAnchor, constant: 4),
+            cumTrai.bottomAnchor.constraint(equalTo: khungThanhDieuHuong.bottomAnchor, constant: -4),
+            cumTrai.leadingAnchor.constraint(equalTo: khungThanhDieuHuong.leadingAnchor, constant: 8),
+            cumTrai.trailingAnchor.constraint(lessThanOrEqualTo: khungThanhDieuHuong.trailingAnchor, constant: -8)
+        ])
+        navigationItem.leftBarButtonItem = nil
 
         let cfgPhoto = UIImage.SymbolConfiguration(pointSize: 12.0, weight: .bold)
         nutNhapTatCa.setImage(UIImage(systemName: "photo.stack.fill", withConfiguration: cfgPhoto), for: .normal)
@@ -548,8 +569,31 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutXoaNav.addTarget(self, action: #selector(moMenuXoaDuLieu), for: .touchUpInside)
         cauHinhNutIconNav(nutCopyTongQuanNav, icon: "doc.on.doc", nhan: "Sao chép tổng quan", mau: BangMauBCTD.xanhChuDaoDam)
         nutCopyTongQuanNav.addTarget(self, action: #selector(saoChepTongQuan), for: .touchUpInside)
-        cauHinhNutIconNav(nutQuanLyNhanVienNav, icon: "person.crop.circle.badge.gearshape", nhan: "Quản lý nhân viên", mau: BangMauBCTD.xanhChuDaoDam)
-        nutQuanLyNhanVienNav.menu = UIMenu(title: "Quản lý nhân viên", children: [
+
+        let cfgQuanTriNV = UIImage.SymbolConfiguration(pointSize: 12.5, weight: .bold)
+        let iconQuanTriNV = UIImage(systemName: "gearshape.fill", withConfiguration: cfgQuanTriNV)?
+            .withTintColor(BangMauBCTD.vangSang, renderingMode: .alwaysOriginal)
+        nutQuanLyNhanVienNav.setImage(iconQuanTriNV, for: .normal)
+        nutQuanLyNhanVienNav.setTitle(" Quản trị", for: .normal)
+        nutQuanLyNhanVienNav.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .bold)
+        nutQuanLyNhanVienNav.titleLabel?.numberOfLines = 0
+        nutQuanLyNhanVienNav.titleLabel?.lineBreakMode = .byWordWrapping
+        nutQuanLyNhanVienNav.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutQuanLyNhanVienNav.tintColor = .white
+        nutQuanLyNhanVienNav.setTitleColor(.white, for: .normal)
+        nutQuanLyNhanVienNav.setTitleColor(.white, for: .highlighted)
+        nutQuanLyNhanVienNav.setTitleColor(.white, for: .selected)
+        nutQuanLyNhanVienNav.backgroundColor = BangMauBCTD.xanhChuDao
+        nutQuanLyNhanVienNav.layer.cornerRadius = 9
+        nutQuanLyNhanVienNav.layer.borderWidth = 1
+        nutQuanLyNhanVienNav.layer.borderColor = BangMauBCTD.xanhChuDaoDam.cgColor
+        nutQuanLyNhanVienNav.contentEdgeInsets = UIEdgeInsets(top: 6, left: 9, bottom: 6, right: 10)
+        nutQuanLyNhanVienNav.translatesAutoresizingMaskIntoConstraints = false
+        nutQuanLyNhanVienNav.heightAnchor.constraint(equalToConstant: 31).isActive = true
+        nutQuanLyNhanVienNav.setContentHuggingPriority(.required, for: .horizontal)
+        nutQuanLyNhanVienNav.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutQuanLyNhanVienNav.accessibilityLabel = "Quản trị nhân viên"
+        nutQuanLyNhanVienNav.menu = UIMenu(title: "Quản trị nhân viên", children: [
             UIAction(title: "Chia target mặt hàng", image: UIImage(systemName: "target")) { [weak self] _ in
                 self?.moNhanhChiaTarget()
             },
@@ -603,6 +647,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
     private func hienMenu(animated: Bool) {
         dangMoMenu = true
+        khungThanhDieuHuong.isUserInteractionEnabled = false
         menuBenTrai.capNhatTrangThai(mucChinh: mucMenuChinh, mucCon: mucConDoSo)
         lopNenMoMenu.isHidden = false
         menuBenTrai.isHidden = false
@@ -625,6 +670,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     @objc private func anMenu(animated: Bool = true) {
         guard dangMoMenu else { return }
         dangMoMenu = false
+        khungThanhDieuHuong.isUserInteractionEnabled = true
         view.endEditing(true)
         rangBuocTraiMenu?.constant = -chieuRongMenu
         if animated {
@@ -658,6 +704,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     // MARK: - Dựng giao diện chính
 
     private func taoGiaoDien() {
+        view.addSubview(khungThanhDieuHuong)
+
         khungDoSoXemSo.backgroundColor = .clear
         khungDoSoXemSo.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(khungDoSoXemSo)
@@ -987,7 +1035,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         rangBuocTopBangNhanVien = rgTopBangNV
 
         NSLayoutConstraint.activate([
-            khungDoSoXemSo.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            khungThanhDieuHuong.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            khungThanhDieuHuong.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            khungThanhDieuHuong.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+
+            khungDoSoXemSo.topAnchor.constraint(equalTo: khungThanhDieuHuong.bottomAnchor),
             khungDoSoXemSo.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             khungDoSoXemSo.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             khungDoSoXemSo.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
@@ -2078,7 +2130,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         ngan.addArrangedSubview(theChao)
 
         NSLayoutConstraint.activate([
-            khungTongQuan.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            khungTongQuan.topAnchor.constraint(equalTo: khungThanhDieuHuong.bottomAnchor),
             khungTongQuan.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             khungTongQuan.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             khungTongQuan.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
@@ -2228,7 +2280,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         manHinhBanTinNhung.didMove(toParent: self)
 
         NSLayoutConstraint.activate([
-            khungBaoCao.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            khungBaoCao.topAnchor.constraint(equalTo: khungThanhDieuHuong.bottomAnchor),
             khungBaoCao.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             khungBaoCao.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             khungBaoCao.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
@@ -2256,7 +2308,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         }
 
         NSLayoutConstraint.activate([
-            khungTaiKhoanHopThu.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            khungTaiKhoanHopThu.topAnchor.constraint(equalTo: khungThanhDieuHuong.bottomAnchor),
             khungTaiKhoanHopThu.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             khungTaiKhoanHopThu.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             khungTaiKhoanHopThu.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
@@ -2280,7 +2332,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         manHinhQuanTriNhung.didMove(toParent: self)
 
         NSLayoutConstraint.activate([
-            khungQuanTri.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            khungQuanTri.topAnchor.constraint(equalTo: khungThanhDieuHuong.bottomAnchor),
             khungQuanTri.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             khungQuanTri.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             khungQuanTri.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
@@ -2304,7 +2356,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         manHinhTrinhDuyetNhung.didMove(toParent: self)
 
         NSLayoutConstraint.activate([
-            khungTrinhDuyet.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            khungTrinhDuyet.topAnchor.constraint(equalTo: khungThanhDieuHuong.bottomAnchor),
             khungTrinhDuyet.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             khungTrinhDuyet.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             khungTrinhDuyet.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
@@ -2364,7 +2416,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         the.addSubview(ngan)
 
         NSLayoutConstraint.activate([
-            khungMucMoRong.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            khungMucMoRong.topAnchor.constraint(equalTo: khungThanhDieuHuong.bottomAnchor),
             khungMucMoRong.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             khungMucMoRong.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             khungMucMoRong.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
@@ -4006,7 +4058,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     }
 
     private func moChonNhanVienChiaSeAnh(cheDo: LoaiCheDoDoanhThu) {
-        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .soMonHoanThanh, cheDo: cheDo)
+        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .tenAZ, cheDo: cheDo)
         guard !dsNV.isEmpty else { return }
 
         var cacMuc: [MucChonDMX] = [

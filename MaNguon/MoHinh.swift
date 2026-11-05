@@ -318,12 +318,14 @@ enum MucMenuChinh: Int, CaseIterable {
 }
 
 enum KieuSapXepNhanVien: Int, CaseIterable {
-    case soMonHoanThanh = 0
-    case doanhThuQD = 1
-    case phanTramTB = 2
+    case tenAZ = 0
+    case soMonHoanThanh = 1
+    case doanhThuQD = 2
+    case phanTramTB = 3
 
     var nhan: String {
         switch self {
+        case .tenAZ: return "🔤 Tên nhân viên (A → Z)"
         case .soMonHoanThanh: return "🏆 Số môn hoàn thành (Cao → Thấp)"
         case .doanhThuQD: return "🎯 Doanh thu QĐ (Cao → Thấp)"
         case .phanTramTB: return "📈 % HT thi đua TB (Cao → Thấp)"
@@ -332,6 +334,7 @@ enum KieuSapXepNhanVien: Int, CaseIterable {
 
     var nhanNgan: String {
         switch self {
+        case .tenAZ: return "Tên A-Z"
         case .soMonHoanThanh: return "Số môn HT"
         case .doanhThuQD: return "DT QĐ"
         case .phanTramTB: return "% HT TB"
@@ -340,9 +343,25 @@ enum KieuSapXepNhanVien: Int, CaseIterable {
 }
 
 struct NhanVienQuanLy: Codable, Hashable, Identifiable {
+    private static let localeVN = Locale(identifier: "vi_VN")
+
     var maNV: String
     var hoTen: String
     var id: String { maNV }
+
+    static func soSanhAZ(_ a: NhanVienQuanLy, _ b: NhanVienQuanLy) -> Bool {
+        let tenA = a.hoTen.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tenB = b.hoTen.trimmingCharacters(in: .whitespacesAndNewlines)
+        let kq = tenA.compare(tenB, options: [.caseInsensitive], range: nil, locale: localeVN)
+        if kq != .orderedSame {
+            return kq == .orderedAscending
+        }
+        return a.maNV.compare(b.maNV, options: [.numeric]) == .orderedAscending
+    }
+
+    static func sapXepAZ(_ danhSach: [NhanVienQuanLy]) -> [NhanVienQuanLy] {
+        danhSach.sorted(by: soSanhAZ)
+    }
 }
 
 struct DoanhThuNhanVienItem: Codable, Hashable {
@@ -959,22 +978,22 @@ struct CaiDatDMX: Codable {
     }
 
     static let nhanVienMau: [NhanVienQuanLy] = [
-        .init(maNV: "24939", hoTen: "Phan Hoàng Sơn"),
-        .init(maNV: "201962", hoTen: "Nguyễn Thị Kim Loan"),
-        .init(maNV: "261423", hoTen: "Trần Nam Tùng"),
-        .init(maNV: "23986", hoTen: "Nguyễn Ngọc Đẩu"),
-        .init(maNV: "65255", hoTen: "Nguyễn Thị Thu Thảo"),
-        .init(maNV: "285688", hoTen: "Lê Tuấn"),
         .init(maNV: "116719", hoTen: "Đinh Thị Quỳnh Nga"),
-        .init(maNV: "186532", hoTen: "Đỗ Thị Mỹ Linh"),
-        .init(maNV: "207241", hoTen: "Huỳnh Tấn Thành"),
-        .init(maNV: "194649", hoTen: "Nguyễn Hoàn Điện"),
         .init(maNV: "34922", hoTen: "Đỗ Thị Chanh"),
-        .init(maNV: "293044", hoTen: "Võ Ngọc Vĩ"),
+        .init(maNV: "186532", hoTen: "Đỗ Thị Mỹ Linh"),
         .init(maNV: "285681", hoTen: "Hồ Ngọc Châu Ánh"),
+        .init(maNV: "207241", hoTen: "Huỳnh Tấn Thành"),
         .init(maNV: "280417", hoTen: "Huỳnh Thành Đạt"),
+        .init(maNV: "23997", hoTen: "Lê Thị Kim Phượng"),
+        .init(maNV: "285688", hoTen: "Lê Tuấn"),
+        .init(maNV: "194649", hoTen: "Nguyễn Hoàn Điện"),
         .init(maNV: "39665", hoTen: "Nguyễn Hữu Kha"),
-        .init(maNV: "23997", hoTen: "Lê Thị Kim Phượng")
+        .init(maNV: "23986", hoTen: "Nguyễn Ngọc Đẩu"),
+        .init(maNV: "201962", hoTen: "Nguyễn Thị Kim Loan"),
+        .init(maNV: "65255", hoTen: "Nguyễn Thị Thu Thảo"),
+        .init(maNV: "24939", hoTen: "Phan Hoàng Sơn"),
+        .init(maNV: "261423", hoTen: "Trần Nam Tùng"),
+        .init(maNV: "293044", hoTen: "Võ Ngọc Vĩ")
     ]
 
     init(
@@ -991,7 +1010,7 @@ struct CaiDatDMX: Codable {
         self.kieuHienThi = kieuHienThi
         self.danhSachCumTuLocBo = danhSachCumTuLocBo
         self.soCotXuatAnh = soCotXuatAnh
-        self.danhSachNhanVien = danhSachNhanVien
+        self.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(danhSachNhanVien.isEmpty ? Self.nhanVienMau : danhSachNhanVien)
         self.chiaTargetNganhHang = chiaTargetNganhHang
         self.mucTieuDoanhThuQDThang = mucTieuDoanhThuQDThang
         self.geminiApiKey = geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Self.geminiKeyMacDinh : geminiApiKey
@@ -1006,7 +1025,7 @@ struct CaiDatDMX: Codable {
         let cot = (try? c.decode(Int.self, forKey: .soCotXuatAnh)) ?? 3
         soCotXuatAnh = (cot >= 1 && cot <= 4) ? cot : 3
         let dsNV = (try? c.decode([NhanVienQuanLy].self, forKey: .danhSachNhanVien)) ?? []
-        danhSachNhanVien = dsNV.isEmpty ? Self.nhanVienMau : dsNV
+        danhSachNhanVien = NhanVienQuanLy.sapXepAZ(dsNV.isEmpty ? Self.nhanVienMau : dsNV)
         chiaTargetNganhHang = (try? c.decode([String: [String]].self, forKey: .chiaTargetNganhHang)) ?? [:]
         mucTieuDoanhThuQDThang = (try? c.decode([String: Double].self, forKey: .mucTieuDoanhThuQDThang)) ?? [:]
         let rawKey = (try? c.decode(String.self, forKey: .geminiApiKey))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1633,6 +1652,8 @@ final class KhoDuLieu {
 
     func luuCaiDat(_ moi: CaiDatDMX) {
         khoaTruyCap.lock()
+        var moi = moi
+        moi.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(moi.danhSachNhanVien)
         let doiCumTu = (caiDat.danhSachCumTuLocBo != moi.danhSachCumTuLocBo)
         caiDat = moi
         xoaBoNhoDem(xoaonLocTen: doiCumTu)
@@ -1668,7 +1689,10 @@ final class KhoDuLieu {
     /// Chuẩn hoá dữ liệu tải về từ đám mây trên luồng nền rồi gán nhanh vào bộ nhớ để tránh làm khựng giao diện người dùng
     func nhapDuLieuDamMay(caiDat moi: CaiDatDMX?, cacNgay ngayMoi: [String: DuLieuNgayDMX]) {
         khoaTruyCap.lock()
-        if let moi { caiDat = moi }
+        if var moi {
+            moi.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(moi.danhSachNhanVien)
+            caiDat = moi
+        }
         xoaBoNhoDem(xoaonLocTen: true)
         for (khoa, var duLieu) in ngayMoi {
             duLieu.khoaNgay = khoa
@@ -1874,14 +1898,20 @@ final class KhoDuLieu {
             if abs($0.phanTramHT - $1.phanTramHT) > 0.001 {
                 return $0.phanTramHT > $1.phanTramHT
             }
-            return $0.thucHien > $1.thucHien
+            if abs($0.thucHien - $1.thucHien) > 0.001 {
+                return $0.thucHien > $1.thucHien
+            }
+            return NhanVienQuanLy.soSanhAZ(
+                NhanVienQuanLy(maNV: $0.maNV, hoTen: $0.hoTen),
+                NhanVienQuanLy(maNV: $1.maNV, hoTen: $1.hoTen)
+            )
         }
     }
 
     /// Bảng tổng hợp nhân viên (chia theo Lũy kế hoặc Realtime).
     func tongHopNhanVien(
         den ngay: Date,
-        sapXep: KieuSapXepNhanVien = .soMonHoanThanh,
+        sapXep: KieuSapXepNhanVien = .tenAZ,
         cheDo: LoaiCheDoDoanhThu = .luyKe
     ) -> [TongHopNhanVien] {
         khoaTruyCap.lock()
@@ -1898,7 +1928,7 @@ final class KhoDuLieu {
             dtNVList = dlHienTai.doanhThuNhanVienRealtime
         }
 
-        let dsNV = caiDat.danhSachNhanVien
+        let dsNV = NhanVienQuanLy.sapXepAZ(caiDat.danhSachNhanVien)
         var ketQua: [TongHopNhanVien] = dsNV.map { nv in
             var cacMonGiao: [MonThiDuaNhanVien] = []
             cacMonGiao.reserveCapacity(matHang.count)
@@ -1952,21 +1982,26 @@ final class KhoDuLieu {
         }
 
         switch sapXep {
+        case .tenAZ:
+            ketQua.sort { NhanVienQuanLy.soSanhAZ($0.nhanVien, $1.nhanVien) }
         case .soMonHoanThanh:
             ketQua.sort {
                 if $0.soMonDat != $1.soMonDat { return $0.soMonDat > $1.soMonDat }
                 if abs($0.phanTramHTTB - $1.phanTramHTTB) > 0.001 { return $0.phanTramHTTB > $1.phanTramHTTB }
-                return $0.doanhThuQD > $1.doanhThuQD
+                if abs($0.doanhThuQD - $1.doanhThuQD) > 0.001 { return $0.doanhThuQD > $1.doanhThuQD }
+                return NhanVienQuanLy.soSanhAZ($0.nhanVien, $1.nhanVien)
             }
         case .doanhThuQD:
             ketQua.sort {
                 if abs($0.doanhThuQD - $1.doanhThuQD) > 0.001 { return $0.doanhThuQD > $1.doanhThuQD }
-                return $0.soMonDat > $1.soMonDat
+                if $0.soMonDat != $1.soMonDat { return $0.soMonDat > $1.soMonDat }
+                return NhanVienQuanLy.soSanhAZ($0.nhanVien, $1.nhanVien)
             }
         case .phanTramTB:
             ketQua.sort {
                 if abs($0.phanTramHTTB - $1.phanTramHTTB) > 0.001 { return $0.phanTramHTTB > $1.phanTramHTTB }
-                return $0.soMonDat > $1.soMonDat
+                if $0.soMonDat != $1.soMonDat { return $0.soMonDat > $1.soMonDat }
+                return NhanVienQuanLy.soSanhAZ($0.nhanVien, $1.nhanVien)
             }
         }
         return ketQua
@@ -2186,7 +2221,7 @@ final class KhoDuLieu {
         khoaTruyCap.lock()
         defer { khoaTruyCap.unlock() }
 
-        let dsNV = caiDat.danhSachNhanVien
+        let dsNV = NhanVienQuanLy.sapXepAZ(caiDat.danhSachNhanVien)
         guard !dsNV.isEmpty else {
             return BaoCaoSucKhoeDoiNgu(
                 ngayBaoCao: ngay,

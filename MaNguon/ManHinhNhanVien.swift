@@ -784,7 +784,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
 
     private var ngayHienTai = Date()
     private(set) var cheDoDoanhThu: LoaiCheDoDoanhThu = .luyKe
-    private var kieuSapXep: KieuSapXepNhanVien = .soMonHoanThanh
+    private var kieuSapXep: KieuSapXepNhanVien = .tenAZ
     private var danhSach: [TongHopNhanVien] = []
     private var danhSachDaNapUI: [TongHopNhanVien]?
     private var cheDoDaNapUI: LoaiCheDoDoanhThu?
@@ -1711,7 +1711,7 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
     // MARK: - Xuất / Chia sẻ ảnh Sức khoẻ chi tiết
 
     @objc private func bamChiaSeAnhSucKhoe() {
-        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: cheDo)
+        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .tenAZ, cheDo: cheDo)
 
         var cacMuc: [MucChonDMX] = [
             MucChonDMX(tieuDe: "👤 Xuất 1 nhân viên này (\(tongHop.nhanVien.hoTen))") { [weak self] in
@@ -1756,7 +1756,7 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
     }
 
     static func taoTatCaAnhSucKhoe(cho ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) -> [UIImage] {
-        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .soMonHoanThanh, cheDo: cheDo)
+        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .tenAZ, cheDo: cheDo)
         return dsNV.compactMap { taoAnhSucKhoe(cho: $0, ngay: ngay, cheDo: cheDo) }
     }
 
