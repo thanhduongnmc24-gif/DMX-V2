@@ -2130,7 +2130,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutChonNVTongQuan.contentEdgeInsets = UIEdgeInsets(top: 6, left: 9, bottom: 6, right: 9)
         nutChonNVTongQuan.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         nutChonNVTongQuan.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
-        nutChonNVTongQuan.showsMenuAsPrimaryAction = true
+        nutChonNVTongQuan.addTarget(self, action: #selector(moBangChonNhanVienTrongCaTongQuan), for: .touchUpInside)
 
         let hangCbbTongQuan = UIStackView(arrangedSubviews: [nutChonCaTongQuan, nutChonNVTongQuan])
         hangCbbTongQuan.axis = .horizontal
@@ -2346,94 +2346,83 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
         if tongNV == 0 {
             nutChonNVTongQuan.setTitle("👥 NV trong ca: 0 NV ▾", for: .normal)
-            nutChonNVTongQuan.menu = nil
-            return
         } else if soChon >= tongNV {
             nutChonNVTongQuan.setTitle("👥 NV trong ca: Tất cả (\(tongNV)) ▾", for: .normal)
         } else {
             nutChonNVTongQuan.setTitle("👥 NV trong ca: \(soChon)/\(tongNV) NV ▾", for: .normal)
         }
-
-        let nutMoBangNhanh = UIAction(
-            title: "📋 Mở bảng tích chọn nhân viên làm theo ca...",
-            image: UIImage(systemName: "checklist")
-        ) { [weak self] _ in
-            self?.moBangChonNhanVienTrongCaTongQuan()
-        }
-
-        let nutChonTatCa = UIAction(
-            title: "✅ Chọn tất cả (\(tongNV) NV)",
-            state: soChon == tongNV ? .on : .off
-        ) { [weak self] _ in
-            guard let self else { return }
-            self.luuMaNVChonTongQuan(nil)
-            self.capNhatMenuNVTongQuan()
-            self.napDuLieu()
-        }
-
-        let nutBoChonTatCa = UIAction(
-            title: "⬜ Bỏ chọn tất cả",
-            attributes: .destructive
-        ) { [weak self] _ in
-            guard let self else { return }
-            self.luuMaNVChonTongQuan([])
-            self.capNhatMenuNVTongQuan()
-            self.napDuLieu()
-        }
-
-        let cacMucNV: [UIAction] = dsNV.map { nv in
-            let dangChon = tapDangChon.contains(nv.maNV)
-            let act = UIAction(
-                title: "\(nv.hoTen) (\(nv.maNV))",
-                state: dangChon ? .on : .off
-            ) { [weak self] _ in
-                guard let self else { return }
-                var tapMoi = self.layTapMaNVChonTongQuan()
-                if tapMoi.contains(nv.maNV) {
-                    tapMoi.remove(nv.maNV)
-                } else {
-                    tapMoi.insert(nv.maNV)
-                }
-                let tatCa = Set(KhoDuLieu.dungChung.caiDat.danhSachNhanVien.map(\.maNV))
-                self.luuMaNVChonTongQuan(tapMoi == tatCa ? nil : tapMoi)
-                self.capNhatMenuNVTongQuan()
-                self.napDuLieu()
-            }
-            if #available(iOS 16.0, *) {
-                act.attributes = [.keepsMenuPresented]
-            }
-            return act
-        }
-
-        let menuThaoTac = UIMenu(title: "", options: .displayInline, children: [nutMoBangNhanh, nutChonTatCa, nutBoChonTatCa])
-        let menuDanhSach = UIMenu(title: "Tích chọn nhân viên trong ca", options: .displayInline, children: cacMucNV)
-        nutChonNVTongQuan.menu = UIMenu(title: "Nhân viên trong ca (\(soChon)/\(tongNV))", children: [menuThaoTac, menuDanhSach])
     }
 
-    private func moBangChonNhanVienTrongCaTongQuan() {
+    @objc private func moBangChonNhanVienTrongCaTongQuan() {
         let dsNV = NhanVienQuanLy.sapXepAZ(KhoDuLieu.dungChung.caiDat.danhSachNhanVien)
         guard !dsNV.isEmpty else { return }
 
         let hop = UIViewController()
-        hop.view.backgroundColor = BangMauBCTD.nenTrang
-        hop.title = "Chọn nhân viên trong ca"
+        hop.view.backgroundColor = UIColor.black.withAlphaComponent(0.12)
+
+        // Khung thẻ chính mang phong cách thương hiệu Điện Máy Xanh (Nền Xanh chủ đạo + Viền Vàng đậm + Vạch Vàng trái)
+        let khungDMX = UIView()
+        khungDMX.backgroundColor = BangMauBCTD.xanhChuDao
+        khungDMX.layer.cornerRadius = 18
+        khungDMX.layer.borderWidth = 2.5
+        khungDMX.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        khungDMX.clipsToBounds = true
+        khungDMX.translatesAutoresizingMaskIntoConstraints = false
+        hop.view.addSubview(khungDMX)
+
+        let vachVangTrai = UIView()
+        vachVangTrai.backgroundColor = BangMauBCTD.vangSang
+        vachVangTrai.translatesAutoresizingMaskIntoConstraints = false
+        khungDMX.addSubview(vachVangTrai)
+
+        let lbTieuDe = UILabel()
+        lbTieuDe.text = "👥 CHỌN NHÂN VIÊN TRONG CA"
+        lbTieuDe.font = .systemFont(ofSize: 15.0, weight: .heavy)
+        lbTieuDe.textColor = BangMauBCTD.vangSang
+        lbTieuDe.numberOfLines = 0
+        lbTieuDe.lineBreakMode = .byWordWrapping
+        lbTieuDe.adjustsFontSizeToFitWidth = false
+
+        let nutXong = UIButton(type: .system, primaryAction: UIAction { [weak hop] _ in
+            hop?.dismiss(animated: true)
+        })
+        nutXong.setTitle("Xong", for: .normal)
+        nutXong.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .heavy)
+        nutXong.titleLabel?.numberOfLines = 0
+        nutXong.titleLabel?.lineBreakMode = .byWordWrapping
+        nutXong.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutXong.backgroundColor = BangMauBCTD.vangSang
+        nutXong.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutXong.layer.cornerRadius = 9
+        nutXong.layer.borderWidth = 1.2
+        nutXong.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        nutXong.contentEdgeInsets = UIEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
+        nutXong.setContentHuggingPriority(.required, for: .horizontal)
+        nutXong.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        let hangDau = UIStackView(arrangedSubviews: [lbTieuDe, nutXong])
+        hangDau.axis = .horizontal
+        hangDau.spacing = 8
+        hangDau.alignment = .center
 
         let nhanMoTa = UILabel()
-        nhanMoTa.font = .systemFont(ofSize: 13.0, weight: .semibold)
-        nhanMoTa.textColor = BangMauBCTD.chuPhu
+        nhanMoTa.font = .systemFont(ofSize: 12.5, weight: .semibold)
+        nhanMoTa.textColor = .white
         nhanMoTa.numberOfLines = 0
         nhanMoTa.lineBreakMode = .byWordWrapping
         nhanMoTa.adjustsFontSizeToFitWidth = false
 
         let nutAll = UIButton(type: .system)
         nutAll.setTitle("✅ Chọn tất cả (\(dsNV.count))", for: .normal)
-        nutAll.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutAll.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .heavy)
         nutAll.titleLabel?.numberOfLines = 0
         nutAll.titleLabel?.lineBreakMode = .byWordWrapping
         nutAll.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutAll.backgroundColor = BangMauBCTD.xanhChuDao
-        nutAll.setTitleColor(.white, for: .normal)
-        nutAll.layer.cornerRadius = 8
+        nutAll.backgroundColor = BangMauBCTD.vangSang
+        nutAll.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutAll.layer.cornerRadius = 9
+        nutAll.layer.borderWidth = 1.5
+        nutAll.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
         nutAll.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
 
         let nutNone = UIButton(type: .system)
@@ -2442,11 +2431,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutNone.titleLabel?.numberOfLines = 0
         nutNone.titleLabel?.lineBreakMode = .byWordWrapping
         nutNone.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutNone.backgroundColor = BangMauBCTD.doYeuPill
-        nutNone.setTitleColor(BangMauBCTD.doYeuChu, for: .normal)
-        nutNone.layer.cornerRadius = 8
-        nutNone.layer.borderWidth = 1
-        nutNone.layer.borderColor = BangMauBCTD.doYeuVach.withAlphaComponent(0.3).cgColor
+        nutNone.backgroundColor = .white
+        nutNone.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+        nutNone.layer.cornerRadius = 9
+        nutNone.layer.borderWidth = 1.5
+        nutNone.layer.borderColor = BangMauBCTD.vangSang.cgColor
         nutNone.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
 
         let hangNut = UIStackView(arrangedSubviews: [nutAll, nutNone])
@@ -2454,26 +2443,48 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         hangNut.spacing = 8
         hangNut.distribution = .fillEqually
 
+        // Khung trắng bên trong viền vàng chứa danh sách nhân viên
+        let khungDanhSach = UIView()
+        khungDanhSach.backgroundColor = .white
+        khungDanhSach.layer.cornerRadius = 12
+        khungDanhSach.layer.borderWidth = 1.8
+        khungDanhSach.layer.borderColor = BangMauBCTD.vangSang.cgColor
+        khungDanhSach.clipsToBounds = true
+
         let cuon = UIScrollView()
         cuon.alwaysBounceVertical = true
+        cuon.translatesAutoresizingMaskIntoConstraints = false
+        khungDanhSach.addSubview(cuon)
+
         let nganDS = UIStackView()
         nganDS.axis = .vertical
-        nganDS.spacing = 6
+        nganDS.spacing = 7
         nganDS.translatesAutoresizingMaskIntoConstraints = false
         cuon.addSubview(nganDS)
 
-        var cacNutHang: [(nv: NhanVienQuanLy, nut: UIButton)] = []
+        var cacNutHang: [(nv: NhanVienQuanLy, nut: UIButton, vachVang: UIView)] = []
 
         func capNhatTrangThaiBang() {
             let tap = self.layTapMaNVChonTongQuan()
-            nhanMoTa.text = "Đang chọn \(tap.count)/\(dsNV.count) nhân viên làm trong ca. Báo cáo Tổng quan chỉ phân tích các nhân viên được tích chọn:"
-            for (nv, nut) in cacNutHang {
+            nhanMoTa.text = "Đang chọn \(tap.count)/\(dsNV.count) nhân viên làm trong ca • Báo cáo Tổng quan chỉ phân tích các nhân viên được tích chọn:"
+            for (nv, nut, vachVang) in cacNutHang {
                 let chon = tap.contains(nv.maNV)
                 let icon = chon ? "☑️" : "⬜"
                 nut.setTitle("\(icon)  \(nv.hoTen) — Mã NV: \(nv.maNV)", for: .normal)
-                nut.backgroundColor = chon ? BangMauBCTD.xanhDatNenDong : BangMauBCTD.nenThe
-                nut.layer.borderColor = (chon ? BangMauBCTD.xanhDatVach : BangMauBCTD.vienThe).cgColor
-                nut.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+                if chon {
+                    nut.backgroundColor = BangMauBCTD.vangNhatNen
+                    nut.layer.borderWidth = 1.8
+                    nut.layer.borderColor = BangMauBCTD.xanhChuDao.cgColor
+                    nut.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+                    vachVang.backgroundColor = BangMauBCTD.vangChuDao
+                    vachVang.isHidden = false
+                } else {
+                    nut.backgroundColor = BangMauBCTD.nenThe
+                    nut.layer.borderWidth = 1.0
+                    nut.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
+                    nut.setTitleColor(BangMauBCTD.chuPhu, for: .normal)
+                    vachVang.isHidden = true
+                }
             }
         }
 
@@ -2497,10 +2508,23 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             nut.titleLabel?.lineBreakMode = .byWordWrapping
             nut.titleLabel?.adjustsFontSizeToFitWidth = false
             nut.contentHorizontalAlignment = .left
-            nut.contentEdgeInsets = UIEdgeInsets(top: 11, left: 12, bottom: 11, right: 12)
+            nut.contentEdgeInsets = UIEdgeInsets(top: 11, left: 14, bottom: 11, right: 12)
             nut.layer.cornerRadius = 10
-            nut.layer.borderWidth = 1.2
-            cacNutHang.append((nv, nut))
+            nut.clipsToBounds = true
+
+            let vachVang = UIView()
+            vachVang.backgroundColor = BangMauBCTD.vangChuDao
+            vachVang.isUserInteractionEnabled = false
+            vachVang.translatesAutoresizingMaskIntoConstraints = false
+            nut.addSubview(vachVang)
+            NSLayoutConstraint.activate([
+                vachVang.topAnchor.constraint(equalTo: nut.topAnchor),
+                vachVang.bottomAnchor.constraint(equalTo: nut.bottomAnchor),
+                vachVang.leadingAnchor.constraint(equalTo: nut.leadingAnchor),
+                vachVang.widthAnchor.constraint(equalToConstant: 5)
+            ])
+
+            cacNutHang.append((nv, nut, vachVang))
             nganDS.addArrangedSubview(nut)
         }
 
@@ -2522,44 +2546,56 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
         capNhatTrangThaiBang()
 
-        hop.navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Xong",
-            primaryAction: UIAction { [weak hop] _ in
-                hop?.dismiss(animated: true)
-            }
-        )
-
-        [nhanMoTa, hangNut, cuon].forEach {
+        [hangDau, nhanMoTa, hangNut, khungDanhSach].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
-            hop.view.addSubview($0)
+            khungDMX.addSubview($0)
         }
 
         NSLayoutConstraint.activate([
-            nhanMoTa.topAnchor.constraint(equalTo: hop.view.safeAreaLayoutGuide.topAnchor, constant: 12),
-            nhanMoTa.leadingAnchor.constraint(equalTo: hop.view.leadingAnchor, constant: 14),
-            nhanMoTa.trailingAnchor.constraint(equalTo: hop.view.trailingAnchor, constant: -14),
+            khungDMX.topAnchor.constraint(equalTo: hop.view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            khungDMX.leadingAnchor.constraint(equalTo: hop.view.leadingAnchor, constant: 8),
+            khungDMX.trailingAnchor.constraint(equalTo: hop.view.trailingAnchor, constant: -8),
+            khungDMX.bottomAnchor.constraint(equalTo: hop.view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
+
+            vachVangTrai.topAnchor.constraint(equalTo: khungDMX.topAnchor),
+            vachVangTrai.bottomAnchor.constraint(equalTo: khungDMX.bottomAnchor),
+            vachVangTrai.leadingAnchor.constraint(equalTo: khungDMX.leadingAnchor),
+            vachVangTrai.widthAnchor.constraint(equalToConstant: 5),
+
+            hangDau.topAnchor.constraint(equalTo: khungDMX.topAnchor, constant: 12),
+            hangDau.leadingAnchor.constraint(equalTo: vachVangTrai.trailingAnchor, constant: 12),
+            hangDau.trailingAnchor.constraint(equalTo: khungDMX.trailingAnchor, constant: -12),
+
+            nhanMoTa.topAnchor.constraint(equalTo: hangDau.bottomAnchor, constant: 6),
+            nhanMoTa.leadingAnchor.constraint(equalTo: vachVangTrai.trailingAnchor, constant: 12),
+            nhanMoTa.trailingAnchor.constraint(equalTo: khungDMX.trailingAnchor, constant: -12),
 
             hangNut.topAnchor.constraint(equalTo: nhanMoTa.bottomAnchor, constant: 10),
-            hangNut.leadingAnchor.constraint(equalTo: hop.view.leadingAnchor, constant: 14),
-            hangNut.trailingAnchor.constraint(equalTo: hop.view.trailingAnchor, constant: -14),
+            hangNut.leadingAnchor.constraint(equalTo: vachVangTrai.trailingAnchor, constant: 12),
+            hangNut.trailingAnchor.constraint(equalTo: khungDMX.trailingAnchor, constant: -12),
 
-            cuon.topAnchor.constraint(equalTo: hangNut.bottomAnchor, constant: 10),
-            cuon.leadingAnchor.constraint(equalTo: hop.view.leadingAnchor),
-            cuon.trailingAnchor.constraint(equalTo: hop.view.trailingAnchor),
-            cuon.bottomAnchor.constraint(equalTo: hop.view.safeAreaLayoutGuide.bottomAnchor),
+            khungDanhSach.topAnchor.constraint(equalTo: hangNut.bottomAnchor, constant: 10),
+            khungDanhSach.leadingAnchor.constraint(equalTo: vachVangTrai.trailingAnchor, constant: 10),
+            khungDanhSach.trailingAnchor.constraint(equalTo: khungDMX.trailingAnchor, constant: -10),
+            khungDanhSach.bottomAnchor.constraint(equalTo: khungDMX.bottomAnchor, constant: -10),
 
-            nganDS.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 4),
-            nganDS.leadingAnchor.constraint(equalTo: cuon.frameLayoutGuide.leadingAnchor, constant: 14),
-            nganDS.trailingAnchor.constraint(equalTo: cuon.frameLayoutGuide.trailingAnchor, constant: -14),
-            nganDS.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -20)
+            cuon.topAnchor.constraint(equalTo: khungDanhSach.topAnchor),
+            cuon.leadingAnchor.constraint(equalTo: khungDanhSach.leadingAnchor),
+            cuon.trailingAnchor.constraint(equalTo: khungDanhSach.trailingAnchor),
+            cuon.bottomAnchor.constraint(equalTo: khungDanhSach.bottomAnchor),
+
+            nganDS.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 10),
+            nganDS.leadingAnchor.constraint(equalTo: cuon.frameLayoutGuide.leadingAnchor, constant: 10),
+            nganDS.trailingAnchor.constraint(equalTo: cuon.frameLayoutGuide.trailingAnchor, constant: -10),
+            nganDS.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -14)
         ])
 
-        let nav = UINavigationController(rootViewController: hop)
-        nav.modalPresentationStyle = .pageSheet
-        if let sheet = nav.sheetPresentationController {
+        hop.modalPresentationStyle = .pageSheet
+        if let sheet = hop.sheetPresentationController {
             sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
         }
-        present(nav, animated: true)
+        present(hop, animated: true)
     }
 
     @objc private func saoChepTongQuan() {
