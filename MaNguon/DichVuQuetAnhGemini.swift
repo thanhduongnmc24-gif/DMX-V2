@@ -177,11 +177,12 @@ final class DichVuQuetAnhGemini {
             if dt.coDuLieu { kq.doanhThu = dt; kq.soAnhDoanhThu = 1 }
         }
         if let arr = json["nganhHang"] as? [[String: Any]] {
-            kq.danhSachThiDua = arr.compactMap { item in
+            let dsQuet = arr.compactMap { item -> DongThiDua? in
                 guard let ten = item["ten"] as? String, !ten.isEmpty else { return nil }
                 let loai: LoaiChiTieuThiDua = ((item["loai"] as? String) ?? "DT").uppercased().contains("SL") ? .soLuong : .doanhThu
                 return DongThiDua(tenNganhHang: ten, loaiChiTieu: loai, thucHien: so(item, "thucHien"), target: so(item, "target"), phanTramHTGoc: so(item, "phanTramHT"), phanTramDuBaoGoc: so(item, "phanTramDuKien"), duKienGoc: so(item, "duKien"))
             }
+            kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: [], moi: dsQuet)
             if !kq.danhSachThiDua.isEmpty { kq.soAnhThiDua = 1 }
         }
         if let arr = json["nhanVien"] as? [[String: Any]] {

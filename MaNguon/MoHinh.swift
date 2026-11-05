@@ -2101,32 +2101,77 @@ final class KhoDuLieu {
         return ketQua
     }
 
+    /// Chuẩn hoá khóa tên ngành hàng cơ bản (bỏ hậu tố đánh số trùng như "(#2)", "#2" ở cuối) để so sánh và lọc trùng chính xác
+    static func chuanHoaKhoaCoBanThiDua(_ ten: String) -> String {
+        let boHauTo = ten.replacingOccurrences(
+            of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$",
+            with: "",
+            options: .regularExpression
+        )
+        return chuanHoaKhoaSoSanh(boHauTo)
+            .replacingOccurrences(of: "\\s*\\(?#?\\d+\\)?$", with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static func gopDanhSachThiDua(cu: [DongThiDua], moi: [DongThiDua]) -> [DongThiDua] {
         var ketQua = cu
         for var dongMoi in moi {
+            // Bỏ qua các dòng lỗi mà tên chỉ toàn số hoặc ký hiệu % (không có chữ cái)
+            let tenKiemTra = dongMoi.tenNganhHangGoc.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard tenKiemTra.range(of: "[A-Za-zÀ-ỹĐđ]", options: .regularExpression) != nil else { continue }
+
             dongMoi.tenNganhHang = apDungLocTuCaiDat(dongMoi.tenNganhHangGoc)
             let khoaGocMoi = chuanHoaKhoaSoSanh(dongMoi.tenNganhHangGoc)
-            let khoaMoi = khoaGocMoi.isEmpty ? chuanHoaKhoaSoSanh(dongMoi.tenNganhHang) : khoaGocMoi
+            let khoaHienThiMoi = chuanHoaKhoaSoSanh(dongMoi.tenNganhHang)
+            let khoaMoi = khoaGocMoi.isEmpty ? khoaHienThiMoi : khoaGocMoi
             guard !khoaMoi.isEmpty else { continue }
 
-            let khoaCoBanMoi = khoaMoi.replacingOccurrences(of: "\\s*#?\\d+$", with: "", options: .regularExpression)
+            let khoaCoBanMoi = chuanHoaKhoaCoBanThiDua(dongMoi.tenNganhHangGoc)
+            let khoaCoBanHienThiMoi = chuanHoaKhoaCoBanThiDua(dongMoi.tenNganhHang)
 
-            // Ưu tiên khớp theo cùng tên cơ bản + cùng Target (để các dòng trùng tên bị cắt cụt như 2 dòng "T11 - Trả chậm..." khớp đúng Target 57.51 hay 91.08 khi quét nối tiếp nhiều ảnh)
-            let viTriKhopTarget: Int? = (dongMoi.target > 0) ? ketQua.firstIndex(where: {
-                let kg = chuanHoaKhoaSoSanh($0.tenNganhHangGoc)
-                let k = kg.isEmpty ? chuanHoaKhoaSoSanh($0.tenNganhHang) : kg
-                let kCoBan = k.replacingOccurrences(of: "\\s*#?\\d+$", with: "", options: .regularExpression)
-                return kCoBan == khoaCoBanMoi && abs($0.target - dongMoi.target) < 0.01
-            }) : nil
-
-            let viTriKhopTen = ketQua.firstIndex(where: {
-                let kg = chuanHoaKhoaSoSanh($0.tenNganhHangGoc)
-                return (kg.isEmpty ? chuanHoaKhoaSoSanh($0.tenNganhHang) : kg) == khoaMoi
+            // 1. Kiểm tra trùng 100% về cả tên (gốc hoặc hiển thị) lẫn chỉ số (Thực hiện, Target, ĐVT):
+            // Nếu trùng 100% thì chỉ giữ 1 môn duy nhất, tuyệt đối không thêm thành 2 môn!
+            let viTriTrung100 = ketQua.firstIndex(where: {
+                let kCoBanGoc = chuanHoaKhoaCoBanThiDua($0.tenNganhHangGoc)
+                let kCoBanHT = chuanHoaKhoaCoBanThiDua($0.tenNganhHang)
+                let cungTen = (!khoaCoBanMoi.isEmpty && kCoBanGoc == khoaCoBanMoi) ||
+                              (!khoaCoBanHienThiMoi.isEmpty && kCoBanHT == khoaCoBanHienThiMoi)
+                guard cungTen else { return false }
+                return abs($0.thucHien - dongMoi.thucHien) < 0.01 &&
+                       abs($0.target - dongMoi.target) < 0.01 &&
+                       $0.loaiChiTieu == dongMoi.loaiChiTieu
             })
 
-            if let viTri = viTriKhopTarget ?? viTriKhopTen {
+            // 2. Ưu tiên khớp theo cùng tên cơ bản + cùng Target (để các dòng trùng tên bị cắt cụt như 2 dòng "T11 - Trả chậm..." có Target 57.51 hay 91.08 khớp đúng dòng khi quét nối tiếp nhiều ảnh)
+            let viTriKhopTarget: Int? = (dongMoi.target > 0) ? ketQua.firstIndex(where: {
+                let kCoBanGoc = chuanHoaKhoaCoBanThiDua($0.tenNganhHangGoc)
+                let kCoBanHT = chuanHoaKhoaCoBanThiDua($0.tenNganhHang)
+                let cungTen = (!khoaCoBanMoi.isEmpty && kCoBanGoc == khoaCoBanMoi) ||
+                              (!khoaCoBanHienThiMoi.isEmpty && kCoBanHT == khoaCoBanHienThiMoi)
+                return cungTen && abs($0.target - dongMoi.target) < 0.01
+            }) : nil
+
+            // 3. Khớp theo tên chuẩn hoá (khi cập nhật Thực hiện / Target cho môn đã có)
+            let viTriKhopTen = ketQua.firstIndex(where: {
+                let kg = chuanHoaKhoaSoSanh($0.tenNganhHangGoc)
+                let k = kg.isEmpty ? chuanHoaKhoaSoSanh($0.tenNganhHang) : kg
+                if k == khoaMoi {
+                    // Nếu cả 2 đều đã có Target > 0 nhưng Target khác hẳn nhau thì đó là 2 chương trình khác nhau bị trùng tên cắt cụt
+                    if $0.target > 0 && dongMoi.target > 0 && abs($0.target - dongMoi.target) >= 0.05 {
+                        return false
+                    }
+                    return true
+                }
+                return false
+            })
+
+            if let viTri = viTriTrung100 ?? viTriKhopTarget ?? viTriKhopTen {
                 var dongCu = ketQua[viTri]
-                if dongMoi.tenNganhHangGoc.count > dongCu.tenNganhHangGoc.count && !dongMoi.tenNganhHangGoc.hasSuffix("...") {
+                // Ưu tiên giữ tên gốc sạch (không chứa hậu tố "(#2)") hoặc dài/đầy đủ hơn
+                let cuCoDanhSo = dongCu.tenNganhHangGoc.range(of: "\\(\\s*#\\d+\\s*\\)$", options: .regularExpression) != nil
+                let moiCoDanhSo = dongMoi.tenNganhHangGoc.range(of: "\\(\\s*#\\d+\\s*\\)$", options: .regularExpression) != nil
+                if (cuCoDanhSo && !moiCoDanhSo) ||
+                   (!moiCoDanhSo && dongMoi.tenNganhHangGoc.count > dongCu.tenNganhHangGoc.count && !dongMoi.tenNganhHangGoc.hasSuffix("...")) {
                     dongCu.tenNganhHangGoc = dongMoi.tenNganhHangGoc
                     dongCu.tenNganhHang = dongMoi.tenNganhHang
                 }
@@ -2148,6 +2193,19 @@ final class KhoDuLieu {
                 }
                 ketQua[viTri] = dongCu
             } else {
+                // Nếu thêm môn mới mà không trùng với môn nào khác nhưng tên đang dính "(#2)" dư thừa thì làm sạch hậu tố "(#2)"
+                let cungTenCoBan = ketQua.contains {
+                    chuanHoaKhoaCoBanThiDua($0.tenNganhHangGoc) == khoaCoBanMoi
+                }
+                if !cungTenCoBan {
+                    let gocSach = dongMoi.tenNganhHangGoc.replacingOccurrences(
+                        of: "\\s*\\(\\s*#\\d+\\s*\\)\\s*$",
+                        with: "",
+                        options: .regularExpression
+                    )
+                    dongMoi.tenNganhHangGoc = gocSach
+                    dongMoi.tenNganhHang = apDungLocTuCaiDat(gocSach)
+                }
                 ketQua.append(dongMoi)
             }
         }
@@ -2219,10 +2277,10 @@ final class KhoDuLieu {
                     return nv.maNV.contains(maSach) || maSach.contains(nv.maNV)
                 }
             }
-            if ungVienGanMa.count == 1 {
+            if ungVienGanMa.count == 1, !tenChuan.isEmpty {
                 let nv = ungVienGanMa[0]
                 let nvChuan = chuanHoaKhoaSoSanh(nv.hoTen)
-                if tenChuan.isEmpty || nvChuan.hasPrefix(tenChuan) || nvChuan.contains(tenChuan) {
+                if nvChuan.hasPrefix(tenChuan) || nvChuan.contains(tenChuan) {
                     return nv
                 }
             } else if ungVienGanMa.count > 1, !tenChuan.isEmpty {

@@ -3921,6 +3921,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                             let daCoSo = abs(daCo.doanhThuQD) > 0.001 || abs(daCo.soLuong) > 0.001 || abs(daCo.phanTramQuyDoi) > 0.01
                             let moiCoSo = abs(capNhat.doanhThuQD) > 0.001 || abs(capNhat.soLuong) > 0.001 || abs(capNhat.phanTramQuyDoi) > 0.01
                             if daCoSo && !moiCoSo { continue }
+                            if abs(daCo.doanhThuQD) > abs(capNhat.doanhThuQD) && abs(daCo.phanTramQuyDoi) >= abs(capNhat.phanTramQuyDoi) {
+                                continue
+                            }
                         }
                         daQuetTrongDot.insert(ma)
                         mapDTNV[ma] = capNhat
@@ -4093,6 +4096,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                         let daCoSo = abs(daCo.doanhThuQD) > 0.001 || abs(daCo.soLuong) > 0.001 || abs(daCo.phanTramQuyDoi) > 0.01
                         let moiCoSo = abs(capNhat.doanhThuQD) > 0.001 || abs(capNhat.soLuong) > 0.001 || abs(capNhat.phanTramQuyDoi) > 0.01
                         if daCoSo && !moiCoSo { continue }
+                        if abs(daCo.doanhThuQD) > abs(capNhat.doanhThuQD) && abs(daCo.phanTramQuyDoi) >= abs(capNhat.phanTramQuyDoi) {
+                            continue
+                        }
                     }
                     daQuetTrongDot.insert(ma)
                     mapDTNV[ma] = capNhat
