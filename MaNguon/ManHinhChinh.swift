@@ -2524,9 +2524,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
         hop.navigationItem.rightBarButtonItem = UIBarButtonItem(
             title: "Xong",
-            style: .done,
-            target: hop,
-            action: #selector(UIViewController.dismissAnimatedDMX)
+            primaryAction: UIAction { [weak hop] _ in
+                hop?.dismiss(animated: true)
+            }
         )
 
         [nhanMoTa, hangNut, cuon].forEach {
