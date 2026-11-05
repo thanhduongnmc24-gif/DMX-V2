@@ -781,6 +781,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
     var khiChonNhanVien: ((TongHopNhanVien) -> Void)?
     var khiBamQuetDoanhThuNV: (() -> Void)?
     var khiBamMoCaiDatNV: (() -> Void)?
+    var khiBamChiaSeAnhNV: (() -> Void)?
 
     private var ngayHienTai = Date()
     private(set) var cheDoDoanhThu: LoaiCheDoDoanhThu = .luyKe
@@ -793,6 +794,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
     private var tongChieuRongBang: CGFloat { chieuRongCot.reduce(0, +) }
 
     private let nhanTieuDe = UILabel()
+    private let nutChiaSeAnh = UIButton(type: .system)
     private let nutSapXep = UIButton(type: .system)
     private let cuonNgang = UIScrollView()
     private let bang = UITableView(frame: .zero, style: .plain)
@@ -834,7 +836,24 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         nutSapXep.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutSapXep.addTarget(self, action: #selector(bamMoMenuSapXep), for: .touchUpInside)
 
-        let thanhDieuKhien = UIStackView(arrangedSubviews: [nhanTieuDe, nutSapXep])
+        let cfgShare = UIImage.SymbolConfiguration(pointSize: 11.5, weight: .bold)
+        nutChiaSeAnh.setImage(UIImage(systemName: "square.and.arrow.up", withConfiguration: cfgShare), for: .normal)
+        nutChiaSeAnh.setTitle(" Chia sẻ ảnh", for: .normal)
+        nutChiaSeAnh.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
+        nutChiaSeAnh.titleLabel?.numberOfLines = 0
+        nutChiaSeAnh.titleLabel?.lineBreakMode = .byWordWrapping
+        nutChiaSeAnh.titleLabel?.textAlignment = .center
+        nutChiaSeAnh.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutChiaSeAnh.backgroundColor = BangMauBCTD.xanhDatVach
+        nutChiaSeAnh.tintColor = .white
+        nutChiaSeAnh.setTitleColor(.white, for: .normal)
+        nutChiaSeAnh.layer.cornerRadius = 8
+        nutChiaSeAnh.contentEdgeInsets = UIEdgeInsets(top: 6, left: 9, bottom: 6, right: 9)
+        nutChiaSeAnh.setContentHuggingPriority(.required, for: .horizontal)
+        nutChiaSeAnh.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutChiaSeAnh.addTarget(self, action: #selector(bamChiaSeAnh), for: .touchUpInside)
+
+        let thanhDieuKhien = UIStackView(arrangedSubviews: [nhanTieuDe, nutChiaSeAnh, nutSapXep])
         thanhDieuKhien.axis = .horizontal
         thanhDieuKhien.spacing = 8
         thanhDieuKhien.alignment = .center
@@ -927,6 +946,10 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
 
     @objc private func bamMoCaiDat() {
         khiBamMoCaiDatNV?()
+    }
+
+    @objc private func bamChiaSeAnh() {
+        khiBamChiaSeAnhNV?()
     }
 
     func capNhat(cho ngay: Date, cheDo: LoaiCheDoDoanhThu = .luyKe) {

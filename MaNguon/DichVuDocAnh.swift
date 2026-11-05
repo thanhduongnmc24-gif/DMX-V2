@@ -1814,8 +1814,16 @@ final class DichVuDocAnh {
             }
 
             if let th = thucHien {
-                daXetMa.insert(maNV)
-                danhSach.append(DongThiDuaNhanVienQuet(maNV: maNV, hoTen: hoTen, thucHien: th, target: target))
+                let dsQL = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
+                if !dsQL.isEmpty {
+                    guard let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: maNV, tenQuet: hoTen, dsQuanLy: dsQL) else { continue }
+                    guard !daXetMa.contains(nvKhop.maNV) else { continue }
+                    daXetMa.insert(nvKhop.maNV)
+                    danhSach.append(DongThiDuaNhanVienQuet(maNV: nvKhop.maNV, hoTen: nvKhop.hoTen, thucHien: th, target: target))
+                } else {
+                    daXetMa.insert(maNV)
+                    danhSach.append(DongThiDuaNhanVienQuet(maNV: maNV, hoTen: hoTen, thucHien: th, target: target))
+                }
             }
         }
 
@@ -2620,6 +2628,26 @@ final class DichVuDocAnh {
                     ketQua[cacChiSoThieuSL[0]].soLuong = (tongSoLuongBang - tongSLDaBiet).rounded()
                 }
             }
+        }
+
+        // Chỉ giữ lại và chuẩn hoá các nhân viên có trong danh sách quản lý
+        if !dsQuanLy.isEmpty {
+            var ketQuaDaLoc: [DoanhThuNhanVienItem] = []
+            var daGiuMa = Set<String>()
+            for item in ketQua {
+                guard let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(
+                    maQuet: item.maNV,
+                    tenQuet: item.hoTen,
+                    dsQuanLy: dsQuanLy
+                ) else { continue }
+                if daGiuMa.contains(nvKhop.maNV) { continue }
+                daGiuMa.insert(nvKhop.maNV)
+                var capNhat = item
+                capNhat.maNV = nvKhop.maNV
+                capNhat.hoTen = nvKhop.hoTen
+                ketQuaDaLoc.append(capNhat)
+            }
+            return ketQuaDaLoc
         }
 
         return ketQua

@@ -428,6 +428,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     private let khungTongQuan = UIView()
     private var caTongQuanDangChon: CaBaoCaoTongQuan = .dauCa
     private let nutChonCaTongQuan = UIButton(type: .system)
+    private let nutChonNVTongQuan = UIButton(type: .system)
+    private var maNVChonTongQuan: Set<String>? = {
+        guard let mang = UserDefaults.standard.stringArray(forKey: "dmx_ma_nv_chon_tong_quan_v1") else { return nil }
+        return Set(mang)
+    }()
     private let nhanTomTatTongQuan = UITextView()
     private let khungBaoCao = UIView()
     private lazy var manHinhBanTinNhung = ManHinhBanTin(ngay: ngayHienTai) { [weak self] khung, soLieu in
@@ -990,6 +995,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         }
         bangNhanVien.khiBamMoCaiDatNV = { [weak self] in
             self?.moNhanhQuanLyNV()
+        }
+        bangNhanVien.khiBamChiaSeAnhNV = { [weak self] in
+            self?.moMenuChiaSeAnhNhanVien()
         }
 
         bangRealtimeThang.khiBamSuaDoanhThuLuyKe = { [weak self] in
@@ -2092,7 +2100,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         lbKickerChao.translatesAutoresizingMaskIntoConstraints = false
         theChao.addSubview(lbKickerChao)
 
-        nutChonCaTongQuan.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutChonCaTongQuan.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .bold)
         nutChonCaTongQuan.titleLabel?.numberOfLines = 0
         nutChonCaTongQuan.titleLabel?.lineBreakMode = .byWordWrapping
         nutChonCaTongQuan.titleLabel?.adjustsFontSizeToFitWidth = false
@@ -2103,13 +2111,36 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutChonCaTongQuan.layer.cornerRadius = 8
         nutChonCaTongQuan.layer.borderWidth = 1
         nutChonCaTongQuan.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
-        nutChonCaTongQuan.contentEdgeInsets = UIEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+        nutChonCaTongQuan.contentEdgeInsets = UIEdgeInsets(top: 6, left: 9, bottom: 6, right: 9)
         nutChonCaTongQuan.setContentHuggingPriority(.required, for: .horizontal)
         nutChonCaTongQuan.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutChonCaTongQuan.showsMenuAsPrimaryAction = true
-        nutChonCaTongQuan.translatesAutoresizingMaskIntoConstraints = false
-        theChao.addSubview(nutChonCaTongQuan)
+
+        nutChonNVTongQuan.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .bold)
+        nutChonNVTongQuan.titleLabel?.numberOfLines = 0
+        nutChonNVTongQuan.titleLabel?.lineBreakMode = .byWordWrapping
+        nutChonNVTongQuan.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutChonNVTongQuan.backgroundColor = BangMauBCTD.nenThe
+        nutChonNVTongQuan.tintColor = BangMauBCTD.xanhChuDaoDam
+        nutChonNVTongQuan.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+        nutChonNVTongQuan.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .highlighted)
+        nutChonNVTongQuan.layer.cornerRadius = 8
+        nutChonNVTongQuan.layer.borderWidth = 1
+        nutChonNVTongQuan.layer.borderColor = BangMauBCTD.vangSang.cgColor
+        nutChonNVTongQuan.contentEdgeInsets = UIEdgeInsets(top: 6, left: 9, bottom: 6, right: 9)
+        nutChonNVTongQuan.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        nutChonNVTongQuan.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        nutChonNVTongQuan.showsMenuAsPrimaryAction = true
+
+        let hangCbbTongQuan = UIStackView(arrangedSubviews: [nutChonCaTongQuan, nutChonNVTongQuan])
+        hangCbbTongQuan.axis = .horizontal
+        hangCbbTongQuan.spacing = 8
+        hangCbbTongQuan.alignment = .center
+        hangCbbTongQuan.distribution = .fill
+        hangCbbTongQuan.translatesAutoresizingMaskIntoConstraints = false
+        theChao.addSubview(hangCbbTongQuan)
         capNhatMenuCaTongQuan()
+        capNhatMenuNVTongQuan()
 
         nhanTomTatTongQuan.font = .systemFont(ofSize: 14, weight: .medium)
         nhanTomTatTongQuan.textColor = BangMauBCTD.chuChinh
@@ -2185,14 +2216,15 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             vachVangChao.leadingAnchor.constraint(equalTo: theChao.leadingAnchor),
             vachVangChao.widthAnchor.constraint(equalToConstant: 5),
 
-            lbKickerChao.centerYAnchor.constraint(equalTo: nutChonCaTongQuan.centerYAnchor),
+            lbKickerChao.topAnchor.constraint(equalTo: theChao.topAnchor, constant: 10),
             lbKickerChao.leadingAnchor.constraint(equalTo: vachVangChao.trailingAnchor, constant: 12),
-            lbKickerChao.trailingAnchor.constraint(lessThanOrEqualTo: nutChonCaTongQuan.leadingAnchor, constant: -8),
+            lbKickerChao.trailingAnchor.constraint(equalTo: theChao.trailingAnchor, constant: -14),
 
-            nutChonCaTongQuan.topAnchor.constraint(equalTo: theChao.topAnchor, constant: 10),
-            nutChonCaTongQuan.trailingAnchor.constraint(equalTo: theChao.trailingAnchor, constant: -14),
+            hangCbbTongQuan.topAnchor.constraint(equalTo: lbKickerChao.bottomAnchor, constant: 8),
+            hangCbbTongQuan.leadingAnchor.constraint(equalTo: vachVangChao.trailingAnchor, constant: 12),
+            hangCbbTongQuan.trailingAnchor.constraint(lessThanOrEqualTo: theChao.trailingAnchor, constant: -14),
 
-            nhanTomTatTongQuan.topAnchor.constraint(equalTo: nutChonCaTongQuan.bottomAnchor, constant: 8),
+            nhanTomTatTongQuan.topAnchor.constraint(equalTo: hangCbbTongQuan.bottomAnchor, constant: 8),
             nhanTomTatTongQuan.leadingAnchor.constraint(equalTo: vachVangChao.trailingAnchor, constant: 12),
             nhanTomTatTongQuan.trailingAnchor.constraint(equalTo: theChao.trailingAnchor, constant: -14),
             nhanTomTatTongQuan.bottomAnchor.constraint(equalTo: theChao.bottomAnchor, constant: -14),
@@ -2289,6 +2321,245 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             }
         }
         nutChonCaTongQuan.menu = UIMenu(title: "Chọn ca báo cáo", children: cacMuc)
+    }
+
+    private func layTapMaNVChonTongQuan() -> Set<String> {
+        let tatCaMa = Set(KhoDuLieu.dungChung.caiDat.danhSachNhanVien.map(\.maNV))
+        guard let daLuu = maNVChonTongQuan else { return tatCaMa }
+        return daLuu.intersection(tatCaMa)
+    }
+
+    private func luuMaNVChonTongQuan(_ tap: Set<String>?) {
+        maNVChonTongQuan = tap
+        if let tap = tap {
+            UserDefaults.standard.set(Array(tap), forKey: "dmx_ma_nv_chon_tong_quan_v1")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "dmx_ma_nv_chon_tong_quan_v1")
+        }
+    }
+
+    private func capNhatMenuNVTongQuan() {
+        let dsNV = NhanVienQuanLy.sapXepAZ(KhoDuLieu.dungChung.caiDat.danhSachNhanVien)
+        let tapDangChon = layTapMaNVChonTongQuan()
+        let tongNV = dsNV.count
+        let soChon = tapDangChon.count
+
+        if tongNV == 0 {
+            nutChonNVTongQuan.setTitle("👥 NV trong ca: 0 NV ▾", for: .normal)
+            nutChonNVTongQuan.menu = nil
+            return
+        } else if soChon >= tongNV {
+            nutChonNVTongQuan.setTitle("👥 NV trong ca: Tất cả (\(tongNV)) ▾", for: .normal)
+        } else {
+            nutChonNVTongQuan.setTitle("👥 NV trong ca: \(soChon)/\(tongNV) NV ▾", for: .normal)
+        }
+
+        let nutMoBangNhanh = UIAction(
+            title: "📋 Mở bảng tích chọn nhân viên làm theo ca...",
+            image: UIImage(systemName: "checklist")
+        ) { [weak self] _ in
+            self?.moBangChonNhanVienTrongCaTongQuan()
+        }
+
+        let nutChonTatCa = UIAction(
+            title: "✅ Chọn tất cả (\(tongNV) NV)",
+            state: soChon == tongNV ? .on : .off
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.luuMaNVChonTongQuan(nil)
+            self.capNhatMenuNVTongQuan()
+            self.napDuLieu()
+        }
+
+        let nutBoChonTatCa = UIAction(
+            title: "⬜ Bỏ chọn tất cả",
+            attributes: .destructive
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.luuMaNVChonTongQuan([])
+            self.capNhatMenuNVTongQuan()
+            self.napDuLieu()
+        }
+
+        let cacMucNV: [UIAction] = dsNV.map { nv in
+            let dangChon = tapDangChon.contains(nv.maNV)
+            let act = UIAction(
+                title: "\(nv.hoTen) (\(nv.maNV))",
+                state: dangChon ? .on : .off
+            ) { [weak self] _ in
+                guard let self else { return }
+                var tapMoi = self.layTapMaNVChonTongQuan()
+                if tapMoi.contains(nv.maNV) {
+                    tapMoi.remove(nv.maNV)
+                } else {
+                    tapMoi.insert(nv.maNV)
+                }
+                let tatCa = Set(KhoDuLieu.dungChung.caiDat.danhSachNhanVien.map(\.maNV))
+                self.luuMaNVChonTongQuan(tapMoi == tatCa ? nil : tapMoi)
+                self.capNhatMenuNVTongQuan()
+                self.napDuLieu()
+            }
+            if #available(iOS 16.0, *) {
+                act.attributes = [.keepsMenuPresented]
+            }
+            return act
+        }
+
+        let menuThaoTac = UIMenu(title: "", options: .displayInline, children: [nutMoBangNhanh, nutChonTatCa, nutBoChonTatCa])
+        let menuDanhSach = UIMenu(title: "Tích chọn nhân viên trong ca", options: .displayInline, children: cacMucNV)
+        nutChonNVTongQuan.menu = UIMenu(title: "Nhân viên trong ca (\(soChon)/\(tongNV))", children: [menuThaoTac, menuDanhSach])
+    }
+
+    private func moBangChonNhanVienTrongCaTongQuan() {
+        let dsNV = NhanVienQuanLy.sapXepAZ(KhoDuLieu.dungChung.caiDat.danhSachNhanVien)
+        guard !dsNV.isEmpty else { return }
+
+        let hop = UIViewController()
+        hop.view.backgroundColor = BangMauBCTD.nenTrang
+        hop.title = "Chọn nhân viên trong ca"
+
+        let nhanMoTa = UILabel()
+        nhanMoTa.font = .systemFont(ofSize: 13.0, weight: .semibold)
+        nhanMoTa.textColor = BangMauBCTD.chuPhu
+        nhanMoTa.numberOfLines = 0
+        nhanMoTa.lineBreakMode = .byWordWrapping
+        nhanMoTa.adjustsFontSizeToFitWidth = false
+
+        let nutAll = UIButton(type: .system)
+        nutAll.setTitle("✅ Chọn tất cả (\(dsNV.count))", for: .normal)
+        nutAll.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutAll.titleLabel?.numberOfLines = 0
+        nutAll.titleLabel?.lineBreakMode = .byWordWrapping
+        nutAll.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutAll.backgroundColor = BangMauBCTD.xanhChuDao
+        nutAll.setTitleColor(.white, for: .normal)
+        nutAll.layer.cornerRadius = 8
+        nutAll.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+
+        let nutNone = UIButton(type: .system)
+        nutNone.setTitle("⬜ Bỏ chọn tất cả", for: .normal)
+        nutNone.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutNone.titleLabel?.numberOfLines = 0
+        nutNone.titleLabel?.lineBreakMode = .byWordWrapping
+        nutNone.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutNone.backgroundColor = BangMauBCTD.doYeuPill
+        nutNone.setTitleColor(BangMauBCTD.doYeuChu, for: .normal)
+        nutNone.layer.cornerRadius = 8
+        nutNone.layer.borderWidth = 1
+        nutNone.layer.borderColor = BangMauBCTD.doYeuVach.withAlphaComponent(0.3).cgColor
+        nutNone.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+
+        let hangNut = UIStackView(arrangedSubviews: [nutAll, nutNone])
+        hangNut.axis = .horizontal
+        hangNut.spacing = 8
+        hangNut.distribution = .fillEqually
+
+        let cuon = UIScrollView()
+        cuon.alwaysBounceVertical = true
+        let nganDS = UIStackView()
+        nganDS.axis = .vertical
+        nganDS.spacing = 6
+        nganDS.translatesAutoresizingMaskIntoConstraints = false
+        cuon.addSubview(nganDS)
+
+        var cacNutHang: [(nv: NhanVienQuanLy, nut: UIButton)] = []
+
+        func capNhatTrangThaiBang() {
+            let tap = self.layTapMaNVChonTongQuan()
+            nhanMoTa.text = "Đang chọn \(tap.count)/\(dsNV.count) nhân viên làm trong ca. Báo cáo Tổng quan chỉ phân tích các nhân viên được tích chọn:"
+            for (nv, nut) in cacNutHang {
+                let chon = tap.contains(nv.maNV)
+                let icon = chon ? "☑️" : "⬜"
+                nut.setTitle("\(icon)  \(nv.hoTen) — Mã NV: \(nv.maNV)", for: .normal)
+                nut.backgroundColor = chon ? BangMauBCTD.xanhDatNenDong : BangMauBCTD.nenThe
+                nut.layer.borderColor = (chon ? BangMauBCTD.xanhDatVach : BangMauBCTD.vienThe).cgColor
+                nut.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+            }
+        }
+
+        for nv in dsNV {
+            let nut = UIButton(type: .system, primaryAction: UIAction { [weak self] _ in
+                guard let self else { return }
+                var tap = self.layTapMaNVChonTongQuan()
+                if tap.contains(nv.maNV) {
+                    tap.remove(nv.maNV)
+                } else {
+                    tap.insert(nv.maNV)
+                }
+                let tatCa = Set(dsNV.map(\.maNV))
+                self.luuMaNVChonTongQuan(tap == tatCa ? nil : tap)
+                capNhatTrangThaiBang()
+                self.capNhatMenuNVTongQuan()
+                self.napDuLieu()
+            })
+            nut.titleLabel?.font = .systemFont(ofSize: 14.0, weight: .bold)
+            nut.titleLabel?.numberOfLines = 0
+            nut.titleLabel?.lineBreakMode = .byWordWrapping
+            nut.titleLabel?.adjustsFontSizeToFitWidth = false
+            nut.contentHorizontalAlignment = .left
+            nut.contentEdgeInsets = UIEdgeInsets(top: 11, left: 12, bottom: 11, right: 12)
+            nut.layer.cornerRadius = 10
+            nut.layer.borderWidth = 1.2
+            cacNutHang.append((nv, nut))
+            nganDS.addArrangedSubview(nut)
+        }
+
+        nutAll.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            self.luuMaNVChonTongQuan(nil)
+            capNhatTrangThaiBang()
+            self.capNhatMenuNVTongQuan()
+            self.napDuLieu()
+        }, for: .touchUpInside)
+
+        nutNone.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            self.luuMaNVChonTongQuan([])
+            capNhatTrangThaiBang()
+            self.capNhatMenuNVTongQuan()
+            self.napDuLieu()
+        }, for: .touchUpInside)
+
+        capNhatTrangThaiBang()
+
+        hop.navigationItem.rightBarButtonItem = UIBarButtonItem(
+            title: "Xong",
+            style: .done,
+            target: hop,
+            action: #selector(UIViewController.dismissAnimatedDMX)
+        )
+
+        [nhanMoTa, hangNut, cuon].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
+            hop.view.addSubview($0)
+        }
+
+        NSLayoutConstraint.activate([
+            nhanMoTa.topAnchor.constraint(equalTo: hop.view.safeAreaLayoutGuide.topAnchor, constant: 12),
+            nhanMoTa.leadingAnchor.constraint(equalTo: hop.view.leadingAnchor, constant: 14),
+            nhanMoTa.trailingAnchor.constraint(equalTo: hop.view.trailingAnchor, constant: -14),
+
+            hangNut.topAnchor.constraint(equalTo: nhanMoTa.bottomAnchor, constant: 10),
+            hangNut.leadingAnchor.constraint(equalTo: hop.view.leadingAnchor, constant: 14),
+            hangNut.trailingAnchor.constraint(equalTo: hop.view.trailingAnchor, constant: -14),
+
+            cuon.topAnchor.constraint(equalTo: hangNut.bottomAnchor, constant: 10),
+            cuon.leadingAnchor.constraint(equalTo: hop.view.leadingAnchor),
+            cuon.trailingAnchor.constraint(equalTo: hop.view.trailingAnchor),
+            cuon.bottomAnchor.constraint(equalTo: hop.view.safeAreaLayoutGuide.bottomAnchor),
+
+            nganDS.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 4),
+            nganDS.leadingAnchor.constraint(equalTo: cuon.frameLayoutGuide.leadingAnchor, constant: 14),
+            nganDS.trailingAnchor.constraint(equalTo: cuon.frameLayoutGuide.trailingAnchor, constant: -14),
+            nganDS.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -20)
+        ])
+
+        let nav = UINavigationController(rootViewController: hop)
+        nav.modalPresentationStyle = .pageSheet
+        if let sheet = nav.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+        }
+        present(nav, animated: true)
     }
 
     @objc private func saoChepTongQuan() {
@@ -2629,6 +2900,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         switch mucMenuChinh {
         case .tongQuan:
             capNhatMenuCaTongQuan()
+            capNhatMenuNVTongQuan()
+            let tapMaNVChon = layTapMaNVChonTongQuan()
             let ngayStr = TienIchNgay.hienThiNgay.string(from: ngayHienTai)
             let kho = KhoDuLieu.dungChung
             let khoaNgay = duLieu.khoaNgay
@@ -2649,6 +2922,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             var cacDongTongQuan: [String] = []
             if caTongQuanDangChon == .dauCa {
                 let tatCaNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .doanhThuQD, cheDo: .luyKe)
+                    .filter { tapMaNVChon.contains($0.nhanVien.maNV) }
                 let huyHieuTop = ["🥇 TOP 1", "🥈 TOP 2", "🥉 TOP 3", "🏅 TOP 4", "🏅 TOP 5"]
                 let topNV = tatCaNV.prefix(5).enumerated().map { viTri, item in
                     let nhanTop = viTri < huyHieuTop.count ? huyHieuTop[viTri] : "🏅 TOP \(viTri + 1)"
@@ -2700,10 +2974,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 ])
             } else {
                 let dsNVRT = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .doanhThuQD, cheDo: .realtime)
+                    .filter { tapMaNVChon.contains($0.nhanVien.maNV) }
                 let coDuLieuNVRT = dsNVRT.contains { $0.doanhThuQD != 0 || $0.soLuongDon != 0 || $0.soMonDat > 0 }
                 let nguonNV = coDuLieuNVRT
                     ? dsNVRT
                     : KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .doanhThuQD, cheDo: .luyKe)
+                        .filter { tapMaNVChon.contains($0.nhanVien.maNV) }
                 let kemNV = nguonNV.suffix(5).reversed().enumerated().map { viTri, item in
                     "✖️ TOP \(viTri + 1): \(item.nhanVien.hoTen) – \(item.doanhThuQD.chuoiSoGonVN) QĐ · \(item.soLuongDon.chuoiSoGonVN) SL"
                 }
@@ -2829,7 +3105,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let hienNutTrenNav = (mucMenuChinh == .doSoXemSo || mucMenuChinh == .tongQuan || mucMenuChinh == .nhanVien || mucMenuChinh == .baoCao || mucMenuChinh == .lichDoSo)
         nutNgay.isHidden = !hienNutTrenNav
         nutNhapTatCa.isHidden = (mucMenuChinh != .doSoXemSo)
-        nutXuatNav.isHidden = (mucMenuChinh != .doSoXemSo)
+        nutXuatNav.isHidden = (mucMenuChinh != .doSoXemSo && mucMenuChinh != .nhanVien)
         nutXoaNav.isHidden = (mucMenuChinh != .doSoXemSo)
         nutCopyTongQuanNav.isHidden = (mucMenuChinh != .tongQuan)
         nutQuanLyNhanVienNav.isHidden = (mucMenuChinh != .nhanVien)
@@ -3591,9 +3867,16 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                     }
                     var daQuetTrongDot = Set<String>()
                     for item in kq.doanhThuNhanVien {
-                        let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsQuanLy)
-                        let ma = nvKhop?.maNV ?? KhoDuLieu.chuanHoaMaNV(item.maNV)
-                        let ten = nvKhop?.hoTen ?? item.hoTen
+                        let ma: String
+                        let ten: String
+                        if !dsQuanLy.isEmpty {
+                            guard let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsQuanLy) else { continue }
+                            ma = nvKhop.maNV
+                            ten = nvKhop.hoTen
+                        } else {
+                            ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
+                            ten = item.hoTen
+                        }
                         guard !ma.isEmpty else { continue }
                         var capNhat = item
                         capNhat.maNV = ma
@@ -3756,9 +4039,16 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 }
                 var daQuetTrongDot = Set<String>()
                 for item in dsQuet {
-                    let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsQuanLy)
-                    let ma = nvKhop?.maNV ?? KhoDuLieu.chuanHoaMaNV(item.maNV)
-                    let ten = nvKhop?.hoTen ?? item.hoTen
+                    let ma: String
+                    let ten: String
+                    if !dsQuanLy.isEmpty {
+                        guard let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsQuanLy) else { continue }
+                        ma = nvKhop.maNV
+                        ten = nvKhop.hoTen
+                    } else {
+                        ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
+                        ten = item.hoTen
+                    }
                     guard !ma.isEmpty else { continue }
                     var capNhat = item
                     capNhat.maNV = ma
@@ -3969,7 +4259,70 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     }
 
     @objc private func moMenuXuatBaoCao() {
+        if mucMenuChinh == .nhanVien || (mucMenuChinh == .doSoXemSo && mucConDoSo == .xemSo && tabXemSo == .nhanVien) {
+            moMenuChiaSeAnhNhanVien()
+            return
+        }
         hienBangNutXuatAnh()
+    }
+
+    private func moMenuChiaSeAnhNhanVien() {
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
+        let cheDoNV = cheDoDoanhThu
+        let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .tenAZ, cheDo: cheDoNV)
+
+        let cacMuc: [MucChonDMX] = [
+            MucChonDMX(tieuDe: "📊 Ảnh Bảng Xếp Hạng Nhân Viên — Lũy kế") { [weak self] in
+                guard let self = self,
+                      let anh = self.bangNhanVien.taoAnhBaoCaoNhanVien(
+                          ngay: self.ngayHienTai,
+                          cheDo: .luyKe,
+                          thongTinDonVi: dl.thongTinDonVi,
+                          capNhatLuc: dl.capNhatLuc
+                      ) else { return }
+                self.chiaSe([anh])
+            },
+            MucChonDMX(tieuDe: "⚡ Ảnh Bảng Xếp Hạng Nhân Viên — Realtime") { [weak self] in
+                guard let self = self,
+                      let anh = self.bangNhanVien.taoAnhBaoCaoNhanVien(
+                          ngay: self.ngayHienTai,
+                          cheDo: .realtime,
+                          thongTinDonVi: dl.thongTinDonVi,
+                          capNhatLuc: dl.capNhatLuc
+                      ) else { return }
+                self.chiaSe([anh])
+            },
+            MucChonDMX(tieuDe: "❤️‍🩹 Ảnh Biểu Đồ Sức Khỏe \(dsNV.count) NV & Cảnh Báo Top 5 Yếu") { [weak self] in
+                guard let self = self,
+                      let anh = self.bangRealtimeThang.taoAnhBaoCaoSucKhoeNhanVien(
+                          ngay: self.ngayHienTai,
+                          thongTinDonVi: dl.thongTinDonVi,
+                          capNhatLuc: dl.capNhatLuc
+                      ) else { return }
+                self.chiaSe([anh])
+            },
+            MucChonDMX(tieuDe: "🖼️ Ảnh Tổng Hợp Chi Tiết \(dsNV.count) Nhân Viên (Gộp 1 ảnh — \(cheDoNV.tieuDe))") { [weak self] in
+                guard let self = self,
+                      let anhGop = ManHinhChiTietNhanVien.taoAnhGopTatCaSucKhoe(cho: self.ngayHienTai, cheDo: cheDoNV) else { return }
+                self.chiaSe([anhGop])
+            },
+            MucChonDMX(tieuDe: "📚 Xuất Bộ \(dsNV.count) Ảnh Rời Chi Tiết Từng Nhân Viên (\(cheDoNV.tieuDe))") { [weak self] in
+                guard let self = self else { return }
+                let cacAnh = ManHinhChiTietNhanVien.taoTatCaAnhSucKhoe(cho: self.ngayHienTai, cheDo: cheDoNV)
+                guard !cacAnh.isEmpty else { return }
+                self.chiaSe(cacAnh)
+            },
+            MucChonDMX(tieuDe: "👤 Chọn 1 Nhân Viên Cụ Thể Để Xuất Ảnh Chi Tiết (\(cheDoNV.tieuDe))") { [weak self] in
+                self?.moChonNhanVienChiaSeAnh(cheDo: cheDoNV)
+            },
+            MucChonDMX(tieuDe: "Đóng", kieu: .huy)
+        ]
+
+        hienMenuChon(
+            tieuDe: "Chia sẻ ảnh Nhân viên",
+            thongDiep: "Chọn loại ảnh báo cáo liên quan đến nhân viên bạn muốn chia sẻ hoặc lưu về máy:",
+            cacMuc: cacMuc
+        )
     }
 
     private func moMenuXuatBaoCaoCu() {

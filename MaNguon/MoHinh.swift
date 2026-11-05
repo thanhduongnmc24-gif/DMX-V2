@@ -1928,20 +1928,7 @@ final class KhoDuLieu {
             dtNVList = dlHienTai.doanhThuNhanVienRealtime
         }
 
-        var dsNV = NhanVienQuanLy.sapXepAZ(caiDat.danhSachNhanVien)
-        var tapMaDaCo = Set(dsNV.map(\.maNV))
-        for item in dtNVList {
-            let ma = Self.chuanHoaMaNV(item.maNV)
-            guard !ma.isEmpty, !tapMaDaCo.contains(ma) else { continue }
-            if let khop = Self.khopNhanVienQuetVoiQuanLy(maQuet: ma, tenQuet: item.hoTen, dsQuanLy: dsNV) {
-                tapMaDaCo.insert(khop.maNV)
-                continue
-            }
-            let tenHienThi = item.hoTen.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "NV \(ma)" : item.hoTen
-            dsNV.append(NhanVienQuanLy(maNV: ma, hoTen: tenHienThi))
-            tapMaDaCo.insert(ma)
-        }
-        dsNV = NhanVienQuanLy.sapXepAZ(dsNV)
+        let dsNV = NhanVienQuanLy.sapXepAZ(caiDat.danhSachNhanVien)
 
         var ketQua: [TongHopNhanVien] = dsNV.map { nv in
             var cacMonGiao: [MonThiDuaNhanVien] = []
@@ -2056,12 +2043,17 @@ final class KhoDuLieu {
 
             var bangCu = ketQua[khoaNganh] ?? [:]
             for item in khoi.danhSach {
-                let nvKhop = Self.khopNhanVienQuetVoiQuanLy(
-                    maQuet: item.maNV,
-                    tenQuet: item.hoTen,
-                    dsQuanLy: caiDat.danhSachNhanVien
-                )
-                let maLuu = nvKhop?.maNV ?? Self.chuanHoaMaNV(item.maNV)
+                let maLuu: String
+                if !caiDat.danhSachNhanVien.isEmpty {
+                    guard let nvKhop = Self.khopNhanVienQuetVoiQuanLy(
+                        maQuet: item.maNV,
+                        tenQuet: item.hoTen,
+                        dsQuanLy: caiDat.danhSachNhanVien
+                    ) else { continue }
+                    maLuu = nvKhop.maNV
+                } else {
+                    maLuu = Self.chuanHoaMaNV(item.maNV)
+                }
                 guard !maLuu.isEmpty else { continue }
                 if item.thucHien >= 0 {
                     bangCu[maLuu] = item.thucHien
