@@ -2446,6 +2446,38 @@ final class DichVuDocAnh {
         }
         let yHeaderMax: CGFloat = cacHeader.map { $0.y + $0.cao }.max() ?? 0.02
 
+        // Không dùng các mốc cột cứng của giao diện cũ. Bảng trên web có thể co giãn
+        // theo kích thước màn hình; khi đó số nằm sát mép phải của ô SỐ LƯỢNG rất dễ
+        // rơi sang ô DOANH THU QĐ. Lấy tâm tiêu đề trên chính ảnh và đặt ranh giới ở
+        // trung điểm hai tiêu đề liền nhau. Các giá trị mặc định bên dưới khớp bố cục
+        // hiện tại và chỉ được dùng khi Vision không đọc đủ tiêu đề.
+        func tamXHeader(_ dieuKien: (String) -> Bool) -> CGFloat? {
+            let ungVien = phanTuMoRong.filter { pt in
+                guard pt.y <= yHeaderMax + 0.015 else { return false }
+                return dieuKien(boDau(pt.chu).replacingOccurrences(of: "\n", with: " "))
+            }
+            return ungVien.max(by: { $0.rong < $1.rong }).map { $0.x + $0.rong / 2.0 }
+        }
+
+        let tamSoLuong = tamXHeader { $0.contains("SO LUONG") }
+        let tamDoanhThu = tamXHeader { $0.contains("DOANH THU") && $0.contains("QD") }
+        let tamKhoanVay = tamXHeader { $0.contains("KHOAN VAY") }
+        let tamTiTrong = tamXHeader { $0.contains("TI TRONG") }
+
+        var mocBatDauSoLuong: CGFloat = 0.30
+        var mocBatDauDoanhThu: CGFloat = 0.49
+        var mocBatDauKhoanVay: CGFloat = 0.67
+        var mocBatDauTiTrong: CGFloat = 0.85
+        if let xSL = tamSoLuong, let xDT = tamDoanhThu, let xVay = tamKhoanVay, let xTT = tamTiTrong,
+           xSL < xDT, xDT < xVay, xVay < xTT {
+            mocBatDauDoanhThu = (xSL + xDT) / 2.0
+            mocBatDauKhoanVay = (xDT + xVay) / 2.0
+            mocBatDauTiTrong = (xVay + xTT) / 2.0
+            // Cột tên kết thúc quanh 30% chiều rộng. Giới hạn để một tiêu đề OCR
+            // quá rộng không kéo vùng SỐ LƯỢNG vào cột tên.
+            mocBatDauSoLuong = min(0.34, max(0.25, xSL - (mocBatDauDoanhThu - xSL)))
+        }
+
         // Tìm dòng TỔNG ngay dưới Header (nếu có) để biết toạ độ Y của dòng TỔNG và tổng Doanh thu QĐ / tổng Số lượng
         let phanTuDongTong = phanTuMoRong.first { pt in
             guard pt.x < 0.25 && pt.y >= max(0.01, yHeaderMax - 0.02) && pt.y < 0.45 else { return false }
@@ -2680,9 +2712,9 @@ final class DichVuDocAnh {
             for pt in soDongTong {
                 let xTam = pt.x + min(pt.rong, 0.12) / 2.0
                 guard let val = chuyenChuoiThanhSoDoanhThu(pt.chu), !laSoWatermarkNV(val, chu: pt.chu) else { continue }
-                if xTam >= 0.23 && xTam < 0.45 && !pt.chu.contains("%") && tongSoLuongBang == 0 {
+                if xTam >= mocBatDauSoLuong && xTam < mocBatDauDoanhThu && !pt.chu.contains("%") && tongSoLuongBang == 0 {
                     tongSoLuongBang = val
-                } else if xTam >= 0.45 && xTam < 0.64 && !pt.chu.contains("%") && tongDTQDBangTuDongTong == 0 {
+                } else if xTam >= mocBatDauDoanhThu && xTam < mocBatDauKhoanVay && !pt.chu.contains("%") && tongDTQDBangTuDongTong == 0 {
                     tongDTQDBangTuDongTong = val
                 }
             }
@@ -2693,6 +2725,39 @@ final class DichVuDocAnh {
             : 0.028
 
         var ketQua: [DoanhThuNhanVienItem] = []
+
+        // Trả về nil khi ảnh không có đủ dữ kiện để đối chiếu. Khi có đủ dữ kiện,
+        // doanh thu từng nhân viên phải sinh ra đúng % tỉ trọng trên tổng doanh thu.
+        // Nhờ vậy một bảng bị lệch nguyên cột sẽ bị phát hiện thay vì âm thầm lưu sai.
+        func kiemTraTuongQuanDoanhThuVaTiTrong(_ ds: [DoanhThuNhanVienItem]) -> Bool? {
+            let dsKiemTra = dsQuanLy.isEmpty ? ds : ds.filter { tapMaQuanLy.contains($0.maNV) }
+            let cacDongCoTiTrong = dsKiemTra.filter { abs($0.phanTramQuyDoi) >= 0.05 }
+            guard cacDongCoTiTrong.count >= 3 else { return nil }
+
+            let tongTiTrong = dsKiemTra.reduce(0.0) { $0 + $1.phanTramQuyDoi }
+            guard abs(tongTiTrong) >= 92.0 && abs(tongTiTrong) <= 108.0 else { return nil }
+
+            let tongDoanhThu = dsKiemTra.reduce(0.0) { $0 + $1.doanhThuQD }
+            guard abs(tongDoanhThu) > 0.001 else { return false }
+
+            if tongDTQDBangTuDongTong > 0 {
+                let saiSoTong = abs(tongDoanhThu - tongDTQDBangTuDongTong)
+                if saiSoTong > max(1.0, abs(tongDTQDBangTuDongTong) * 0.03) { return false }
+            }
+
+            var tongSaiSo = 0.0
+            var soDongSaiLon = 0
+            for item in cacDongCoTiTrong {
+                let tiTrongTinhLai = item.doanhThuQD / tongDoanhThu * 100.0
+                let saiSo = abs(tiTrongTinhLai - item.phanTramQuyDoi)
+                tongSaiSo += saiSo
+                if saiSo > max(1.0, abs(item.phanTramQuyDoi) * 0.12) {
+                    soDongSaiLon += 1
+                }
+            }
+            let saiSoTrungBinh = tongSaiSo / Double(cacDongCoTiTrong.count)
+            return saiSoTrungBinh <= 1.25 && soDongSaiLon <= max(1, cacDongCoTiTrong.count / 5)
+        }
 
         for (k, dong) in cacDongNV.enumerated() {
             let yHang = dong.yTam
@@ -2746,14 +2811,14 @@ final class DichVuDocAnh {
                     return giaTriCoDau(ungVien[0])
                 }
 
-                let soLuong = laySoTheoKhoangX(0.23, 0.45) ?? 0
-                let doanhThuQD = laySoTheoKhoangX(0.45, 0.63) ?? 0
-                let dtQDKhoanVay = laySoTheoKhoangX(0.63, 0.81) ?? 0
+                let soLuong = laySoTheoKhoangX(mocBatDauSoLuong, mocBatDauDoanhThu) ?? 0
+                let doanhThuQD = laySoTheoKhoangX(mocBatDauDoanhThu, mocBatDauKhoanVay) ?? 0
+                let dtQDKhoanVay = laySoTheoKhoangX(mocBatDauKhoanVay, mocBatDauTiTrong) ?? 0
                 let phanTramTiTrong: Double
                 if let ptCoPhanTram = cacPhanTuSoCungHang.last(where: { $0.chu.contains("%") && ($0.x + min($0.rong, 0.12) / 2.0) >= 0.75 }) {
                     phanTramTiTrong = giaTriCoDau(ptCoPhanTram)
                 } else {
-                    phanTramTiTrong = laySoTheoKhoangX(0.81, 1.00, choPhepPhanTram: true) ?? 0
+                    phanTramTiTrong = laySoTheoKhoangX(mocBatDauTiTrong, 1.00, choPhepPhanTram: true) ?? 0
                 }
 
                 ketQua.append(DoanhThuNhanVienItem(
@@ -2791,22 +2856,17 @@ final class DichVuDocAnh {
             }
         }
 
-        // Nếu có các dòng có doanh thu / tỉ trọng > 0 nhưng SỐ LƯỢNG hoặc DOANH THU QĐ vẫn bằng 0 (do số 1 chữ số đứng độc lập),
-        // cắt trực tiếp ô đó ghép cạnh nhãn neo để đọc 100% các số 1 chữ số (như 4, 5, 6, 9, 3, 2, 1)
+        // Luôn quét độc lập từng ô SỐ LƯỢNG và DOANH THU QĐ. Đây là lượt OCR thứ hai
+        // trên vùng đã cắt sát, nên một con số không thể bị gán sang cột kế bên. Kết
+        // quả này được ưu tiên; OCR toàn bảng chỉ là nguồn dự phòng nếu một ô không đọc được.
         if !laBangRong, let anh = anh, !ketQua.isEmpty {
             var cacOCanQuet: [(idO: Int, xMin: CGFloat, xMax: CGFloat, yMin: CGFloat, yMax: CGFloat)] = []
-            for (i, item) in ketQua.enumerated() where i < cacDongNV.count {
-                let coHoatDong = abs(item.phanTramQuyDoi) > 0.01 || abs(item.doanhThuQD) > 0.001 || abs(item.soLuong) > 0.001 || i < 9
-                guard coHoatDong else { continue }
+            for i in ketQua.indices where i < cacDongNV.count {
                 let yTam = cacDongNV[i].yTam
                 let yMinO = max(0.0, yTam - khoangCachHangTB * 0.48)
                 let yMaxO = min(1.0, yTam + khoangCachHangTB * 0.48)
-                if abs(item.soLuong) < 0.0001 {
-                    cacOCanQuet.append((idO: i * 10 + 1, xMin: 0.31, xMax: 0.44, yMin: yMinO, yMax: yMaxO))
-                }
-                if abs(item.doanhThuQD) < 0.0001 {
-                    cacOCanQuet.append((idO: i * 10 + 2, xMin: 0.49, xMax: 0.62, yMin: yMinO, yMax: yMaxO))
-                }
+                cacOCanQuet.append((idO: i * 10 + 1, xMin: mocBatDauSoLuong, xMax: mocBatDauDoanhThu, yMin: yMinO, yMax: yMaxO))
+                cacOCanQuet.append((idO: i * 10 + 2, xMin: mocBatDauDoanhThu, xMax: mocBatDauKhoanVay, yMin: yMinO, yMax: yMaxO))
             }
             if !cacOCanQuet.isEmpty {
                 let soQuetDuoc = quetCacOThieuSoBangNhanVien(anh: anh, cacO: cacOCanQuet)
@@ -2814,9 +2874,9 @@ final class DichVuDocAnh {
                     let rowIdx = idO / 10
                     let loaiCot = idO % 10
                     guard rowIdx >= 0 && rowIdx < ketQua.count else { continue }
-                    if loaiCot == 1 && abs(ketQua[rowIdx].soLuong) < 0.0001 {
+                    if loaiCot == 1 {
                         ketQua[rowIdx].soLuong = giaTri
-                    } else if loaiCot == 2 && abs(ketQua[rowIdx].doanhThuQD) < 0.0001 {
+                    } else if loaiCot == 2 {
                         ketQua[rowIdx].doanhThuQD = giaTri
                     }
                 }
@@ -2874,6 +2934,14 @@ final class DichVuDocAnh {
                     ketQua[cacChiSoThieuSL[0]].soLuong = (tongSoLuongBang - tongSLDaBiet).rounded()
                 }
             }
+        }
+
+
+        // Nguyên tắc an toàn: khi đã có đủ % tỉ trọng để kiểm tra mà số liệu vẫn
+        // mâu thuẫn sau lần quét từng ô, không trả dữ liệu để tránh ghi đè dữ liệu
+        // đúng đang có bằng một bảng OCR sai.
+        if !laBangRong, kiemTraTuongQuanDoanhThuVaTiTrong(ketQua) == false {
+            return []
         }
 
         // Chỉ giữ lại và chuẩn hoá các nhân viên có trong danh sách quản lý
