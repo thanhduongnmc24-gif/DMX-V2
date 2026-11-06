@@ -261,9 +261,10 @@ enum MucMenuChinh: Int, CaseIterable {
     case quanTri = 13
     case trinhDuyet = 14
     case nhanVien = 15
+    case guiBaoCao = 16
 
     static var allCases: [MucMenuChinh] {
-        [.tongQuan, .doSoXemSo, .nhanVien, .xuatFileBaoCao, .caiDat, .quanTri]
+        [.tongQuan, .doSoXemSo, .nhanVien, .guiBaoCao, .xuatFileBaoCao, .caiDat, .quanTri]
     }
 
     var tieuDe: String {
@@ -284,6 +285,7 @@ enum MucMenuChinh: Int, CaseIterable {
         case .quanTri: return "Quản trị"
         case .trinhDuyet: return "Trình duyệt Copilot"
         case .nhanVien: return "Nhân viên"
+        case .guiBaoCao: return "Gởi báo cáo"
         }
     }
 
@@ -305,6 +307,7 @@ enum MucMenuChinh: Int, CaseIterable {
         case .quanTri: return "crown.fill"
         case .trinhDuyet: return "globe"
         case .nhanVien: return "person.3.fill"
+        case .guiBaoCao: return "paperplane.fill"
         }
     }
 

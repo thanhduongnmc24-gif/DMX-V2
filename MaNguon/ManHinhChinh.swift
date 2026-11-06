@@ -448,6 +448,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     private let khungTrinhDuyet = UIView()
     private lazy var manHinhTrinhDuyetNhung = ManHinhTrinhDuyet(ngay: ngayHienTai)
     private let khungMucMoRong = UIView()
+    private let bangGuiBaoCao = BangGuiBaoCaoView()
     private let bieuTuongMucMoRong = UIImageView()
     private let nhanTieuDeMucMoRong = UILabel()
     private let nhanMoTaMucMoRong = UILabel()
@@ -3288,6 +3289,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         }
 
         switch muc {
+        case .guiBaoCao:
+            nhanMoTaMucMoRong.text = "Chọn nhóm LINE, giờ gửi, ngày gửi và các báo cáo cần gửi tự động. Mỗi nhóm chỉ đọc dữ liệu mới nhất của đúng tài khoản DMX đã gắn."
+            nganHanhDongMucMoRong.addArrangedSubview(bangGuiBaoCao)
+            bangGuiBaoCao.napDuLieu()
+
         case .lichDoSo:
             let ngayStr = TienIchNgay.hienThiNgay.string(from: ngayHienTai)
             nhanMoTaMucMoRong.text = "Quản lý lịch sử ngày đổ số và theo dõi tiến độ dữ liệu theo từng ngày trong tháng.\nNgày đang chọn: \(ngayStr)."

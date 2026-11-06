@@ -53,6 +53,48 @@ private struct PhanHoiLienKetLine: Codable {
     var thongBao: String?
 }
 
+struct NhomLineDMX: Codable, Hashable {
+    var lineGroupId: String
+    var tenNhom: String
+    var dangHoatDong: Bool
+    enum CodingKeys: String, CodingKey {
+        case lineGroupId = "line_group_id"
+        case tenNhom = "ten_nhom"
+        case dangHoatDong = "dang_hoat_dong"
+    }
+}
+
+struct LichGuiBaoCaoDMX: Codable, Hashable, Identifiable {
+    var id: String
+    var lineGroupId: String
+    var gio: String
+    var cacThu: [Int]
+    var cacNoiDung: [String]
+    var dangHoatDong: Bool
+    enum CodingKeys: String, CodingKey {
+        case id
+        case lineGroupId = "line_group_id"
+        case gio
+        case cacThu = "cac_thu"
+        case cacNoiDung = "cac_noi_dung"
+        case dangHoatDong = "dang_hoat_dong"
+    }
+}
+
+private struct PhanHoiMaGanNhom: Codable { var ok: Bool?; var ma: String; var soPhut: Int }
+private struct PhanHoiDanhSachNhom: Codable { var nhom: [NhomLineDMX]; var lich: [LichGuiBaoCaoDMX] }
+private struct PhanHoiThaoTacNhom: Codable { var ok: Bool? }
+
+private struct YeuCauNhomLine: Codable {
+    var hanhDong: String
+    var id: String?
+    var lineGroupId: String?
+    var gio: String?
+    var cacThu: [Int]?
+    var cacNoiDung: [String]?
+    var dangHoatDong: Bool?
+}
+
 // MARK: - Phản hồi từ Supabase Auth & Admin REST API trực tiếp
 
 private struct SupabaseAuthUser: Codable {
@@ -990,7 +1032,7 @@ final class DichVuDongBo {
         lenLichDayDuLieuNen()
     }
 
-    /// Gom các thay đổi liên tiếp trong vòng 1.0 giây thành 1 lần đồng bộ chạy ngầm duy nhất
+    /// Gom các thay đổi rất gần nhau trong 0.25 giây; dữ liệu mới sẵn sàng cho bot gần như tức thời.
     private func lenLichDayDuLieuNen() {
         hangDoi.async { [weak self] in
             guard let self else { return }
@@ -999,7 +1041,7 @@ final class DichVuDongBo {
                 self?.thucThiDayDuLieuGomNhom()
             }
             self.congViecDayNen = cv
-            self.hangDoi.asyncAfter(deadline: .now() + 1.0, execute: cv)
+            self.hangDoi.asyncAfter(deadline: .now() + 0.25, execute: cv)
         }
     }
 
@@ -1333,6 +1375,46 @@ final class DichVuDongBo {
         }
     }
 
+    func taoMaGanNhomLine(hoanTat: @escaping (Result<(String, Int), Error>) -> Void) {
+        let body = YeuCauNhomLine(hanhDong: "tao_ma", id: nil, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, dangHoatDong: nil)
+        guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiMaGanNhom, Error>) in
+            switch ketQua {
+            case .success(let kq): hoanTat(.success((kq.ma, kq.soPhut)))
+            case .failure(let loi): hoanTat(.failure(loi))
+            }
+        }
+    }
+
+    func taiCauHinhGuiBaoCao(hoanTat: @escaping (Result<([NhomLineDMX], [LichGuiBaoCaoDMX]), Error>) -> Void) {
+        let body = YeuCauNhomLine(hanhDong: "danh_sach", id: nil, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, dangHoatDong: nil)
+        guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiDanhSachNhom, Error>) in
+            switch ketQua {
+            case .success(let kq): hoanTat(.success((kq.nhom, kq.lich)))
+            case .failure(let loi): hoanTat(.failure(loi))
+            }
+        }
+    }
+
+    func luuLichGuiBaoCao(id: String? = nil, groupId: String, gio: String, cacThu: [Int], cacNoiDung: [String], dangHoatDong: Bool = true, hoanTat: @escaping (Result<Void, Error>) -> Void) {
+        let body = YeuCauNhomLine(hanhDong: "luu_lich", id: id, lineGroupId: groupId, gio: gio, cacThu: cacThu, cacNoiDung: cacNoiDung, dangHoatDong: dangHoatDong)
+        guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiThaoTacNhom, Error>) in
+            switch ketQua {
+            case .success: hoanTat(.success(()))
+            case .failure(let loi): hoanTat(.failure(loi))
+            }
+        }
+    }
+
+    func xoaLichGuiBaoCao(id: String, hoanTat: @escaping (Result<Void, Error>) -> Void) {
+        let body = YeuCauNhomLine(hanhDong: "xoa_lich", id: id, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, dangHoatDong: nil)
+        guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiThaoTacNhom, Error>) in
+            switch ketQua {
+            case .success: hoanTat(.success(()))
+            case .failure(let loi): hoanTat(.failure(loi))
+            }
+        }
+    }
+
     private func lamMoiPhien(hoanTat: @escaping (Bool) -> Void) {
         guard let refresh = phien?.refreshToken else { hoanTat(false); return }
         guiSupabaseAuth(query: "grant_type=refresh_token", body: ["refresh_token": refresh]) { [weak self] kq in
@@ -1382,7 +1464,11 @@ final class DichVuDongBo {
             if status == 401, canDangNhap, thuLai {
                 self?.lamMoiPhien { thanhCong in
                     guard thanhCong else {
-                        DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Phiên đăng nhập đã hết hạn."))) }
+                        DispatchQueue.main.async {
+                            self?.dangXuat()
+                            NotificationCenter.default.post(name: .taiKhoanDMXBiDangXuat, object: nil)
+                            hoanTat(.failure(NSError.dmx("Phiên đăng nhập cũ đã hết hạn. Vui lòng đăng nhập lại để tiếp tục.")))
+                        }
                         return
                     }
                     self?.guiWeb(path: path, method: method, bodyData: bodyData, canDangNhap: true, thuLai: false, hoanTat: hoanTat)

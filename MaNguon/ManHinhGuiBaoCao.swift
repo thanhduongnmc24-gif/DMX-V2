@@ -1,0 +1,218 @@
+import UIKit
+
+final class BangGuiBaoCaoView: UIView {
+    private let ngan = UIStackView()
+    private let nhanMa = UILabel()
+    private let nutChonNhom = UIButton(type: .system)
+    private let chonGio = UIDatePicker()
+    private let nganThu = UIStackView()
+    private let nganNoiDung = UIStackView()
+    private let nhanTrangThai = UILabel()
+    private let nganLich = UIStackView()
+    private var danhSachNhom: [NhomLineDMX] = []
+    private var danhSachLich: [LichGuiBaoCaoDMX] = []
+    private var groupIdDangChon = ""
+    private var cacThuDangChon = Set([1, 2, 3, 4, 5, 6, 7])
+    private var noiDungDangChon = Set(["doanhthu"])
+
+    private let cacNoiDung: [(String, String)] = [
+        ("doanhthu", "💰 Doanh thu + dự kiến"), ("thidua", "🏆 Các môn thi đua"),
+        ("suckhoe", "❤️‍🩹 Sức khỏe nhân viên"), ("nhanvien", "👥 Xếp hạng nhân viên"),
+        ("tongquan", "📊 Tổng quan"), ("realtime", "⚡ Realtime"), ("luyke", "📅 Lũy kế")
+    ]
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        taoGiaoDien()
+    }
+
+    required init?(coder: NSCoder) { super.init(coder: coder); taoGiaoDien() }
+
+    private func taoGiaoDien() {
+        backgroundColor = .clear
+        ngan.axis = .vertical
+        ngan.spacing = 10
+        ngan.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(ngan)
+        NSLayoutConstraint.activate([
+            ngan.topAnchor.constraint(equalTo: topAnchor), ngan.leadingAnchor.constraint(equalTo: leadingAnchor),
+            ngan.trailingAnchor.constraint(equalTo: trailingAnchor), ngan.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+
+        ngan.addArrangedSubview(taoNhan("KẾT NỐI NHÓM LINE", dam: true))
+        ngan.addArrangedSubview(taoNhan("Tạo mã rồi vào đúng nhóm LINE, gõ /gannhom MÃ. Mã chỉ dùng một lần và hết hạn sau 10 phút."))
+        let nutMa = taoNut("🔗 Tạo mã gắn nhóm", #selector(taoMa))
+        ngan.addArrangedSubview(nutMa)
+        nhanMa.font = .monospacedDigitSystemFont(ofSize: 28, weight: .heavy)
+        nhanMa.textAlignment = .center
+        nhanMa.textColor = BangMauBCTD.xanhChuDao
+        nhanMa.numberOfLines = 0
+        nhanMa.isHidden = true
+        ngan.addArrangedSubview(nhanMa)
+
+        ngan.addArrangedSubview(taoDuongKe())
+        ngan.addArrangedSubview(taoNhan("LỊCH GỬI TỰ ĐỘNG", dam: true))
+        cauHinhNutChon(nutChonNhom)
+        ngan.addArrangedSubview(nutChonNhom)
+
+        chonGio.datePickerMode = .time
+        chonGio.locale = Locale(identifier: "vi_VN")
+        chonGio.preferredDatePickerStyle = .compact
+        let dongGio = UIStackView(arrangedSubviews: [taoNhan("Giờ gửi:"), chonGio])
+        dongGio.axis = .horizontal; dongGio.alignment = .center; dongGio.distribution = .equalSpacing
+        ngan.addArrangedSubview(dongGio)
+
+        ngan.addArrangedSubview(taoNhan("Ngày gửi:"))
+        nganThu.axis = .horizontal; nganThu.spacing = 5; nganThu.distribution = .fillEqually
+        for (index, ten) in ["T2", "T3", "T4", "T5", "T6", "T7", "CN"].enumerated() {
+            let nut = taoNutLuaChon(ten, tag: index + 1, action: #selector(chonThu(_:)))
+            nganThu.addArrangedSubview(nut)
+        }
+        ngan.addArrangedSubview(nganThu)
+
+        ngan.addArrangedSubview(taoNhan("Nội dung gửi (có thể chọn nhiều):"))
+        nganNoiDung.axis = .vertical; nganNoiDung.spacing = 6
+        for (index, item) in cacNoiDung.enumerated() {
+            let nut = taoNutLuaChon(item.1, tag: index, action: #selector(chonNoiDung(_:)))
+            nut.contentHorizontalAlignment = .left
+            nganNoiDung.addArrangedSubview(nut)
+        }
+        ngan.addArrangedSubview(nganNoiDung)
+        ngan.addArrangedSubview(taoNut("💾 Lưu lịch gửi", #selector(luuLich)))
+
+        nhanTrangThai.font = .systemFont(ofSize: 12.5, weight: .medium)
+        nhanTrangThai.textColor = BangMauBCTD.chuPhu
+        nhanTrangThai.numberOfLines = 0
+        ngan.addArrangedSubview(nhanTrangThai)
+        ngan.addArrangedSubview(taoDuongKe())
+        ngan.addArrangedSubview(taoNhan("CÁC LỊCH ĐÃ LƯU", dam: true))
+        nganLich.axis = .vertical; nganLich.spacing = 8
+        ngan.addArrangedSubview(nganLich)
+        capNhatNutLuaChon()
+    }
+
+    func napDuLieu() {
+        nhanTrangThai.text = "Đang tải cấu hình…"
+        DichVuDongBo.dungChung.taiCauHinhGuiBaoCao { [weak self] ketQua in
+            guard let self else { return }
+            switch ketQua {
+            case .success(let duLieu):
+                self.danhSachNhom = duLieu.0
+                self.danhSachLich = duLieu.1
+                if !self.danhSachNhom.contains(where: { $0.lineGroupId == self.groupIdDangChon }) {
+                    self.groupIdDangChon = self.danhSachNhom.first?.lineGroupId ?? ""
+                }
+                self.capNhatMenuNhom(); self.veDanhSachLich()
+                self.nhanTrangThai.text = self.danhSachNhom.isEmpty ? "Chưa có nhóm. Hãy tạo mã và gắn bot vào nhóm trước." : "Dữ liệu báo cáo được đồng bộ lên Supabase ngay sau khi quét/nhập số."
+            case .failure(let loi): self.hienLoi(loi.localizedDescription)
+            }
+        }
+    }
+
+    @objc private func taoMa() {
+        DichVuDongBo.dungChung.taoMaGanNhomLine { [weak self] ketQua in
+            switch ketQua {
+            case .success(let kq): self?.nhanMa.isHidden = false; self?.nhanMa.text = "Mã: \(kq.0)\nTrong nhóm gõ: /gannhom \(kq.0)"
+            case .failure(let loi): self?.hienLoi(loi.localizedDescription)
+            }
+        }
+    }
+
+    @objc private func chonThu(_ sender: UIButton) {
+        if cacThuDangChon.contains(sender.tag) { cacThuDangChon.remove(sender.tag) } else { cacThuDangChon.insert(sender.tag) }
+        capNhatNutLuaChon()
+    }
+
+    @objc private func chonNoiDung(_ sender: UIButton) {
+        let ma = cacNoiDung[sender.tag].0
+        if noiDungDangChon.contains(ma) { noiDungDangChon.remove(ma) } else { noiDungDangChon.insert(ma) }
+        capNhatNutLuaChon()
+    }
+
+    @objc private func luuLich() {
+        guard !groupIdDangChon.isEmpty else { hienLoi("Hãy gắn ít nhất một nhóm LINE trước."); return }
+        guard !cacThuDangChon.isEmpty, !noiDungDangChon.isEmpty else { hienLoi("Hãy chọn ngày và nội dung cần gửi."); return }
+        let f = DateFormatter(); f.dateFormat = "HH:mm"
+        nhanTrangThai.text = "Đang lưu lịch…"
+        DichVuDongBo.dungChung.luuLichGuiBaoCao(groupId: groupIdDangChon, gio: f.string(from: chonGio.date), cacThu: cacThuDangChon.sorted(), cacNoiDung: Array(noiDungDangChon).sorted()) { [weak self] kq in
+            switch kq {
+            case .success: self?.nhanTrangThai.text = "Đã lưu lịch gửi."; self?.napDuLieu()
+            case .failure(let loi): self?.hienLoi(loi.localizedDescription)
+            }
+        }
+    }
+
+    @objc private func xoaLich(_ sender: UIButton) {
+        guard danhSachLich.indices.contains(sender.tag) else { return }
+        let id = danhSachLich[sender.tag].id
+        DichVuDongBo.dungChung.xoaLichGuiBaoCao(id: id) { [weak self] kq in
+            if case .failure(let loi) = kq { self?.hienLoi(loi.localizedDescription) } else { self?.napDuLieu() }
+        }
+    }
+
+    private func capNhatMenuNhom() {
+        let actions = danhSachNhom.map { nhom in
+            UIAction(title: nhom.tenNhom, state: nhom.lineGroupId == groupIdDangChon ? .on : .off) { [weak self] _ in
+                self?.groupIdDangChon = nhom.lineGroupId; self?.capNhatMenuNhom()
+            }
+        }
+        nutChonNhom.menu = UIMenu(title: "Nhóm nhận báo cáo", children: actions)
+        nutChonNhom.showsMenuAsPrimaryAction = true
+        let ten = danhSachNhom.first(where: { $0.lineGroupId == groupIdDangChon })?.tenNhom ?? "Chưa có nhóm LINE"
+        nutChonNhom.setTitle("Nhóm nhận: \(ten) ▾", for: .normal)
+    }
+
+    private func veDanhSachLich() {
+        nganLich.arrangedSubviews.forEach { nganLich.removeArrangedSubview($0); $0.removeFromSuperview() }
+        if danhSachLich.isEmpty { nganLich.addArrangedSubview(taoNhan("Chưa có lịch gửi tự động.")); return }
+        let tenThu = [1:"T2",2:"T3",3:"T4",4:"T5",5:"T6",6:"T7",7:"CN"]
+        for (index, lich) in danhSachLich.enumerated() {
+            let tenNhom = danhSachNhom.first(where: { $0.lineGroupId == lich.lineGroupId })?.tenNhom ?? "Nhóm LINE"
+            let noiDung = lich.cacNoiDung.compactMap { ma in cacNoiDung.first(where: { $0.0 == ma })?.1 }.joined(separator: ", ")
+            let nhan = taoNhan("⏰ \(String(lich.gio.prefix(5))) • \(lich.cacThu.compactMap { tenThu[$0] }.joined(separator: ", "))\n\(tenNhom)\n\(noiDung)")
+            let xoa = UIButton(type: .system); xoa.setImage(UIImage(systemName: "trash"), for: .normal); xoa.tintColor = .systemRed; xoa.tag = index
+            xoa.addTarget(self, action: #selector(xoaLich(_:)), for: .touchUpInside); xoa.widthAnchor.constraint(equalToConstant: 42).isActive = true
+            let dong = UIStackView(arrangedSubviews: [nhan, xoa]); dong.axis = .horizontal; dong.alignment = .center; dong.spacing = 8
+            dong.isLayoutMarginsRelativeArrangement = true; dong.layoutMargins = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 8)
+            dong.backgroundColor = BangMauBCTD.nenThePhu; dong.layer.cornerRadius = 10; dong.layer.borderWidth = 1; dong.layer.borderColor = BangMauBCTD.vienThe.cgColor
+            nganLich.addArrangedSubview(dong)
+        }
+    }
+
+    private func capNhatNutLuaChon() {
+        for case let nut as UIButton in nganThu.arrangedSubviews { datTrangThai(nut, chon: cacThuDangChon.contains(nut.tag)) }
+        for case let nut as UIButton in nganNoiDung.arrangedSubviews { datTrangThai(nut, chon: noiDungDangChon.contains(cacNoiDung[nut.tag].0)) }
+    }
+
+    private func datTrangThai(_ nut: UIButton, chon: Bool) {
+        nut.backgroundColor = chon ? BangMauBCTD.xanhChuDao : BangMauBCTD.nenThePhu
+        nut.setTitleColor(chon ? .white : BangMauBCTD.chuChinh, for: .normal)
+        nut.layer.borderColor = (chon ? BangMauBCTD.xanhChuDao : BangMauBCTD.vienDam).cgColor
+    }
+
+    private func taoNhan(_ text: String, dam: Bool = false) -> UILabel {
+        let l = UILabel(); l.text = text; l.numberOfLines = 0; l.textColor = BangMauBCTD.chuChinh
+        l.font = .systemFont(ofSize: dam ? 14 : 13, weight: dam ? .bold : .regular); return l
+    }
+
+    private func taoNut(_ text: String, _ action: Selector) -> UIButton {
+        let b = UIButton(type: .system); b.setTitle(text, for: .normal); b.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+        b.setTitleColor(.white, for: .normal); b.backgroundColor = BangMauBCTD.xanhChuDao; b.layer.cornerRadius = 10
+        b.contentEdgeInsets = UIEdgeInsets(top: 11, left: 10, bottom: 11, right: 10); b.addTarget(self, action: action, for: .touchUpInside); return b
+    }
+
+    private func taoNutLuaChon(_ text: String, tag: Int, action: Selector) -> UIButton {
+        let b = UIButton(type: .system); b.setTitle(text, for: .normal); b.tag = tag; b.titleLabel?.font = .systemFont(ofSize: 12, weight: .semibold)
+        b.layer.cornerRadius = 8; b.layer.borderWidth = 1; b.contentEdgeInsets = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+        b.addTarget(self, action: action, for: .touchUpInside); return b
+    }
+
+    private func cauHinhNutChon(_ b: UIButton) {
+        b.contentHorizontalAlignment = .left; b.backgroundColor = BangMauBCTD.nenThePhu; b.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        b.layer.cornerRadius = 9; b.layer.borderWidth = 1; b.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        b.contentEdgeInsets = UIEdgeInsets(top: 11, left: 10, bottom: 11, right: 10)
+    }
+
+    private func taoDuongKe() -> UIView { let v = UIView(); v.backgroundColor = BangMauBCTD.vienThe; v.heightAnchor.constraint(equalToConstant: 1).isActive = true; return v }
+    private func hienLoi(_ text: String) { nhanTrangThai.text = "⚠️ \(text)"; nhanTrangThai.textColor = .systemRed }
+}
