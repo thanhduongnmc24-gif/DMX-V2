@@ -633,7 +633,8 @@ final class DichVuDocAnh {
         guard let cgImage = taoCGImageDaLocWatermarkVaTangNet(tu: anh) ?? anh.cgImage else { return [] }
 
         var phanTu: [PhanTuVanBan] = []
-        var phanTuSoBoSung: [PhanTuVanBan] = []
+        var phanTuSoBoSung1: [PhanTuVanBan] = []
+        var phanTuSoBoSung2: [PhanTuVanBan] = []
 
         let yeuCau = VNRecognizeTextRequest { [weak self] request, _ in
             guard let self = self, let ketQua = request.results as? [VNRecognizedTextObservation] else { return }
@@ -683,7 +684,7 @@ final class DichVuDocAnh {
                 let cacTokenSo = self.trichXuatCacPhanTuTokenSo(tu: ungVien, boxGoc: box)
                 if cacTokenSo.count >= 2 {
                     for tk in cacTokenSo where tk.x >= 0.02 {
-                        phanTuSoBoSung.append(tk)
+                        phanTuSoBoSung1.append(tk)
                     }
                 }
             }
@@ -712,7 +713,7 @@ final class DichVuDocAnh {
                     let chu = ungVien.string.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !chu.isEmpty else { continue }
                     if chu.range(of: "^[+\\-−–—]?[0-9]+([.,][0-9]+)?%?$", options: .regularExpression) != nil {
-                        phanTuSoBoSung.append(
+                        phanTuSoBoSung2.append(
                             PhanTuVanBan(
                                 chu: chu,
                                 x: box.origin.x,
@@ -726,7 +727,7 @@ final class DichVuDocAnh {
                         let cacToken = self.trichXuatCacPhanTuTokenSo(tu: ungVien, boxGoc: box)
                         if !cacToken.isEmpty {
                             for tk in cacToken where tk.x >= 0.02 {
-                                phanTuSoBoSung.append(tk)
+                                phanTuSoBoSung2.append(tk)
                             }
                             break
                         }
@@ -739,8 +740,10 @@ final class DichVuDocAnh {
         yeuCauSo.minimumTextHeight = 0.004
 
         let xuLy = VNImageRequestHandler(cgImage: cgImage, orientation: anh.cgImageOrientation, options: [:])
-        try? xuLy.perform([yeuCau, yeuCauSo])
+        try? xuLy.perform([yeuCau])
+        try? xuLy.perform([yeuCauSo])
 
+        let phanTuSoBoSung = phanTuSoBoSung1 + phanTuSoBoSung2
         for ptSo in phanTuSoBoSung {
             let daCo = phanTu.contains { pt in
                 guard abs(pt.y - ptSo.y) < 0.013 && abs(pt.x - ptSo.x) < 0.032 else { return false }
@@ -2055,7 +2058,7 @@ final class DichVuDocAnh {
             }
 
             if let th = thucHien {
-                let dsQL = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
+                let dsQL = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
                 if !dsQL.isEmpty {
                     guard let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: maNV, tenQuet: hoTen, dsQuanLy: dsQL) else { continue }
                     guard !daXetMa.contains(nvKhop.maNV) else { continue }
@@ -2231,7 +2234,8 @@ final class DichVuDocAnh {
         yeuCauChu.minimumTextHeight = 0.004
 
         let handler = VNImageRequestHandler(cgImage: cgTangNet, orientation: anh.cgImageOrientation, options: [:])
-        try? handler.perform([yeuCau, yeuCauChu])
+        try? handler.perform([yeuCau])
+        try? handler.perform([yeuCauChu])
         return ketQua
     }
 
@@ -2432,7 +2436,7 @@ final class DichVuDocAnh {
             return u.contains("DTLK") || u.contains("GIO CONG") || u.contains("NANG SUAT")
         }
 
-        let dsQuanLy = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
+        let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
         let tapMaQuanLy = Set(dsQuanLy.map(\.maNV))
 
         // Tìm mốc Y của dòng Header bảng Nhân viên (NHÂN VIÊN | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG)

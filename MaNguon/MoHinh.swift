@@ -1270,6 +1270,7 @@ final class KhoDuLieu {
     private var boNhoDemDTNVLuyKeThang: [String: [DoanhThuNhanVienItem]] = [:]
 
     private static let khoaBoNhoDemTinh = NSLock()
+    private static var danhSachCumTuLocBoTinh: [String] = []
     private static var boNhoDemKhoaSoSanh: [String: String] = [:]
     private static var boNhoDemLocTen: [String: String] = [:]
     private static var boNhoDemTenChuan: [String: String] = [:]
@@ -1288,9 +1289,17 @@ final class KhoDuLieu {
         return (caiDat, cacNgay)
     }
 
+    /// Lấy bản sao cài đặt an toàn cho các luồng quét ảnh OCR nền
+    func layCaiDatAnToan() -> CaiDatDMX {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
+        return caiDat
+    }
+
     private func xoaBoNhoDem(xoaonLocTen: Bool = false) {
         khoaTruyCap.lock()
         phienBanDuLieu &+= 1
+        let cumTuHienTai = caiDat.danhSachCumTuLocBo
         boNhoDemDuLieuNgay.removeAll(keepingCapacity: true)
         boNhoDemMatHangThang.removeAll(keepingCapacity: true)
         boNhoDemThucHienNVThang.removeAll(keepingCapacity: true)
@@ -1301,11 +1310,12 @@ final class KhoDuLieu {
         boNhoDemDTLuyKeThang.removeAll(keepingCapacity: true)
         boNhoDemDTNVLuyKeThang.removeAll(keepingCapacity: true)
         khoaTruyCap.unlock()
+        Self.khoaBoNhoDemTinh.lock()
+        Self.danhSachCumTuLocBoTinh = cumTuHienTai
         if xoaonLocTen {
-            Self.khoaBoNhoDemTinh.lock()
             Self.boNhoDemLocTen.removeAll(keepingCapacity: true)
-            Self.khoaBoNhoDemTinh.unlock()
         }
+        Self.khoaBoNhoDemTinh.unlock()
     }
 
     func doc() {
@@ -1317,6 +1327,10 @@ final class KhoDuLieu {
         } else {
             thuMuc.ghiCaiDatBatDongBo(caiDat)
         }
+        Self.khoaBoNhoDemTinh.lock()
+        Self.danhSachCumTuLocBoTinh = caiDat.danhSachCumTuLocBo
+        Self.boNhoDemLocTen.removeAll(keepingCapacity: true)
+        Self.khoaBoNhoDemTinh.unlock()
 
         if var giaTri = thuMuc.doc([String: DuLieuNgayDMX].self, tu: thuMuc.tepNgay) {
             for (khoa, var dl) in giaTri {
@@ -2286,20 +2300,33 @@ final class KhoDuLieu {
         }
         khoaBoNhoDemTinh.unlock()
 
-        let khongDau = ten
+        var khongDau = ten
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN"))
             .replacingOccurrences(of: "đ", with: "d")
             .replacingOccurrences(of: "Đ", with: "D")
             .uppercased()
+            .replacingOccurrences(of: "^[^A-Z0-9]+", with: "", options: .regularExpression)
+
+        // Cắt an toàn tối đa 4 lần các cụm tiền tố tháng ở đầu mà không dùng regex lồng nhau (tránh tràn stack trên luồng nền 512KB)
+        for _ in 0..<4 {
+            guard let rGach = khongDau.range(of: "^[^\\-–—−]{1,12}[-–—−]+\\s*", options: .regularExpression) else {
+                break
+            }
+            let truoc = String(khongDau[rGach])
+                .replacingOccurrences(of: "[-–—−\\s]+$", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if truoc.range(of: "^(?:[A-Z]{1,2}\\s+)?[T71IL0-9\\s]{1,8}$", options: .regularExpression) != nil {
+                khongDau = String(khongDau[rGach.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                break
+            }
+        }
+        khongDau = khongDau.replacingOccurrences(of: "^(?:T\\d{1,2}|711|111|I11|1I1|11)\\s+", with: "", options: .regularExpression)
+
         let boHauTo = khongDau
             .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
             .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|SE|RI|BT)\\b\\s*$", with: "", options: .regularExpression)
             .replacingOccurrences(of: "\\s+\\b(CE|ICT|1CT|LCT|LER|DV|BV|OV|0V|MDA|SDA|GD)\\b\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "^[^A-Z0-9]+", with: "", options: .regularExpression)
-            // Cắt triệt để mọi tiền tố tháng lặp nhiều lần ở đầu (như "T11 - 11 T11 - ", "11 T11 - ", "711 - ")
-            .replacingOccurrences(of: "^(?:(?:[A-Z0-9]{1,3}\\s+)*(?:[T71IL]\\d{0,2}|\\d{1,2})\\s*[-–—]\\s*)+", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "^(?:(?:T\\d{1,2}|[71IL]{2,3})\\s*[-–—]?\\s*)+", with: "", options: .regularExpression)
-            // Bỏ số 11/T11 nhiễu bị dính ở cuối (ví dụ "CE LG 11")
             .replacingOccurrences(of: "\\s+\\b(?:11|I1|1I|T11)\\b\\s*$", with: "", options: .regularExpression)
         let ketQua = boHauTo.replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression)
 
@@ -2326,32 +2353,44 @@ final class KhoDuLieu {
 
         guard !s.isEmpty else { return "" }
 
-        // Chuẩn hoá tiền tố tháng bị OCR đọc lệch hoặc lặp nhiều lần (như "T11 - 11 T11 -", "11 T11 -", "711 -", "11 -", "gy T1-")
+        // Vòng lặp giới hạn 4 bước cắt sạch mọi tiền tố tháng lặp ("T11 - 11 T11 -", "11 T11 -", "711 -", "gy T1-") mà không dùng regex lồng nhau
         var tienToThang = ""
-        let uDau = s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
-        if let rThang = uDau.range(of: "^(?:(?:[A-Z0-9]{1,3}\\s+)*(?:[T71IL]\\d{0,2}|\\d{1,2})\\s*[-–—]\\s*)+", options: .regularExpression) {
-            let phanTruocGach = String(uDau[rThang])
-            if phanTruocGach.contains("11") || phanTruocGach.contains("I1") || phanTruocGach.contains("1I") {
-                tienToThang = "T11"
-            } else if let rSo = phanTruocGach.range(of: "1[0-2]|[1-9]", options: .regularExpression) {
-                let soThang = String(phanTruocGach[rSo])
-                tienToThang = tienToThangMacDinh ?? "T\(soThang)"
+        for _ in 0..<4 {
+            guard let rGach = s.range(of: "^[^\\-–—−]{1,12}[-–—−]+\\s*", options: .regularExpression) else {
+                break
+            }
+            let truoc = String(s[rGach])
+                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN"))
+                .uppercased()
+                .replacingOccurrences(of: "[-–—−\\s]+$", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if truoc.range(of: "^(?:[A-Z]{1,2}\\s+)?[T71IL0-9\\s]{1,8}$", options: .regularExpression) != nil {
+                if truoc.contains("11") || truoc.contains("I1") || truoc.contains("1I") {
+                    tienToThang = "T11"
+                } else if tienToThang.isEmpty {
+                    if let rSo = truoc.range(of: "1[0-2]|[1-9]", options: .regularExpression) {
+                        tienToThang = tienToThangMacDinh ?? "T\(truoc[rSo])"
+                    } else {
+                        tienToThang = tienToThangMacDinh ?? "T11"
+                    }
+                }
+                s = String(s[rGach.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
             } else {
-                tienToThang = tienToThangMacDinh ?? "T11"
+                break
             }
-            if let rGoc = s.range(of: "^(?:[^\\-–—−]{1,8})[-–—−]\\s*", options: .regularExpression) {
-                s = String(s[rGoc.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        } else if let macDinh = tienToThangMacDinh, !macDinh.isEmpty {
+        }
+        if tienToThang.isEmpty, let macDinh = tienToThangMacDinh, !macDinh.isEmpty {
             tienToThang = macDinh
         }
 
-        // Cắt triệt để chỉ trong 1 bước mọi cụm tiền tố tháng / số 11 / dấu gạch ngang bị lặp ở đầu tên môn (như "T11 - 11 T11 - ", "11 T11 - ", "T11 - 11 - ")
-        s = s.replacingOccurrences(
-            of: "^(?:(?:T\\d{1,2}|711|111|I11|1I1|11|[-–—−])+\\s*)+",
-            with: "",
-            options: [.regularExpression, .caseInsensitive]
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        // Nếu đầu chuỗi vẫn còn sót "11 " hoặc "T11 " rời thì cắt bỏ
+        for _ in 0..<3 {
+            if let rDu = s.range(of: "^(?:T\\d{1,2}|711|111|I11|1I1|11|[-–—−]+)\\s+", options: [.regularExpression, .caseInsensitive]) {
+                s = String(s[rDu.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                break
+            }
+        }
 
         // Bỏ hậu tố đánh số (#2), đơn vị (DT/SL), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối
         s = s
@@ -2410,11 +2449,11 @@ final class KhoDuLieu {
             khoaBoNhoDemTinh.unlock()
             return daDem
         }
+        let danhSachLoc = danhSachCumTuLocBoTinh
         khoaBoNhoDemTinh.unlock()
 
         var s = chuanHoaTenMonThiDuaChuan(tenGoc)
 
-        let danhSachLoc = KhoDuLieu.dungChung.caiDat.danhSachCumTuLocBo
         for cumTu in danhSachLoc {
             let sach = cumTu.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !sach.isEmpty else { continue }
