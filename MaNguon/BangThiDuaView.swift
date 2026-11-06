@@ -796,7 +796,7 @@ final class OTheThiDuaCell: UICollectionViewCell {
         self.dongHienTai = dong
         self.xemDuKienHienTai = xemDuKien
 
-        nhanTen.text = dong.tenNganhHang
+        nhanTen.text = KhoDuLieu.apDungLocTuCaiDat(dong.tenNganhHang)
         let pt = xemDuKien ? dong.phanTramDuBao : dong.phanTramHT
         nhanPhanTram.text = pt.chuoiPhanTramVN
         nhanPhanTram.textAlignment = xemDuKien ? .left : .center

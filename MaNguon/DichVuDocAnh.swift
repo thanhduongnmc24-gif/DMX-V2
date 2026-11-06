@@ -700,6 +700,14 @@ final class DichVuDocAnh {
                 let yTrenXuong = 1.0 - box.origin.y - box.size.height
                 let cacUngVien = obs.topCandidates(3)
 
+                if let dauTien = cacUngVien.first {
+                    let chuDau = dauTien.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if self.laDauTieuDeMonThiDua(chuDau) ||
+                       (chuDau.contains("-") && chuDau.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) == nil && chuDau.range(of: "[A-Za-zÀ-ỹĐđ]{2,}", options: .regularExpression) != nil) {
+                        continue
+                    }
+                }
+
                 for ungVien in cacUngVien {
                     let chu = ungVien.string.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !chu.isEmpty else { continue }
@@ -1445,15 +1453,18 @@ final class DichVuDocAnh {
                 if pt.x >= xPhaiThuc - 0.125 && uGon.count <= 3 {
                     return false
                 }
-                // Loại bỏ mảnh số/tiền tố ngắn bị tách trùng (như "11", "T11", "711") khi trên cùng dòng đã có phần tử tiêu đề dài hơn
-                if uGon.range(of: "^[T71IL]?\\d{1,2}$", options: .regularExpression) != nil {
-                    let coTieuDeDaiCungDong = trongThe.contains { khac in
+                // Tuyệt đối không lấy các phần tử chỉ chứa toàn chữ số (như "11" do bước quét số phụ tách ra) hoặc tiền tố "T11" ngắn bị trùng vào tiêu đề thẻ
+                if uGon.range(of: "^[0-9]+$", options: .regularExpression) != nil {
+                    return false
+                }
+                if uGon.range(of: "^[T71IL]\\d{1,2}$", options: .regularExpression) != nil {
+                    let coTieuDeDaiTrongThe = trongThe.contains { khac in
                         khac.chu != pt.chu &&
-                        abs(khac.y - pt.y) < 0.020 &&
-                        khac.rong > pt.rong + 0.035 &&
-                        khac.y <= yGioiHanTieuDe
+                        khac.y >= yDau - 0.012 &&
+                        khac.y <= yGioiHanTieuDe &&
+                        khac.rong > pt.rong + 0.025
                     }
-                    if coTieuDeDaiCungDong {
+                    if coTieuDeDaiTrongThe {
                         return false
                     }
                 }

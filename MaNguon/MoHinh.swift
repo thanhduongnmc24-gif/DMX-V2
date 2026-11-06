@@ -846,9 +846,11 @@ struct DongThiDua: Codable, Hashable, Identifiable {
             id = UUID()
         }
         let ten = (try? c.decode(String.self, forKey: .tenNganhHang)) ?? ""
-        let goc = (try? c.decode(String.self, forKey: .tenNganhHangGoc)) ?? ten
-        tenNganhHangGoc = goc
-        tenNganhHang = ten.isEmpty ? goc : ten
+        let gocThuc = (try? c.decode(String.self, forKey: .tenNganhHangGoc)) ?? ten
+        let gocSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(gocThuc.isEmpty ? ten : gocThuc)
+        tenNganhHangGoc = gocSach.isEmpty ? gocThuc : gocSach
+        let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(ten.isEmpty ? tenNganhHangGoc : ten)
+        tenNganhHang = tenSach.isEmpty ? tenNganhHangGoc : tenSach
         loaiChiTieu = (try? c.decode(LoaiChiTieuThiDua.self, forKey: .loaiChiTieu)) ?? .doanhThu
         thucHien = (try? c.decode(Double.self, forKey: .thucHien)) ?? 0
         target = (try? c.decode(Double.self, forKey: .target)) ?? 0
@@ -1316,7 +1318,16 @@ final class KhoDuLieu {
             thuMuc.ghiCaiDatBatDongBo(caiDat)
         }
 
-        if let giaTri = thuMuc.doc([String: DuLieuNgayDMX].self, tu: thuMuc.tepNgay) {
+        if var giaTri = thuMuc.doc([String: DuLieuNgayDMX].self, tu: thuMuc.tepNgay) {
+            for (khoa, var dl) in giaTri {
+                if !dl.danhSachThiDua.isEmpty {
+                    dl.danhSachThiDua = Self.gopDanhSachThiDua(cu: [], moi: dl.danhSachThiDua)
+                }
+                if !dl.danhSachThiDuaRealtime.isEmpty {
+                    dl.danhSachThiDuaRealtime = Self.gopDanhSachThiDua(cu: [], moi: dl.danhSachThiDuaRealtime)
+                }
+                giaTri[khoa] = dl
+            }
             cacNgay = giaTri
         } else {
             thuMuc.ghiNgayBatDongBo(cacNgay)
@@ -2328,18 +2339,19 @@ final class KhoDuLieu {
             } else {
                 tienToThang = tienToThangMacDinh ?? "T11"
             }
-            while let rGoc = s.range(of: "^(?:[^\\-–—]{1,12})[-–—]\\s*", options: .regularExpression) {
-                let truoc = String(s[rGoc]).folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
-                if truoc.range(of: "^(?:[A-Z0-9]{1,3}\\s+)*(?:[T71IL]\\d{0,2}|\\d{1,2})\\s*[-–—]\\s*$", options: .regularExpression) != nil {
-                    s = String(s[rGoc.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-                } else {
-                    break
-                }
+            if let rGoc = s.range(of: "^(?:[^\\-–—−]{1,8})[-–—−]\\s*", options: .regularExpression) {
+                s = String(s[rGoc.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            s = s.replacingOccurrences(of: "^(?:(?:T\\d{1,2}|11)\\s+)+", with: "", options: [.regularExpression, .caseInsensitive])
         } else if let macDinh = tienToThangMacDinh, !macDinh.isEmpty {
             tienToThang = macDinh
         }
+
+        // Cắt triệt để chỉ trong 1 bước mọi cụm tiền tố tháng / số 11 / dấu gạch ngang bị lặp ở đầu tên môn (như "T11 - 11 T11 - ", "11 T11 - ", "T11 - 11 - ")
+        s = s.replacingOccurrences(
+            of: "^(?:(?:T\\d{1,2}|711|111|I11|1I1|11|[-–—−])+\\s*)+",
+            with: "",
+            options: [.regularExpression, .caseInsensitive]
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Bỏ hậu tố đánh số (#2), đơn vị (DT/SL), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối
         s = s
