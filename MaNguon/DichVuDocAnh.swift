@@ -2456,12 +2456,25 @@ final class DichVuDocAnh {
             // Tiêu đề báo cáo "BẢNG XẾP HẠNG NHÂN VIÊN" cũng khớp từ khoá;
             // hàng tiêu đề của bảng luôn nằm thấp hơn nên lấy phần tử cuối theo Y.
             .max(by: { $0.y < $1.y })
-        let yTamHeaderGoiY = headerNhanVien.map { $0.y + $0.cao / 2.0 }
-            ?? nguonTimHeader.filter {
-                let u = chuanHoaTieuDe($0.chu)
-                return u.contains("LUONG") || u.contains("KHOAN") || u.contains("TRONG")
-            }.map { $0.y + $0.cao / 2.0 }.min()
-            ?? 0.08
+        let yTamTuHeaderNhanVien: CGFloat? = headerNhanVien.map { pt in
+            pt.y + pt.cao / CGFloat(2.0)
+        }
+        let cacYHeaderSo: [CGFloat] = nguonTimHeader.compactMap { pt in
+            let u = chuanHoaTieuDe(pt.chu)
+            guard u.contains("LUONG") || u.contains("KHOAN") || u.contains("TRONG") else {
+                return nil
+            }
+            return pt.y + pt.cao / CGFloat(2.0)
+        }
+        let yTamTuHeaderSo: CGFloat? = cacYHeaderSo.min()
+        let yTamHeaderGoiY: CGFloat
+        if let y = yTamTuHeaderNhanVien {
+            yTamHeaderGoiY = y
+        } else if let y = yTamTuHeaderSo {
+            yTamHeaderGoiY = y
+        } else {
+            yTamHeaderGoiY = 0.08
+        }
 
         // Chỉ xét một dải ngang quanh hàng tiêu đề để không nhầm chữ "doanh thu"
         // ở phần tiêu đề báo cáo phía trên.
@@ -2488,7 +2501,13 @@ final class DichVuDocAnh {
                 return xTam >= xMin && xTam < xMax && manh(chuanHoaTieuDe(pt.chu))
             }
             guard !cacManh.isEmpty else { return nil }
-            return cacManh.reduce(CGFloat(0)) { $0 + ($1.x + $1.rong / 2.0) } / CGFloat(cacManh.count)
+            var tongTamX = CGFloat(0)
+            for pt in cacManh {
+                let nuaRong = pt.rong / CGFloat(2.0)
+                tongTamX += pt.x + nuaRong
+            }
+            let soLuongManh = CGFloat(cacManh.count)
+            return tongTamX / soLuongManh
         }
 
         let tamNhanVien = headerNhanVien.map { $0.x + $0.rong / 2.0 }
