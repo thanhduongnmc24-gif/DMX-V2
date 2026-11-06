@@ -2539,45 +2539,14 @@ final class DichVuDocAnh {
                 }
             }
 
-            var hoTen = sChuanSo
-            if let rMa = hoTen.range(of: ma) {
-                hoTen = String(hoTen[rMa.upperBound...])
+            // Danh tính nhân viên chỉ được quyết định bằng MÃ NHÂN VIÊN. Không dùng
+            // phần tên OCR để đoán hoặc sửa mã vì tên thường bị cắt ở ảnh chụp hẹp.
+            // Tên hiển thị luôn lấy từ danh sách nhân viên quản lý đã lưu trong app.
+            if !dsQuanLy.isEmpty {
+                guard let nv = dsQuanLy.first(where: { $0.maNV == ma }) else { return nil }
+                return (nv.maNV, nv.hoTen)
             }
-            // Cắt bỏ các con số ở cuối nếu box cột 1 bị tràn sang cột SỐ LƯỢNG / DOANH THU QĐ (ví dụ "Hồ Ngọ 9 6")
-            hoTen = hoTen
-                .replacingOccurrences(of: "\\s+[-+]?\\d+([.,]\\d+)?%?(\\s+[-+]?\\d+([.,]\\d+)?%?)*\\s*$", with: "", options: .regularExpression)
-                .replacingOccurrences(of: "^[+\\s\\-–—•]+|[-–—\\s]+$", with: "", options: .regularExpression)
-                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Nếu mã quét lệch 1 chữ số so với danh sách quản lý nhưng phần tên khớp đầu tên trong danh sách quản lý thì khôi phục đúng mã NV
-            if !tapMaQuanLy.contains(ma) {
-                let tenChuan = KhoDuLieu.chuanHoaKhoaSoSanh(hoTen)
-                let ungVienGiongMa = dsQuanLy.filter { nv in
-                    guard abs(nv.maNV.count - ma.count) <= 1 else { return false }
-                    let a = Array(nv.maNV)
-                    let b = Array(ma)
-                    if a.count == b.count {
-                        let saiKhac = zip(a, b).filter { $0 != $1 }.count
-                        return saiKhac <= 1
-                    } else {
-                        return nv.maNV.contains(ma) || ma.contains(nv.maNV)
-                    }
-                }
-                if ungVienGiongMa.count == 1 {
-                    let nv = ungVienGiongMa[0]
-                    let nvChuan = KhoDuLieu.chuanHoaKhoaSoSanh(nv.hoTen)
-                    if tenChuan.isEmpty || nvChuan.hasPrefix(tenChuan) || nvChuan.contains(tenChuan) {
-                        ma = nv.maNV
-                    }
-                } else if ungVienGiongMa.count > 1, !tenChuan.isEmpty {
-                    if let khop = ungVienGiongMa.first(where: { KhoDuLieu.chuanHoaKhoaSoSanh($0.hoTen).hasPrefix(tenChuan) }) {
-                        ma = khop.maNV
-                    }
-                }
-            }
-
-            return (ma, hoTen)
+            return (ma, ma)
         }
 
         // Gom các phần tử cột 1 (x < 0.36) nằm trên cùng 1 hàng ngang để trường hợp mã NV và tên NV bị tách thành 2 box vẫn ghép lại đầy đủ
@@ -2627,6 +2596,31 @@ final class DichVuDocAnh {
             }
         }
 
+        // Vision thường tách riêng mã NV thành một token có toạ độ chính xác hơn cả
+        // hộp "mã - tên". Dùng các token mã độc lập làm neo dòng, kể cả khi chúng nằm
+        // sát/đè lên tiêu đề. Vì chỉ nhận mã có trong danh sách quản lý nên không thể
+        // nhầm ngày tháng hoặc con số ở cột khác thành nhân viên.
+        func boSungNeoDongTuMaDocLap(_ danhSachPhanTu: [PhanTuVanBan]) {
+            for pt in danhSachPhanTu where pt.x < 0.40 {
+                let chu = lamSachWatermarkNV(pt.chu)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard chu.range(of: "^[+\\s]*\\d{4,7}\\s*$", options: .regularExpression) != nil,
+                      let (maNV, hoTen) = trichMaVaTenNhanVien(tu: chu) else { continue }
+                let yTam = pt.y + pt.cao / 2.0
+                guard yTam > 0.01 && yTam < 0.99 else { continue }
+                if let idx = cacDongNV.firstIndex(where: { $0.maNV == maNV }) {
+                    cacDongNV[idx].yTam = yTam
+                    cacDongNV[idx].hoTen = hoTen
+                } else {
+                    daXetMa.insert(maNV)
+                    cacDongNV.append(DongUngVienNV(maNV: maNV, hoTen: hoTen, yTam: yTam))
+                }
+            }
+            cacDongNV.sort { $0.yTam < $1.yTam }
+        }
+
+        boSungNeoDongTuMaDocLap(phanTuMoRong)
+
         cacDongNV.sort { $0.yTam < $1.yTam }
 
         // Nếu là bảng chuẩn 5 cột và có ảnh gốc: chạy quét bổ sung độ phân giải cao (đã xoá nền thanh màu xanh/viền pill) trên vùng bảng để không sót dòng đầu (như 39665) hoặc số 1 chữ số (như 4, 5, 6, 9)
@@ -2652,7 +2646,7 @@ final class DichVuDocAnh {
                     }
                 }
             }
-            cacDongNV.sort { $0.yTam < $1.yTam }
+            boSungNeoDongTuMaDocLap(boSung)
         }
 
         guard !cacDongNV.isEmpty else { return [] }
@@ -2875,9 +2869,15 @@ final class DichVuDocAnh {
                     let loaiCot = idO % 10
                     guard rowIdx >= 0 && rowIdx < ketQua.count else { continue }
                     if loaiCot == 1 {
-                        ketQua[rowIdx].soLuong = giaTri
+                        // Không cho một số 0 đọc từ ảnh cắt phụ xoá mất giá trị khác 0
+                        // đã đọc chắc chắn ở lượt OCR toàn bảng.
+                        if abs(giaTri) > 0.0001 || abs(ketQua[rowIdx].soLuong) < 0.0001 {
+                            ketQua[rowIdx].soLuong = giaTri
+                        }
                     } else if loaiCot == 2 {
-                        ketQua[rowIdx].doanhThuQD = giaTri
+                        if abs(giaTri) > 0.0001 || abs(ketQua[rowIdx].doanhThuQD) < 0.0001 {
+                            ketQua[rowIdx].doanhThuQD = giaTri
+                        }
                     }
                 }
             }
