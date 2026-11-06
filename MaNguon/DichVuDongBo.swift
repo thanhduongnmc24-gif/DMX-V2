@@ -70,6 +70,7 @@ struct LichGuiBaoCaoDMX: Codable, Hashable, Identifiable {
     var gio: String
     var cacThu: [Int]
     var cacNoiDung: [String]
+    var kieuGui: String?
     var dangHoatDong: Bool
     enum CodingKeys: String, CodingKey {
         case id
@@ -77,6 +78,7 @@ struct LichGuiBaoCaoDMX: Codable, Hashable, Identifiable {
         case gio
         case cacThu = "cac_thu"
         case cacNoiDung = "cac_noi_dung"
+        case kieuGui = "kieu_gui"
         case dangHoatDong = "dang_hoat_dong"
     }
 }
@@ -100,6 +102,7 @@ private struct YeuCauNhomLine: Codable {
     var gio: String?
     var cacThu: [Int]?
     var cacNoiDung: [String]?
+    var kieuGui: String?
     var dangHoatDong: Bool?
 }
 
@@ -1384,7 +1387,7 @@ final class DichVuDongBo {
     }
 
     func taoMaGanNhomLine(hoanTat: @escaping (Result<(String, Int), Error>) -> Void) {
-        let body = YeuCauNhomLine(hanhDong: "tao_ma", id: nil, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, dangHoatDong: nil)
+        let body = YeuCauNhomLine(hanhDong: "tao_ma", id: nil, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, kieuGui: nil, dangHoatDong: nil)
         guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiMaGanNhom, Error>) in
             switch ketQua {
             case .success(let kq): hoanTat(.success((kq.ma, kq.soPhut)))
@@ -1394,7 +1397,7 @@ final class DichVuDongBo {
     }
 
     func taiCauHinhGuiBaoCao(hoanTat: @escaping (Result<([NhomLineDMX], [LichGuiBaoCaoDMX]), Error>) -> Void) {
-        let body = YeuCauNhomLine(hanhDong: "danh_sach", id: nil, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, dangHoatDong: nil)
+        let body = YeuCauNhomLine(hanhDong: "danh_sach", id: nil, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, kieuGui: nil, dangHoatDong: nil)
         guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiDanhSachNhom, Error>) in
             switch ketQua {
             case .success(let kq): hoanTat(.success((kq.nhom, kq.lich)))
@@ -1403,8 +1406,8 @@ final class DichVuDongBo {
         }
     }
 
-    func luuLichGuiBaoCao(id: String? = nil, groupId: String, gio: String, cacThu: [Int], cacNoiDung: [String], dangHoatDong: Bool = true, hoanTat: @escaping (Result<Void, Error>) -> Void) {
-        let body = YeuCauNhomLine(hanhDong: "luu_lich", id: id, lineGroupId: groupId, gio: gio, cacThu: cacThu, cacNoiDung: cacNoiDung, dangHoatDong: dangHoatDong)
+    func luuLichGuiBaoCao(id: String? = nil, groupId: String, gio: String, cacThu: [Int], cacNoiDung: [String], kieuGui: String, dangHoatDong: Bool = true, hoanTat: @escaping (Result<Void, Error>) -> Void) {
+        let body = YeuCauNhomLine(hanhDong: "luu_lich", id: id, lineGroupId: groupId, gio: gio, cacThu: cacThu, cacNoiDung: cacNoiDung, kieuGui: kieuGui, dangHoatDong: dangHoatDong)
         guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiThaoTacNhom, Error>) in
             switch ketQua {
             case .success: hoanTat(.success(()))
@@ -1414,7 +1417,7 @@ final class DichVuDongBo {
     }
 
     func xoaLichGuiBaoCao(id: String, hoanTat: @escaping (Result<Void, Error>) -> Void) {
-        let body = YeuCauNhomLine(hanhDong: "xoa_lich", id: id, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, dangHoatDong: nil)
+        let body = YeuCauNhomLine(hanhDong: "xoa_lich", id: id, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, kieuGui: nil, dangHoatDong: nil)
         guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiThaoTacNhom, Error>) in
             switch ketQua {
             case .success: hoanTat(.success(()))

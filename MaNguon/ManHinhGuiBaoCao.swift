@@ -10,6 +10,7 @@ final class BangGuiBaoCaoView: UIView {
     private let nganCauHinhDrive = UIStackView()
     private let nutChonNhom = UIButton(type: .system)
     private let chonGio = UIDatePicker()
+    private let chonKieuGui = UISegmentedControl(items: ["🖼️ Gửi ảnh", "📝 Gửi văn bản"])
     private let nganThu = UIStackView()
     private let nganNoiDung = UIStackView()
     private let nhanTrangThai = UILabel()
@@ -18,12 +19,17 @@ final class BangGuiBaoCaoView: UIView {
     private var danhSachLich: [LichGuiBaoCaoDMX] = []
     private var groupIdDangChon = ""
     private var cacThuDangChon = Set([1, 2, 3, 4, 5, 6, 7])
-    private var noiDungDangChon = Set(["doanhthu"])
+    private var noiDungDangChon = Set(["luyke_du_kien"])
 
     private let cacNoiDung: [(String, String)] = [
-        ("doanhthu", "💰 Doanh thu + dự kiến"), ("thidua", "🏆 Các môn thi đua"),
-        ("suckhoe", "❤️‍🩹 Sức khỏe nhân viên"), ("nhanvien", "👥 Xếp hạng nhân viên"),
-        ("tongquan", "📊 Tổng quan"), ("realtime", "⚡ Realtime"), ("luyke", "📅 Lũy kế")
+        ("luyke_du_kien", "📈 Lũy kế — % dự kiến cuối tháng"),
+        ("doanhthu_thidua_luyke", "📊 Doanh thu & thi đua lũy kế"),
+        ("doanhthu_thidua_realtime", "⚡ Doanh thu & thi đua realtime"),
+        ("xep_hang_nv_realtime", "🔥 Bảng xếp hạng nhân viên realtime"),
+        ("xep_hang_nv_luyke", "👥 Bảng xếp hạng nhân viên lũy kế"),
+        ("bieu_do_realtime_thang", "📆 Biểu đồ realtime tháng"),
+        ("bieu_do_suc_khoe_nv", "❤️‍🩹 Biểu đồ sức khỏe 16 NV"),
+        ("chi_tiet_nhan_vien", "👤 Gộp chi tiết các nhân viên")
     ]
 
     override init(frame: CGRect) {
@@ -84,6 +90,13 @@ final class BangGuiBaoCaoView: UIView {
         let dongGio = UIStackView(arrangedSubviews: [taoNhan("Giờ gửi:"), chonGio])
         dongGio.axis = .horizontal; dongGio.alignment = .center; dongGio.distribution = .equalSpacing
         ngan.addArrangedSubview(dongGio)
+
+        ngan.addArrangedSubview(taoNhan("Hình thức gửi:"))
+        chonKieuGui.selectedSegmentIndex = 0
+        chonKieuGui.selectedSegmentTintColor = BangMauBCTD.xanhChuDao
+        chonKieuGui.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
+        chonKieuGui.setTitleTextAttributes([.foregroundColor: BangMauBCTD.chuChinh], for: .normal)
+        ngan.addArrangedSubview(chonKieuGui)
 
         ngan.addArrangedSubview(taoNhan("Ngày gửi:"))
         nganThu.axis = .horizontal; nganThu.spacing = 5; nganThu.distribution = .fillEqually
@@ -195,7 +208,8 @@ final class BangGuiBaoCaoView: UIView {
         guard !cacThuDangChon.isEmpty, !noiDungDangChon.isEmpty else { hienLoi("Hãy chọn ngày và nội dung cần gửi."); return }
         let f = DateFormatter(); f.dateFormat = "HH:mm"
         nhanTrangThai.text = "Đang lưu lịch…"
-        DichVuDongBo.dungChung.luuLichGuiBaoCao(groupId: groupIdDangChon, gio: f.string(from: chonGio.date), cacThu: cacThuDangChon.sorted(), cacNoiDung: Array(noiDungDangChon).sorted()) { [weak self] kq in
+        let kieuGui = chonKieuGui.selectedSegmentIndex == 1 ? "text" : "anh"
+        DichVuDongBo.dungChung.luuLichGuiBaoCao(groupId: groupIdDangChon, gio: f.string(from: chonGio.date), cacThu: cacThuDangChon.sorted(), cacNoiDung: Array(noiDungDangChon).sorted(), kieuGui: kieuGui) { [weak self] kq in
             switch kq {
             case .success:
                 self?.nhanTrangThai.text = "Đã lưu lịch gửi. App đang tạo sẵn ảnh mới nhất."
@@ -233,7 +247,8 @@ final class BangGuiBaoCaoView: UIView {
         for (index, lich) in danhSachLich.enumerated() {
             let tenNhom = danhSachNhom.first(where: { $0.lineGroupId == lich.lineGroupId })?.tenNhom ?? "Nhóm LINE"
             let noiDung = lich.cacNoiDung.compactMap { ma in cacNoiDung.first(where: { $0.0 == ma })?.1 }.joined(separator: ", ")
-            let nhan = taoNhan("⏰ \(String(lich.gio.prefix(5))) • \(lich.cacThu.compactMap { tenThu[$0] }.joined(separator: ", "))\n\(tenNhom)\n\(noiDung)")
+            let hinhThuc = lich.kieuGui == "text" ? "📝 Văn bản" : "🖼️ Ảnh"
+            let nhan = taoNhan("⏰ \(String(lich.gio.prefix(5))) • \(lich.cacThu.compactMap { tenThu[$0] }.joined(separator: ", ")) • \(hinhThuc)\n\(tenNhom)\n\(noiDung)")
             let xoa = UIButton(type: .system); xoa.setImage(UIImage(systemName: "trash"), for: .normal); xoa.tintColor = .systemRed; xoa.tag = index
             xoa.addTarget(self, action: #selector(xoaLich(_:)), for: .touchUpInside); xoa.widthAnchor.constraint(equalToConstant: 42).isActive = true
             let dong = UIStackView(arrangedSubviews: [nhan, xoa]); dong.axis = .horizontal; dong.alignment = .center; dong.spacing = 8

@@ -2978,7 +2978,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 case .failure:
                     break
                 case .success(let cauHinh):
-                    let cacLoai = Set(cauHinh.1.flatMap(\.cacNoiDung))
+                    let cacLoai = Set(cauHinh.1
+                        .filter { ($0.kieuGui ?? "anh") == "anh" }
+                        .flatMap(\.cacNoiDung))
                     guard !cacLoai.isEmpty else {
                         self.khoaAnhBotDaTai = khoa
                         return
@@ -3014,27 +3016,40 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         for loai in cacLoai {
             let anh: UIImage?
             switch loai {
-            case "tongquan", "doanhthu":
+            case "luyke_du_kien":
                 anh = anhLuyKeDuKien()
-            case "luyke", "thidua":
+            case "doanhthu_thidua_luyke":
                 anh = anhLuyKeThuong()
-            case "realtime":
+            case "doanhthu_thidua_realtime":
                 anh = bangThiDua.taoAnhBaoCao(
                     ngay: ngayBaoCao, doanhThu: dl.doanhThuRealtime, danhSach: dl.danhSachThiDuaRealtime,
                     cheDoDoanhThu: .realtime, xemDuKien: false,
                     thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
-            case "nhanvien":
+            case "xep_hang_nv_luyke":
                 bangNhanVien.capNhat(cho: ngayBaoCao, cheDo: .luyKe)
                 anh = bangNhanVien.taoAnhBaoCaoNhanVien(
                     ngay: ngayBaoCao, cheDo: .luyKe,
                     thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
-            case "suckhoe":
+            case "xep_hang_nv_realtime":
+                bangNhanVien.capNhat(cho: ngayBaoCao, cheDo: .realtime)
+                anh = bangNhanVien.taoAnhBaoCaoNhanVien(
+                    ngay: ngayBaoCao, cheDo: .realtime,
+                    thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            case "bieu_do_suc_khoe_nv":
                 bangRealtimeThang.capNhat(cho: ngayBaoCao)
                 anh = bangRealtimeThang.taoAnhBaoCaoSucKhoeNhanVien(
                     ngay: ngayBaoCao, thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
+            case "bieu_do_realtime_thang":
+                bangRealtimeThang.capNhat(cho: ngayBaoCao)
+                anh = bangRealtimeThang.taoAnhBaoCaoRealtimeThang(
+                    ngay: ngayBaoCao, thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            case "chi_tiet_nhan_vien":
+                anh = ManHinhChiTietNhanVien.taoAnhGopTatCaSucKhoe(cho: ngayBaoCao, cheDo: .luyKe)
             default:
                 anh = nil
             }
