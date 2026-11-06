@@ -1728,6 +1728,9 @@ final class KhoDuLieu {
 
         ThuMucDuLieu.dungChung.ghiNgayBatDongBo(banSaoNgay)
         DichVuDongBo.dungChung.dayDuLieuNgay(banLuu)
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .duLieuDMXDaThayDoiTaiMay, object: banLuu.khoaNgay)
+        }
     }
 
     func luuCaiDat(_ moi: CaiDatDMX) {

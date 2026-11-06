@@ -84,6 +84,14 @@ struct LichGuiBaoCaoDMX: Codable, Hashable, Identifiable {
 private struct PhanHoiMaGanNhom: Codable { var ok: Bool?; var ma: String; var soPhut: Int }
 private struct PhanHoiDanhSachNhom: Codable { var nhom: [NhomLineDMX]; var lich: [LichGuiBaoCaoDMX] }
 private struct PhanHoiThaoTacNhom: Codable { var ok: Bool? }
+private struct YeuCauLuuAnhBaoCao: Codable {
+    var loai: String
+    var ngay: String
+    var nhaCungCap: String
+    var duLieuAnhBase64: String?
+    var urlBenNgoai: String?
+}
+private struct PhanHoiLuuAnhBaoCao: Codable { var ok: Bool? }
 
 private struct YeuCauNhomLine: Codable {
     var hanhDong: String
@@ -1415,6 +1423,29 @@ final class DichVuDongBo {
         }
     }
 
+    func luuAnhBaoCaoBot(
+        loai: String,
+        ngay: String,
+        duLieuJPEG: Data? = nil,
+        urlDrive: String? = nil,
+        hoanTat: @escaping (Result<Void, Error>) -> Void
+    ) {
+        let laDrive = !(urlDrive?.isEmpty ?? true)
+        let body = YeuCauLuuAnhBaoCao(
+            loai: loai,
+            ngay: ngay,
+            nhaCungCap: laDrive ? "google_drive" : "supabase",
+            duLieuAnhBase64: laDrive ? nil : duLieuJPEG?.base64EncodedString(),
+            urlBenNgoai: laDrive ? urlDrive : nil
+        )
+        guiWeb(path: "api/dmx/bot/anh-cache", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiLuuAnhBaoCao, Error>) in
+            switch ketQua {
+            case .success: hoanTat(.success(()))
+            case .failure(let loi): hoanTat(.failure(loi))
+            }
+        }
+    }
+
     private func lamMoiPhien(hoanTat: @escaping (Bool) -> Void) {
         guard let refresh = phien?.refreshToken else { hoanTat(false); return }
         guiSupabaseAuth(query: "grant_type=refresh_token", body: ["refresh_token": refresh]) { [weak self] kq in
@@ -1524,10 +1555,12 @@ final class DichVuDongBo {
 
 extension Notification.Name {
     static let duLieuDMXDaDongBo = Notification.Name("duLieuDMXDaDongBo")
+    static let duLieuDMXDaThayDoiTaiMay = Notification.Name("duLieuDMXDaThayDoiTaiMay")
+    static let yeuCauTaoLaiAnhBaoCaoBot = Notification.Name("yeuCauTaoLaiAnhBaoCaoBot")
     static let taiKhoanDMXBiDangXuat = Notification.Name("taiKhoanDMXBiDangXuat")
 }
 
-private extension NSError {
+extension NSError {
     static func dmx(_ message: String) -> NSError {
         NSError(domain: "TongHopDMX", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
     }

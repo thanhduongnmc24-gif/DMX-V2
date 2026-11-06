@@ -3,6 +3,11 @@ import UIKit
 final class BangGuiBaoCaoView: UIView {
     private let ngan = UIStackView()
     private let nhanMa = UILabel()
+    private let chonKhoAnh = UISegmentedControl(items: KhoAnhBaoCaoBot.allCases.map(\.tieuDe))
+    private let oURLAppsScript = UITextField()
+    private let oKhoaDrive = UITextField()
+    private let oFolderId = UITextField()
+    private let nganCauHinhDrive = UIStackView()
     private let nutChonNhom = UIButton(type: .system)
     private let chonGio = UIDatePicker()
     private let nganThu = UIStackView()
@@ -49,6 +54,24 @@ final class BangGuiBaoCaoView: UIView {
         nhanMa.numberOfLines = 0
         nhanMa.isHidden = true
         ngan.addArrangedSubview(nhanMa)
+
+        ngan.addArrangedSubview(taoDuongKe())
+        ngan.addArrangedSubview(taoNhan("KHO ẢNH GỬI NHANH", dam: true))
+        ngan.addArrangedSubview(taoNhan("Mặc định dùng Supabase và chỉ ghi đè ảnh mới nhất. Có thể chọn Google Drive; nếu Drive lỗi, app tự dự phòng sang Supabase."))
+        chonKhoAnh.addTarget(self, action: #selector(doiKhoAnh), for: .valueChanged)
+        ngan.addArrangedSubview(chonKhoAnh)
+
+        nganCauHinhDrive.axis = .vertical
+        nganCauHinhDrive.spacing = 7
+        cauHinhO(oURLAppsScript, goiY: "URL Google Apps Script Web App")
+        cauHinhO(oKhoaDrive, goiY: "Khóa bí mật của Apps Script", baoMat: true)
+        cauHinhO(oFolderId, goiY: "ID thư mục Google Drive")
+        nganCauHinhDrive.addArrangedSubview(oURLAppsScript)
+        nganCauHinhDrive.addArrangedSubview(oKhoaDrive)
+        nganCauHinhDrive.addArrangedSubview(oFolderId)
+        nganCauHinhDrive.addArrangedSubview(taoNut("💾 Lưu cấu hình kho ảnh", #selector(luuCauHinhKhoAnh)))
+        ngan.addArrangedSubview(nganCauHinhDrive)
+        napCauHinhKhoAnh()
 
         ngan.addArrangedSubview(taoDuongKe())
         ngan.addArrangedSubview(taoNhan("LỊCH GỬI TỰ ĐỘNG", dam: true))
@@ -118,6 +141,44 @@ final class BangGuiBaoCaoView: UIView {
         }
     }
 
+    @objc private func doiKhoAnh() {
+        nganCauHinhDrive.isHidden = chonKhoAnh.selectedSegmentIndex != 1
+    }
+
+    @objc private func luuCauHinhKhoAnh() {
+        var cfg = CauHinhKhoAnhBaoCaoBot()
+        cfg.kho = chonKhoAnh.selectedSegmentIndex == 1 ? .googleDrive : .supabase
+        cfg.urlAppsScript = (oURLAppsScript.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        cfg.khoaBiMat = (oKhoaDrive.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        cfg.folderId = (oFolderId.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if cfg.kho == .googleDrive && !cfg.driveDaSanSang {
+            hienLoi("Drive cần đủ URL Apps Script, khóa bí mật và ID thư mục.")
+            return
+        }
+        DichVuAnhBaoCaoBot.dungChung.cauHinh = cfg
+        NotificationCenter.default.post(name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
+        nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+        nhanTrangThai.text = cfg.kho == .googleDrive
+            ? "Đã chọn Google Drive. Nếu tải Drive thất bại, ảnh sẽ tự lưu dự phòng sang Supabase."
+            : "Đã chọn Supabase. Mỗi loại chỉ giữ một ảnh mới nhất nên dung lượng không tăng theo lịch sử."
+        viewKetThucNhap()
+    }
+
+    private func napCauHinhKhoAnh() {
+        let cfg = DichVuAnhBaoCaoBot.dungChung.cauHinh
+        chonKhoAnh.selectedSegmentIndex = cfg.kho == .googleDrive ? 1 : 0
+        oURLAppsScript.text = cfg.urlAppsScript
+        oKhoaDrive.text = cfg.khoaBiMat
+        oFolderId.text = cfg.folderId
+        doiKhoAnh()
+    }
+
+    private func viewKetThucNhap() {
+        oURLAppsScript.resignFirstResponder()
+        oKhoaDrive.resignFirstResponder()
+        oFolderId.resignFirstResponder()
+    }
+
     @objc private func chonThu(_ sender: UIButton) {
         if cacThuDangChon.contains(sender.tag) { cacThuDangChon.remove(sender.tag) } else { cacThuDangChon.insert(sender.tag) }
         capNhatNutLuaChon()
@@ -136,7 +197,10 @@ final class BangGuiBaoCaoView: UIView {
         nhanTrangThai.text = "Đang lưu lịch…"
         DichVuDongBo.dungChung.luuLichGuiBaoCao(groupId: groupIdDangChon, gio: f.string(from: chonGio.date), cacThu: cacThuDangChon.sorted(), cacNoiDung: Array(noiDungDangChon).sorted()) { [weak self] kq in
             switch kq {
-            case .success: self?.nhanTrangThai.text = "Đã lưu lịch gửi."; self?.napDuLieu()
+            case .success:
+                self?.nhanTrangThai.text = "Đã lưu lịch gửi. App đang tạo sẵn ảnh mới nhất."
+                NotificationCenter.default.post(name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
+                self?.napDuLieu()
             case .failure(let loi): self?.hienLoi(loi.localizedDescription)
             }
         }
@@ -211,6 +275,23 @@ final class BangGuiBaoCaoView: UIView {
         b.contentHorizontalAlignment = .left; b.backgroundColor = BangMauBCTD.nenThePhu; b.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
         b.layer.cornerRadius = 9; b.layer.borderWidth = 1; b.layer.borderColor = BangMauBCTD.vienDam.cgColor
         b.contentEdgeInsets = UIEdgeInsets(top: 11, left: 10, bottom: 11, right: 10)
+    }
+
+    private func cauHinhO(_ o: UITextField, goiY: String, baoMat: Bool = false) {
+        o.placeholder = goiY
+        o.font = .systemFont(ofSize: 13)
+        o.textColor = BangMauBCTD.chuChinh
+        o.backgroundColor = BangMauBCTD.nenThePhu
+        o.layer.cornerRadius = 8
+        o.layer.borderWidth = 1
+        o.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        o.isSecureTextEntry = baoMat
+        o.autocapitalizationType = .none
+        o.autocorrectionType = .no
+        o.heightAnchor.constraint(equalToConstant: 42).isActive = true
+        let dem = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 1))
+        o.leftView = dem
+        o.leftViewMode = .always
     }
 
     private func taoDuongKe() -> UIView { let v = UIView(); v.backgroundColor = BangMauBCTD.vienThe; v.heightAnchor.constraint(equalToConstant: 1).isActive = true; return v }

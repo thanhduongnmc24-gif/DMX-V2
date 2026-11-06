@@ -351,6 +351,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     private var phienBanThiDuaDaNapUI: Int = -1
     private var khoaNgayThiDuaDaNapUI: String = ""
     private var khoaCumChiSoDaNapUI: String = "" 
+    private var congViecTaoAnhBot: DispatchWorkItem?
+    private var khoaAnhBotDaTai: String = ""
 
     // Thanh điều hướng trên cùng (nằm trong nền của tab, bên dưới Menu trượt)
     private let khungThanhDieuHuong = UIView()
@@ -481,6 +483,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         taoGiaoDien()
         napDuLieu()
         NotificationCenter.default.addObserver(self, selector: #selector(duLieuDaDongBo), name: .duLieuDMXDaDongBo, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(duLieuDaThayDoiTaiMay(_:)), name: .duLieuDMXDaThayDoiTaiMay, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(taoLaiAnhBaoCaoBot), name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(taiKhoanBiDangXuat), name: .taiKhoanDMXBiDangXuat, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(ungDungTroLai), name: UIApplication.willEnterForegroundNotification, object: nil)
         DichVuDongBo.dungChung.taiDuLieu()
@@ -504,6 +508,19 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     @objc private func duLieuDaDongBo() {
         dsThiDuaDaNapUI = nil
         napDuLieu()
+    }
+
+    @objc private func duLieuDaThayDoiTaiMay(_ thongBao: Notification) {
+        guard let khoaNgay = thongBao.object as? String,
+              let ngay = TienIchNgay.khoa.date(from: khoaNgay) else { return }
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
+        lenLichCapNhatAnhBaoCaoBot(dl: dl, ngay: ngay)
+    }
+
+    @objc private func taoLaiAnhBaoCaoBot() {
+        khoaAnhBotDaTai = ""
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
+        lenLichCapNhatAnhBaoCaoBot(dl: dl, ngay: ngayHienTai)
     }
 
     @objc private func taiKhoanBiDangXuat() {
@@ -2944,6 +2961,87 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
         capNhatTrangThaiMuc()
         capNhatNoiDungTheoMucDangChon(dl: dl, dsThiDuaDangChon: dsThiDuaDangChon)
+    }
+
+    /// Sau lần nhập/quét gần nhất, vẽ sẵn đúng ảnh của app và tải lên kho.
+    /// Đến giờ gửi, Worker chỉ lấy URL ảnh nên không còn phải chờ máy chủ dựng ảnh.
+    private func lenLichCapNhatAnhBaoCaoBot(dl: DuLieuNgayDMX, ngay: Date) {
+        guard DichVuDongBo.dungChung.daDangNhap else { return }
+        let khoa = "\(DichVuDongBo.dungChung.phien?.userId ?? "")|\(dl.khoaNgay)|\(KhoDuLieu.dungChung.phienBanDuLieu)"
+        guard khoa != khoaAnhBotDaTai else { return }
+        congViecTaoAnhBot?.cancel()
+        let congViec = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            DichVuDongBo.dungChung.taiCauHinhGuiBaoCao { [weak self] ketQua in
+                guard let self else { return }
+                switch ketQua {
+                case .failure:
+                    break
+                case .success(let cauHinh):
+                    let cacLoai = Set(cauHinh.1.flatMap(\.cacNoiDung))
+                    guard !cacLoai.isEmpty else {
+                        self.khoaAnhBotDaTai = khoa
+                        return
+                    }
+                    self.taoVaTaiAnhBaoCaoBot(cacLoai: cacLoai, dl: dl, ngayBaoCao: ngay)
+                    self.khoaAnhBotDaTai = khoa
+                }
+            }
+        }
+        congViecTaoAnhBot = congViec
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: congViec)
+    }
+
+    private func taoVaTaiAnhBaoCaoBot(cacLoai: Set<String>, dl: DuLieuNgayDMX, ngayBaoCao: Date) {
+        let ngay = dl.khoaNgay
+        let anhLuyKeThuong: () -> UIImage? = { [weak self] in
+            guard let self else { return nil }
+            return self.bangThiDua.taoAnhBaoCao(
+                ngay: ngayBaoCao, doanhThu: dl.doanhThu, danhSach: dl.danhSachThiDua,
+                cheDoDoanhThu: .luyKe, xemDuKien: false,
+                thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+            )
+        }
+        let anhLuyKeDuKien: () -> UIImage? = { [weak self] in
+            guard let self else { return nil }
+            return self.bangThiDua.taoAnhBaoCao(
+                ngay: ngayBaoCao, doanhThu: dl.doanhThu, danhSach: dl.danhSachThiDua,
+                cheDoDoanhThu: .luyKe, xemDuKien: true,
+                thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+            )
+        }
+
+        for loai in cacLoai {
+            let anh: UIImage?
+            switch loai {
+            case "tongquan", "doanhthu":
+                anh = anhLuyKeDuKien()
+            case "luyke", "thidua":
+                anh = anhLuyKeThuong()
+            case "realtime":
+                anh = bangThiDua.taoAnhBaoCao(
+                    ngay: ngayBaoCao, doanhThu: dl.doanhThuRealtime, danhSach: dl.danhSachThiDuaRealtime,
+                    cheDoDoanhThu: .realtime, xemDuKien: false,
+                    thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            case "nhanvien":
+                bangNhanVien.capNhat(cho: ngayBaoCao, cheDo: .luyKe)
+                anh = bangNhanVien.taoAnhBaoCaoNhanVien(
+                    ngay: ngayBaoCao, cheDo: .luyKe,
+                    thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            case "suckhoe":
+                bangRealtimeThang.capNhat(cho: ngayBaoCao)
+                anh = bangRealtimeThang.taoAnhBaoCaoSucKhoeNhanVien(
+                    ngay: ngayBaoCao, thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            default:
+                anh = nil
+            }
+            if let anh {
+                DichVuAnhBaoCaoBot.dungChung.taiAnh(anh, loai: loai, ngay: ngay)
+            }
+        }
     }
 
     private func capNhatNoiDungTheoMucDangChon(dl: DuLieuNgayDMX? = nil, dsThiDuaDangChon: [DongThiDua]? = nil) {
