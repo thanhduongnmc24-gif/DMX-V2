@@ -2439,30 +2439,86 @@ final class DichVuDocAnh {
         let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
         let tapMaQuanLy = Set(dsQuanLy.map(\.maNV))
 
-        // Tìm mốc Y của dòng Header bảng Nhân viên (NHÂN VIÊN | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG)
-        let cacHeader = phanTuMoRong.filter { pt in
-            let u = boDau(pt.chu)
-            return u.contains("NHAN VIEN") || (u.contains("DOANH THU QD") && pt.x > 0.35) || u.contains("KHOAN VAY") || u.contains("TI TRONG")
+        // Đọc tiêu đề TRƯỚC KHI tách box nhiều dòng. Vision thường trả về
+        // "SỐ\nLƯỢNG", "DOANH\nTHU QĐ"...; nếu tách dòng trước rồi mới tìm thì
+        // không còn chuỗi đầy đủ và thuật toán sẽ dùng nhầm mốc cột dự phòng.
+        func chuanHoaTieuDe(_ chu: String) -> String {
+            boDau(chu)
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        let nguonTimHeader = phanTu + phanTuMoRong
+        let headerNhanVien = nguonTimHeader
+            .filter {
+                $0.x < 0.38 && chuanHoaTieuDe($0.chu).contains("NHAN VIEN")
+            }
+            // Tiêu đề báo cáo "BẢNG XẾP HẠNG NHÂN VIÊN" cũng khớp từ khoá;
+            // hàng tiêu đề của bảng luôn nằm thấp hơn nên lấy phần tử cuối theo Y.
+            .max(by: { $0.y < $1.y })
+        let yTamHeaderGoiY = headerNhanVien.map { $0.y + $0.cao / 2.0 }
+            ?? nguonTimHeader.filter {
+                let u = chuanHoaTieuDe($0.chu)
+                return u.contains("LUONG") || u.contains("KHOAN") || u.contains("TRONG")
+            }.map { $0.y + $0.cao / 2.0 }.min()
+            ?? 0.08
+
+        // Chỉ xét một dải ngang quanh hàng tiêu đề để không nhầm chữ "doanh thu"
+        // ở phần tiêu đề báo cáo phía trên.
+        let vungHeader = nguonTimHeader.filter { pt in
+            let yTam = pt.y + pt.cao / 2.0
+            return abs(yTam - yTamHeaderGoiY) <= 0.085 && pt.y < 0.40
+        }
+
+        func tamHeader(
+            dayDu: (String) -> Bool,
+            manh: (String) -> Bool,
+            xMin: CGFloat,
+            xMax: CGFloat
+        ) -> CGFloat? {
+            let dayDuKhop = vungHeader.filter { pt in
+                let xTam = pt.x + pt.rong / 2.0
+                return xTam >= xMin && xTam < xMax && dayDu(chuanHoaTieuDe(pt.chu))
+            }
+            if let pt = dayDuKhop.max(by: { $0.rong < $1.rong }) {
+                return pt.x + pt.rong / 2.0
+            }
+            let cacManh = vungHeader.filter { pt in
+                let xTam = pt.x + pt.rong / 2.0
+                return xTam >= xMin && xTam < xMax && manh(chuanHoaTieuDe(pt.chu))
+            }
+            guard !cacManh.isEmpty else { return nil }
+            return cacManh.reduce(CGFloat(0)) { $0 + ($1.x + $1.rong / 2.0) } / CGFloat(cacManh.count)
+        }
+
+        let tamNhanVien = headerNhanVien.map { $0.x + $0.rong / 2.0 }
+        let tamSoLuong = tamHeader(
+            dayDu: { $0.contains("SO LUONG") },
+            manh: { $0.contains("LUONG") },
+            xMin: 0.20, xMax: 0.55
+        )
+        let tamDoanhThu = tamHeader(
+            dayDu: { $0.contains("DOANH THU") && $0.contains("QD") },
+            manh: { $0 == "DOANH" || $0.contains("THU QD") || $0 == "THU" },
+            xMin: 0.40, xMax: 0.72
+        )
+        let tamKhoanVay = tamHeader(
+            dayDu: { $0.contains("KHOAN VAY") },
+            manh: { $0.contains("KHOAN") || $0 == "VAY" },
+            xMin: 0.58, xMax: 0.90
+        )
+        let tamTiTrong = tamHeader(
+            dayDu: { $0.contains("TI TRONG") },
+            manh: { $0.contains("TRONG") },
+            xMin: 0.78, xMax: 1.01
+        )
+
+        let cacHeader = vungHeader.filter { pt in
+            let u = chuanHoaTieuDe(pt.chu)
+            return u.contains("NHAN VIEN") || u.contains("LUONG") || u.contains("DOANH") ||
+                u.contains("THU QD") || u.contains("KHOAN") || u == "VAY" || u.contains("TRONG")
         }
         let yHeaderMax: CGFloat = cacHeader.map { $0.y + $0.cao }.max() ?? 0.02
-
-        // Không dùng các mốc cột cứng của giao diện cũ. Bảng trên web có thể co giãn
-        // theo kích thước màn hình; khi đó số nằm sát mép phải của ô SỐ LƯỢNG rất dễ
-        // rơi sang ô DOANH THU QĐ. Lấy tâm tiêu đề trên chính ảnh và đặt ranh giới ở
-        // trung điểm hai tiêu đề liền nhau. Các giá trị mặc định bên dưới khớp bố cục
-        // hiện tại và chỉ được dùng khi Vision không đọc đủ tiêu đề.
-        func tamXHeader(_ dieuKien: (String) -> Bool) -> CGFloat? {
-            let ungVien = phanTuMoRong.filter { pt in
-                guard pt.y <= yHeaderMax + 0.015 else { return false }
-                return dieuKien(boDau(pt.chu).replacingOccurrences(of: "\n", with: " "))
-            }
-            return ungVien.max(by: { $0.rong < $1.rong }).map { $0.x + $0.rong / 2.0 }
-        }
-
-        let tamSoLuong = tamXHeader { $0.contains("SO LUONG") }
-        let tamDoanhThu = tamXHeader { $0.contains("DOANH THU") && $0.contains("QD") }
-        let tamKhoanVay = tamXHeader { $0.contains("KHOAN VAY") }
-        let tamTiTrong = tamXHeader { $0.contains("TI TRONG") }
 
         var mocBatDauSoLuong: CGFloat = 0.30
         var mocBatDauDoanhThu: CGFloat = 0.49
@@ -2473,9 +2529,12 @@ final class DichVuDocAnh {
             mocBatDauDoanhThu = (xSL + xDT) / 2.0
             mocBatDauKhoanVay = (xDT + xVay) / 2.0
             mocBatDauTiTrong = (xVay + xTT) / 2.0
-            // Cột tên kết thúc quanh 30% chiều rộng. Giới hạn để một tiêu đề OCR
-            // quá rộng không kéo vùng SỐ LƯỢNG vào cột tên.
-            mocBatDauSoLuong = min(0.34, max(0.25, xSL - (mocBatDauDoanhThu - xSL)))
+            mocBatDauSoLuong = tamNhanVien.map { ($0 + xSL) / 2.0 }
+                ?? (xSL - (mocBatDauDoanhThu - xSL))
+        } else if !laBangRong {
+            // Ảnh bảng 5 cột bắt buộc phải có đủ tiêu đề. Không đoán bằng các mốc
+            // cố định vì đó chính là nguyên nhân làm lệch SỐ LƯỢNG/DOANH THU.
+            return []
         }
 
         // Tìm dòng TỔNG ngay dưới Header (nếu có) để biết toạ độ Y của dòng TỔNG và tổng Doanh thu QĐ / tổng Số lượng
@@ -2489,7 +2548,7 @@ final class DichVuDocAnh {
         if let ptTong = phanTuDongTong {
             yBatDauNV = ptTong.y + ptTong.cao * 0.55
         } else if !cacHeader.isEmpty {
-            yBatDauNV = yHeaderMax - 0.002
+            yBatDauNV = yHeaderMax
         } else {
             yBatDauNV = 0.02
         }
@@ -2850,17 +2909,22 @@ final class DichVuDocAnh {
             }
         }
 
-        // Luôn quét độc lập từng ô SỐ LƯỢNG và DOANH THU QĐ. Đây là lượt OCR thứ hai
-        // trên vùng đã cắt sát, nên một con số không thể bị gán sang cột kế bên. Kết
-        // quả này được ưu tiên; OCR toàn bảng chỉ là nguồn dự phòng nếu một ô không đọc được.
+        // Chỉ quét riêng những ô còn thiếu. Không cho lượt OCR phụ ghi đè số lượng
+        // đã đọc được từ bảng chính vì ảnh ghép nhiều ô có thể nhận nhầm một chữ số.
         if !laBangRong, let anh = anh, !ketQua.isEmpty {
             var cacOCanQuet: [(idO: Int, xMin: CGFloat, xMax: CGFloat, yMin: CGFloat, yMax: CGFloat)] = []
-            for i in ketQua.indices where i < cacDongNV.count {
+            for (i, item) in ketQua.enumerated() where i < cacDongNV.count {
                 let yTam = cacDongNV[i].yTam
                 let yMinO = max(0.0, yTam - khoangCachHangTB * 0.48)
                 let yMaxO = min(1.0, yTam + khoangCachHangTB * 0.48)
-                cacOCanQuet.append((idO: i * 10 + 1, xMin: mocBatDauSoLuong, xMax: mocBatDauDoanhThu, yMin: yMinO, yMax: yMaxO))
-                cacOCanQuet.append((idO: i * 10 + 2, xMin: mocBatDauDoanhThu, xMax: mocBatDauKhoanVay, yMin: yMinO, yMax: yMaxO))
+                // Cắt thụt vào trong đường biên cột để không lấy phần cuối tên NV
+                // hoặc nét của ô kế bên vào lượt OCR từng ô.
+                if abs(item.soLuong) < 0.0001 {
+                    cacOCanQuet.append((idO: i * 10 + 1, xMin: mocBatDauSoLuong + 0.015, xMax: mocBatDauDoanhThu - 0.004, yMin: yMinO, yMax: yMaxO))
+                }
+                if abs(item.doanhThuQD) < 0.0001 {
+                    cacOCanQuet.append((idO: i * 10 + 2, xMin: mocBatDauDoanhThu + 0.010, xMax: mocBatDauKhoanVay - 0.004, yMin: yMinO, yMax: yMaxO))
+                }
             }
             if !cacOCanQuet.isEmpty {
                 let soQuetDuoc = quetCacOThieuSoBangNhanVien(anh: anh, cacO: cacOCanQuet)
@@ -2868,16 +2932,10 @@ final class DichVuDocAnh {
                     let rowIdx = idO / 10
                     let loaiCot = idO % 10
                     guard rowIdx >= 0 && rowIdx < ketQua.count else { continue }
-                    if loaiCot == 1 {
-                        // Không cho một số 0 đọc từ ảnh cắt phụ xoá mất giá trị khác 0
-                        // đã đọc chắc chắn ở lượt OCR toàn bảng.
-                        if abs(giaTri) > 0.0001 || abs(ketQua[rowIdx].soLuong) < 0.0001 {
-                            ketQua[rowIdx].soLuong = giaTri
-                        }
-                    } else if loaiCot == 2 {
-                        if abs(giaTri) > 0.0001 || abs(ketQua[rowIdx].doanhThuQD) < 0.0001 {
-                            ketQua[rowIdx].doanhThuQD = giaTri
-                        }
+                    if loaiCot == 1 && abs(ketQua[rowIdx].soLuong) < 0.0001 {
+                        ketQua[rowIdx].soLuong = giaTri
+                    } else if loaiCot == 2 && abs(ketQua[rowIdx].doanhThuQD) < 0.0001 {
+                        ketQua[rowIdx].doanhThuQD = giaTri
                     }
                 }
             }
