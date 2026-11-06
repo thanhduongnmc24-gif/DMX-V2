@@ -7,6 +7,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     private let nhanHopThuThongBao = UILabel()
     private let nutDongBoNgay = UIButton(type: .system)
     private let nutMoAdminTaiKhoan = UIButton(type: .system)
+    private let nutLienKetLine = UIButton(type: .system)
     private let nutDoiMatKhauNhanh = UIButton(type: .system)
     private let nutDangXuatNhanh = UIButton(type: .system)
 
@@ -153,6 +154,33 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         present(hoi, animated: true)
     }
 
+    @objc private func bamLienKetLine() {
+        let hop = UIAlertController(
+            title: "🔗 Kết nối LINE",
+            message: "Trong LINE, hãy chat riêng với bot và gõ /lienket. Sau đó nhập mã 6 số bot gửi về:",
+            preferredStyle: .alert
+        )
+        hop.addTextField { tf in
+            tf.placeholder = "Mã 6 chữ số"
+            tf.keyboardType = .numberPad
+            tf.textContentType = .oneTimeCode
+        }
+        hop.addAction(UIAlertAction(title: "Kết nối", style: .default) { [weak self, weak hop] _ in
+            guard let self else { return }
+            let ma = hop?.textFields?.first?.text ?? ""
+            DichVuDongBo.dungChung.lienKetLine(ma: ma) { ketQua in
+                switch ketQua {
+                case .success(let thongBao):
+                    self.hienThongBao(tieuDe: "✅ Đã kết nối LINE", noiDung: thongBao)
+                case .failure(let loi):
+                    self.hienThongBao(tieuDe: "Chưa kết nối được LINE", noiDung: loi.localizedDescription)
+                }
+            }
+        })
+        hop.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+        present(hop, animated: true)
+    }
+
     @objc private func moQuanLyTaiKhoan() {
         let tk = DichVuDongBo.dungChung.tenDangNhap.isEmpty ? "Tài khoản" : DichVuDongBo.dungChung.tenDangNhap
         let laAdmin = DichVuDongBo.dungChung.laAdmin
@@ -162,6 +190,9 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
                 self?.bamMoManHinhAdminTaiKhoan()
             })
         }
+        cacMuc.append(MucChonDMX(tieuDe: "🔗 Kết nối tài khoản với LINE Bot") { [weak self] in
+            self?.bamLienKetLine()
+        })
         cacMuc.append(MucChonDMX(tieuDe: "🔑 Đổi mật khẩu tài khoản \(tk)") { [weak self] in
             self?.bamDoiMatKhauCaNhan()
         })
@@ -276,6 +307,18 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutMoAdminTaiKhoan.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
         nutMoAdminTaiKhoan.addTarget(self, action: #selector(bamMoManHinhAdminTaiKhoan), for: .touchUpInside)
 
+        nutLienKetLine.setTitle("🔗 Kết nối LINE Bot bằng mã 6 số", for: .normal)
+        nutLienKetLine.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutLienKetLine.titleLabel?.numberOfLines = 0
+        nutLienKetLine.contentHorizontalAlignment = .left
+        nutLienKetLine.backgroundColor = BangMauBCTD.nenHeaderBang
+        nutLienKetLine.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+        nutLienKetLine.layer.cornerRadius = 10
+        nutLienKetLine.layer.borderWidth = 1
+        nutLienKetLine.layer.borderColor = BangMauBCTD.vienThe.cgColor
+        nutLienKetLine.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+        nutLienKetLine.addTarget(self, action: #selector(bamLienKetLine), for: .touchUpInside)
+
         nutDoiMatKhauNhanh.setTitle("🔑 Đổi mật khẩu", for: .normal)
         nutDoiMatKhauNhanh.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
         nutDoiMatKhauNhanh.titleLabel?.numberOfLines = 0
@@ -307,7 +350,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         hangNutTK.spacing = 8
         hangNutTK.distribution = .fillEqually
 
-        let nganTK = UIStackView(arrangedSubviews: [nhanThongTinTaiKhoan, nutMoAdminTaiKhoan, hangNutTK])
+        let nganTK = UIStackView(arrangedSubviews: [nhanThongTinTaiKhoan, nutMoAdminTaiKhoan, nutLienKetLine, hangNutTK])
         nganTK.axis = .vertical
         nganTK.spacing = 8
         nganTK.translatesAutoresizingMaskIntoConstraints = false
@@ -404,6 +447,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         }
 
         [
+            tieuDeTK, khungTK,
             tieuDeKieu, khungKieu,
             tieuDeLoc, khungLoc,
             tieuDeHopThu, khungHopThu

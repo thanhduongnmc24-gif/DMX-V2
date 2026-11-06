@@ -43,6 +43,15 @@ private struct GoiDongBo: Codable {
     var ngay: String?
     var duLieuNgay: DuLieuNgayDMX?
 }
+private struct YeuCauLienKetLine: Codable {
+    var hanhDong: String
+    var ma: String
+}
+private struct PhanHoiLienKetLine: Codable {
+    var ok: Bool?
+    var tenDangNhap: String?
+    var thongBao: String?
+}
 
 // MARK: - Phản hồi từ Supabase Auth & Admin REST API trực tiếp
 
@@ -1303,6 +1312,24 @@ final class DichVuDongBo {
             }
             req.httpBody = try? JSONEncoder().encode(danhSachDong)
             phienMang.dataTask(with: req) { _, _, _ in }.resume()
+        }
+    }
+
+    func lienKetLine(ma: String, hoanTat: @escaping (Result<String, Error>) -> Void) {
+        let maSach = ma.filter(\.isNumber)
+        guard maSach.count == 6 else {
+            hoanTat(.failure(NSError.dmx("Mã liên kết LINE phải gồm đúng 6 chữ số.")))
+            return
+        }
+        let body = YeuCauLienKetLine(hanhDong: "xac_nhan", ma: maSach)
+        guiWeb(path: "api/dmx/bot/lien-ket", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiLienKetLine, Error>) in
+            switch ketQua {
+            case .success(let phanHoi):
+                let ten = phanHoi.tenDangNhap ?? self.tenDangNhap
+                hoanTat(.success(phanHoi.thongBao ?? "Đã liên kết LINE với tài khoản \(ten)."))
+            case .failure(let loi):
+                hoanTat(.failure(loi))
+            }
         }
     }
 
