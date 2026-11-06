@@ -135,20 +135,31 @@ final class DichVuAnhBaoCaoBot {
     }
 
     private func duLieuJPEGToiUu(_ anh: UIImage) -> Data? {
-        // 1.400 px và JPEG 90% giữ chữ/màu rõ trên LINE nhưng thường chỉ tốn
-        // vài trăm KB đến khoảng 1 MB cho mỗi báo cáo.
-        let rongToiDa: CGFloat = 1400
-        let anhXuat: UIImage
-        if anh.size.width > rongToiDa {
-            let tiLe = rongToiDa / anh.size.width
-            let kichThuoc = CGSize(width: rongToiDa, height: max(1, anh.size.height * tiLe))
-            anhXuat = UIGraphicsImageRenderer(size: kichThuoc).image { _ in
-                anh.draw(in: CGRect(origin: .zero, size: kichThuoc))
-            }
-        } else {
-            anhXuat = anh
+        let gioiHan = 2_900_000
+        let cacMoc: [(CGFloat, CGFloat)] = [
+            (1400, 0.90), (1400, 0.82), (1200, 0.84),
+            (1050, 0.80), (900, 0.76), (760, 0.72)
+        ]
+        var ketQuaNhoNhat: Data?
+        for (rongToiDa, chatLuong) in cacMoc {
+            let anhXuat = thuNho(anh, rongToiDa: rongToiDa)
+            guard let data = anhXuat.jpegData(compressionQuality: chatLuong) else { continue }
+            if ketQuaNhoNhat == nil || data.count < ketQuaNhoNhat!.count { ketQuaNhoNhat = data }
+            if data.count <= gioiHan { return data }
         }
-        return anhXuat.jpegData(compressionQuality: 0.90)
+        if let ketQuaNhoNhat, ketQuaNhoNhat.count <= gioiHan {
+            return ketQuaNhoNhat
+        }
+        return nil
+    }
+
+    private func thuNho(_ anh: UIImage, rongToiDa: CGFloat) -> UIImage {
+        guard anh.size.width > rongToiDa else { return anh }
+        let tiLe = rongToiDa / anh.size.width
+        let kichThuoc = CGSize(width: rongToiDa, height: max(1, anh.size.height * tiLe))
+        return UIGraphicsImageRenderer(size: kichThuoc).image { _ in
+            anh.draw(in: CGRect(origin: .zero, size: kichThuoc))
+        }
     }
 
     private func luuCauHinh(_ value: CauHinhKhoAnhBaoCaoBot) {
