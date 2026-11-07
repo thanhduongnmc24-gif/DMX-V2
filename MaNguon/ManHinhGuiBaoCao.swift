@@ -3,6 +3,7 @@ import UIKit
 final class BangGuiBaoCaoView: UIView {
     private let ngan = UIStackView()
     private let nhanMa = UILabel()
+    private let nutSaoChepLenhGanNhom = UIButton(type: .system)
     private let chonKhoAnh = UISegmentedControl(items: KhoAnhBaoCaoBot.allCases.map(\.tieuDe))
     private let oURLAppsScript = UITextField()
     private let oKhoaDrive = UITextField()
@@ -20,6 +21,7 @@ final class BangGuiBaoCaoView: UIView {
     private var groupIdDangChon = ""
     private var cacThuDangChon = Set([1, 2, 3, 4, 5, 6, 7])
     private var noiDungDangChon = Set(["luyke_du_kien"])
+    private var lenhGanNhomHienTai = ""
 
     private let cacNoiDung: [(String, String)] = [
         ("luyke_du_kien", "📈 Lũy kế — % dự kiến cuối tháng"),
@@ -50,6 +52,12 @@ final class BangGuiBaoCaoView: UIView {
             ngan.trailingAnchor.constraint(equalTo: trailingAnchor), ngan.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
 
+        ngan.addArrangedSubview(taoNhan("KẾT NỐI TÀI KHOẢN LINE", dam: true))
+        ngan.addArrangedSubview(taoNhan("Chat riêng với bot, gửi lệnh /lienket rồi nhập mã 6 số bot trả về."))
+        ngan.addArrangedSubview(taoNut("📋 Sao chép lệnh /lienket", #selector(saoChepLenhLienKet)))
+        ngan.addArrangedSubview(taoNut("🔢 Nhập mã liên kết 6 số", #selector(nhapMaLienKetTaiKhoan)))
+
+        ngan.addArrangedSubview(taoDuongKe())
         ngan.addArrangedSubview(taoNhan("KẾT NỐI NHÓM LINE", dam: true))
         ngan.addArrangedSubview(taoNhan("Tạo mã rồi vào đúng nhóm LINE, gõ /gannhom MÃ. Mã chỉ dùng một lần và hết hạn sau 10 phút."))
         let nutMa = taoNut("🔗 Tạo mã gắn nhóm", #selector(taoMa))
@@ -60,6 +68,10 @@ final class BangGuiBaoCaoView: UIView {
         nhanMa.numberOfLines = 0
         nhanMa.isHidden = true
         ngan.addArrangedSubview(nhanMa)
+        cauHinhNutSaoChep(nutSaoChepLenhGanNhom)
+        nutSaoChepLenhGanNhom.addTarget(self, action: #selector(saoChepLenhGanNhom), for: .touchUpInside)
+        nutSaoChepLenhGanNhom.isHidden = true
+        ngan.addArrangedSubview(nutSaoChepLenhGanNhom)
 
         ngan.addArrangedSubview(taoDuongKe())
         ngan.addArrangedSubview(taoNhan("KHO ẢNH GỬI NHANH", dam: true))
@@ -148,10 +160,56 @@ final class BangGuiBaoCaoView: UIView {
     @objc private func taoMa() {
         DichVuDongBo.dungChung.taoMaGanNhomLine { [weak self] ketQua in
             switch ketQua {
-            case .success(let kq): self?.nhanMa.isHidden = false; self?.nhanMa.text = "Mã: \(kq.0)\nTrong nhóm gõ: /gannhom \(kq.0)"
+            case .success(let kq):
+                guard let self else { return }
+                self.lenhGanNhomHienTai = "/gannhom \(kq.0)"
+                self.nhanMa.isHidden = false
+                self.nhanMa.text = "Mã: \(kq.0)\nTrong nhóm gửi: \(self.lenhGanNhomHienTai)"
+                self.nutSaoChepLenhGanNhom.setTitle("📋 Sao chép \(self.lenhGanNhomHienTai)", for: .normal)
+                self.nutSaoChepLenhGanNhom.isHidden = false
             case .failure(let loi): self?.hienLoi(loi.localizedDescription)
             }
         }
+    }
+
+    @objc private func saoChepLenhLienKet() {
+        UIPasteboard.general.string = "/lienket"
+        nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+        nhanTrangThai.text = "Đã sao chép /lienket. Mở chat riêng với bot LINE và dán lệnh này."
+    }
+
+    @objc private func nhapMaLienKetTaiKhoan() {
+        guard let vc = timViewControllerCha() else { return }
+        let hop = UIAlertController(
+            title: "🔗 Kết nối tài khoản LINE",
+            message: "Dán mã 6 số bot gửi sau khi bạn dùng lệnh /lienket:",
+            preferredStyle: .alert
+        )
+        hop.addTextField { tf in
+            tf.placeholder = "Mã 6 chữ số"
+            tf.keyboardType = .numberPad
+            tf.textContentType = .oneTimeCode
+        }
+        hop.addAction(UIAlertAction(title: "Kết nối", style: .default) { [weak self, weak hop] _ in
+            let ma = hop?.textFields?.first?.text ?? ""
+            DichVuDongBo.dungChung.lienKetLine(ma: ma) { ketQua in
+                switch ketQua {
+                case .success(let thongBao):
+                    self?.hienThongBao(tieuDe: "✅ Đã kết nối LINE", noiDung: thongBao)
+                case .failure(let loi):
+                    self?.hienThongBao(tieuDe: "Chưa kết nối được LINE", noiDung: loi.localizedDescription)
+                }
+            }
+        })
+        hop.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+        vc.present(hop, animated: true)
+    }
+
+    @objc private func saoChepLenhGanNhom() {
+        guard !lenhGanNhomHienTai.isEmpty else { return }
+        UIPasteboard.general.string = lenhGanNhomHienTai
+        nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+        nhanTrangThai.text = "Đã sao chép \(lenhGanNhomHienTai). Mở đúng nhóm LINE và dán lệnh này."
     }
 
     @objc private func doiKhoAnh() {
@@ -280,6 +338,16 @@ final class BangGuiBaoCaoView: UIView {
         b.contentEdgeInsets = UIEdgeInsets(top: 11, left: 10, bottom: 11, right: 10); b.addTarget(self, action: action, for: .touchUpInside); return b
     }
 
+    private func cauHinhNutSaoChep(_ b: UIButton) {
+        b.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+        b.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+        b.backgroundColor = BangMauBCTD.nenHeaderBang
+        b.layer.cornerRadius = 10
+        b.layer.borderWidth = 1
+        b.layer.borderColor = BangMauBCTD.xanhChuDao.cgColor
+        b.contentEdgeInsets = UIEdgeInsets(top: 11, left: 10, bottom: 11, right: 10)
+    }
+
     private func taoNutLuaChon(_ text: String, tag: Int, action: Selector) -> UIButton {
         let b = UIButton(type: .system); b.setTitle(text, for: .normal); b.tag = tag; b.titleLabel?.font = .systemFont(ofSize: 12, weight: .semibold)
         b.layer.cornerRadius = 8; b.layer.borderWidth = 1; b.contentEdgeInsets = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
@@ -310,5 +378,12 @@ final class BangGuiBaoCaoView: UIView {
     }
 
     private func taoDuongKe() -> UIView { let v = UIView(); v.backgroundColor = BangMauBCTD.vienThe; v.heightAnchor.constraint(equalToConstant: 1).isActive = true; return v }
+    private func hienThongBao(tieuDe: String, noiDung: String) {
+        guard let vc = timViewControllerCha() else { return }
+        let tb = UIAlertController(title: tieuDe, message: noiDung, preferredStyle: .alert)
+        tb.addAction(UIAlertAction(title: "Đóng", style: .default))
+        vc.present(tb, animated: true)
+    }
+
     private func hienLoi(_ text: String) { nhanTrangThai.text = "⚠️ \(text)"; nhanTrangThai.textColor = .systemRed }
 }

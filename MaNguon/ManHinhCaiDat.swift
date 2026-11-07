@@ -3,13 +3,8 @@ import UIKit
 final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
     var khiThayDoiCaiDat: (() -> Void)?
     private var ngay: Date
-    private let nhanThongTinTaiKhoan = UILabel()
     private let nhanHopThuThongBao = UILabel()
     private let nutDongBoNgay = UIButton(type: .system)
-    private let nutMoAdminTaiKhoan = UIButton(type: .system)
-    private let nutLienKetLine = UIButton(type: .system)
-    private let nutDoiMatKhauNhanh = UIButton(type: .system)
-    private let nutDangXuatNhanh = UIButton(type: .system)
 
     private let chonKieuHienThi = UISegmentedControl(items: ["Bảng 8 cột (Chi tiết)", "Thẻ tiến độ (Gọn)"])
     private let chonSoCotXuat = UISegmentedControl(items: ["1 cột", "2 cột", "3 cột", "4 cột"])
@@ -30,7 +25,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         danhSachCumTu = cd.danhSachCumTuLocBo
         chonSoCotXuat.selectedSegmentIndex = max(0, min(3, cd.soCotXuatAnh - 1))
         bangCumTu.reloadData()
-        capNhatThongTinTaiKhoanUI()
+        capNhatThongBaoHeThong()
     }
 
     required init?(coder: NSCoder) {
@@ -50,14 +45,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             target: self,
             action: #selector(luuCaiDat)
         )
-        let nutTaiKhoan = UIBarButtonItem(
-            image: UIImage(systemName: "person.crop.circle.badge.checkmark"),
-            style: .plain,
-            target: self,
-            action: #selector(moQuanLyTaiKhoan)
-        )
-        nutTaiKhoan.tintColor = BangMauBCTD.xanhChuDao
-        navigationItem.rightBarButtonItems = [nutLuu, nutTaiKhoan]
+        navigationItem.rightBarButtonItem = nutLuu
 
         let cd = KhoDuLieu.dungChung.caiDat
         chonKieuHienThi.selectedSegmentIndex = cd.kieuHienThi.rawValue
@@ -66,22 +54,13 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         chonSoCotXuat.selectedSegmentIndex = chiSoCot
 
         taoGiaoDien()
-        capNhatThongTinTaiKhoanUI()
+        capNhatThongBaoHeThong()
     }
 
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        capNhatThongTinTaiKhoanUI()
-    }
-
-    private func capNhatThongTinTaiKhoanUI() {
+    private func capNhatThongBaoHeThong() {
         let ten = DichVuDongBo.dungChung.tenDangNhap.isEmpty ? "Chưa đăng nhập" : DichVuDongBo.dungChung.tenDangNhap
-        let laAdmin = DichVuDongBo.dungChung.laAdmin
-        let vaiTro = laAdmin ? "🛡️ Quản trị viên (Admin)" : "Thành viên"
-        nhanThongTinTaiKhoan.text = "Tài khoản: \(ten)   •   \(vaiTro)"
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
         nhanHopThuThongBao.text = "📩 Hệ thống ĐMX (\(ngayStr)): Dữ liệu và cài đặt của tài khoản \(ten) được đồng bộ đám mây tự động."
-        nutMoAdminTaiKhoan.isHidden = !laAdmin
     }
 
     @objc private func thayDoiTuyChonHienThi() {
@@ -92,124 +71,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     @objc private func bamDongBoDamMayNgay() {
         DichVuDongBo.dungChung.taiDuLieu()
         hienThongBao(tieuDe: "🔄 Đang đồng bộ", noiDung: "Đã gửi yêu cầu đồng bộ dữ liệu mới nhất từ đám mây.")
-    }
-
-    @objc private func bamMoManHinhAdminTaiKhoan() {
-        dongBoTamCaiDat()
-        navigationController?.pushViewController(ManHinhQuanLyTaiKhoan(), animated: true)
-    }
-
-    @objc private func bamDoiMatKhauCaNhan() {
-        let tk = DichVuDongBo.dungChung.tenDangNhap
-        let hop = UIAlertController(
-            title: "🔑 Đổi mật khẩu (\(tk))",
-            message: "Nhập mật khẩu mới (tối thiểu 6 ký tự):",
-            preferredStyle: .alert
-        )
-        hop.addTextField { tf in
-            tf.placeholder = "Mật khẩu mới"
-            tf.isSecureTextEntry = true
-        }
-        hop.addTextField { tf in
-            tf.placeholder = "Nhập lại mật khẩu mới"
-            tf.isSecureTextEntry = true
-        }
-        hop.addAction(UIAlertAction(title: "Cập nhật mật khẩu", style: .default) { [weak self] _ in
-            guard let self, let tfs = hop.textFields, tfs.count >= 2 else { return }
-            let mk1 = tfs[0].text ?? ""
-            let mk2 = tfs[1].text ?? ""
-            guard mk1.count >= 6 else {
-                self.hienThongBao(tieuDe: "Mật khẩu quá ngắn", noiDung: "Mật khẩu mới cần có ít nhất 6 ký tự.")
-                return
-            }
-            guard mk1 == mk2 else {
-                self.hienThongBao(tieuDe: "Chưa khớp", noiDung: "Mật khẩu nhập lại chưa khớp.")
-                return
-            }
-            DichVuDongBo.dungChung.doiMatKhauCaNhan(matKhauMoi: mk1) { kq in
-                switch kq {
-                case .success:
-                    self.hienThongBao(tieuDe: "✅ Thành công", noiDung: "Đã cập nhật mật khẩu cho tài khoản \(tk).")
-                case .failure(let loi):
-                    self.hienThongBao(tieuDe: "Lỗi", noiDung: loi.localizedDescription)
-                }
-            }
-        })
-        hop.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
-        present(hop, animated: true)
-    }
-
-    @objc private func bamDangXuatTaiKhoan() {
-        let tk = DichVuDongBo.dungChung.tenDangNhap
-        let hoi = UIAlertController(
-            title: "Đăng xuất tài khoản \(tk)?",
-            message: "Bạn có thể đăng nhập lại bất cứ lúc nào.",
-            preferredStyle: .alert
-        )
-        hoi.addAction(UIAlertAction(title: "Đăng xuất", style: .destructive) { _ in
-            DichVuDongBo.dungChung.dangXuat()
-            (UIApplication.shared.delegate as? UyQuyenUngDung)?.hienThiDangNhap()
-        })
-        hoi.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
-        present(hoi, animated: true)
-    }
-
-    @objc private func bamLienKetLine() {
-        let hop = UIAlertController(
-            title: "🔗 Kết nối LINE",
-            message: "Trong LINE, hãy chat riêng với bot và gõ /lienket. Sau đó nhập mã 6 số bot gửi về:",
-            preferredStyle: .alert
-        )
-        hop.addTextField { tf in
-            tf.placeholder = "Mã 6 chữ số"
-            tf.keyboardType = .numberPad
-            tf.textContentType = .oneTimeCode
-        }
-        hop.addAction(UIAlertAction(title: "Kết nối", style: .default) { [weak self, weak hop] _ in
-            guard let self else { return }
-            let ma = hop?.textFields?.first?.text ?? ""
-            DichVuDongBo.dungChung.lienKetLine(ma: ma) { ketQua in
-                switch ketQua {
-                case .success(let thongBao):
-                    self.hienThongBao(tieuDe: "✅ Đã kết nối LINE", noiDung: thongBao)
-                case .failure(let loi):
-                    self.hienThongBao(tieuDe: "Chưa kết nối được LINE", noiDung: loi.localizedDescription)
-                }
-            }
-        })
-        hop.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
-        present(hop, animated: true)
-    }
-
-    @objc private func moQuanLyTaiKhoan() {
-        let tk = DichVuDongBo.dungChung.tenDangNhap.isEmpty ? "Tài khoản" : DichVuDongBo.dungChung.tenDangNhap
-        let laAdmin = DichVuDongBo.dungChung.laAdmin
-        var cacMuc: [MucChonDMX] = []
-        if laAdmin {
-            cacMuc.append(MucChonDMX(tieuDe: "🛡️ Quản lý tài khoản & Phân quyền Admin") { [weak self] in
-                self?.bamMoManHinhAdminTaiKhoan()
-            })
-        }
-        cacMuc.append(MucChonDMX(tieuDe: "🔗 Kết nối tài khoản với LINE Bot") { [weak self] in
-            self?.bamLienKetLine()
-        })
-        cacMuc.append(MucChonDMX(tieuDe: "🔑 Đổi mật khẩu tài khoản \(tk)") { [weak self] in
-            self?.bamDoiMatKhauCaNhan()
-        })
-        cacMuc.append(MucChonDMX(tieuDe: "🔄 Đồng bộ dữ liệu ngay") {
-            DichVuDongBo.dungChung.taiDuLieu()
-        })
-        cacMuc.append(MucChonDMX(tieuDe: "🚪 Đăng xuất tài khoản", kieu: .nguyHiem) {
-            DichVuDongBo.dungChung.dangXuat()
-            (UIApplication.shared.delegate as? UyQuyenUngDung)?.hienThiDangNhap()
-        })
-        cacMuc.append(MucChonDMX(tieuDe: "Đóng", kieu: .huy))
-
-        hienMenuChon(
-            tieuDe: "Tài khoản ĐMX: \(tk) \(laAdmin ? "(Admin)" : "")",
-            thongDiep: "Dữ liệu được đồng bộ tự động với nhánh duongnt.io.vn/dmx.",
-            cacMuc: cacMuc
-        )
     }
 
     private func hienThongBao(tieuDe: String, noiDung: String) {
@@ -280,81 +141,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nganHopThu.spacing = 8
         nganHopThu.translatesAutoresizingMaskIntoConstraints = false
         khungHopThu.addSubview(nganHopThu)
-
-        let tieuDeTK = taoTieuDeNhom("👤 TÀI KHOẢN & CÀI ĐẶT HỆ THỐNG")
-        let khungTK = UIView()
-        khungTK.backgroundColor = BangMauBCTD.nenThe
-        khungTK.layer.cornerRadius = 12
-        khungTK.layer.borderWidth = 1
-        khungTK.layer.borderColor = BangMauBCTD.vienThe.cgColor
-
-        nhanThongTinTaiKhoan.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nhanThongTinTaiKhoan.textColor = BangMauBCTD.chuChinh
-        nhanThongTinTaiKhoan.numberOfLines = 0
-        nhanThongTinTaiKhoan.lineBreakMode = .byWordWrapping
-        nhanThongTinTaiKhoan.adjustsFontSizeToFitWidth = false
-
-        nutMoAdminTaiKhoan.setTitle("🛡️ Quản lý Tài khoản (Thêm mới, Đổi mật khẩu, Set quyền Admin) ▸", for: .normal)
-        nutMoAdminTaiKhoan.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nutMoAdminTaiKhoan.titleLabel?.numberOfLines = 0
-        nutMoAdminTaiKhoan.titleLabel?.lineBreakMode = .byWordWrapping
-        nutMoAdminTaiKhoan.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutMoAdminTaiKhoan.contentHorizontalAlignment = .left
-        nutMoAdminTaiKhoan.backgroundColor = BangMauBCTD.nenHeaderBang
-        nutMoAdminTaiKhoan.tintColor = BangMauBCTD.xanhChuDao
-        nutMoAdminTaiKhoan.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
-        nutMoAdminTaiKhoan.layer.cornerRadius = 10
-        nutMoAdminTaiKhoan.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
-        nutMoAdminTaiKhoan.addTarget(self, action: #selector(bamMoManHinhAdminTaiKhoan), for: .touchUpInside)
-
-        nutLienKetLine.setTitle("🔗 Kết nối LINE Bot bằng mã 6 số", for: .normal)
-        nutLienKetLine.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nutLienKetLine.titleLabel?.numberOfLines = 0
-        nutLienKetLine.contentHorizontalAlignment = .left
-        nutLienKetLine.backgroundColor = BangMauBCTD.nenHeaderBang
-        nutLienKetLine.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
-        nutLienKetLine.layer.cornerRadius = 10
-        nutLienKetLine.layer.borderWidth = 1
-        nutLienKetLine.layer.borderColor = BangMauBCTD.vienThe.cgColor
-        nutLienKetLine.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
-        nutLienKetLine.addTarget(self, action: #selector(bamLienKetLine), for: .touchUpInside)
-
-        nutDoiMatKhauNhanh.setTitle("🔑 Đổi mật khẩu", for: .normal)
-        nutDoiMatKhauNhanh.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
-        nutDoiMatKhauNhanh.titleLabel?.numberOfLines = 0
-        nutDoiMatKhauNhanh.titleLabel?.lineBreakMode = .byWordWrapping
-        nutDoiMatKhauNhanh.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutDoiMatKhauNhanh.backgroundColor = BangMauBCTD.nenThePhu
-        nutDoiMatKhauNhanh.tintColor = BangMauBCTD.chuChinh
-        nutDoiMatKhauNhanh.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
-        nutDoiMatKhauNhanh.layer.cornerRadius = 9
-        nutDoiMatKhauNhanh.layer.borderWidth = 1
-        nutDoiMatKhauNhanh.layer.borderColor = BangMauBCTD.vienDam.cgColor
-        nutDoiMatKhauNhanh.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
-        nutDoiMatKhauNhanh.addTarget(self, action: #selector(bamDoiMatKhauCaNhan), for: .touchUpInside)
-
-        nutDangXuatNhanh.setTitle("🚪 Đăng xuất", for: .normal)
-        nutDangXuatNhanh.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
-        nutDangXuatNhanh.titleLabel?.numberOfLines = 0
-        nutDangXuatNhanh.titleLabel?.lineBreakMode = .byWordWrapping
-        nutDangXuatNhanh.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutDangXuatNhanh.backgroundColor = BangMauBCTD.doYeuPill
-        nutDangXuatNhanh.tintColor = BangMauBCTD.doYeuChu
-        nutDangXuatNhanh.setTitleColor(BangMauBCTD.doYeuChu, for: .normal)
-        nutDangXuatNhanh.layer.cornerRadius = 9
-        nutDangXuatNhanh.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
-        nutDangXuatNhanh.addTarget(self, action: #selector(bamDangXuatTaiKhoan), for: .touchUpInside)
-
-        let hangNutTK = UIStackView(arrangedSubviews: [nutDoiMatKhauNhanh, nutDangXuatNhanh])
-        hangNutTK.axis = .horizontal
-        hangNutTK.spacing = 8
-        hangNutTK.distribution = .fillEqually
-
-        let nganTK = UIStackView(arrangedSubviews: [nhanThongTinTaiKhoan, nutMoAdminTaiKhoan, nutLienKetLine, hangNutTK])
-        nganTK.axis = .vertical
-        nganTK.spacing = 8
-        nganTK.translatesAutoresizingMaskIntoConstraints = false
-        khungTK.addSubview(nganTK)
 
         let tieuDeKieu = taoTieuDeNhom("KIỂU HIỂN THỊ & XUẤT BÁO CÁO")
         let khungKieu = UIView()
@@ -447,7 +233,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         }
 
         [
-            tieuDeTK, khungTK,
             tieuDeKieu, khungKieu,
             tieuDeLoc, khungLoc,
             tieuDeHopThu, khungHopThu
@@ -471,11 +256,6 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             nganHopThu.leadingAnchor.constraint(equalTo: khungHopThu.leadingAnchor, constant: 12),
             nganHopThu.trailingAnchor.constraint(equalTo: khungHopThu.trailingAnchor, constant: -12),
             nganHopThu.bottomAnchor.constraint(equalTo: khungHopThu.bottomAnchor, constant: -10),
-
-            nganTK.topAnchor.constraint(equalTo: khungTK.topAnchor, constant: 10),
-            nganTK.leadingAnchor.constraint(equalTo: khungTK.leadingAnchor, constant: 12),
-            nganTK.trailingAnchor.constraint(equalTo: khungTK.trailingAnchor, constant: -12),
-            nganTK.bottomAnchor.constraint(equalTo: khungTK.bottomAnchor, constant: -10),
 
             nganKieu.topAnchor.constraint(equalTo: khungKieu.topAnchor, constant: 10),
             nganKieu.leadingAnchor.constraint(equalTo: khungKieu.leadingAnchor, constant: 12),
