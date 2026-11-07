@@ -82,8 +82,9 @@ jobs:
         run: xcodegen generate
 
       - name: Build ung dung
+        shell: bash
         run: |
-          set -e
+          set +e
           xcodebuild \
             -project TongHopDMX.xcodeproj \
             -scheme TongHopDMX \
@@ -92,7 +93,17 @@ jobs:
             -derivedDataPath DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_IDENTITY="" 2>&1 | tee build-xcode.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            grep -E "(^|[[:space:]])(error:|fatal error:)" build-xcode.log | head -30 | while IFS= read -r LINE; do
+              SAFE=${LINE//'%'/'%25'}
+              SAFE=${SAFE//$'\r'/'%0D'}
+              SAFE=${SAFE//$'\n'/'%0A'}
+              echo "::error title=Lỗi biên dịch Swift::$SAFE"
+            done
+          fi
+          exit "$STATUS"
 
       - name: Dong goi IPA
         run: |
