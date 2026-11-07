@@ -169,6 +169,11 @@ final class TheDoanhThuView: UIControl {
         capNhatBoCucThe()
     }
 
+    func capNhatTieuDe(_ tieuDe: String) {
+        nhanTieuDe.text = tieuDe
+        capNhatBoCucThe()
+    }
+
     func capNhat(doanhThu: Double, target: Double) {
         if doanhThu == 0 && target == 0 {
             nhanGiaTriChinh.text = "Chạm nhập/quét"
@@ -437,9 +442,14 @@ final class CumChiSoChinhView: UIControl {
 
         let ptGoc = dt.phanTramHTQDDuKienHienThi
         let dkGoc = dt.duKienQuyDoi > 0 ? dt.duKienQuyDoi : dt.duKienThuc
+        theHTQDDuKien.capNhatTieuDe(
+            cheDo == .realtime ? "📈 % HT TARGET NGÀY" : "📈 % HT QĐ DỰ KIẾN"
+        )
         theHTQDDuKien.capNhatNoiDung(
             chinh: ptGoc.chuoiPhanTram,
-            phu: "DTQĐ DK: \(dkGoc.chuoiSoGonVN)",
+            phu: cheDo == .realtime
+                ? "DT QĐ / TARGET: \(dt.doanhThuQuyDoi.chuoiSoGonVN) / \(dt.targetQuyDoi.chuoiSoGonVN)"
+                : "DTQĐ DK: \(dkGoc.chuoiSoGonVN)",
             coLon: coLon
         )
 
@@ -942,7 +952,8 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         nutChonMonTheoDoi.backgroundColor = BangMauBCTD.nenThePhu
         nutChonMonTheoDoi.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
         nutChonMonTheoDoi.layer.borderColor = BangMauBCTD.vienDam.cgColor
-        nutChonMonTheoDoi.showsMenuAsPrimaryAction = true
+        nutChonMonTheoDoi.showsMenuAsPrimaryAction = false
+        nutChonMonTheoDoi.addTarget(self, action: #selector(moBangChonMonTheoDoi), for: .touchUpInside)
         nutChonMonTheoDoi.widthAnchor.constraint(equalToConstant: 112).isActive = true
         capNhatMenuMonTheoDoi()
 
@@ -1132,34 +1143,43 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
                 return (khoa, ten)
             }
             .sorted { tenDeSapXep($0.1).localizedCaseInsensitiveCompare(tenDeSapXep($1.1)) == .orderedAscending }
-        let tapDangChon = Set(KhoDuLieu.dungChung.caiDat.khoaMonTheoDoi(cho: cheDoDoanhThu))
-        let tatCa = UIAction(title: "Hiện tất cả môn", attributes: [.keepsMenuPresented], state: tapDangChon.isEmpty ? .on : .off) { [weak self] _ in
+        let daLuu = Set(KhoDuLieu.dungChung.caiDat.khoaMonTheoDoi(cho: cheDoDoanhThu))
+        let soChon = daLuu.isEmpty ? cacMon.count : daLuu.filter { $0 != CaiDatDMX.khoaKhongChonMonThiDua }.count
+        let nhan = soChon >= cacMon.count ? "Tất cả môn" : "Đã chọn \(soChon)/\(cacMon.count)"
+        nutChonMonTheoDoi.setTitle("\(nhan) ▾", for: .normal)
+    }
+
+    @objc private func moBangChonMonTheoDoi() {
+        let cacMon = Dictionary(grouping: danhSachGoc) { self.khoaTheoDoi($0) }
+            .compactMap { khoa, ds -> ManHinhChonMonThiDua.Muc? in
+                guard !khoa.isEmpty, let ten = ds.first?.tenNganhHang else { return nil }
+                return .init(khoa: khoa, ten: ten)
+            }
+            .sorted { tenDeSapXep($0.ten).localizedCaseInsensitiveCompare(tenDeSapXep($1.ten)) == .orderedAscending }
+        guard !cacMon.isEmpty, let vcCha = timViewControllerCha() else { return }
+
+        let daLuu = Set(KhoDuLieu.dungChung.caiDat.khoaMonTheoDoi(cho: cheDoDoanhThu))
+        let dangChon = daLuu.isEmpty ? Set(cacMon.map(\.khoa)) : Set(daLuu.filter { $0 != CaiDatDMX.khoaKhongChonMonThiDua })
+        let hop = ManHinhChonMonThiDua(cacMuc: cacMon, dangChon: dangChon, cheDo: cheDoDoanhThu)
+        hop.khiThayDoi = { [weak self] tap in
             guard let self else { return }
             var cd = KhoDuLieu.dungChung.caiDat
-            cd.ganKhoaMonTheoDoi([], cho: self.cheDoDoanhThu)
+            let tatCa = Set(cacMon.map(\.khoa))
+            let giaTriLuu: [String]
+            if tap == tatCa { giaTriLuu = [] }
+            else if tap.isEmpty { giaTriLuu = [CaiDatDMX.khoaKhongChonMonThiDua] }
+            else { giaTriLuu = Array(tap).sorted() }
+            cd.ganKhoaMonTheoDoi(giaTriLuu, cho: self.cheDoDoanhThu)
             KhoDuLieu.dungChung.luuCaiDat(cd)
             NotificationCenter.default.post(name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
             self.capNhatMenuMonTheoDoi()
             self.capNhatDanhSach()
         }
-        let cacLuaChon = cacMon.map { khoa, ten in
-            UIAction(title: ten, attributes: [.keepsMenuPresented], state: tapDangChon.contains(khoa) ? .on : .off) { [weak self] _ in
-                guard let self else { return }
-                var cd = KhoDuLieu.dungChung.caiDat
-                var tap = Set(cd.khoaMonTheoDoi(cho: self.cheDoDoanhThu))
-                if tap.isEmpty { tap = [khoa] }
-                else if tap.contains(khoa) { tap.remove(khoa) }
-                else { tap.insert(khoa) }
-                cd.ganKhoaMonTheoDoi(Array(tap).sorted(), cho: self.cheDoDoanhThu)
-                KhoDuLieu.dungChung.luuCaiDat(cd)
-                NotificationCenter.default.post(name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
-                self.capNhatMenuMonTheoDoi()
-                self.capNhatDanhSach()
-            }
+        if let sheet = hop.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
         }
-        nutChonMonTheoDoi.menu = UIMenu(title: "Môn thi đua theo dõi", children: [tatCa] + cacLuaChon)
-        let nhan = tapDangChon.isEmpty ? "Tất cả môn" : "Đã chọn \(tapDangChon.count)"
-        nutChonMonTheoDoi.setTitle("\(nhan) ▾", for: .normal)
+        vcCha.present(hop, animated: true)
     }
 
     private func locVaSapXep(_ dsGoc: [DongThiDua], xemDuKien: Bool? = nil, cheDoLoc: LoaiCheDoDoanhThu? = nil) -> [DongThiDua] {

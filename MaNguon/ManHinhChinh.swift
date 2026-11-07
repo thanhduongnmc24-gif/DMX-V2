@@ -508,6 +508,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     @objc private func duLieuDaDongBo() {
         dsThiDuaDaNapUI = nil
         napDuLieu()
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
+        lenLichCapNhatAnhBaoCaoBot(dl: dl, ngay: ngayHienTai)
     }
 
     @objc private func duLieuDaThayDoiTaiMay(_ thongBao: Notification) {
@@ -2929,7 +2931,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     // MARK: - Nạp dữ liệu & Chuyển đổi mượt mà giữa các mục trong Menu
 
     private func doanhThuHienThi(_ doanhThu: ThongTinDoanhThu, cheDo: LoaiCheDoDoanhThu) -> ThongTinDoanhThu {
-        doanhThu.apDungPhanTramTarget(KhoDuLieu.dungChung.caiDat.phanTramTarget(cho: cheDo))
+        doanhThu.apDungPhanTramTarget(
+            KhoDuLieu.dungChung.caiDat.phanTramTarget(cho: cheDo),
+            laRealtime: cheDo == .realtime
+        )
     }
 
     private func napDuLieu() {
@@ -2977,23 +2982,20 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         congViecTaoAnhBot?.cancel()
         let congViec = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            DichVuDongBo.dungChung.taiCauHinhGuiBaoCao { [weak self] ketQua in
-                guard let self else { return }
-                switch ketQua {
-                case .failure:
-                    break
-                case .success(let cauHinh):
-                    let cacLoai = Set(cauHinh.1
-                        .filter { ($0.kieuGui ?? "anh") == "anh" }
-                        .flatMap(\.cacNoiDung))
-                    guard !cacLoai.isEmpty else {
-                        self.khoaAnhBotDaTai = khoa
-                        return
-                    }
-                    self.taoVaTaiAnhBaoCaoBot(cacLoai: cacLoai, dl: dl, ngayBaoCao: ngay) { [weak self] thanhCong in
-                        if thanhCong { self?.khoaAnhBotDaTai = khoa }
-                    }
-                }
+            // Luôn tạo đủ mọi mẫu ảnh mà app hỗ trợ. Nhờ vậy lệnh bot và lịch mới
+            // không phụ thuộc vào việc loại ảnh đó đã được chọn ở lịch cũ hay chưa.
+            let cacLoai: Set<String> = [
+                "luyke_du_kien",
+                "doanhthu_thidua_luyke",
+                "doanhthu_thidua_realtime",
+                "xep_hang_nv_luyke",
+                "xep_hang_nv_realtime",
+                "bieu_do_realtime_thang",
+                "bieu_do_suc_khoe_nv",
+                "chi_tiet_nhan_vien"
+            ]
+            self.taoVaTaiAnhBaoCaoBot(cacLoai: cacLoai, dl: dl, ngayBaoCao: ngay) { [weak self] thanhCong in
+                if thanhCong { self?.khoaAnhBotDaTai = khoa }
             }
         }
         congViecTaoAnhBot = congViec

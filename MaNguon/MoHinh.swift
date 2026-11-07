@@ -730,14 +730,18 @@ struct ThongTinDoanhThu: Codable, Hashable {
     }
 
     /// Chỉ điều chỉnh target để hiển thị/báo cáo. Target quét gốc trong dữ liệu ngày không bị thay đổi.
-    func apDungPhanTramTarget(_ phanTram: Double) -> ThongTinDoanhThu {
+    func apDungPhanTramTarget(_ phanTram: Double, laRealtime: Bool = false) -> ThongTinDoanhThu {
         let tyLe = min(2.0, max(0.5, phanTram / 100.0))
         guard abs(tyLe - 1.0) > 0.0001 else { return self }
         var kq = self
         if kq.targetThuc > 0 { kq.targetThuc *= tyLe }
         if kq.targetQuyDoi > 0 { kq.targetQuyDoi *= tyLe }
         kq.phanTramHTThuc = kq.targetThuc > 0 ? (kq.doanhThuThuc / kq.targetThuc) * 100.0 : 0
-        let coSoQD = kq.duKienQuyDoi > 0 ? kq.duKienQuyDoi : kq.doanhThuQuyDoi
+        // Realtime hiển thị "% HT target ngày", vì vậy phải lấy doanh thu hiện tại
+        // chia target ngày. Chỉ lũy kế mới dùng doanh thu dự kiến cuối tháng.
+        let coSoQD = laRealtime
+            ? kq.doanhThuQuyDoi
+            : (kq.duKienQuyDoi > 0 ? kq.duKienQuyDoi : kq.doanhThuQuyDoi)
         kq.phanTramHTQuyDoi = kq.targetQuyDoi > 0 ? (coSoQD / kq.targetQuyDoi) * 100.0 : 0
         return kq
     }
@@ -973,6 +977,7 @@ struct DongThiDua: Codable, Hashable, Identifiable {
 }
 
 struct CaiDatDMX: Codable {
+    static let khoaKhongChonMonThiDua = "__KHONG_CHON_MON_NAO__"
     static let geminiKeyMacDinh = "AIzaSyBLV7N_qUxSuiJ3B3FETmj2Ta67CKeVKWo"
     static let geminiModelMacDinh = "gemini-2.5-flash"
 
