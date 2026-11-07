@@ -244,6 +244,7 @@ final class DichVuDongBo {
     private let khoaKeychain = "com.thanhduong.tonghopdmx.phien-dang-nhap"
     private let khoaDaDonDepLocal = "com.thanhduong.tonghopdmx.da-don-dep-tai-khoan-cu-v1"
     private let hangDoi = DispatchQueue(label: "com.thanhduong.tonghopdmx.dongbo", qos: .utility)
+    private let hangDoiDocSieuThi = DispatchQueue(label: "com.thanhduong.tonghopdmx.sieuthi", qos: .userInitiated)
     private let khoaTrangThai = NSLock()
     private(set) var phien: PhienDangNhapDMX?
 
@@ -265,6 +266,8 @@ final class DichVuDongBo {
     private var caiDatChoDay: CaiDatDMX?
     private var congViecDayNen: DispatchWorkItem?
     private var dangTaiDuLieu: Bool = false
+    private var sieuThiDangTai: String = ""
+    private var maLanTaiDuLieu = UUID()
     private var daKhoiTaoAdminTrongPhien: Bool = false
     private var daKiemTraBucket: Bool = false
 
@@ -930,19 +933,29 @@ final class DichVuDongBo {
     // MARK: - 4. Tải dữ liệu đồng bộ (Xử lý gộp & chuẩn hoá hoàn toàn trên luồng nền, tránh đơ máy người dùng)
 
     func taiDuLieu(hoanTat: ((Result<Void, Error>) -> Void)? = nil) {
+        let sieuThiLucBatDau = BoNhoSieuThiDMX.idDangChon
         khoaTrangThai.lock()
-        if dangTaiDuLieu {
+        if dangTaiDuLieu && sieuThiDangTai == sieuThiLucBatDau {
             khoaTrangThai.unlock()
             hoanTat?(.success(()))
             return
         }
+        let maLanTai = UUID()
+        maLanTaiDuLieu = maLanTai
+        sieuThiDangTai = sieuThiLucBatDau
         dangTaiDuLieu = true
         khoaTrangThai.unlock()
 
         let ketThucTai: (Result<Void, Error>) -> Void = { [weak self] kq in
-            self?.khoaTrangThai.lock()
-            self?.dangTaiDuLieu = false
-            self?.khoaTrangThai.unlock()
+            guard let self else { return }
+            self.khoaTrangThai.lock()
+            let laLanMoiNhat = self.maLanTaiDuLieu == maLanTai
+            if laLanMoiNhat {
+                self.dangTaiDuLieu = false
+                self.sieuThiDangTai = ""
+            }
+            self.khoaTrangThai.unlock()
+            guard laLanMoiNhat else { return }
             DispatchQueue.main.async {
                 hoanTat?(kq)
             }
@@ -988,7 +1001,7 @@ final class DichVuDongBo {
                 // Chỉ dùng một API đồng bộ chuẩn. Trước đây app gọi thêm Storage và
                 // PostgREST trực tiếp, khiến cùng dữ liệu bị tải/giải mã/gộp ba lần.
                 nhom.enter()
-                self.guiWeb(path: "/api/dmx/dong-bo", method: "GET", bodyData: nil, canDangNhap: true) { (kq: Result<DuLieuDamMay, Error>) in
+                self.guiWeb(path: "/api/dmx/dong-bo", method: "GET", bodyData: nil, canDangNhap: true, sieuThiId: sieuThiLucBatDau) { (kq: Result<DuLieuDamMay, Error>) in
                     if case .success(let cloud) = kq {
                         gopAnToan(caiDat: cloud.caiDat, cacNgay: cloud.cacNgay)
                     }
@@ -998,6 +1011,10 @@ final class DichVuDongBo {
                 // Xử lý gộp và chuẩn hoá chuỗi trên luồng nền (hangDoi) thay vì luồng chính
                 nhom.notify(queue: self.hangDoi) { [weak self] in
                     guard let self else { return }
+                    self.khoaTrangThai.lock()
+                    let conHieuLuc = self.maLanTaiDuLieu == maLanTai && BoNhoSieuThiDMX.idDangChon == sieuThiLucBatDau
+                    self.khoaTrangThai.unlock()
+                    guard conHieuLuc else { ketThucTai(.success(())); return }
                     khoaGop.lock()
                     var cdCuoi = caiDatGop
                     var ngayCuoi = cacNgayGop
@@ -1397,20 +1414,46 @@ final class DichVuDongBo {
 
     func taiDanhSachSieuThi(hoanTat: @escaping (Result<[SieuThiDMX], Error>) -> Void) {
         guiWeb(path: "api/dmx/sieu-thi", method: "GET", bodyData: nil, canDangNhap: true) { [weak self] (ketQua: Result<PhanHoiDanhSachSieuThi, Error>) in
+            guard let self else { return }
             switch ketQua {
             case .success(let kq):
-                self?.danhSachSieuThi = kq.sieuThi
+                self.danhSachSieuThi = kq.sieuThi
                 let id = kq.sieuThiDangChon ?? kq.sieuThi.first?.id ?? ""
-                if !id.isEmpty && id != BoNhoSieuThiDMX.idDangChon {
-                    BoNhoSieuThiDMX.idDangChon = id
-                    self?.hangDoi.async {
-                        KhoDuLieu.dungChung.doc()
-                        DispatchQueue.main.async { hoanTat(.success(kq.sieuThi)) }
-                    }
+                guard !id.isEmpty else {
+                    hoanTat(.success(kq.sieuThi))
                     return
                 }
-                hoanTat(.success(kq.sieuThi))
+                let idCu = BoNhoSieuThiDMX.idDangChon
+                self.chuyenDuLieuSieuThiTrenMay(tu: idCu, sang: id, danhSach: kq.sieuThi) {
+                    hoanTat(.success(kq.sieuThi))
+                }
             case .failure(let loi): hoanTat(.failure(loi))
+            }
+        }
+    }
+
+    private func chuyenDuLieuSieuThiTrenMay(
+        tu idCu: String,
+        sang idMoi: String,
+        danhSach: [SieuThiDMX],
+        hoanTat: (() -> Void)? = nil
+    ) {
+        guard !idMoi.isEmpty else { hoanTat?(); return }
+        let laMacDinh = danhSach.first { $0.id == idMoi }?.maSieuThi.uppercased() == "MAC_DINH"
+        hangDoiDocSieuThi.async { [weak self] in
+            KhoDuLieu.dungChung.chuyenSieuThiNhanh(tu: idCu, sang: idMoi, laMacDinh: laMacDinh)
+            DispatchQueue.main.async {
+                BoNhoSieuThiDMX.idDangChon = idMoi
+                NotificationCenter.default.post(name: .sieuThiDMXDaThayDoi, object: idMoi)
+                hoanTat?()
+                self?.taiDuLieu()
+            }
+            // Sau khi đã hiện dữ liệu, tiếp tục đọc trước các file còn lại.
+            for item in danhSach where item.id != idMoi {
+                KhoDuLieu.dungChung.napTruocSieuThi(
+                    id: item.id,
+                    laMacDinh: item.maSieuThi.uppercased() == "MAC_DINH"
+                )
             }
         }
     }
@@ -1418,41 +1461,38 @@ final class DichVuDongBo {
     func themSieuThi(ma: String, ten: String, hoanTat: @escaping (Result<[SieuThiDMX], Error>) -> Void) {
         let idCu = BoNhoSieuThiDMX.idDangChon
         thaoTacSieuThi(.init(hanhDong: "them", sieuThiId: nil, maSieuThi: ma, tenSieuThi: ten)) { [weak self] ketQua in
-            if case .success = ketQua, idCu != BoNhoSieuThiDMX.idDangChon {
-                KhoDuLieu.dungChung.doc()
-                NotificationCenter.default.post(name: .sieuThiDMXDaThayDoi, object: BoNhoSieuThiDMX.idDangChon)
-                self?.taiDuLieu()
+            if case .success(let ds) = ketQua, idCu != BoNhoSieuThiDMX.idDangChon {
+                let idMoi = BoNhoSieuThiDMX.idDangChon
+                self?.chuyenDuLieuSieuThiTrenMay(tu: idCu, sang: idMoi, danhSach: ds)
             }
             hoanTat(ketQua)
         }
     }
 
     func chonSieuThi(id: String, hoanTat: @escaping (Result<[SieuThiDMX], Error>) -> Void) {
+        guard id != BoNhoSieuThiDMX.idDangChon else {
+            hoanTat(.success(danhSachSieuThi))
+            return
+        }
         congViecDayNen?.cancel()
         thucThiDayDuLieuGomNhom()
+        let idCu = BoNhoSieuThiDMX.idDangChon
+        let dsHienTai = danhSachSieuThi
+        // Mở dữ liệu trong máy ngay; việc ghi lựa chọn lên máy chủ chạy song song.
+        chuyenDuLieuSieuThiTrenMay(tu: idCu, sang: id, danhSach: dsHienTai) {
+            hoanTat(.success(dsHienTai))
+        }
         thaoTacSieuThi(.init(hanhDong: "chon", sieuThiId: id, maSieuThi: nil, tenSieuThi: nil)) { [weak self] ketQua in
-            if case .success(let ds) = ketQua {
-                BoNhoSieuThiDMX.idDangChon = id
-                self?.danhSachSieuThi = ds
-                self?.hangDoi.async { [weak self] in
-                    KhoDuLieu.dungChung.doc()
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .sieuThiDMXDaThayDoi, object: id)
-                        self?.taiDuLieu()
-                    }
-                }
-            }
-            hoanTat(ketQua)
+            if case .success(let ds) = ketQua { self?.danhSachSieuThi = ds }
         }
     }
 
     func xoaSieuThi(id: String, hoanTat: @escaping (Result<[SieuThiDMX], Error>) -> Void) {
         let idCu = BoNhoSieuThiDMX.idDangChon
         thaoTacSieuThi(.init(hanhDong: "xoa", sieuThiId: id, maSieuThi: nil, tenSieuThi: nil)) { [weak self] ketQua in
-            if case .success = ketQua, idCu != BoNhoSieuThiDMX.idDangChon {
-                KhoDuLieu.dungChung.doc()
-                NotificationCenter.default.post(name: .sieuThiDMXDaThayDoi, object: BoNhoSieuThiDMX.idDangChon)
-                self?.taiDuLieu()
+            if case .success(let ds) = ketQua, idCu != BoNhoSieuThiDMX.idDangChon {
+                let idMoi = BoNhoSieuThiDMX.idDangChon
+                self?.chuyenDuLieuSieuThiTrenMay(tu: idCu, sang: idMoi, danhSach: ds)
             }
             hoanTat(ketQua)
         }
@@ -1547,7 +1587,7 @@ final class DichVuDongBo {
         guiWeb(path: path, method: method, bodyData: data, canDangNhap: canDangNhap, hoanTat: hoanTat)
     }
 
-    private func guiWeb<T: Decodable>(path: String, method: String, bodyData: Data?, canDangNhap: Bool, thuLai: Bool = true, hoanTat: @escaping (Result<T, Error>) -> Void) {
+    private func guiWeb<T: Decodable>(path: String, method: String, bodyData: Data?, canDangNhap: Bool, sieuThiId: String? = nil, thuLai: Bool = true, hoanTat: @escaping (Result<T, Error>) -> Void) {
         var request = URLRequest(url: diaChiWeb.appendingPathComponent(path))
         request.httpMethod = method
         request.httpBody = bodyData
@@ -1557,8 +1597,9 @@ final class DichVuDongBo {
         if canDangNhap, let token = phien?.accessToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        if !BoNhoSieuThiDMX.idDangChon.isEmpty {
-            request.setValue(BoNhoSieuThiDMX.idDangChon, forHTTPHeaderField: "X-DMX-Store-ID")
+        let idSieuThiGuiDi = sieuThiId ?? BoNhoSieuThiDMX.idDangChon
+        if !idSieuThiGuiDi.isEmpty {
+            request.setValue(idSieuThiGuiDi, forHTTPHeaderField: "X-DMX-Store-ID")
         }
 
         phienMang.dataTask(with: request) { [weak self] data, response, error in
@@ -1574,7 +1615,7 @@ final class DichVuDongBo {
                         }
                         return
                     }
-                    self?.guiWeb(path: path, method: method, bodyData: bodyData, canDangNhap: true, thuLai: false, hoanTat: hoanTat)
+                    self?.guiWeb(path: path, method: method, bodyData: bodyData, canDangNhap: true, sieuThiId: sieuThiId, thuLai: false, hoanTat: hoanTat)
                 }
                 return
             }

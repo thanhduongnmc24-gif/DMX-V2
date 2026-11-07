@@ -1233,15 +1233,19 @@ final class ThuMucDuLieu {
     static let dungChung = ThuMucDuLieu()
 
     let thuMuc: URL
-    var tepNgay: URL {
-        let id = BoNhoSieuThiDMX.idDangChon
+    func tepNgay(choSieuThi id: String) -> URL {
         guard !id.isEmpty else { return thuMuc.appendingPathComponent("du-lieu-dmx-v3.json") }
         return thuMuc.appendingPathComponent("du-lieu-dmx-\(BoNhoSieuThiDMX.tenTepAnToan(id))-v4.json")
     }
-    var tepCaiDat: URL {
-        let id = BoNhoSieuThiDMX.idDangChon
+    func tepCaiDat(choSieuThi id: String) -> URL {
         guard !id.isEmpty else { return thuMuc.appendingPathComponent("cai-dat-dmx-v3.json") }
         return thuMuc.appendingPathComponent("cai-dat-dmx-\(BoNhoSieuThiDMX.tenTepAnToan(id))-v4.json")
+    }
+    var tepNgay: URL {
+        tepNgay(choSieuThi: BoNhoSieuThiDMX.idDangChon)
+    }
+    var tepCaiDat: URL {
+        tepCaiDat(choSieuThi: BoNhoSieuThiDMX.idDangChon)
     }
 
     /// Không dùng prettyPrinted / sortedKeys để mã hoá JSON nhanh gấp 4 lần, không gây nghẽn CPU
@@ -1259,6 +1263,26 @@ final class ThuMucDuLieu {
 
         thuMuc = documents.appendingPathComponent("DuLieuDMX", isDirectory: true)
         try? FileManager.default.createDirectory(at: thuMuc, withIntermediateDirectories: true)
+    }
+
+    /// Bản trước lưu chung ở file v3. Khi nâng cấp, sao chép (không di chuyển/xóa)
+    /// sang siêu thị mặc định để dữ liệu lịch sử luôn có đường lui cứu hộ.
+    @discardableResult
+    func khoiPhucDuLieuCuNeuCan(choSieuThi id: String, laMacDinh: Bool) -> Bool {
+        guard laMacDinh, !id.isEmpty else { return false }
+        let tepNgayCu = thuMuc.appendingPathComponent("du-lieu-dmx-v3.json")
+        let tepCaiDatCu = thuMuc.appendingPathComponent("cai-dat-dmx-v3.json")
+        let tepNgayMoi = tepNgay(choSieuThi: id)
+        let tepCaiDatMoi = tepCaiDat(choSieuThi: id)
+        guard let ngayCu = doc([String: DuLieuNgayDMX].self, tu: tepNgayCu), !ngayCu.isEmpty else { return false }
+
+        let ngayMoi = doc([String: DuLieuNgayDMX].self, tu: tepNgayMoi)
+        guard ngayMoi == nil || ngayMoi?.isEmpty == true else { return false }
+        let daGhiNgay = ghi(ngayCu, vao: tepNgayMoi)
+        if let caiDatCu = doc(CaiDatDMX.self, tu: tepCaiDatCu) {
+            _ = ghi(caiDatCu, vao: tepCaiDatMoi)
+        }
+        return daGhiNgay
     }
 
     func doc<T: Decodable>(_ loai: T.Type, tu tep: URL) -> T? {
@@ -1328,6 +1352,7 @@ final class KhoDuLieu {
     private var boNhoDemDuBaoThang: [String: DuBaoQuyDoiThang] = [:]
     private var boNhoDemDTLuyKeThang: [String: ThongTinDoanhThu] = [:]
     private var boNhoDemDTNVLuyKeThang: [String: [DoanhThuNhanVienItem]] = [:]
+    private var boNhoSieuThi: [String: (caiDat: CaiDatDMX, cacNgay: [String: DuLieuNgayDMX])] = [:]
 
     private static let khoaBoNhoDemTinh = NSLock()
     private static var danhSachCumTuLocBoTinh: [String] = []
@@ -1386,7 +1411,6 @@ final class KhoDuLieu {
             caiDat = cd
         } else {
             caiDat = CaiDatDMX()
-            thuMuc.ghiCaiDatBatDongBo(caiDat)
         }
         Self.khoaBoNhoDemTinh.lock()
         Self.danhSachCumTuLocBoTinh = caiDat.danhSachCumTuLocBo
@@ -1406,9 +1430,53 @@ final class KhoDuLieu {
             cacNgay = giaTri
         } else {
             cacNgay = [:]
-            thuMuc.ghiNgayBatDongBo(cacNgay)
         }
         xoaBoNhoDem(xoaonLocTen: true)
+    }
+
+    /// Chuyển dữ liệu bằng RAM/ổ máy trước, không chờ mạng. Mỗi lần rời một siêu thị
+    /// đều cập nhật snapshot mới nhất nên quay lại gần như tức thời.
+    func chuyenSieuThiNhanh(tu idCu: String, sang idMoi: String, laMacDinh: Bool) {
+        let thuMuc = ThuMucDuLieu.dungChung
+        let daKhoiPhuc = thuMuc.khoiPhucDuLieuCuNeuCan(choSieuThi: idMoi, laMacDinh: laMacDinh)
+
+        khoaTruyCap.lock()
+        if !idCu.isEmpty && idCu != idMoi {
+            boNhoSieuThi[idCu] = (caiDat, cacNgay)
+        }
+        if !daKhoiPhuc, let daCo = boNhoSieuThi[idMoi] {
+            caiDat = daCo.caiDat
+            cacNgay = daCo.cacNgay
+            xoaBoNhoDem(xoaonLocTen: true)
+            khoaTruyCap.unlock()
+            return
+        }
+        khoaTruyCap.unlock()
+
+        let cd = thuMuc.doc(CaiDatDMX.self, tu: thuMuc.tepCaiDat(choSieuThi: idMoi)) ?? CaiDatDMX()
+        let ngay = thuMuc.doc([String: DuLieuNgayDMX].self, tu: thuMuc.tepNgay(choSieuThi: idMoi)) ?? [:]
+        khoaTruyCap.lock()
+        caiDat = cd
+        cacNgay = ngay
+        boNhoSieuThi[idMoi] = (cd, ngay)
+        xoaBoNhoDem(xoaonLocTen: true)
+        khoaTruyCap.unlock()
+    }
+
+    /// Đọc trước các siêu thị chưa mở trên luồng nền để lần chọn đầu tiên cũng nhanh.
+    func napTruocSieuThi(id: String, laMacDinh: Bool) {
+        guard !id.isEmpty else { return }
+        khoaTruyCap.lock()
+        let daCo = boNhoSieuThi[id] != nil
+        khoaTruyCap.unlock()
+        guard !daCo else { return }
+        let thuMuc = ThuMucDuLieu.dungChung
+        _ = thuMuc.khoiPhucDuLieuCuNeuCan(choSieuThi: id, laMacDinh: laMacDinh)
+        let cd = thuMuc.doc(CaiDatDMX.self, tu: thuMuc.tepCaiDat(choSieuThi: id)) ?? CaiDatDMX()
+        let ngay = thuMuc.doc([String: DuLieuNgayDMX].self, tu: thuMuc.tepNgay(choSieuThi: id)) ?? [:]
+        khoaTruyCap.lock()
+        if boNhoSieuThi[id] == nil { boNhoSieuThi[id] = (cd, ngay) }
+        khoaTruyCap.unlock()
     }
 
     /// Lấy Doanh thu Lũy kế cố định của tháng (mỗi lần nhập ở ngày mới sẽ thay thế cho ngày hôm trước)
@@ -1864,13 +1932,11 @@ final class KhoDuLieu {
         khoaTruyCap.lock()
         caiDat = CaiDatDMX()
         cacNgay = [:]
+        boNhoSieuThi.removeAll()
         xoaBoNhoDem(xoaonLocTen: true)
-        let banSaoCaiDat = caiDat
-        let banSaoNgay = cacNgay
         khoaTruyCap.unlock()
-
-        ThuMucDuLieu.dungChung.ghiCaiDatBatDongBo(banSaoCaiDat)
-        ThuMucDuLieu.dungChung.ghiNgayBatDongBo(banSaoNgay)
+        // Chỉ xóa RAM. Không ghi file rỗng đè lên dữ liệu của tài khoản vừa đăng xuất;
+        // khi đăng nhập lại app có thể mở ngay cache cũ rồi mới đồng bộ phần mới nhất.
     }
 
     /// Danh sách mặt hàng đồng bộ theo chế độ đang xem (Lũy kế hoặc Realtime)
