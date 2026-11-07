@@ -1952,7 +1952,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         case .doanhThuThiDuaLuyKe:
             return bangThiDua.taoAnhBaoCao(
                 ngay: ngayHienTai,
-                doanhThu: dl.doanhThu,
+                doanhThu: doanhThuHienThi(dl.doanhThu, cheDo: .luyKe),
                 danhSach: dl.danhSachThiDua,
                 cheDoDoanhThu: .luyKe,
                 xemDuKien: false,
@@ -1962,7 +1962,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         case .luyKeDuKien:
             return bangThiDua.taoAnhBaoCao(
                 ngay: ngayHienTai,
-                doanhThu: dl.doanhThu,
+                doanhThu: doanhThuHienThi(dl.doanhThu, cheDo: .luyKe),
                 danhSach: dl.danhSachThiDua,
                 cheDoDoanhThu: .luyKe,
                 xemDuKien: true,
@@ -1972,7 +1972,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         case .doanhThuThiDuaRealtime:
             return bangThiDua.taoAnhBaoCao(
                 ngay: ngayHienTai,
-                doanhThu: dl.doanhThuRealtime,
+                doanhThu: doanhThuHienThi(dl.doanhThuRealtime, cheDo: .realtime),
                 danhSach: dl.danhSachThiDuaRealtime,
                 cheDoDoanhThu: .realtime,
                 xemDuKien: false,
@@ -2928,6 +2928,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
     // MARK: - Nạp dữ liệu & Chuyển đổi mượt mà giữa các mục trong Menu
 
+    private func doanhThuHienThi(_ doanhThu: ThongTinDoanhThu, cheDo: LoaiCheDoDoanhThu) -> ThongTinDoanhThu {
+        doanhThu.apDungPhanTramTarget(KhoDuLieu.dungChung.caiDat.phanTramTarget(cho: cheDo))
+    }
+
     private func napDuLieu() {
         let chuoiNgay = "📅 \(TienIchNgay.hienThiNgay.string(from: ngayHienTai)) ▾"
         if nutNgay.title(for: .normal) != chuoiNgay {
@@ -2947,7 +2951,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             if khoaCumChiSoDaNapUI != khoaCum {
                 khoaCumChiSoDaNapUI = khoaCum
                 let soDat = dsThiDuaDangChon.filter { xemDK ? $0.daHoanThanhDuBao : $0.daDat }.count
-                let dtDangChon = (cheDoDoanhThu == .luyKe) ? dl.doanhThu : dl.doanhThuRealtime
+                let dtGoc = (cheDoDoanhThu == .luyKe) ? dl.doanhThu : dl.doanhThuRealtime
+                let dtDangChon = doanhThuHienThi(dtGoc, cheDo: cheDoDoanhThu)
                 cumChiSoChinh.capNhat(
                     doanhThu: dtDangChon,
                     soNganhDat: soDat,
@@ -2985,8 +2990,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                         self.khoaAnhBotDaTai = khoa
                         return
                     }
-                    self.taoVaTaiAnhBaoCaoBot(cacLoai: cacLoai, dl: dl, ngayBaoCao: ngay)
-                    self.khoaAnhBotDaTai = khoa
+                    self.taoVaTaiAnhBaoCaoBot(cacLoai: cacLoai, dl: dl, ngayBaoCao: ngay) { [weak self] thanhCong in
+                        if thanhCong { self?.khoaAnhBotDaTai = khoa }
+                    }
                 }
             }
         }
@@ -2994,12 +3000,19 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: congViec)
     }
 
-    private func taoVaTaiAnhBaoCaoBot(cacLoai: Set<String>, dl: DuLieuNgayDMX, ngayBaoCao: Date) {
+    private func taoVaTaiAnhBaoCaoBot(
+        cacLoai: Set<String>,
+        dl: DuLieuNgayDMX,
+        ngayBaoCao: Date,
+        hoanTat: @escaping (Bool) -> Void
+    ) {
         let ngay = dl.khoaNgay
+        let doanhThuLuyKeHienThi = doanhThuHienThi(dl.doanhThu, cheDo: .luyKe)
+        let doanhThuRealtimeHienThi = doanhThuHienThi(dl.doanhThuRealtime, cheDo: .realtime)
         let anhLuyKeThuong: () -> UIImage? = { [weak self] in
             guard let self else { return nil }
             return self.bangThiDua.taoAnhBaoCao(
-                ngay: ngayBaoCao, doanhThu: dl.doanhThu, danhSach: dl.danhSachThiDua,
+                ngay: ngayBaoCao, doanhThu: doanhThuLuyKeHienThi, danhSach: dl.danhSachThiDua,
                 cheDoDoanhThu: .luyKe, xemDuKien: false,
                 thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
             )
@@ -3007,12 +3020,13 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let anhLuyKeDuKien: () -> UIImage? = { [weak self] in
             guard let self else { return nil }
             return self.bangThiDua.taoAnhBaoCao(
-                ngay: ngayBaoCao, doanhThu: dl.doanhThu, danhSach: dl.danhSachThiDua,
+                ngay: ngayBaoCao, doanhThu: doanhThuLuyKeHienThi, danhSach: dl.danhSachThiDua,
                 cheDoDoanhThu: .luyKe, xemDuKien: true,
                 thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
             )
         }
 
+        var cacAnhCanTai: [(String, UIImage)] = []
         for loai in cacLoai {
             let anh: UIImage?
             switch loai {
@@ -3022,7 +3036,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 anh = anhLuyKeThuong()
             case "doanhthu_thidua_realtime":
                 anh = bangThiDua.taoAnhBaoCao(
-                    ngay: ngayBaoCao, doanhThu: dl.doanhThuRealtime, danhSach: dl.danhSachThiDuaRealtime,
+                    ngay: ngayBaoCao, doanhThu: doanhThuRealtimeHienThi, danhSach: dl.danhSachThiDuaRealtime,
                     cheDoDoanhThu: .realtime, xemDuKien: false,
                     thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
@@ -3053,14 +3067,29 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             default:
                 anh = nil
             }
-            if let anh {
-                DichVuAnhBaoCaoBot.dungChung.taiAnh(anh, loai: loai, ngay: ngay)
+            if let anh { cacAnhCanTai.append((loai, anh)) }
+        }
+        guard cacAnhCanTai.count == cacLoai.count else { hoanTat(false); return }
+
+        let nhomTai = DispatchGroup()
+        let khoaKetQua = NSLock()
+        var coLoi = false
+        for (loai, anh) in cacAnhCanTai {
+            nhomTai.enter()
+            DichVuAnhBaoCaoBot.dungChung.taiAnh(anh, loai: loai, ngay: ngay) { ketQua in
+                if case .failure = ketQua {
+                    khoaKetQua.lock(); coLoi = true; khoaKetQua.unlock()
+                }
+                nhomTai.leave()
             }
         }
+        nhomTai.notify(queue: .main) { hoanTat(!coLoi) }
     }
 
     private func capNhatNoiDungTheoMucDangChon(dl: DuLieuNgayDMX? = nil, dsThiDuaDangChon: [DongThiDua]? = nil) {
-        let duLieu = dl ?? KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
+        var duLieu = dl ?? KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
+        duLieu.doanhThu = doanhThuHienThi(duLieu.doanhThu, cheDo: .luyKe)
+        duLieu.doanhThuRealtime = doanhThuHienThi(duLieu.doanhThuRealtime, cheDo: .realtime)
 
         switch mucMenuChinh {
         case .tongQuan:
@@ -3574,7 +3603,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             guard soLieu.coSoLieuLuyKe else { return [] }
             anh = bangThiDua.taoAnhBaoCao(
                 ngay: soLieu.ngay,
-                doanhThu: soLieu.luyKe,
+                doanhThu: doanhThuHienThi(soLieu.luyKe, cheDo: .luyKe),
                 danhSach: soLieu.dsLuyKe,
                 cheDoDoanhThu: .luyKe,
                 xemDuKien: true,
@@ -3585,7 +3614,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             if soLieu.coSoLieuHomNay {
                 anh = bangThiDua.taoAnhBaoCao(
                     ngay: soLieu.ngay,
-                    doanhThu: soLieu.homNay,
+                    doanhThu: doanhThuHienThi(soLieu.homNay, cheDo: .realtime),
                     danhSach: soLieu.dsHomNay,
                     cheDoDoanhThu: .realtime,
                     xemDuKien: false,
@@ -3595,7 +3624,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             } else if soLieu.coSoLieuLuyKe {
                 anh = bangThiDua.taoAnhBaoCao(
                     ngay: soLieu.ngay,
-                    doanhThu: soLieu.luyKe,
+                    doanhThu: doanhThuHienThi(soLieu.luyKe, cheDo: .luyKe),
                     danhSach: soLieu.dsLuyKe,
                     cheDoDoanhThu: .luyKe,
                     xemDuKien: false,
@@ -3800,10 +3829,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     @objc private func bamTheDoanhThu() {
         let cheDo = cheDoDoanhThu
         let tenCheDo = cheDo.tieuDe
+        let ptTarget = KhoDuLieu.dungChung.caiDat.phanTramTarget(cho: cheDo)
 
         hienMenuChon(
             tieuDe: "Nhập dữ liệu \(tenCheDo)",
             cacMuc: [
+                MucChonDMX(tieuDe: "🎚️ Target hiển thị: \(Int(ptTarget))%") { [weak self] in
+                    self?.moDieuChinhPhanTramTarget()
+                },
                 MucChonDMX(tieuDe: "📥 Nhập tất cả ảnh \(tenCheDo)") { [weak self] in
                     self?.moChonAnh(cheDo: .tatCaAnhTheoTab(cheDo), gioiHan: 0)
                 },
@@ -3825,6 +3858,29 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 MucChonDMX(tieuDe: "Đóng", kieu: .huy)
             ]
         )
+    }
+
+    private func moDieuChinhPhanTramTarget() {
+        let cheDo = cheDoDoanhThu
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
+        let goc = cheDo == .luyKe ? dl.doanhThu : dl.doanhThuRealtime
+        let vc = ManHinhDieuChinhTarget(
+            cheDo: cheDo,
+            phanTram: KhoDuLieu.dungChung.caiDat.phanTramTarget(cho: cheDo),
+            targetGoc: goc
+        )
+        vc.khiLuu = { [weak self] phanTram in
+            guard let self else { return }
+            var cd = KhoDuLieu.dungChung.caiDat
+            if cheDo == .luyKe { cd.phanTramTargetLuyKe = phanTram }
+            else { cd.phanTramTargetRealtime = phanTram }
+            KhoDuLieu.dungChung.luuCaiDat(cd)
+            NotificationCenter.default.post(name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
+            self.napDuLieu()
+        }
+        let nav = UINavigationController(rootViewController: vc)
+        if let sheet = nav.sheetPresentationController { sheet.detents = [.medium()] }
+        present(nav, animated: true)
     }
 
     private func moHopThoaiNhapDoanhThu() {
@@ -4529,7 +4585,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 guard let self = self,
                       let anh = self.bangThiDua.taoAnhBaoCao(
                           ngay: self.ngayHienTai,
-                          doanhThu: dl.doanhThu,
+                          doanhThu: self.doanhThuHienThi(dl.doanhThu, cheDo: .luyKe),
                           danhSach: dl.danhSachThiDua,
                           cheDoDoanhThu: .luyKe,
                           xemDuKien: false,
@@ -4542,7 +4598,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 guard let self = self,
                       let anh = self.bangThiDua.taoAnhBaoCao(
                           ngay: self.ngayHienTai,
-                          doanhThu: dl.doanhThu,
+                          doanhThu: self.doanhThuHienThi(dl.doanhThu, cheDo: .luyKe),
                           danhSach: dl.danhSachThiDua,
                           cheDoDoanhThu: .luyKe,
                           xemDuKien: true,
@@ -4555,7 +4611,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 guard let self = self,
                       let anh = self.bangThiDua.taoAnhBaoCao(
                           ngay: self.ngayHienTai,
-                          doanhThu: dl.doanhThuRealtime,
+                          doanhThu: self.doanhThuHienThi(dl.doanhThuRealtime, cheDo: .realtime),
                           danhSach: dl.danhSachThiDuaRealtime,
                           cheDoDoanhThu: .realtime,
                           xemDuKien: false,

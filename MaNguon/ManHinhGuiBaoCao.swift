@@ -176,6 +176,7 @@ final class BangGuiBaoCaoView: UIView {
         UIPasteboard.general.string = "/lienket"
         nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
         nhanTrangThai.text = "Đã sao chép /lienket. Mở chat riêng với bot LINE và dán lệnh này."
+        hienThongBao(tieuDe: "✅ Đã sao chép", noiDung: "Đã sao chép lệnh /lienket. Mở chat riêng với bot LINE và dán lệnh này.")
     }
 
     @objc private func nhapMaLienKetTaiKhoan() {
@@ -210,6 +211,7 @@ final class BangGuiBaoCaoView: UIView {
         UIPasteboard.general.string = lenhGanNhomHienTai
         nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
         nhanTrangThai.text = "Đã sao chép \(lenhGanNhomHienTai). Mở đúng nhóm LINE và dán lệnh này."
+        hienThongBao(tieuDe: "✅ Đã sao chép", noiDung: "Đã sao chép \(lenhGanNhomHienTai). Mở đúng nhóm LINE và dán lệnh này.")
     }
 
     @objc private func doiKhoAnh() {

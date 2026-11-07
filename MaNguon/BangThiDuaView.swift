@@ -878,6 +878,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
     private var tongChieuRongBang: CGFloat { chieuRongCot.reduce(0, +) }
 
     private let chonBoLoc = UISegmentedControl(items: ["Tất cả", "Đạt", "Chưa đạt"])
+    private let nutChonMonTheoDoi = UIButton(type: .system)
     private let nutPhanTramDuKien = UIButton(type: .system)
     private let nutSapXep = UIButton(type: .system)
     private let nutSoCot = UIButton(type: .system)
@@ -937,6 +938,14 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         ], for: .selected)
         chonBoLoc.addTarget(self, action: #selector(doiBoLoc), for: .valueChanged)
 
+        cauHinhNutDieuKhien(nutChonMonTheoDoi)
+        nutChonMonTheoDoi.backgroundColor = BangMauBCTD.nenThePhu
+        nutChonMonTheoDoi.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutChonMonTheoDoi.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutChonMonTheoDoi.showsMenuAsPrimaryAction = true
+        nutChonMonTheoDoi.widthAnchor.constraint(equalToConstant: 112).isActive = true
+        capNhatMenuMonTheoDoi()
+
         nutPhanTramDuKien.setTitle("% dự kiến", for: .normal)
         cauHinhNutDieuKhien(nutPhanTramDuKien)
         nutPhanTramDuKien.addTarget(self, action: #selector(doiCheDoXemDuKien), for: .touchUpInside)
@@ -961,7 +970,11 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         hangNutPhu.spacing = 6
         hangNutPhu.distribution = .fillEqually
 
-        let thanhDieuKhien = UIStackView(arrangedSubviews: [chonBoLoc, hangNutPhu])
+        let hangLocVaMon = UIStackView(arrangedSubviews: [chonBoLoc, nutChonMonTheoDoi])
+        hangLocVaMon.axis = .horizontal
+        hangLocVaMon.spacing = 6
+
+        let thanhDieuKhien = UIStackView(arrangedSubviews: [hangLocVaMon, hangNutPhu])
         thanhDieuKhien.axis = .vertical
         thanhDieuKhien.spacing = 6
 
@@ -1098,12 +1111,60 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         cheDoDoanhThu = cheDo
         danhSachGoc = KhoDuLieu.gopDanhSachThiDua(cu: [], moi: ds)
         capNhatGiaoDienNutDuKien()
+        capNhatMenuMonTheoDoi()
         capNhatDanhSach()
     }
 
-    private func locVaSapXep(_ dsGoc: [DongThiDua], xemDuKien: Bool? = nil) -> [DongThiDua] {
+    private func khoaTheoDoi(_ dong: DongThiDua) -> String {
+        KhoDuLieu.chuanHoaKhoaLienMachThiDua(dong.tenNganhHangGoc.isEmpty ? dong.tenNganhHang : dong.tenNganhHangGoc)
+    }
+
+    private func locTheoMonDaChon(_ danhSach: [DongThiDua], cheDo: LoaiCheDoDoanhThu? = nil) -> [DongThiDua] {
+        let tap = Set(KhoDuLieu.dungChung.caiDat.khoaMonTheoDoi(cho: cheDo ?? cheDoDoanhThu))
+        guard !tap.isEmpty else { return danhSach }
+        return danhSach.filter { tap.contains(khoaTheoDoi($0)) }
+    }
+
+    private func capNhatMenuMonTheoDoi() {
+        let cacMon = Dictionary(grouping: danhSachGoc) { self.khoaTheoDoi($0) }
+            .compactMap { khoa, ds -> (String, String)? in
+                guard !khoa.isEmpty, let ten = ds.first?.tenNganhHang else { return nil }
+                return (khoa, ten)
+            }
+            .sorted { tenDeSapXep($0.1).localizedCaseInsensitiveCompare(tenDeSapXep($1.1)) == .orderedAscending }
+        let tapDangChon = Set(KhoDuLieu.dungChung.caiDat.khoaMonTheoDoi(cho: cheDoDoanhThu))
+        let tatCa = UIAction(title: "Hiện tất cả môn", attributes: [.keepsMenuPresented], state: tapDangChon.isEmpty ? .on : .off) { [weak self] _ in
+            guard let self else { return }
+            var cd = KhoDuLieu.dungChung.caiDat
+            cd.ganKhoaMonTheoDoi([], cho: self.cheDoDoanhThu)
+            KhoDuLieu.dungChung.luuCaiDat(cd)
+            NotificationCenter.default.post(name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
+            self.capNhatMenuMonTheoDoi()
+            self.capNhatDanhSach()
+        }
+        let cacLuaChon = cacMon.map { khoa, ten in
+            UIAction(title: ten, attributes: [.keepsMenuPresented], state: tapDangChon.contains(khoa) ? .on : .off) { [weak self] _ in
+                guard let self else { return }
+                var cd = KhoDuLieu.dungChung.caiDat
+                var tap = Set(cd.khoaMonTheoDoi(cho: self.cheDoDoanhThu))
+                if tap.isEmpty { tap = [khoa] }
+                else if tap.contains(khoa) { tap.remove(khoa) }
+                else { tap.insert(khoa) }
+                cd.ganKhoaMonTheoDoi(Array(tap).sorted(), cho: self.cheDoDoanhThu)
+                KhoDuLieu.dungChung.luuCaiDat(cd)
+                NotificationCenter.default.post(name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
+                self.capNhatMenuMonTheoDoi()
+                self.capNhatDanhSach()
+            }
+        }
+        nutChonMonTheoDoi.menu = UIMenu(title: "Môn thi đua theo dõi", children: [tatCa] + cacLuaChon)
+        let nhan = tapDangChon.isEmpty ? "Tất cả môn" : "Đã chọn \(tapDangChon.count)"
+        nutChonMonTheoDoi.setTitle("\(nhan) ▾", for: .normal)
+    }
+
+    private func locVaSapXep(_ dsGoc: [DongThiDua], xemDuKien: Bool? = nil, cheDoLoc: LoaiCheDoDoanhThu? = nil) -> [DongThiDua] {
         let xemDK = xemDuKien ?? hieuLucXemDuKien
-        var tam = dsGoc
+        var tam = locTheoMonDaChon(dsGoc, cheDo: cheDoLoc)
         switch boLoc {
         case .tatCa: break
         case .daDat: tam = tam.filter { xemDK ? $0.daHoanThanhDuBao : $0.daDat }
@@ -1128,8 +1189,9 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
     private func capNhatDanhSach() {
         capNhatGiaoDienNutDuKien()
         let xemDK = hieuLucXemDuKien
-        let tong = danhSachGoc.count
-        let soDat = danhSachGoc.filter { xemDK ? $0.daHoanThanhDuBao : $0.daDat }.count
+        let danhSachTheoDoi = locTheoMonDaChon(danhSachGoc)
+        let tong = danhSachTheoDoi.count
+        let soDat = danhSachTheoDoi.filter { xemDK ? $0.daHoanThanhDuBao : $0.daDat }.count
         let soChuaDat = tong - soDat
 
         chonBoLoc.setTitle("Tất cả (\(tong))", forSegmentAt: 0)
@@ -1508,7 +1570,8 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         capNhatLuc: String
     ) -> UIImage? {
         let xemDK = (cheDoDoanhThu == .luyKe) ? (xemDuKien ?? dangXemDuKien) : false
-        let dsXuat = danhSach.map { locVaSapXep($0, xemDuKien: xemDK) } ?? locVaSapXep(danhSachGoc, xemDuKien: xemDK)
+        let dsXuat = danhSach.map { locVaSapXep($0, xemDuKien: xemDK, cheDoLoc: cheDoDoanhThu) }
+            ?? locVaSapXep(danhSachGoc, xemDuKien: xemDK, cheDoLoc: cheDoDoanhThu)
         let kieu: KieuHienThiBaoCao = xemDK ? .theGon : KhoDuLieu.dungChung.caiDat.kieuHienThi
         switch kieu {
         case .bangChiTiet:
@@ -1811,7 +1874,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         var cacDong: [String] = []
         let cheDoCSV = cheDo ?? cheDoDoanhThu
         let xemDK = (cheDoCSV == .luyKe && dangXemDuKien)
-        let ds = danhSach.map { locVaSapXep($0, xemDuKien: xemDK) } ?? danhSachHienThi
+        let ds = danhSach.map { locVaSapXep($0, xemDuKien: xemDK, cheDoLoc: cheDoCSV) } ?? danhSachHienThi
         let soDat = ds.filter { xemDK ? $0.daHoanThanhDuBao : $0.daDat }.count
 
         if doanhThu.coDuLieu {

@@ -729,6 +729,19 @@ struct ThongTinDoanhThu: Codable, Hashable {
         doanhThuThuc > 0 || targetThuc > 0 || doanhThuQuyDoi > 0 || targetQuyDoi > 0 || luotKhach > 0 || phanTramTraGop > 0
     }
 
+    /// Chỉ điều chỉnh target để hiển thị/báo cáo. Target quét gốc trong dữ liệu ngày không bị thay đổi.
+    func apDungPhanTramTarget(_ phanTram: Double) -> ThongTinDoanhThu {
+        let tyLe = min(2.0, max(0.5, phanTram / 100.0))
+        guard abs(tyLe - 1.0) > 0.0001 else { return self }
+        var kq = self
+        if kq.targetThuc > 0 { kq.targetThuc *= tyLe }
+        if kq.targetQuyDoi > 0 { kq.targetQuyDoi *= tyLe }
+        kq.phanTramHTThuc = kq.targetThuc > 0 ? (kq.doanhThuThuc / kq.targetThuc) * 100.0 : 0
+        let coSoQD = kq.duKienQuyDoi > 0 ? kq.duKienQuyDoi : kq.doanhThuQuyDoi
+        kq.phanTramHTQuyDoi = kq.targetQuyDoi > 0 ? (coSoQD / kq.targetQuyDoi) * 100.0 : 0
+        return kq
+    }
+
     /// % Quy đổi = (DT Quy đổi - DT Thực) / DT Thực * 100
     var phanTramQuyDoi: Double {
         guard doanhThuThuc > 0, doanhThuQuyDoi > 0 else { return 0 }
@@ -969,6 +982,11 @@ struct CaiDatDMX: Codable {
     var danhSachNhanVien: [NhanVienQuanLy] = CaiDatDMX.nhanVienMau
     var chiaTargetNganhHang: [String: [String]] = [:]
     var mucTieuDoanhThuQDThang: [String: Double] = [:]
+    var phanTramTargetLuyKe: Double = 100
+    var phanTramTargetRealtime: Double = 100
+    /// Rỗng nghĩa là theo dõi tất cả. Giá trị được lưu bằng khóa tên chuẩn, không làm mất dữ liệu quét gốc.
+    var monThiDuaTheoDoiLuyKe: [String] = []
+    var monThiDuaTheoDoiRealtime: [String] = []
     var geminiApiKey: String = CaiDatDMX.geminiKeyMacDinh
     var geminiModel: String = CaiDatDMX.geminiModelMacDinh
     var dungGeminiQuetAnh: Bool = false
@@ -980,6 +998,10 @@ struct CaiDatDMX: Codable {
         case danhSachNhanVien
         case chiaTargetNganhHang
         case mucTieuDoanhThuQDThang
+        case phanTramTargetLuyKe
+        case phanTramTargetRealtime
+        case monThiDuaTheoDoiLuyKe
+        case monThiDuaTheoDoiRealtime
         case geminiApiKey
         case geminiModel
         case dungGeminiQuetAnh
@@ -1011,6 +1033,10 @@ struct CaiDatDMX: Codable {
         danhSachNhanVien: [NhanVienQuanLy] = CaiDatDMX.nhanVienMau,
         chiaTargetNganhHang: [String: [String]] = [:],
         mucTieuDoanhThuQDThang: [String: Double] = [:],
+        phanTramTargetLuyKe: Double = 100,
+        phanTramTargetRealtime: Double = 100,
+        monThiDuaTheoDoiLuyKe: [String] = [],
+        monThiDuaTheoDoiRealtime: [String] = [],
         geminiApiKey: String = CaiDatDMX.geminiKeyMacDinh,
         geminiModel: String = CaiDatDMX.geminiModelMacDinh,
         dungGeminiQuetAnh: Bool = false
@@ -1021,6 +1047,10 @@ struct CaiDatDMX: Codable {
         self.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(danhSachNhanVien.isEmpty ? Self.nhanVienMau : danhSachNhanVien)
         self.chiaTargetNganhHang = chiaTargetNganhHang
         self.mucTieuDoanhThuQDThang = mucTieuDoanhThuQDThang
+        self.phanTramTargetLuyKe = min(200, max(50, phanTramTargetLuyKe))
+        self.phanTramTargetRealtime = min(200, max(50, phanTramTargetRealtime))
+        self.monThiDuaTheoDoiLuyKe = monThiDuaTheoDoiLuyKe
+        self.monThiDuaTheoDoiRealtime = monThiDuaTheoDoiRealtime
         self.geminiApiKey = geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Self.geminiKeyMacDinh : geminiApiKey
         self.geminiModel = geminiModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Self.geminiModelMacDinh : geminiModel
         self.dungGeminiQuetAnh = dungGeminiQuetAnh
@@ -1036,11 +1066,28 @@ struct CaiDatDMX: Codable {
         danhSachNhanVien = NhanVienQuanLy.sapXepAZ(dsNV.isEmpty ? Self.nhanVienMau : dsNV)
         chiaTargetNganhHang = (try? c.decode([String: [String]].self, forKey: .chiaTargetNganhHang)) ?? [:]
         mucTieuDoanhThuQDThang = (try? c.decode([String: Double].self, forKey: .mucTieuDoanhThuQDThang)) ?? [:]
+        phanTramTargetLuyKe = min(200, max(50, (try? c.decode(Double.self, forKey: .phanTramTargetLuyKe)) ?? 100))
+        phanTramTargetRealtime = min(200, max(50, (try? c.decode(Double.self, forKey: .phanTramTargetRealtime)) ?? 100))
+        monThiDuaTheoDoiLuyKe = (try? c.decode([String].self, forKey: .monThiDuaTheoDoiLuyKe)) ?? []
+        monThiDuaTheoDoiRealtime = (try? c.decode([String].self, forKey: .monThiDuaTheoDoiRealtime)) ?? []
         let rawKey = (try? c.decode(String.self, forKey: .geminiApiKey))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         geminiApiKey = rawKey.isEmpty ? Self.geminiKeyMacDinh : rawKey
         let rawModel = (try? c.decode(String.self, forKey: .geminiModel))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         geminiModel = rawModel.isEmpty ? Self.geminiModelMacDinh : rawModel
         dungGeminiQuetAnh = (try? c.decode(Bool.self, forKey: .dungGeminiQuetAnh)) ?? false
+    }
+
+    func phanTramTarget(cho cheDo: LoaiCheDoDoanhThu) -> Double {
+        cheDo == .luyKe ? phanTramTargetLuyKe : phanTramTargetRealtime
+    }
+
+    func khoaMonTheoDoi(cho cheDo: LoaiCheDoDoanhThu) -> [String] {
+        cheDo == .luyKe ? monThiDuaTheoDoiLuyKe : monThiDuaTheoDoiRealtime
+    }
+
+    mutating func ganKhoaMonTheoDoi(_ danhSach: [String], cho cheDo: LoaiCheDoDoanhThu) {
+        if cheDo == .luyKe { monThiDuaTheoDoiLuyKe = danhSach }
+        else { monThiDuaTheoDoiRealtime = danhSach }
     }
 }
 
