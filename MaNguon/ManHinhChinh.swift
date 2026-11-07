@@ -353,6 +353,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     private var khoaCumChiSoDaNapUI: String = "" 
     private var congViecTaoAnhBot: DispatchWorkItem?
     private var khoaAnhBotDaTai: String = ""
+    private var maLanTaoAnhBot = UUID()
+    private var dangNapDuLieu = false
+    private var canNapDuLieuLai = false
 
     // Thanh điều hướng trên cùng (nằm trong nền của tab, bên dưới Menu trượt)
     private let khungThanhDieuHuong = UIView()
@@ -506,7 +509,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         }
     }
 
-    deinit { NotificationCenter.default.removeObserver(self) }
+    deinit {
+        congViecTaoAnhBot?.cancel()
+        maLanTaoAnhBot = UUID()
+        NotificationCenter.default.removeObserver(self)
+    }
 
     @objc private func duLieuDaDongBo() {
         dsThiDuaDaNapUI = nil
@@ -693,6 +700,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
     private func hienMenu(animated: Bool) {
         dangMoMenu = true
+        menuBenTrai.isUserInteractionEnabled = true
         khungThanhDieuHuong.isUserInteractionEnabled = false
         menuBenTrai.capNhatTrangThai(mucChinh: mucMenuChinh, mucCon: mucConDoSo)
         lopNenMoMenu.isHidden = false
@@ -716,6 +724,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     @objc private func anMenu(animated: Bool = true) {
         guard dangMoMenu else { return }
         dangMoMenu = false
+        // Không nhận thêm lựa chọn trong lúc menu đang trượt ra. Nếu bấm liên tục,
+        // các lần nạp bảng nặng sẽ không còn chạy chồng lên cùng một khung hình.
+        menuBenTrai.isUserInteractionEnabled = false
         khungThanhDieuHuong.isUserInteractionEnabled = true
         view.endEditing(true)
         rangBuocTraiMenu?.constant = -chieuRongMenu
@@ -728,11 +739,13 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                     self.lopNenMoMenu.isHidden = true
                     self.menuBenTrai.isHidden = true
                 }
+                self.menuBenTrai.isUserInteractionEnabled = true
             }
         } else {
             lopNenMoMenu.alpha = 0
             lopNenMoMenu.isHidden = true
             menuBenTrai.isHidden = true
+            menuBenTrai.isUserInteractionEnabled = true
             view.layoutIfNeeded()
         }
     }
@@ -2941,6 +2954,27 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     }
 
     private func napDuLieu() {
+        // Notification và callback mạng có thể đến từ luồng nền. Mọi thay đổi UIKit
+        // phải được gom về main thread để tránh crash ngẫu nhiên khi đổi mục nhanh.
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.napDuLieu() }
+            return
+        }
+        // Chống nạp lồng nhau (reload bảng có thể kích hoạt callback đồng bộ).
+        // Nếu có yêu cầu mới, chỉ chạy thêm đúng một lượt ở nhịp giao diện kế tiếp.
+        guard !dangNapDuLieu else {
+            canNapDuLieuLai = true
+            return
+        }
+        dangNapDuLieu = true
+        defer {
+            dangNapDuLieu = false
+            if canNapDuLieuLai {
+                canNapDuLieuLai = false
+                DispatchQueue.main.async { [weak self] in self?.napDuLieu() }
+            }
+        }
+
         let chuoiNgay = "📅 \(TienIchNgay.hienThiNgay.string(from: ngayHienTai)) ▾"
         if nutNgay.title(for: .normal) != chuoiNgay {
             nutNgay.setTitle(chuoiNgay, for: .normal)
@@ -3006,8 +3040,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let khoa = thanhPhanKhoa.joined(separator: "|")
         guard khoa != khoaAnhBotDaTai else { return }
         congViecTaoAnhBot?.cancel()
+        maLanTaoAnhBot = UUID()
+        let maLanTao = maLanTaoAnhBot
         let congViec = DispatchWorkItem { [weak self] in
-            guard let self else { return }
+            guard let self, self.maLanTaoAnhBot == maLanTao else { return }
             // Luôn tạo đủ mọi mẫu ảnh mà app hỗ trợ. Nhờ vậy lệnh bot và lịch mới
             // không phụ thuộc vào việc loại ảnh đó đã được chọn ở lịch cũ hay chưa.
             let cacLoai: Set<String> = [
@@ -3020,8 +3056,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 "bieu_do_suc_khoe_nv",
                 "chi_tiet_nhan_vien"
             ]
-            self.taoVaTaiAnhBaoCaoBot(cacLoai: cacLoai, dl: dl, ngayBaoCao: ngay) { [weak self] thanhCong in
-                if thanhCong { self?.khoaAnhBotDaTai = khoa }
+            self.taoVaTaiAnhBaoCaoBot(cacLoai: cacLoai, dl: dl, ngayBaoCao: ngay, maLanTao: maLanTao) { [weak self] thanhCong in
+                guard let self, self.maLanTaoAnhBot == maLanTao else { return }
+                if thanhCong { self.khoaAnhBotDaTai = khoa }
             }
         }
         congViecTaoAnhBot = congViec
@@ -3032,22 +3069,26 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         cacLoai: Set<String>,
         dl: DuLieuNgayDMX,
         ngayBaoCao: Date,
+        maLanTao: UUID,
         hoanTat: @escaping (Bool) -> Void
     ) {
         let ngay = dl.khoaNgay
         let doanhThuLuyKeHienThi = doanhThuHienThi(dl.doanhThu, cheDo: .luyKe)
         let doanhThuRealtimeHienThi = doanhThuHienThi(dl.doanhThuRealtime, cheDo: .realtime)
-        let anhLuyKeThuong: () -> UIImage? = { [weak self] in
-            guard let self else { return nil }
-            return self.bangThiDua.taoAnhBaoCao(
+        // Dùng các view riêng để dựng ảnh. Không thay đổi bảng đang hiển thị khi
+        // người dùng chuyển mục trong lúc ảnh báo cáo được tạo ngầm.
+        let bangThiDuaXuat = BangThiDuaView()
+        let bangNhanVienXuat = BangNhanVienView()
+        let bangRealtimeXuat = BangTongHopRealtimeThangView()
+        let anhLuyKeThuong: () -> UIImage? = {
+            return bangThiDuaXuat.taoAnhBaoCao(
                 ngay: ngayBaoCao, doanhThu: doanhThuLuyKeHienThi, danhSach: dl.danhSachThiDua,
                 cheDoDoanhThu: .luyKe, xemDuKien: false,
                 thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
             )
         }
-        let anhLuyKeDuKien: () -> UIImage? = { [weak self] in
-            guard let self else { return nil }
-            return self.bangThiDua.taoAnhBaoCao(
+        let anhLuyKeDuKien: () -> UIImage? = {
+            return bangThiDuaXuat.taoAnhBaoCao(
                 ngay: ngayBaoCao, doanhThu: doanhThuLuyKeHienThi, danhSach: dl.danhSachThiDua,
                 cheDoDoanhThu: .luyKe, xemDuKien: true,
                 thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
@@ -3055,8 +3096,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         }
 
         let danhSachLoai = Array(cacLoai).sorted()
-        var cacAnhCanTai: [(String, UIImage)] = []
-
         func taoAnh(_ loai: String) -> UIImage? {
             switch loai {
             case "luyke_du_kien":
@@ -3064,31 +3103,31 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             case "doanhthu_thidua_luyke":
                 return anhLuyKeThuong()
             case "doanhthu_thidua_realtime":
-                return bangThiDua.taoAnhBaoCao(
+                return bangThiDuaXuat.taoAnhBaoCao(
                     ngay: ngayBaoCao, doanhThu: doanhThuRealtimeHienThi, danhSach: dl.danhSachThiDuaRealtime,
                     cheDoDoanhThu: .realtime, xemDuKien: false,
                     thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
             case "xep_hang_nv_luyke":
-                bangNhanVien.capNhat(cho: ngayBaoCao, cheDo: .luyKe)
-                return bangNhanVien.taoAnhBaoCaoNhanVien(
+                bangNhanVienXuat.capNhat(cho: ngayBaoCao, cheDo: .luyKe)
+                return bangNhanVienXuat.taoAnhBaoCaoNhanVien(
                     ngay: ngayBaoCao, cheDo: .luyKe,
                     thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
             case "xep_hang_nv_realtime":
-                bangNhanVien.capNhat(cho: ngayBaoCao, cheDo: .realtime)
-                return bangNhanVien.taoAnhBaoCaoNhanVien(
+                bangNhanVienXuat.capNhat(cho: ngayBaoCao, cheDo: .realtime)
+                return bangNhanVienXuat.taoAnhBaoCaoNhanVien(
                     ngay: ngayBaoCao, cheDo: .realtime,
                     thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
             case "bieu_do_suc_khoe_nv":
-                bangRealtimeThang.capNhat(cho: ngayBaoCao)
-                return bangRealtimeThang.taoAnhBaoCaoSucKhoeNhanVien(
+                bangRealtimeXuat.capNhat(cho: ngayBaoCao)
+                return bangRealtimeXuat.taoAnhBaoCaoSucKhoeNhanVien(
                     ngay: ngayBaoCao, thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
             case "bieu_do_realtime_thang":
-                bangRealtimeThang.capNhat(cho: ngayBaoCao)
-                return bangRealtimeThang.taoAnhBaoCaoRealtimeThang(
+                bangRealtimeXuat.capNhat(cho: ngayBaoCao)
+                return bangRealtimeXuat.taoAnhBaoCaoRealtimeThang(
                     ngay: ngayBaoCao, thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
             case "chi_tiet_nhan_vien":
@@ -3098,32 +3137,22 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             }
         }
 
-        func taiTatCaAnh() {
-            guard cacAnhCanTai.count == danhSachLoai.count else { hoanTat(false); return }
-            let nhomTai = DispatchGroup()
-            let khoaKetQua = NSLock()
-            var coLoi = false
-            for (loai, anh) in cacAnhCanTai {
-                nhomTai.enter()
-                DichVuAnhBaoCaoBot.dungChung.taiAnh(anh, loai: loai, ngay: ngay) { ketQua in
-                    if case .failure = ketQua {
-                        khoaKetQua.lock(); coLoi = true; khoaKetQua.unlock()
-                    }
-                    nhomTai.leave()
-                }
-            }
-            nhomTai.notify(queue: .main) { hoanTat(!coLoi) }
-        }
-
-        // Vẽ từng ảnh ở từng nhịp giao diện thay vì khóa main thread để vẽ 8 ảnh liên tục.
+        // Chỉ giữ một ảnh lớn trong RAM: vẽ -> nén/tải -> giải phóng -> ảnh kế tiếp.
+        // Cách cũ gom đủ 8 UIImage rồi mới tải, rất dễ bị iOS đóng app do áp lực bộ nhớ
+        // đúng lúc người dùng chuyển nhanh giữa các bảng và biểu đồ.
         func taoTiep(_ viTri: Int) {
-            guard viTri < danhSachLoai.count else { taiTatCaAnh(); return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+            guard self.maLanTaoAnhBot == maLanTao else { return }
+            guard viTri < danhSachLoai.count else { hoanTat(true); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self] in
+                guard let self, self.maLanTaoAnhBot == maLanTao else { return }
                 let loai = danhSachLoai[viTri]
                 let anh = autoreleasepool { taoAnh(loai) }
                 guard let anh else { hoanTat(false); return }
-                cacAnhCanTai.append((loai, anh))
-                taoTiep(viTri + 1)
+                DichVuAnhBaoCaoBot.dungChung.taiAnh(anh, loai: loai, ngay: ngay) { [weak self] ketQua in
+                    guard let self, self.maLanTaoAnhBot == maLanTao else { return }
+                    guard case .success = ketQua else { hoanTat(false); return }
+                    taoTiep(viTri + 1)
+                }
             }
         }
         taoTiep(0)

@@ -1281,6 +1281,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        guard danhSachHienThi.indices.contains(indexPath.item) else { return }
         khiChonDong?(danhSachHienThi[indexPath.item])
     }
 
@@ -1345,10 +1346,12 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        guard danhSachHienThi.indices.contains(indexPath.row) else { return }
         khiChonDong?(danhSachHienThi[indexPath.row])
     }
 
     func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        guard danhSachHienThi.indices.contains(indexPath.row) else { return nil }
         let dong = danhSachHienThi[indexPath.row]
         let xoa = UIContextualAction(style: .destructive, title: "Xoá") { [weak self] _, _, hoanTat in
             self?.khiXoaDong?(dong.id)
