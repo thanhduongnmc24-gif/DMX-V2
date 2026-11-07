@@ -1233,8 +1233,16 @@ final class ThuMucDuLieu {
     static let dungChung = ThuMucDuLieu()
 
     let thuMuc: URL
-    let tepNgay: URL
-    let tepCaiDat: URL
+    var tepNgay: URL {
+        let id = BoNhoSieuThiDMX.idDangChon
+        guard !id.isEmpty else { return thuMuc.appendingPathComponent("du-lieu-dmx-v3.json") }
+        return thuMuc.appendingPathComponent("du-lieu-dmx-\(BoNhoSieuThiDMX.tenTepAnToan(id))-v4.json")
+    }
+    var tepCaiDat: URL {
+        let id = BoNhoSieuThiDMX.idDangChon
+        guard !id.isEmpty else { return thuMuc.appendingPathComponent("cai-dat-dmx-v3.json") }
+        return thuMuc.appendingPathComponent("cai-dat-dmx-\(BoNhoSieuThiDMX.tenTepAnToan(id))-v4.json")
+    }
 
     /// Không dùng prettyPrinted / sortedKeys để mã hoá JSON nhanh gấp 4 lần, không gây nghẽn CPU
     private let maHoa = JSONEncoder()
@@ -1250,9 +1258,6 @@ final class ThuMucDuLieu {
         ).first!
 
         thuMuc = documents.appendingPathComponent("DuLieuDMX", isDirectory: true)
-        tepNgay = thuMuc.appendingPathComponent("du-lieu-dmx-v3.json")
-        tepCaiDat = thuMuc.appendingPathComponent("cai-dat-dmx-v3.json")
-
         try? FileManager.default.createDirectory(at: thuMuc, withIntermediateDirectories: true)
     }
 
@@ -1380,6 +1385,7 @@ final class KhoDuLieu {
         if let cd = thuMuc.doc(CaiDatDMX.self, tu: thuMuc.tepCaiDat) {
             caiDat = cd
         } else {
+            caiDat = CaiDatDMX()
             thuMuc.ghiCaiDatBatDongBo(caiDat)
         }
         Self.khoaBoNhoDemTinh.lock()
@@ -1399,6 +1405,7 @@ final class KhoDuLieu {
             }
             cacNgay = giaTri
         } else {
+            cacNgay = [:]
             thuMuc.ghiNgayBatDongBo(cacNgay)
         }
         xoaBoNhoDem(xoaonLocTen: true)

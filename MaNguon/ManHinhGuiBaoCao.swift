@@ -2,6 +2,7 @@ import UIKit
 
 final class BangGuiBaoCaoView: UIView {
     private let ngan = UIStackView()
+    private let nutChonSieuThi = UIButton(type: .system)
     private let nhanMa = UILabel()
     private let nutSaoChepLenhGanNhom = UIButton(type: .system)
     private let chonKhoAnh = UISegmentedControl(items: KhoAnhBaoCaoBot.allCases.map(\.tieuDe))
@@ -51,6 +52,20 @@ final class BangGuiBaoCaoView: UIView {
             ngan.topAnchor.constraint(equalTo: topAnchor), ngan.leadingAnchor.constraint(equalTo: leadingAnchor),
             ngan.trailingAnchor.constraint(equalTo: trailingAnchor), ngan.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
+
+        ngan.addArrangedSubview(taoNhan("SIÊU THỊ ĐANG LÀM VIỆC", dam: true))
+        ngan.addArrangedSubview(taoNhan("Dữ liệu, ảnh và lịch gửi được tách riêng theo từng siêu thị. Đổi siêu thị không làm dừng lịch của nơi khác."))
+        cauHinhNutChon(nutChonSieuThi)
+        ngan.addArrangedSubview(nutChonSieuThi)
+        let hangSieuThi = UIStackView(arrangedSubviews: [
+            taoNut("＋ Thêm siêu thị", #selector(themSieuThi)),
+            taoNut("🗑 Xóa siêu thị", #selector(xoaSieuThiDangChon))
+        ])
+        hangSieuThi.axis = .horizontal
+        hangSieuThi.spacing = 8
+        hangSieuThi.distribution = .fillEqually
+        ngan.addArrangedSubview(hangSieuThi)
+        ngan.addArrangedSubview(taoDuongKe())
 
         ngan.addArrangedSubview(taoNhan("KẾT NỐI TÀI KHOẢN LINE", dam: true))
         ngan.addArrangedSubview(taoNhan("Chat riêng với bot, gửi lệnh /lienket rồi nhập mã 6 số bot trả về."))
@@ -141,6 +156,14 @@ final class BangGuiBaoCaoView: UIView {
 
     func napDuLieu() {
         nhanTrangThai.text = "Đang tải cấu hình…"
+        DichVuDongBo.dungChung.taiDanhSachSieuThi { [weak self] ketQua in
+            guard let self else { return }
+            if case .success = ketQua { self.capNhatMenuSieuThi() }
+            self.napNhomVaLich()
+        }
+    }
+
+    private func napNhomVaLich() {
         DichVuDongBo.dungChung.taiCauHinhGuiBaoCao { [weak self] ketQua in
             guard let self else { return }
             switch ketQua {
@@ -155,6 +178,72 @@ final class BangGuiBaoCaoView: UIView {
             case .failure(let loi): self.hienLoi(loi.localizedDescription)
             }
         }
+    }
+
+    private func capNhatMenuSieuThi() {
+        let dichVu = DichVuDongBo.dungChung
+        let actions = dichVu.danhSachSieuThi.map { sieuThi in
+            UIAction(
+                title: "\(sieuThi.maSieuThi) — \(sieuThi.tenSieuThi)",
+                state: sieuThi.id == dichVu.sieuThiDangChonId ? .on : .off
+            ) { [weak self] _ in
+                self?.nhanTrangThai.text = "Đang chuyển siêu thị…"
+                DichVuDongBo.dungChung.chonSieuThi(id: sieuThi.id) { ketQua in
+                    switch ketQua {
+                    case .success:
+                        self?.capNhatMenuSieuThi()
+                        self?.napDuLieu()
+                    case .failure(let loi): self?.hienLoi(loi.localizedDescription)
+                    }
+                }
+            }
+        }
+        nutChonSieuThi.menu = UIMenu(title: "Chọn siêu thị", children: actions)
+        nutChonSieuThi.showsMenuAsPrimaryAction = true
+        let ten = dichVu.sieuThiDangChon.map { "\($0.maSieuThi) — \($0.tenSieuThi)" } ?? "Chưa có siêu thị"
+        nutChonSieuThi.setTitle("🏬 \(ten) ▾", for: .normal)
+    }
+
+    @objc private func themSieuThi() {
+        guard let vc = timViewControllerCha() else { return }
+        let hop = UIAlertController(title: "Thêm siêu thị", message: "Mỗi siêu thị có dữ liệu, ảnh và lịch gửi độc lập.", preferredStyle: .alert)
+        hop.addTextField { $0.placeholder = "Mã siêu thị, ví dụ 76"; $0.autocapitalizationType = .allCharacters }
+        hop.addTextField { $0.placeholder = "Tên siêu thị" }
+        hop.addAction(UIAlertAction(title: "Thêm và chọn", style: .default) { [weak self, weak hop] _ in
+            let ma = hop?.textFields?.first?.text ?? ""
+            let ten = hop?.textFields?.last?.text ?? ""
+            DichVuDongBo.dungChung.themSieuThi(ma: ma, ten: ten) { ketQua in
+                switch ketQua {
+                case .success:
+                    self?.capNhatMenuSieuThi()
+                    self?.napDuLieu()
+                case .failure(let loi): self?.hienLoi(loi.localizedDescription)
+                }
+            }
+        })
+        hop.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+        vc.present(hop, animated: true)
+    }
+
+    @objc private func xoaSieuThiDangChon() {
+        guard let vc = timViewControllerCha(), let sieuThi = DichVuDongBo.dungChung.sieuThiDangChon else { return }
+        let hop = UIAlertController(
+            title: "Xóa \(sieuThi.tenSieuThi)?",
+            message: "Dữ liệu, ảnh và lịch gửi của riêng siêu thị này sẽ bị xóa. Các siêu thị khác vẫn hoạt động.",
+            preferredStyle: .alert
+        )
+        hop.addAction(UIAlertAction(title: "Xóa", style: .destructive) { [weak self] _ in
+            DichVuDongBo.dungChung.xoaSieuThi(id: sieuThi.id) { ketQua in
+                switch ketQua {
+                case .success:
+                    self?.capNhatMenuSieuThi()
+                    self?.napDuLieu()
+                case .failure(let loi): self?.hienLoi(loi.localizedDescription)
+                }
+            }
+        })
+        hop.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+        vc.present(hop, animated: true)
     }
 
     @objc private func taoMa() {
@@ -267,24 +356,52 @@ final class BangGuiBaoCaoView: UIView {
         guard !groupIdDangChon.isEmpty else { hienLoi("Hãy gắn ít nhất một nhóm LINE trước."); return }
         guard !cacThuDangChon.isEmpty, !noiDungDangChon.isEmpty else { hienLoi("Hãy chọn ngày và nội dung cần gửi."); return }
         let f = DateFormatter(); f.dateFormat = "HH:mm"
-        nhanTrangThai.text = "Đang lưu lịch…"
         let kieuGui = chonKieuGui.selectedSegmentIndex == 1 ? "text" : "anh"
+        let idTam = "tam-\(UUID().uuidString)"
+        let lichTam = LichGuiBaoCaoDMX(
+            id: idTam, lineGroupId: groupIdDangChon, gio: f.string(from: chonGio.date),
+            cacThu: cacThuDangChon.sorted(), cacNoiDung: Array(noiDungDangChon).sorted(),
+            kieuGui: kieuGui, dangHoatDong: true
+        )
+        danhSachLich.append(lichTam)
+        danhSachLich.sort { $0.gio < $1.gio }
+        veDanhSachLich()
+        nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+        nhanTrangThai.text = "Đã thêm lịch. Đang đồng bộ nền…"
+
         DichVuDongBo.dungChung.luuLichGuiBaoCao(groupId: groupIdDangChon, gio: f.string(from: chonGio.date), cacThu: cacThuDangChon.sorted(), cacNoiDung: Array(noiDungDangChon).sorted(), kieuGui: kieuGui) { [weak self] kq in
+            guard let self else { return }
             switch kq {
-            case .success:
-                self?.nhanTrangThai.text = "Đã lưu lịch gửi. App đang tạo sẵn ảnh mới nhất."
-                NotificationCenter.default.post(name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
-                self?.napDuLieu()
-            case .failure(let loi): self?.hienLoi(loi.localizedDescription)
+            case .success(let lichDaLuu):
+                if let i = self.danhSachLich.firstIndex(where: { $0.id == idTam }) { self.danhSachLich[i] = lichDaLuu }
+                self.danhSachLich.sort { $0.gio < $1.gio }
+                self.veDanhSachLich()
+                self.nhanTrangThai.text = "Đã đồng bộ lịch gửi."
+            case .failure(let loi):
+                self.danhSachLich.removeAll { $0.id == idTam }
+                self.veDanhSachLich()
+                self.hienLoi(loi.localizedDescription)
             }
         }
     }
 
     @objc private func xoaLich(_ sender: UIButton) {
         guard danhSachLich.indices.contains(sender.tag) else { return }
-        let id = danhSachLich[sender.tag].id
+        let viTri = sender.tag
+        let lichDaXoa = danhSachLich.remove(at: viTri)
+        veDanhSachLich()
+        nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+        nhanTrangThai.text = "Đã xóa lịch. Đang đồng bộ nền…"
+        let id = lichDaXoa.id
         DichVuDongBo.dungChung.xoaLichGuiBaoCao(id: id) { [weak self] kq in
-            if case .failure(let loi) = kq { self?.hienLoi(loi.localizedDescription) } else { self?.napDuLieu() }
+            guard let self else { return }
+            if case .failure(let loi) = kq {
+                self.danhSachLich.insert(lichDaXoa, at: min(viTri, self.danhSachLich.count))
+                self.veDanhSachLich()
+                self.hienLoi(loi.localizedDescription)
+            } else {
+                self.nhanTrangThai.text = "Đã đồng bộ việc xóa lịch."
+            }
         }
     }
 

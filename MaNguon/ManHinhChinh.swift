@@ -486,8 +486,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         NotificationCenter.default.addObserver(self, selector: #selector(duLieuDaThayDoiTaiMay(_:)), name: .duLieuDMXDaThayDoiTaiMay, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(taoLaiAnhBaoCaoBot), name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(taiKhoanBiDangXuat), name: .taiKhoanDMXBiDangXuat, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(duLieuDaDongBo), name: .sieuThiDMXDaThayDoi, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(ungDungTroLai), name: UIApplication.willEnterForegroundNotification, object: nil)
-        DichVuDongBo.dungChung.taiDuLieu()
+        DichVuDongBo.dungChung.taiDanhSachSieuThi { _ in
+            DichVuDongBo.dungChung.taiDuLieu()
+        }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -2977,7 +2980,18 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     /// Đến giờ gửi, Worker chỉ lấy URL ảnh nên không còn phải chờ máy chủ dựng ảnh.
     private func lenLichCapNhatAnhBaoCaoBot(dl: DuLieuNgayDMX, ngay: Date) {
         guard DichVuDongBo.dungChung.daDangNhap else { return }
-        let khoa = "\(DichVuDongBo.dungChung.phien?.userId ?? "")|\(dl.khoaNgay)|\(KhoDuLieu.dungChung.phienBanDuLieu)"
+        let cd = KhoDuLieu.dungChung.caiDat
+        let khoa = [
+            DichVuDongBo.dungChung.phien?.userId ?? "",
+            DichVuDongBo.dungChung.sieuThiDangChonId,
+            dl.khoaNgay, dl.capNhatLuc,
+            String(dl.doanhThu.doanhThuQuyDoi), String(dl.doanhThuRealtime.doanhThuQuyDoi),
+            String(dl.danhSachThiDua.count), String(dl.danhSachThiDuaRealtime.count),
+            String(dl.doanhThuNhanVien.count), String(dl.doanhThuNhanVienRealtime.count),
+            String(cd.phanTramTargetLuyKe), String(cd.phanTramTargetRealtime),
+            cd.monThiDuaTheoDoiLuyKe.joined(separator: ","),
+            cd.monThiDuaTheoDoiRealtime.joined(separator: ",")
+        ].joined(separator: "|")
         guard khoa != khoaAnhBotDaTai else { return }
         congViecTaoAnhBot?.cancel()
         let congViec = DispatchWorkItem { [weak self] in
@@ -2999,7 +3013,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             }
         }
         congViecTaoAnhBot = congViec
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: congViec)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: congViec)
     }
 
     private func taoVaTaiAnhBaoCaoBot(
@@ -3028,64 +3042,79 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             )
         }
 
+        let danhSachLoai = Array(cacLoai).sorted()
         var cacAnhCanTai: [(String, UIImage)] = []
-        for loai in cacLoai {
-            let anh: UIImage?
+
+        func taoAnh(_ loai: String) -> UIImage? {
             switch loai {
             case "luyke_du_kien":
-                anh = anhLuyKeDuKien()
+                return anhLuyKeDuKien()
             case "doanhthu_thidua_luyke":
-                anh = anhLuyKeThuong()
+                return anhLuyKeThuong()
             case "doanhthu_thidua_realtime":
-                anh = bangThiDua.taoAnhBaoCao(
+                return bangThiDua.taoAnhBaoCao(
                     ngay: ngayBaoCao, doanhThu: doanhThuRealtimeHienThi, danhSach: dl.danhSachThiDuaRealtime,
                     cheDoDoanhThu: .realtime, xemDuKien: false,
                     thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
             case "xep_hang_nv_luyke":
                 bangNhanVien.capNhat(cho: ngayBaoCao, cheDo: .luyKe)
-                anh = bangNhanVien.taoAnhBaoCaoNhanVien(
+                return bangNhanVien.taoAnhBaoCaoNhanVien(
                     ngay: ngayBaoCao, cheDo: .luyKe,
                     thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
             case "xep_hang_nv_realtime":
                 bangNhanVien.capNhat(cho: ngayBaoCao, cheDo: .realtime)
-                anh = bangNhanVien.taoAnhBaoCaoNhanVien(
+                return bangNhanVien.taoAnhBaoCaoNhanVien(
                     ngay: ngayBaoCao, cheDo: .realtime,
                     thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
             case "bieu_do_suc_khoe_nv":
                 bangRealtimeThang.capNhat(cho: ngayBaoCao)
-                anh = bangRealtimeThang.taoAnhBaoCaoSucKhoeNhanVien(
+                return bangRealtimeThang.taoAnhBaoCaoSucKhoeNhanVien(
                     ngay: ngayBaoCao, thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
             case "bieu_do_realtime_thang":
                 bangRealtimeThang.capNhat(cho: ngayBaoCao)
-                anh = bangRealtimeThang.taoAnhBaoCaoRealtimeThang(
+                return bangRealtimeThang.taoAnhBaoCaoRealtimeThang(
                     ngay: ngayBaoCao, thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
                 )
             case "chi_tiet_nhan_vien":
-                anh = ManHinhChiTietNhanVien.taoAnhGopTatCaSucKhoe(cho: ngayBaoCao, cheDo: .luyKe)
+                return ManHinhChiTietNhanVien.taoAnhGopTatCaSucKhoe(cho: ngayBaoCao, cheDo: .luyKe)
             default:
-                anh = nil
+                return nil
             }
-            if let anh { cacAnhCanTai.append((loai, anh)) }
         }
-        guard cacAnhCanTai.count == cacLoai.count else { hoanTat(false); return }
 
-        let nhomTai = DispatchGroup()
-        let khoaKetQua = NSLock()
-        var coLoi = false
-        for (loai, anh) in cacAnhCanTai {
-            nhomTai.enter()
-            DichVuAnhBaoCaoBot.dungChung.taiAnh(anh, loai: loai, ngay: ngay) { ketQua in
-                if case .failure = ketQua {
-                    khoaKetQua.lock(); coLoi = true; khoaKetQua.unlock()
+        func taiTatCaAnh() {
+            guard cacAnhCanTai.count == danhSachLoai.count else { hoanTat(false); return }
+            let nhomTai = DispatchGroup()
+            let khoaKetQua = NSLock()
+            var coLoi = false
+            for (loai, anh) in cacAnhCanTai {
+                nhomTai.enter()
+                DichVuAnhBaoCaoBot.dungChung.taiAnh(anh, loai: loai, ngay: ngay) { ketQua in
+                    if case .failure = ketQua {
+                        khoaKetQua.lock(); coLoi = true; khoaKetQua.unlock()
+                    }
+                    nhomTai.leave()
                 }
-                nhomTai.leave()
+            }
+            nhomTai.notify(queue: .main) { hoanTat(!coLoi) }
+        }
+
+        // Vẽ từng ảnh ở từng nhịp giao diện thay vì khóa main thread để vẽ 8 ảnh liên tục.
+        func taoTiep(_ viTri: Int) {
+            guard viTri < danhSachLoai.count else { taiTatCaAnh(); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+                let loai = danhSachLoai[viTri]
+                let anh = autoreleasepool { taoAnh(loai) }
+                guard let anh else { hoanTat(false); return }
+                cacAnhCanTai.append((loai, anh))
+                taoTiep(viTri + 1)
             }
         }
-        nhomTai.notify(queue: .main) { hoanTat(!coLoi) }
+        taoTiep(0)
     }
 
     private func capNhatNoiDungTheoMucDangChon(dl: DuLieuNgayDMX? = nil, dsThiDuaDangChon: [DongThiDua]? = nil) {

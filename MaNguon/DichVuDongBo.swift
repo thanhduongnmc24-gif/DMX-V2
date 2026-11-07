@@ -72,6 +72,7 @@ struct LichGuiBaoCaoDMX: Codable, Hashable, Identifiable {
     var cacNoiDung: [String]
     var kieuGui: String?
     var dangHoatDong: Bool
+    var sieuThiId: String? = nil
     enum CodingKeys: String, CodingKey {
         case id
         case lineGroupId = "line_group_id"
@@ -80,12 +81,25 @@ struct LichGuiBaoCaoDMX: Codable, Hashable, Identifiable {
         case cacNoiDung = "cac_noi_dung"
         case kieuGui = "kieu_gui"
         case dangHoatDong = "dang_hoat_dong"
+        case sieuThiId = "sieu_thi_id"
     }
+}
+
+private struct PhanHoiDanhSachSieuThi: Codable {
+    var sieuThi: [SieuThiDMX]
+    var sieuThiDangChon: String?
+}
+
+private struct YeuCauSieuThi: Codable {
+    var hanhDong: String
+    var sieuThiId: String?
+    var maSieuThi: String?
+    var tenSieuThi: String?
 }
 
 private struct PhanHoiMaGanNhom: Codable { var ok: Bool?; var ma: String; var soPhut: Int }
 private struct PhanHoiDanhSachNhom: Codable { var nhom: [NhomLineDMX]; var lich: [LichGuiBaoCaoDMX] }
-private struct PhanHoiThaoTacNhom: Codable { var ok: Bool? }
+private struct PhanHoiThaoTacNhom: Codable { var ok: Bool?; var lich: LichGuiBaoCaoDMX? }
 private struct YeuCauLuuAnhBaoCao: Codable {
     var loai: String
     var ngay: String
@@ -255,6 +269,9 @@ final class DichVuDongBo {
     private var daKiemTraBucket: Bool = false
 
     var daDangNhap: Bool { phien != nil }
+    private(set) var danhSachSieuThi: [SieuThiDMX] = []
+    var sieuThiDangChonId: String { BoNhoSieuThiDMX.idDangChon }
+    var sieuThiDangChon: SieuThiDMX? { danhSachSieuThi.first { $0.id == sieuThiDangChonId } }
     var tenDangNhap: String { phien?.tenDangNhap ?? "" }
     var laAdmin: Bool {
         let ten = tenDangNhap.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -934,11 +951,6 @@ final class DichVuDongBo {
         thucHienKhoiTaoAdminVaXoaTaiKhoanCuNeuCan { [weak self] in
             guard let self else { return }
             guard self.daDangNhap else { ketThucTai(.success(())); return }
-
-            self.damBaoUserId { [weak self] userId in
-                guard let self else { return }
-                guard self.daDangNhap else { ketThucTai(.success(())); return }
-
                 let nhom = DispatchGroup()
                 let khoaGop = NSLock()
                 var caiDatGop: CaiDatDMX?
@@ -973,20 +985,8 @@ final class DichVuDongBo {
                     }
                 }
 
-                if let uid = userId, !uid.isEmpty {
-                    nhom.enter()
-                    self.docFileStorageSupabase(userId: uid) { cloud in
-                        gopAnToan(caiDat: cloud?.caiDat, cacNgay: cloud?.cacNgay)
-                        nhom.leave()
-                    }
-
-                    nhom.enter()
-                    self.docBangSQLSupabase(userId: uid) { cdSQL, ngaySQL in
-                        gopAnToan(caiDat: cdSQL, cacNgay: ngaySQL)
-                        nhom.leave()
-                    }
-                }
-
+                // Chỉ dùng một API đồng bộ chuẩn. Trước đây app gọi thêm Storage và
+                // PostgREST trực tiếp, khiến cùng dữ liệu bị tải/giải mã/gộp ba lần.
                 nhom.enter()
                 self.guiWeb(path: "/api/dmx/dong-bo", method: "GET", bodyData: nil, canDangNhap: true) { (kq: Result<DuLieuDamMay, Error>) in
                     if case .success(let cloud) = kq {
@@ -1021,7 +1021,6 @@ final class DichVuDongBo {
                     }
                     ketThucTai(.success(()))
                 }
-            }
         }
     }
 
@@ -1067,9 +1066,6 @@ final class DichVuDongBo {
 
         guard cdCanDay != nil || !dsNgayCanDay.isEmpty else { return }
 
-        // Lấy bản sao an toàn từ KhoDuLieu trên luồng nền
-        let banSaoKho = KhoDuLieu.dungChung.layBanSaoAnToan()
-
         // 1. Đẩy sang Web API (từng gói gọn nhẹ)
         if let cdCanDay, dsNgayCanDay.isEmpty {
             let goi = GoiDongBo(caiDat: cdCanDay, ngay: nil, duLieuNgay: nil)
@@ -1081,14 +1077,7 @@ final class DichVuDongBo {
             }
         }
 
-        // 2. Đẩy lên Supabase SQL & Storage trên luồng nền
-        damBaoUserId { [weak self] userId in
-            guard let self, let uid = userId, !uid.isEmpty else { return }
-            self.hangDoi.async {
-                self.ghiStorageSupabase(userId: uid, caiDat: cdCanDay ?? banSaoKho.caiDat, cacNgay: banSaoKho.cacNgay)
-                self.ghiBangSQLSupabase(userId: uid, caiDat: cdCanDay, cacNgay: dsNgayCanDay)
-            }
-        }
+        // Web API chịu trách nhiệm ghi đồng thời SQL và Storage. Không ghi lặp lần hai.
     }
 
     // MARK: - Các hàm làm việc trực tiếp với Supabase Auth, Storage & PostgREST
@@ -1406,11 +1395,88 @@ final class DichVuDongBo {
         }
     }
 
-    func luuLichGuiBaoCao(id: String? = nil, groupId: String, gio: String, cacThu: [Int], cacNoiDung: [String], kieuGui: String, dangHoatDong: Bool = true, hoanTat: @escaping (Result<Void, Error>) -> Void) {
+    func taiDanhSachSieuThi(hoanTat: @escaping (Result<[SieuThiDMX], Error>) -> Void) {
+        guiWeb(path: "api/dmx/sieu-thi", method: "GET", bodyData: nil, canDangNhap: true) { [weak self] (ketQua: Result<PhanHoiDanhSachSieuThi, Error>) in
+            switch ketQua {
+            case .success(let kq):
+                self?.danhSachSieuThi = kq.sieuThi
+                let id = kq.sieuThiDangChon ?? kq.sieuThi.first?.id ?? ""
+                if !id.isEmpty && id != BoNhoSieuThiDMX.idDangChon {
+                    BoNhoSieuThiDMX.idDangChon = id
+                    self?.hangDoi.async {
+                        KhoDuLieu.dungChung.doc()
+                        DispatchQueue.main.async { hoanTat(.success(kq.sieuThi)) }
+                    }
+                    return
+                }
+                hoanTat(.success(kq.sieuThi))
+            case .failure(let loi): hoanTat(.failure(loi))
+            }
+        }
+    }
+
+    func themSieuThi(ma: String, ten: String, hoanTat: @escaping (Result<[SieuThiDMX], Error>) -> Void) {
+        let idCu = BoNhoSieuThiDMX.idDangChon
+        thaoTacSieuThi(.init(hanhDong: "them", sieuThiId: nil, maSieuThi: ma, tenSieuThi: ten)) { [weak self] ketQua in
+            if case .success = ketQua, idCu != BoNhoSieuThiDMX.idDangChon {
+                KhoDuLieu.dungChung.doc()
+                NotificationCenter.default.post(name: .sieuThiDMXDaThayDoi, object: BoNhoSieuThiDMX.idDangChon)
+                self?.taiDuLieu()
+            }
+            hoanTat(ketQua)
+        }
+    }
+
+    func chonSieuThi(id: String, hoanTat: @escaping (Result<[SieuThiDMX], Error>) -> Void) {
+        congViecDayNen?.cancel()
+        thucThiDayDuLieuGomNhom()
+        thaoTacSieuThi(.init(hanhDong: "chon", sieuThiId: id, maSieuThi: nil, tenSieuThi: nil)) { [weak self] ketQua in
+            if case .success(let ds) = ketQua {
+                BoNhoSieuThiDMX.idDangChon = id
+                self?.danhSachSieuThi = ds
+                self?.hangDoi.async { [weak self] in
+                    KhoDuLieu.dungChung.doc()
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(name: .sieuThiDMXDaThayDoi, object: id)
+                        self?.taiDuLieu()
+                    }
+                }
+            }
+            hoanTat(ketQua)
+        }
+    }
+
+    func xoaSieuThi(id: String, hoanTat: @escaping (Result<[SieuThiDMX], Error>) -> Void) {
+        let idCu = BoNhoSieuThiDMX.idDangChon
+        thaoTacSieuThi(.init(hanhDong: "xoa", sieuThiId: id, maSieuThi: nil, tenSieuThi: nil)) { [weak self] ketQua in
+            if case .success = ketQua, idCu != BoNhoSieuThiDMX.idDangChon {
+                KhoDuLieu.dungChung.doc()
+                NotificationCenter.default.post(name: .sieuThiDMXDaThayDoi, object: BoNhoSieuThiDMX.idDangChon)
+                self?.taiDuLieu()
+            }
+            hoanTat(ketQua)
+        }
+    }
+
+    private func thaoTacSieuThi(_ body: YeuCauSieuThi, hoanTat: @escaping (Result<[SieuThiDMX], Error>) -> Void) {
+        guiWeb(path: "api/dmx/sieu-thi", method: "POST", body: body, canDangNhap: true) { [weak self] (ketQua: Result<PhanHoiDanhSachSieuThi, Error>) in
+            switch ketQua {
+            case .success(let kq):
+                self?.danhSachSieuThi = kq.sieuThi
+                if let id = kq.sieuThiDangChon { BoNhoSieuThiDMX.idDangChon = id }
+                hoanTat(.success(kq.sieuThi))
+            case .failure(let loi): hoanTat(.failure(loi))
+            }
+        }
+    }
+
+    func luuLichGuiBaoCao(id: String? = nil, groupId: String, gio: String, cacThu: [Int], cacNoiDung: [String], kieuGui: String, dangHoatDong: Bool = true, hoanTat: @escaping (Result<LichGuiBaoCaoDMX, Error>) -> Void) {
         let body = YeuCauNhomLine(hanhDong: "luu_lich", id: id, lineGroupId: groupId, gio: gio, cacThu: cacThu, cacNoiDung: cacNoiDung, kieuGui: kieuGui, dangHoatDong: dangHoatDong)
         guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiThaoTacNhom, Error>) in
             switch ketQua {
-            case .success: hoanTat(.success(()))
+            case .success(let phanHoi):
+                if let lich = phanHoi.lich { hoanTat(.success(lich)) }
+                else { hoanTat(.failure(NSError.dmx("Máy chủ đã lưu nhưng chưa trả lại lịch."))) }
             case .failure(let loi): hoanTat(.failure(loi))
             }
         }
@@ -1491,6 +1557,9 @@ final class DichVuDongBo {
         if canDangNhap, let token = phien?.accessToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
+        if !BoNhoSieuThiDMX.idDangChon.isEmpty {
+            request.setValue(BoNhoSieuThiDMX.idDangChon, forHTTPHeaderField: "X-DMX-Store-ID")
+        }
 
         phienMang.dataTask(with: request) { [weak self] data, response, error in
             if let error { DispatchQueue.main.async { hoanTat(.failure(error)) }; return }
@@ -1561,6 +1630,7 @@ extension Notification.Name {
     static let duLieuDMXDaThayDoiTaiMay = Notification.Name("duLieuDMXDaThayDoiTaiMay")
     static let yeuCauTaoLaiAnhBaoCaoBot = Notification.Name("yeuCauTaoLaiAnhBaoCaoBot")
     static let taiKhoanDMXBiDangXuat = Notification.Name("taiKhoanDMXBiDangXuat")
+    static let sieuThiDMXDaThayDoi = Notification.Name("sieuThiDMXDaThayDoi")
 }
 
 extension NSError {
