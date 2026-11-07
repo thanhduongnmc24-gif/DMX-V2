@@ -1167,7 +1167,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             cumChiSoChinh.leadingAnchor.constraint(equalTo: khungCumDoanhThu.leadingAnchor, constant: 7),
             cumChiSoChinh.trailingAnchor.constraint(equalTo: khungCumDoanhThu.trailingAnchor, constant: -7),
             cumChiSoChinh.bottomAnchor.constraint(equalTo: khungCumDoanhThu.bottomAnchor, constant: -7),
-            cumChiSoChinh.heightAnchor.constraint(equalToConstant: 92),
+            cumChiSoChinh.heightAnchor.constraint(equalToConstant: 108),
 
             rgTopDuoiTheoVach,
             khungCumDuoi.leadingAnchor.constraint(equalTo: khungXemSo.leadingAnchor, constant: 8),
@@ -2949,7 +2949,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     private func doanhThuHienThi(_ doanhThu: ThongTinDoanhThu, cheDo: LoaiCheDoDoanhThu) -> ThongTinDoanhThu {
         doanhThu.apDungPhanTramTarget(
             KhoDuLieu.dungChung.caiDat.phanTramTarget(cho: cheDo),
-            laRealtime: cheDo == .realtime
+            cheDo: cheDo
         )
     }
 
@@ -3424,9 +3424,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             if dangChon {
                 nut.backgroundColor = BangMauBCTD.xanhChuDao
                 nut.setTitleColor(.white, for: .normal)
+                nut.layer.shadowColor = BangMauBCTD.xanhChuDaoDam.cgColor
+                nut.layer.shadowOpacity = 0.28
+                nut.layer.shadowRadius = 4
+                nut.layer.shadowOffset = CGSize(width: 0, height: 2)
             } else {
                 nut.backgroundColor = .clear
                 nut.setTitleColor(BangMauBCTD.chuPhu, for: .normal)
+                nut.layer.shadowOpacity = 0
             }
         }
 

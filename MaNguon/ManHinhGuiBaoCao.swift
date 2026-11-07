@@ -23,6 +23,7 @@ final class BangGuiBaoCaoView: UIView {
     private var cacThuDangChon = Set([1, 2, 3, 4, 5, 6, 7])
     private var noiDungDangChon = Set(["luyke_du_kien"])
     private var lenhGanNhomHienTai = ""
+    private var dangTaiDanhSachSieuThi = false
 
     private let cacNoiDung: [(String, String)] = [
         ("luyke_du_kien", "📈 Lũy kế — % dự kiến cuối tháng"),
@@ -156,8 +157,20 @@ final class BangGuiBaoCaoView: UIView {
 
     func napDuLieu() {
         nhanTrangThai.text = "Đang tải cấu hình…"
+        let dichVu = DichVuDongBo.dungChung
+        if !dichVu.danhSachSieuThi.isEmpty {
+            // Không gán lại UIMenu khi đồng bộ nền chạy, vì UIKit sẽ đóng menu
+            // mà người dùng vừa mở. Danh sách cache đủ để hiển thị tức thời.
+            if nutChonSieuThi.menu == nil { capNhatMenuSieuThi() }
+            else { capNhatTieuDeSieuThi() }
+            napNhomVaLich()
+            return
+        }
+        guard !dangTaiDanhSachSieuThi else { return }
+        dangTaiDanhSachSieuThi = true
         DichVuDongBo.dungChung.taiDanhSachSieuThi { [weak self] ketQua in
             guard let self else { return }
+            self.dangTaiDanhSachSieuThi = false
             if case .success = ketQua { self.capNhatMenuSieuThi() }
             self.napNhomVaLich()
         }
@@ -192,7 +205,7 @@ final class BangGuiBaoCaoView: UIView {
                     switch ketQua {
                     case .success:
                         self?.capNhatMenuSieuThi()
-                        self?.napDuLieu()
+                        self?.napNhomVaLich()
                     case .failure(let loi): self?.hienLoi(loi.localizedDescription)
                     }
                 }
@@ -200,6 +213,11 @@ final class BangGuiBaoCaoView: UIView {
         }
         nutChonSieuThi.menu = UIMenu(title: "Chọn siêu thị", children: actions)
         nutChonSieuThi.showsMenuAsPrimaryAction = true
+        capNhatTieuDeSieuThi()
+    }
+
+    private func capNhatTieuDeSieuThi() {
+        let dichVu = DichVuDongBo.dungChung
         let ten = dichVu.sieuThiDangChon.map { "\($0.maSieuThi) — \($0.tenSieuThi)" } ?? "Chưa có siêu thị"
         nutChonSieuThi.setTitle("🏬 \(ten) ▾", for: .normal)
     }

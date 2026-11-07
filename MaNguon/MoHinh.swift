@@ -113,6 +113,28 @@ enum BangMauBCTD {
         let tongCao = 14 + caoKicker + 4 + caoTieuDe + (caoPhu > 0 ? 4 + caoPhu : 0) + 14 + 5
         let header = UIView(frame: CGRect(x: 0, y: 0, width: rong, height: tongCao))
         header.backgroundColor = nenHeaderBang
+        let gradient = CAGradientLayer()
+        gradient.frame = header.bounds
+        gradient.colors = [
+            UIColor(red: 0.12, green: 0.35, blue: 0.94, alpha: 1).cgColor,
+            UIColor(red: 0.02, green: 0.62, blue: 0.88, alpha: 1).cgColor,
+            UIColor(red: 0.02, green: 0.70, blue: 0.55, alpha: 1).cgColor
+        ]
+        gradient.locations = [0, 0.62, 1]
+        gradient.startPoint = CGPoint(x: 0, y: 0.15)
+        gradient.endPoint = CGPoint(x: 1, y: 0.85)
+        header.layer.insertSublayer(gradient, at: 0)
+
+        // Họa tiết ánh sáng nhẹ giúp ảnh xuất nổi bật nhưng vẫn giữ chữ dễ đọc.
+        for (x, y, d, alpha) in [
+            (rong * 0.78, -tongCao * 0.55, tongCao * 1.25, 0.10),
+            (rong * 0.91, tongCao * 0.34, tongCao * 0.72, 0.08)
+        ] {
+            let vong = CAShapeLayer()
+            vong.path = UIBezierPath(ovalIn: CGRect(x: x, y: y, width: d, height: d)).cgPath
+            vong.fillColor = UIColor.white.withAlphaComponent(alpha).cgColor
+            header.layer.insertSublayer(vong, above: gradient)
+        }
 
         let lbKicker = UILabel(frame: CGRect(x: le, y: 14, width: rongChu, height: caoKicker))
         lbKicker.text = kicker.uppercased()
@@ -730,7 +752,7 @@ struct ThongTinDoanhThu: Codable, Hashable {
     }
 
     /// Chỉ điều chỉnh target để hiển thị/báo cáo. Target quét gốc trong dữ liệu ngày không bị thay đổi.
-    func apDungPhanTramTarget(_ phanTram: Double, laRealtime: Bool = false) -> ThongTinDoanhThu {
+    func apDungPhanTramTarget(_ phanTram: Double, cheDo: LoaiCheDoDoanhThu) -> ThongTinDoanhThu {
         let tyLe = min(2.0, max(0.5, phanTram / 100.0))
         guard abs(tyLe - 1.0) > 0.0001 else { return self }
         var kq = self
@@ -739,7 +761,7 @@ struct ThongTinDoanhThu: Codable, Hashable {
         kq.phanTramHTThuc = kq.targetThuc > 0 ? (kq.doanhThuThuc / kq.targetThuc) * 100.0 : 0
         // Realtime hiển thị "% HT target ngày", vì vậy phải lấy doanh thu hiện tại
         // chia target ngày. Chỉ lũy kế mới dùng doanh thu dự kiến cuối tháng.
-        let coSoQD = laRealtime
+        let coSoQD = cheDo == .realtime
             ? kq.doanhThuQuyDoi
             : (kq.duKienQuyDoi > 0 ? kq.duKienQuyDoi : kq.doanhThuQuyDoi)
         kq.phanTramHTQuyDoi = kq.targetQuyDoi > 0 ? (coSoQD / kq.targetQuyDoi) * 100.0 : 0
@@ -775,6 +797,16 @@ struct ThongTinDoanhThu: Codable, Hashable {
             return (doanhThuThuc / targetThuc) * 100.0
         }
         return 0
+    }
+
+    /// Realtime luôn là doanh thu hiện tại / target ngày. Không được lấy dự kiến
+    /// cuối tháng vì có thể làm tỷ lệ nhảy lên hàng nghìn phần trăm.
+    func phanTramHTQuyDoiHienThi(cheDo: LoaiCheDoDoanhThu) -> Double {
+        if cheDo == .realtime {
+            guard targetQuyDoi > 0 else { return 0 }
+            return (doanhThuQuyDoi / targetQuyDoi) * 100.0
+        }
+        return phanTramHTQDDuKienHienThi
     }
 
     /// Gộp dữ liệu từ ảnh mới quét (ví dụ quét ảnh DT thực rồi quét tiếp ảnh DT quy đổi)

@@ -50,6 +50,7 @@ extension UIView {
 // MARK: - Thẻ Chỉ Số Gradient & Cụm 8 Thẻ "Chỉ Số Chính" (Chữ đồng nhất kích cỡ, tự xuống dòng, không bao giờ "...")
 
 final class TheDoanhThuView: UIControl {
+    private let lopGradient = CAGradientLayer()
     private let nenDauThe = UIView()
     private let vachTrai = UIView()
     private let nhanTieuDe = UILabel()
@@ -60,6 +61,7 @@ final class TheDoanhThuView: UIControl {
     private let mauNhan: UIColor
     private let mauSoChinh: UIColor
     private let noiBatSo: Bool
+    private let nenNoiBat: Bool
 
     override var frame: CGRect {
         didSet { capNhatBoCucThe() }
@@ -69,23 +71,30 @@ final class TheDoanhThuView: UIControl {
         didSet { capNhatBoCucThe() }
     }
 
-    init(tieuDe: String, mauBatDau: UIColor, mauKetThuc: UIColor, hienChamTron: Bool = false) {
+    init(tieuDe: String, mauBatDau: UIColor, mauKetThuc: UIColor, hienChamTron: Bool = false, nenNoiBat: Bool = false) {
         self.mauNhan = mauBatDau
         self.mauSoChinh = mauKetThuc
         self.noiBatSo = hienChamTron
+        self.nenNoiBat = nenNoiBat
         super.init(frame: .zero)
-        backgroundColor = BangMauBCTD.nenThePhu
+        backgroundColor = nenNoiBat ? .clear : BangMauBCTD.nenThePhu
         layer.cornerRadius = 10
         layer.borderWidth = 1
-        layer.borderColor = BangMauBCTD.vienThe.cgColor
+        layer.borderColor = (nenNoiBat ? mauBatDau.withAlphaComponent(0.55) : BangMauBCTD.vienThe).cgColor
         clipsToBounds = true
 
-        nenDauThe.backgroundColor = mauBatDau.withAlphaComponent(0.10)
-        vachTrai.backgroundColor = mauBatDau
+        if nenNoiBat {
+            lopGradient.colors = [mauBatDau.cgColor, mauKetThuc.cgColor]
+            lopGradient.startPoint = CGPoint(x: 0, y: 0)
+            lopGradient.endPoint = CGPoint(x: 1, y: 1)
+            layer.insertSublayer(lopGradient, at: 0)
+        }
+        nenDauThe.backgroundColor = nenNoiBat ? UIColor.white.withAlphaComponent(0.12) : mauBatDau.withAlphaComponent(0.16)
+        vachTrai.backgroundColor = nenNoiBat ? UIColor.white.withAlphaComponent(0.72) : mauBatDau
 
         nhanTieuDe.text = tieuDe
         nhanTieuDe.font = .systemFont(ofSize: 8.5, weight: .bold)
-        nhanTieuDe.textColor = BangMauBCTD.chuPhu
+        nhanTieuDe.textColor = nenNoiBat ? UIColor.white.withAlphaComponent(0.94) : BangMauBCTD.chuPhu
         nhanTieuDe.textAlignment = .center
         nhanTieuDe.numberOfLines = 0
         nhanTieuDe.lineBreakMode = .byWordWrapping
@@ -93,17 +102,17 @@ final class TheDoanhThuView: UIControl {
 
         nhanGiaTriChinh.text = "0,00"
         nhanGiaTriChinh.font = .systemFont(ofSize: 13.0, weight: .heavy)
-        nhanGiaTriChinh.textColor = hienChamTron ? mauKetThuc : BangMauBCTD.chuChinh
+        nhanGiaTriChinh.textColor = nenNoiBat ? .white : (hienChamTron ? mauKetThuc : BangMauBCTD.chuChinh)
         nhanGiaTriChinh.textAlignment = .center
         nhanGiaTriChinh.numberOfLines = 0
         nhanGiaTriChinh.lineBreakMode = .byWordWrapping
         nhanGiaTriChinh.adjustsFontSizeToFitWidth = false
 
-        vachKe.backgroundColor = BangMauBCTD.vienThe
+        vachKe.backgroundColor = nenNoiBat ? UIColor.white.withAlphaComponent(0.28) : BangMauBCTD.vienThe
 
         nhanTarget.text = "TARGET: 0,00"
         nhanTarget.font = .systemFont(ofSize: 8.0, weight: .bold)
-        nhanTarget.textColor = BangMauBCTD.chuMo
+        nhanTarget.textColor = nenNoiBat ? UIColor.white.withAlphaComponent(0.88) : BangMauBCTD.chuMo
         nhanTarget.textAlignment = .center
         nhanTarget.numberOfLines = 0
         nhanTarget.lineBreakMode = .byWordWrapping
@@ -132,6 +141,7 @@ final class TheDoanhThuView: UIControl {
         let w = bounds.width
         let h = bounds.height
         guard w > 10, h > 10 else { return }
+        lopGradient.frame = bounds
 
         // Cố định toạ độ Y của vùng tiêu đề, số chính và đường gạch ngang theo chiều cao thẻ H
         // để mọi thẻ trên cùng 1 hàng có số chính và đường gạch ngang thẳng hàng ngang tuyệt đối
@@ -159,7 +169,9 @@ final class TheDoanhThuView: UIControl {
         nhanGiaTriChinh.font = .systemFont(ofSize: coLon ? 17.0 : 13.0, weight: .heavy)
         nhanTarget.font = .systemFont(ofSize: coLon ? 10.5 : 8.0, weight: .bold)
 
-        if chinh.hasPrefix("+") {
+        if nenNoiBat {
+            nhanGiaTriChinh.textColor = .white
+        } else if chinh.hasPrefix("+") {
             nhanGiaTriChinh.textColor = BangMauBCTD.xanhDatChu
         } else if chinh.hasPrefix("-") && chinh != "--" {
             nhanGiaTriChinh.textColor = BangMauBCTD.doYeuChu
@@ -206,13 +218,15 @@ final class CumChiSoChinhView: UIControl {
     private let theDTThuc = TheDoanhThuView(
         tieuDe: "💵 DT THỰC",
         mauBatDau: BangMauBCTD.indigoChuDao,
-        mauKetThuc: BangMauBCTD.indigoDam
+        mauKetThuc: UIColor(red: 0.03, green: 0.62, blue: 0.92, alpha: 1.0),
+        nenNoiBat: true
     )
     private let theDTQD = TheDoanhThuView(
         tieuDe: "🎯 DT QUY ĐỔI",
         mauBatDau: BangMauBCTD.xanhDatVach,
-        mauKetThuc: BangMauBCTD.xanhDatChu,
-        hienChamTron: true
+        mauKetThuc: UIColor(red: 0.02, green: 0.43, blue: 0.28, alpha: 1.0),
+        hienChamTron: true,
+        nenNoiBat: true
     )
     private let theTraGop = TheDoanhThuView(
         tieuDe: "💳 % TRẢ GÓP",
@@ -440,7 +454,7 @@ final class CumChiSoChinhView: UIControl {
             coLon: coLon
         )
 
-        let ptGoc = dt.phanTramHTQDDuKienHienThi
+        let ptGoc = dt.phanTramHTQuyDoiHienThi(cheDo: cheDo)
         let dkGoc = dt.duKienQuyDoi > 0 ? dt.duKienQuyDoi : dt.duKienThuc
         theHTQDDuKien.capNhatTieuDe(
             cheDo == .realtime ? "📈 % HT TARGET NGÀY" : "📈 % HT QĐ DỰ KIẾN"
