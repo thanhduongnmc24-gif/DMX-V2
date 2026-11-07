@@ -2981,17 +2981,29 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     private func lenLichCapNhatAnhBaoCaoBot(dl: DuLieuNgayDMX, ngay: Date) {
         guard DichVuDongBo.dungChung.daDangNhap else { return }
         let cd = KhoDuLieu.dungChung.caiDat
-        let khoa = [
-            DichVuDongBo.dungChung.phien?.userId ?? "",
-            DichVuDongBo.dungChung.sieuThiDangChonId,
-            dl.khoaNgay, dl.capNhatLuc,
-            String(dl.doanhThu.doanhThuQuyDoi), String(dl.doanhThuRealtime.doanhThuQuyDoi),
-            String(dl.danhSachThiDua.count), String(dl.danhSachThiDuaRealtime.count),
-            String(dl.doanhThuNhanVien.count), String(dl.doanhThuNhanVienRealtime.count),
-            String(cd.phanTramTargetLuyKe), String(cd.phanTramTargetRealtime),
+        let khoaTaiKhoan = DichVuDongBo.dungChung.phien?.userId ?? ""
+        let khoaSieuThi = DichVuDongBo.dungChung.sieuThiDangChonId
+        let khoaDoanhThu = [
+            String(dl.doanhThu.doanhThuQuyDoi),
+            String(dl.doanhThuRealtime.doanhThuQuyDoi)
+        ]
+        let khoaDanhSach = [
+            String(dl.danhSachThiDua.count),
+            String(dl.danhSachThiDuaRealtime.count),
+            String(dl.doanhThuNhanVien.count),
+            String(dl.doanhThuNhanVienRealtime.count)
+        ]
+        let khoaCaiDat = [
+            String(cd.phanTramTargetLuyKe),
+            String(cd.phanTramTargetRealtime),
             cd.monThiDuaTheoDoiLuyKe.joined(separator: ","),
             cd.monThiDuaTheoDoiRealtime.joined(separator: ",")
-        ].joined(separator: "|")
+        ]
+        var thanhPhanKhoa = [khoaTaiKhoan, khoaSieuThi, dl.khoaNgay, dl.capNhatLuc]
+        thanhPhanKhoa.append(contentsOf: khoaDoanhThu)
+        thanhPhanKhoa.append(contentsOf: khoaDanhSach)
+        thanhPhanKhoa.append(contentsOf: khoaCaiDat)
+        let khoa = thanhPhanKhoa.joined(separator: "|")
         guard khoa != khoaAnhBotDaTai else { return }
         congViecTaoAnhBot?.cancel()
         let congViec = DispatchWorkItem { [weak self] in
