@@ -631,8 +631,6 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
     private func taoAnhBangNganhHang() -> UIImage? {
         let soNV = danhSachXepHang.count
         guard soNV > 0 else { return nil }
-        let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
-        let donVi = dl.thongTinDonVi.isEmpty ? "ĐIỆN MÁY XANH" : dl.thongTinDonVi
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
         let targetMoiNV = dong.target / Double(soNV)
         let tongTH = danhSachXepHang.reduce(0.0) { $0 + $1.thucHien }
@@ -677,7 +675,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
             let pRight = NSMutableParagraphStyle(); pRight.alignment = .right; pRight.lineBreakMode = .byWordWrapping
             let pCenter = NSMutableParagraphStyle(); pCenter.alignment = .center; pCenter.lineBreakMode = .byWordWrapping
 
-            ("\(donVi) • \(cheDo.tieuDe.uppercased())" as NSString).draw(at: CGPoint(x: le, y: le + 4), withAttributes: [
+            (cheDo.tieuDe.uppercased() as NSString).draw(at: CGPoint(x: le, y: le + 4), withAttributes: [
                 .font: UIFont.systemFont(ofSize: 12.5, weight: .bold),
                 .foregroundColor: UIColor.darkGray
             ])
@@ -1222,8 +1220,6 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
     ) -> UIImage? {
         let cheDoXuat = cheDo ?? cheDoDoanhThu
         let ds = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: kieuSapXep, cheDo: cheDoXuat)
-        let dl = KhoDuLieu.dungChung.duLieu(cho: ngay)
-        let donVi = !thongTinDonVi.isEmpty ? thongTinDonVi : (dl.thongTinDonVi.isEmpty ? "ĐIỆN MÁY XANH" : dl.thongTinDonVi)
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
         let soMonThang = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay, cheDo: cheDoXuat).count
 
@@ -1236,7 +1232,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         let rongBang = tongChieuRongBang
         let rongAnh = rongBang + le * 2
 
-        let chuPhu = "\(donVi)  •  \(cheDoXuat.tieuDe.uppercased())  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
+        let chuPhu = "\(cheDoXuat.tieuDe.uppercased())  •  Ngày \(ngayStr)\(capNhatLuc.isEmpty ? "" : "  •  Cập nhật: \(capNhatLuc)")"
         let fontPhu = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let caoPhu = max(20, ceil((chuPhu as NSString).boundingRect(
             with: CGSize(width: rongBang, height: CGFloat.greatestFiniteMagnitude),
@@ -1834,7 +1830,6 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
         let soNgayQua = dt.soNgayDaQua > 0 ? dt.soNgayDaQua : max(1, lich.component(.day, from: ngay))
         let tongNgayThang = dt.tongSoNgay > 0 ? dt.tongSoNgay : (lich.range(of: .day, in: .month, for: ngay)?.count ?? 30)
         let ptTienDo = dt.phanTramTienDoThang > 0 ? dt.phanTramTienDoThang : (Double(soNgayQua) / Double(max(1, tongNgayThang)) * 100.0)
-        let donVi = dl.thongTinDonVi.isEmpty ? "ĐIỆN MÁY XANH" : dl.thongTinDonVi
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
 
         let dsMon = danhSachMonLoc
@@ -1842,7 +1837,7 @@ final class ManHinhChiTietNhanVien: UIViewController, UITableViewDataSource, UIT
         let rongBang = tongChieuRongBang
         let rongAnh = rongBang + le * 2
 
-        let chuPhu = "\(donVi)  •  \(cheDo.tieuDe.uppercased())  •  Mã NV: \(tongHop.nhanVien.maNV)  •  Ngày \(ngayStr)"
+        let chuPhu = "\(cheDo.tieuDe.uppercased())  •  Mã NV: \(tongHop.nhanVien.maNV)  •  Ngày \(ngayStr)"
         let fontPhu = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let caoPhu = max(20, ceil((chuPhu as NSString).boundingRect(
             with: CGSize(width: rongBang, height: CGFloat.greatestFiniteMagnitude),
