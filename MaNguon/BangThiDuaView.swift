@@ -225,7 +225,6 @@ final class CumChiSoChinhView: UIControl {
         tieuDe: "🎯 DT QUY ĐỔI",
         mauBatDau: BangMauBCTD.xanhDatVach,
         mauKetThuc: UIColor(red: 0.02, green: 0.43, blue: 0.28, alpha: 1.0),
-        hienChamTron: true,
         nenNoiBat: true
     )
     private let theTraGop = TheDoanhThuView(
@@ -241,8 +240,7 @@ final class CumChiSoChinhView: UIControl {
     private let theHTQDDuKien = TheDoanhThuView(
         tieuDe: "📈 % HT QĐ DỰ KIẾN",
         mauBatDau: BangMauBCTD.indigoDam,
-        mauKetThuc: BangMauBCTD.indigoDam,
-        hienChamTron: true
+        mauKetThuc: BangMauBCTD.indigoDam
     )
     private let thePhanTramQD = TheDoanhThuView(
         tieuDe: "🔄 % QUY ĐỔI",
@@ -252,8 +250,7 @@ final class CumChiSoChinhView: UIControl {
     private let theThiDuaHT = TheDoanhThuView(
         tieuDe: "🏆 THI ĐUA HOÀN THÀNH",
         mauBatDau: BangMauBCTD.xanhDatVach,
-        mauKetThuc: BangMauBCTD.xanhDatChu,
-        hienChamTron: true
+        mauKetThuc: BangMauBCTD.xanhDatChu
     )
     private let theTangGiam = TheDoanhThuView(
         tieuDe: "📈 TĂNG/GIẢM CÙNG KỲ",
@@ -311,23 +308,38 @@ final class CumChiSoChinhView: UIControl {
         tatCaThe.forEach { $0.isUserInteractionEnabled = false }
 
         let khoangCach: CGFloat = coLon ? 10 : 5
-        let hang1 = UIStackView(arrangedSubviews: [theDTThuc, theDTQD, theTraGop, theLuotKhach])
-        hang1.axis = .horizontal
-        hang1.spacing = khoangCach
-        hang1.distribution = .fillEqually
-        hang1.isUserInteractionEnabled = false
+        // Hai thẻ doanh thu chiếm trọn chiều cao hai hàng. Sáu KPI còn lại
+        // nằm trong lưới 3 x 2 để DT thực và DT quy đổi luôn nổi bật nhất.
+        let hangKPINho1 = UIStackView(arrangedSubviews: [theTraGop, theLuotKhach, theHTQDDuKien])
+        hangKPINho1.axis = .horizontal
+        hangKPINho1.spacing = khoangCach
+        hangKPINho1.distribution = .fillEqually
+        hangKPINho1.isUserInteractionEnabled = false
 
-        let hang2 = UIStackView(arrangedSubviews: [theHTQDDuKien, thePhanTramQD, theThiDuaHT, theTangGiam])
-        hang2.axis = .horizontal
-        hang2.spacing = khoangCach
-        hang2.distribution = .fillEqually
-        hang2.isUserInteractionEnabled = false
+        let hangKPINho2 = UIStackView(arrangedSubviews: [thePhanTramQD, theThiDuaHT, theTangGiam])
+        hangKPINho2.axis = .horizontal
+        hangKPINho2.spacing = khoangCach
+        hangKPINho2.distribution = .fillEqually
+        hangKPINho2.isUserInteractionEnabled = false
 
-        luoiThe = UIStackView(arrangedSubviews: [hang1, hang2])
-        luoiThe.axis = .vertical
+        let luoiKPINho = UIStackView(arrangedSubviews: [hangKPINho1, hangKPINho2])
+        luoiKPINho.axis = .vertical
+        luoiKPINho.spacing = khoangCach
+        luoiKPINho.distribution = .fillEqually
+        luoiKPINho.isUserInteractionEnabled = false
+
+        luoiThe = UIStackView(arrangedSubviews: [theDTThuc, theDTQD, luoiKPINho])
+        luoiThe.axis = .horizontal
         luoiThe.spacing = khoangCach
-        luoiThe.distribution = .fillEqually
+        luoiThe.distribution = .fill
         luoiThe.isUserInteractionEnabled = true
+
+        theDTThuc.widthAnchor.constraint(equalTo: theDTQD.widthAnchor).isActive = true
+        luoiKPINho.widthAnchor.constraint(
+            equalTo: theDTThuc.widthAnchor,
+            multiplier: 3,
+            constant: khoangCach * 2
+        ).isActive = true
 
         let tapLuoiThe = UITapGestureRecognizer(target: self, action: #selector(bamVaoLuoiThe))
         luoiThe.addGestureRecognizer(tapLuoiThe)
@@ -769,7 +781,7 @@ final class OTheThiDuaCell: UICollectionViewCell {
             capNhatChuoiThucHien(dong: dong, coChu: bc.coChu)
         }
 
-        vachTrai.frame = CGRect(x: 0, y: 0, width: 4, height: bounds.height)
+        vachTrai.frame = .zero
         nhanTen.frame = bc.khungTen
         nhanPhanTram.frame = bc.khungPhanTram
         nhanDonVi.frame = bc.khungDonVi
@@ -836,8 +848,10 @@ final class OTheThiDuaCell: UICollectionViewCell {
         }
 
         let mauTT = BangMauBCTD.mauTrangThai(phanTram: pt)
-        khungThe.backgroundColor = xemDuKien ? .white : mauTT.nenDong
-        vachTrai.backgroundColor = xemDuKien ? .clear : mauTT.vach
+        // Nền trạng thái đậm hơn một nhịp để các môn dễ phân biệt; bỏ vạch trái.
+        khungThe.backgroundColor = mauTT.pill.withAlphaComponent(xemDuKien ? 0.34 : 0.58)
+        vachTrai.backgroundColor = .clear
+        vachTrai.isHidden = true
         nhanPhanTram.backgroundColor = xemDuKien ? .clear : mauTT.pill
         nhanPhanTram.textColor = mauTT.chu
         thanhMauTienDo.backgroundColor = mauTT.vach
@@ -1458,11 +1472,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
         let ttDuBao = BangMauBCTD.mauTrangThai(phanTram: dong.phanTramDuBao)
         let ttChinh = xemDuKien ? ttDuBao : ttHT
 
-        khung.backgroundColor = ttChinh.nenDong
-
-        let vachTrai = UIView(frame: CGRect(x: 0, y: 0, width: 4, height: chieuCao))
-        vachTrai.backgroundColor = ttChinh.vach
-        khung.addSubview(vachTrai)
+        khung.backgroundColor = ttChinh.pill.withAlphaComponent(0.58)
 
         let mauChuChinh: UIColor = BangMauBCTD.chuChinh
         let mauChuHT: UIColor = ttHT.chu
