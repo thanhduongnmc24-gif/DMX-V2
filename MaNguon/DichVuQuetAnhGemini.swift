@@ -303,7 +303,7 @@ final class DichVuQuetAnhGemini {
         let nonThoughtParts = parts.filter { ($0["thought"] as? Bool) != true }
         let useParts = nonThoughtParts.isEmpty ? parts : nonThoughtParts
 
-        var text = useParts.compactMap { $0["text"] as? String }
+        let text = useParts.compactMap { $0["text"] as? String }
             .joined(separator: "\n")
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
@@ -481,9 +481,9 @@ final class DichVuQuetAnhGemini {
                     soLuong: so(item, "soLuong"),
                     doanhThuThuc: 0,
                     doanhThuQD: so(item, "doanhThuQD"),
-                    phanTramQuyDoi: so(item, "phanTramTiTrong"),
                     dtQDKhoanVay: so(item, "dtKhoanVay"),
-                    dtTraThangQD: so(item, "phanTramTiTrong")
+                    dtTraThangQD: so(item, "phanTramTiTrong"),
+                    phanTramQuyDoi: so(item, "phanTramTiTrong")
                 )
             }
             if !kq.doanhThuNhanVien.isEmpty { kq.soAnhDoanhThuNV = 1 }
