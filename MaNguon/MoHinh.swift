@@ -2598,26 +2598,22 @@ final class KhoDuLieu {
             }
             guard !khoaNganh.isEmpty else { continue }
 
-            // Tìm thông tin môn thi đua để biết Target ngành và số nhân viên được chia Target
-            let dongMon = matHangThang.first(where: {
+            // Tìm thông tin môn thi đua để lấy Số đã thực hiện của môn đó (thucHienMon)
+            let dongMon = dsThiDuaNgay.first(where: {
                 Self.chuanHoaKhoaSoSanh($0.tenNganhHang) == khoaNganh ||
                 Self.chuanHoaKhoaSoSanh($0.tenNganhHangGoc) == khoaNganh
-            }) ?? dsThiDuaNgay.first(where: {
+            }) ?? matHangThang.first(where: {
                 Self.chuanHoaKhoaSoSanh($0.tenNganhHang) == khoaNganh ||
                 Self.chuanHoaKhoaSoSanh($0.tenNganhHangGoc) == khoaNganh
             })
 
-            let targetCaNhan: Double
-            if let dongMon {
-                let dsMaDuocChon = danhSachMaNVChiaTarget(cho: dongMon)
-                let soNV = max(1, dsMaDuocChon.isEmpty ? max(1, caiDat.danhSachNhanVien.count) : dsMaDuocChon.count)
-                let targetMon = dongMon.target > 0 ? dongMon.target : khoi.targetNganhGoiY
-                targetCaNhan = targetMon / Double(soNV)
+            let thucHienMon: Double
+            if let dongMon, dongMon.thucHien > 0 {
+                thucHienMon = dongMon.thucHien
+            } else if khoi.thucHienNganhGoiY > 0 {
+                thucHienMon = khoi.thucHienNganhGoiY
             } else {
-                let tatCaMa = caiDat.danhSachNhanVien.map(\.maNV)
-                let dsChon = caiDat.chiaTargetNganhHang[khoaNganh]?.filter { tatCaMa.contains($0) } ?? tatCaMa
-                let soNV = max(1, dsChon.isEmpty ? max(1, khoi.danhSach.count) : dsChon.count)
-                targetCaNhan = khoi.targetNganhGoiY > 0 ? (khoi.targetNganhGoiY / Double(soNV)) : 0
+                thucHienMon = dongMon?.thucHien ?? 0
             }
 
             var bangCu = ketQua[khoaNganh] ?? [:]
@@ -2636,12 +2632,14 @@ final class KhoDuLieu {
                 guard !maLuu.isEmpty else { continue }
                 if item.thucHien >= 0 {
                     if item.laPhanTram {
-                        // Từ % nhân viên đạt được và phần Target cá nhân được chia, tính ra số lượng (hoặc doanh thu) thực hiện
-                        if targetCaNhan > 0 {
-                            let thucHienQuyDoi = ((item.thucHien / 100.0) * targetCaNhan * 10000.0).rounded() / 10000.0
-                            bangCu[maLuu] = thucHienQuyDoi
+                        // Lấy số đã thực hiện của môn đó chia 100 rồi nhân với số phần trăm của nhân viên thì được số lượng (doanh thu) thực hiện của nhân viên;
+                        // sau đó bảng xếp hạng sẽ lấy số lượng này so sánh với Target được chia để tính Còn/Vượt và % HT.
+                        if thucHienMon > 0 {
+                            let soLuongNV = (thucHienMon / 100.0) * item.thucHien
+                            let lamTron = ((soLuongNV * 10000.0).rounded()) / 10000.0
+                            bangCu[maLuu] = lamTron
                         } else {
-                            bangCu[maLuu] = item.thucHien
+                            bangCu[maLuu] = 0
                         }
                     } else {
                         bangCu[maLuu] = item.thucHien

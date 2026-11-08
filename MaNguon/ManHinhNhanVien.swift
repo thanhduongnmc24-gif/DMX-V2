@@ -393,6 +393,11 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
 
                     var cacKhoiCapNhat = cacKhoi
                     for i in cacKhoiCapNhat.indices {
+                        if self.dong.thucHien > 0 && cacKhoiCapNhat[i].thucHienNganhGoiY <= 0 {
+                            cacKhoiCapNhat[i].thucHienNganhGoiY = self.dong.thucHien
+                        } else if self.dong.thucHien <= 0 && cacKhoiCapNhat[i].thucHienNganhGoiY > 0 {
+                            self.dong.thucHien = cacKhoiCapNhat[i].thucHienNganhGoiY
+                        }
                         if self.dong.target > 0 && cacKhoiCapNhat[i].targetNganhGoiY <= 0 {
                             cacKhoiCapNhat[i].targetNganhGoiY = self.dong.target
                         } else if self.dong.target <= 0 && cacKhoiCapNhat[i].targetNganhGoiY > 0 {
@@ -639,24 +644,48 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         guard indexPath.row < danhSachXepHang.count else { return }
         let item = danhSachXepHang[indexPath.row]
+        let thucHienMon = dong.thucHien
         let hop = UIAlertController(
             title: "\(item.hoTen) (\(item.maNV))",
-            message: "Nhập số Thực hiện (\(cheDo.tieuDe)) cho mặt hàng \(dong.tenNganhHang):",
+            message: "Môn \(dong.tenNganhHang) • Đã thực hiện: \(thucHienMon.chuoiSoGonVN) • Target chia: \(item.targetCaNhan.chuoiSoGonVN)\nNhập % đóng góp của nhân viên (tự tính = Đã thực hiện ÷ 100 × %) hoặc nhập trực tiếp số lượng:",
             preferredStyle: .alert
         )
         hop.addTextField { tf in
-            tf.placeholder = "Thực hiện"
+            tf.placeholder = "Nhập % (VD: 24) hoặc số thực hiện"
             tf.keyboardType = .decimalPad
             if item.thucHien > 0 {
                 tf.text = item.thucHien.chuoiSoGonVN.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
             }
         }
-        hop.addAction(UIAlertAction(title: "Lưu", style: .default) { [weak self] _ in
+        hop.addAction(UIAlertAction(title: "Lưu theo % của môn (÷100 × %)", style: .default) { [weak self] _ in
             guard let self = self else { return }
             let chu = (hop.textFields?.first?.text ?? "")
+                .replacingOccurrences(of: "%", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: ",", with: ".")
-            let giaTri = Double(chu) ?? 0
+            let phanTram = Double(chu) ?? 0
+            let giaTri = self.dong.thucHien > 0 ? (((self.dong.thucHien / 100.0) * phanTram * 10000.0).rounded() / 10000.0) : phanTram
+            let khoa = KhoDuLieu.chuanHoaKhoaSoSanh(self.dong.tenNganhHang)
+            var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
+            var bangNV = dl.thiDuaNhanVien(theo: self.cheDo)
+            bangNV[khoa, default: [:]][item.maNV] = giaTri
+            dl.ganThiDuaNhanVien(bangNV, theo: self.cheDo)
+            KhoDuLieu.dungChung.luu(dl)
+            self.napDuLieu()
+            self.khiCapNhatDuLieu?()
+        })
+        hop.addAction(UIAlertAction(title: "Lưu số lượng trực tiếp", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            let chuGoc = (hop.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let coDauPhanTram = chuGoc.contains("%")
+            let chu = chuGoc
+                .replacingOccurrences(of: "%", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: ",", with: ".")
+            let soNhap = Double(chu) ?? 0
+            let giaTri = (coDauPhanTram && self.dong.thucHien > 0)
+                ? (((self.dong.thucHien / 100.0) * soNhap * 10000.0).rounded() / 10000.0)
+                : soNhap
             let khoa = KhoDuLieu.chuanHoaKhoaSoSanh(self.dong.tenNganhHang)
             var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
             var bangNV = dl.thiDuaNhanVien(theo: self.cheDo)

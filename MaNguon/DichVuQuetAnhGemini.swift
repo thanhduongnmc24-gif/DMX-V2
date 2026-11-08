@@ -384,7 +384,7 @@ final class DichVuQuetAnhGemini {
            - Ngoài ra nếu ảnh là Lưới thẻ thi đua 2 cột hoặc Bảng 4 cột có tiền tố T11: đọc đầy đủ tên môn, đơn vị DT/SL, Thực hiện, Target, % HT và % Dự kiến / DT Dự kiến.
         2. Đọc ĐẦY ĐỦ TẤT CẢ các dòng môn thi đua từ trên xuống dưới, kể cả các dòng tên dài xuống 2-3 hàng chữ như "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO" (loai: "SL") hoặc "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT" và kể cả dòng có Thực hiện = 0, Target = 0. Không đưa nhãn DT, SL, CE, ICT, DV hay dấu + vào trong "ten".
         3. Với bảng doanh thu nhân viên 5 cột (NHÂN VIÊN / NGÀNH HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG), trích đúng "maNV" (bỏ tiền tố id:) và "hoTen" vào mảng "nhanVien".
-        4. Với bảng chi tiết môn thi đua của nhân viên (bảng mở rộng 1 môn thi đua có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % nhân viên đạt được như 24%, 14%, 8%...): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien" (bỏ qua dòng tên chương trình và dòng tên siêu thị ĐML_...), đặt "laPhanTram": true, "thucHien" là con số phần trăm (ví dụ 24% -> 24), và đặt "targetNganhGoiY" là số TARGET của môn đó ở dòng đầu bảng.
+        4. Với bảng chi tiết môn thi đua của nhân viên (bảng mở rộng 1 môn thi đua có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % đóng góp của nhân viên như 24%, 14%, 8%...): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien" (bỏ qua dòng tên chương trình và dòng tên siêu thị ĐML_...), đặt "laPhanTram": true, "thucHien" là con số phần trăm (ví dụ 24% -> 24), đặt "thucHienNganhGoiY" là số THỰC HIỆN của môn đó ở dòng đầu bảng, và đặt "targetNganhGoiY" là số TARGET của môn đó ở dòng đầu bảng.
         """
     }
 
@@ -492,6 +492,7 @@ final class DichVuQuetAnhGemini {
         if let arr = json["thiDuaNhanVien"] as? [[String: Any]] {
             kq.thiDuaNhanVien = arr.compactMap { khoi in
                 let nganh = KhoDuLieu.chuanHoaTenMonThiDuaChuan((khoi["tenNganhHang"] as? String) ?? "")
+                let thucHienGoiY = so(khoi, "thucHienNganhGoiY")
                 let targetGoiY = so(khoi, "targetNganhGoiY")
                 let ds = (khoi["danhSach"] as? [[String: Any]] ?? []).compactMap { nv -> DongThiDuaNhanVienQuet? in
                     let ma = KhoDuLieu.chuanHoaMaNV((nv["maNV"] as? String) ?? "")
@@ -506,7 +507,7 @@ final class DichVuQuetAnhGemini {
                         laPhanTram: laPT
                     )
                 }
-                return ds.isEmpty ? nil : KetQuaThiDuaNhanVienKhoi(tenNganhHang: nganh, danhSach: ds, targetNganhGoiY: targetGoiY)
+                return ds.isEmpty ? nil : KetQuaThiDuaNhanVienKhoi(tenNganhHang: nganh, danhSach: ds, thucHienNganhGoiY: thucHienGoiY, targetNganhGoiY: targetGoiY)
             }
             kq.soAnhThiDuaNV = kq.thiDuaNhanVien.count
         }

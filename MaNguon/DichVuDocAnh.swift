@@ -13,6 +13,7 @@ struct DongThiDuaNhanVienQuet: Hashable {
 struct KetQuaThiDuaNhanVienKhoi: Hashable {
     var tenNganhHang: String
     var danhSach: [DongThiDuaNhanVienQuet]
+    var thucHienNganhGoiY: Double = 0
     var targetNganhGoiY: Double = 0
 }
 
@@ -4400,9 +4401,10 @@ final class DichVuDocAnh {
         }
 
         var tenMonTuAnh = (tenNganhGoiY ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        var thucHienMonTuAnh: Double = 0
         var targetMonTuAnh: Double = 0
 
-        // Tìm tên môn & target môn từ dòng chương trình đầu bảng (dòng có dấu "-" ở đầu, chưa có id:) nếu cần
+        // Tìm tên môn, số đã thực hiện của môn và target môn từ dòng chương trình/siêu thị đầu bảng (dòng có dấu "-" ở đầu, chưa có id:)
         let yIdDauTien = phanTu.compactMap { pt -> CGFloat? in
             guard pt.x < 0.40, trichMaId(tu: pt.chu) != nil else { return nil }
             return pt.y
@@ -4421,9 +4423,16 @@ final class DichVuDocAnh {
                 }
             }
         }
+        let cacSoThucHienDauBang = cacPTDauBang.filter { $0.x >= 0.34 && $0.x < 0.495 && !$0.chu.contains("%") }
+        for pt in cacSoThucHienDauBang {
+            if let v = chuyenChuoiThanhSoDoanhThu(pt.chu), v > 0, v != 54453 {
+                thucHienMonTuAnh = v
+                break
+            }
+        }
         let cacSoTargetDauBang = cacPTDauBang.filter { $0.x >= 0.49 && $0.x < 0.65 && !$0.chu.contains("%") }
         for pt in cacSoTargetDauBang {
-            if let v = chuyenChuoiThanhSoDoanhThu(pt.chu), v > 0 {
+            if let v = chuyenChuoiThanhSoDoanhThu(pt.chu), v > 0, v != 54453 {
                 targetMonTuAnh = v
                 break
             }
@@ -4559,12 +4568,23 @@ final class DichVuDocAnh {
                             let cacTextCot1 = (bangCot1[rIdx] ?? []).sorted { $0.y < $1.y }.map(\.chu)
                             let gopCot1 = cacTextCot1.joined(separator: "\n")
 
-                            // Nếu là dòng Chương trình ở đầu bảng (không có id: và không phải dòng siêu thị ĐML_QNG_QNG)
+                            // Nếu là dòng Chương trình hoặc dòng Siêu thị ở đầu bảng (không có id:)
                             if trichMaId(tu: gopCot1) == nil {
-                                if tenMonTuAnh.isEmpty, rIdx <= 1, !laDongKhongPhaiNhanVien(gopCot1) {
-                                    let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(gopCot1.replacingOccurrences(of: "\n", with: " "))
-                                    if !tenSach.isEmpty && !laTenTheDoanhThuKhongPhaiThiDua(tenSach) {
-                                        tenMonTuAnh = tenSach
+                                if rIdx <= 2 {
+                                    if tenMonTuAnh.isEmpty && !laDongKhongPhaiNhanVien(gopCot1) {
+                                        let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(gopCot1.replacingOccurrences(of: "\n", with: " "))
+                                        if !tenSach.isEmpty && !laTenTheDoanhThuKhongPhaiThiDua(tenSach) {
+                                            tenMonTuAnh = tenSach
+                                        }
+                                    }
+                                    if thucHienMonTuAnh <= 0 {
+                                        let cacSoCot2Dau = (bangCot2[rIdx] ?? []).map(\.chu)
+                                        for t in cacSoCot2Dau where !t.contains("%") {
+                                            if let v = chuyenChuoiThanhSoDoanhThu(t), v > 0, v != 54453 {
+                                                thucHienMonTuAnh = v
+                                                break
+                                            }
+                                        }
                                     }
                                 }
                                 continue
@@ -4737,6 +4757,7 @@ final class DichVuDocAnh {
         return KetQuaThiDuaNhanVienKhoi(
             tenNganhHang: tenMonTuAnh.isEmpty ? "Ngành hàng" : tenMonTuAnh,
             danhSach: danhSachKetQua,
+            thucHienNganhGoiY: thucHienMonTuAnh,
             targetNganhGoiY: targetMonTuAnh
         )
     }
