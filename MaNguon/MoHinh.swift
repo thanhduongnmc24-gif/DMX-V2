@@ -2803,41 +2803,9 @@ final class KhoDuLieu {
         var tenChuan = s
         if let khopChinhXac = bangAnhXaKhoaLienMachChuanDMX[klm] {
             tenChuan = khopChinhXac
-        } else if klm.contains("DIENTHOAITABLET") || klm.contains("TABLETANDROID") {
+        } else if klm == "DIENTHOAITABLET" || klm == "DIENTHOAITABLETANDROID" {
             tenChuan = "ĐIỆN THOẠI & TABLET ANDROID"
-        } else if klm.contains("FECREDIT") || klm.contains("SHINHAN") || klm.contains("MCREDIT") {
-            tenChuan = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
-        } else if klm.contains("HOMECREDIT") {
-            tenChuan = "Trả chậm Homecredit"
-        } else if klm.contains("DIENMAYGIADUNG") || (klm.contains("TRACHAMDIENMAY")) {
-            tenChuan = "Trả Chậm Điện máy & Gia dụng"
-        } else if klm.contains("VPBANK") || klm.contains("TPBANK") || klm.contains("MOTHETINDUNG") {
-            tenChuan = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
-        } else if klm.contains("HUTBUI") || klm.contains("HUTAM") || klm.contains("MAYLOC") && klm.contains("KK") {
-            tenChuan = "Máy lọc KK - Hút bụi - Hút ẩm"
-        } else if klm.contains("MAYRUACHEN") || klm.contains("MAYSAY") {
-            tenChuan = "Máy sấy / Máy rửa chén"
-        } else if klm.contains("PHUKIENKHACIT") || klm.contains("NHOMKHAC") {
-            tenChuan = "Phụ kiện khác IT & Nhóm khác"
-        } else if klm.contains("THOICT") || klm.contains("THO1CT") {
-            tenChuan = "Bảo hiểm Thợ ICT"
-        } else if klm.contains("THODMX") || klm.contains("THOBMX") {
-            tenChuan = "Bảo hiểm Thợ ĐMX"
-        } else if klm.contains("BAOHIEMTONG") {
-            tenChuan = "Bảo hiểm Tổng"
-        } else if klm.contains("NANGLUONGMATTROI") {
-            tenChuan = "Đèn năng lượng mặt trời"
-        } else if klm.contains("SMARTWATCH") || klm.contains("DONGHO") {
-            tenChuan = "Đồng hồ & Smartwatch"
-        } else if klm.contains("NOICOM") || klm.contains("NOICHIEN") {
-            tenChuan = "Nồi cơm & Nồi chiên"
-        } else if klm.contains("TULANH") || klm.contains("DONGMAT") {
-            tenChuan = "Tủ Lạnh / Đông / Mát"
-        } else if klm.contains("VITRASAU") {
-            tenChuan = "Ví trả sau"
-        } else if klm.contains("VAYTIENMAT") {
-            tenChuan = "Vay tiền mặt"
-        } else if klm == "SAMSUNG" || (klm.hasSuffix("SAMSUNG") && !klm.contains("FECREDIT")) {
+        } else if klm == "SAMSUNG" || (klm.hasSuffix("SAMSUNG") && klm.count <= 14 && !klm.contains("FECREDIT")) {
             tenChuan = "Điện tử Samsung"
         } else if klm.count >= 6 {
             let nguong = (klm.count >= 8) ? 2 : 1
@@ -2978,8 +2946,6 @@ final class KhoDuLieu {
 
         var ketQua: [DongThiDua] = []
         ketQua.reserveCapacity(tatCa.count)
-        var chiSoTheoKhoaCoBan: [String: Int] = [:]
-        var chiSoTheoKhoaLM: [String: Int] = [:]
 
         for var dongMoi in tatCa {
             let tenKiemTra = dongMoi.tenNganhHangGoc.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2990,45 +2956,36 @@ final class KhoDuLieu {
             dongMoi.tenNganhHang = apDungLocTuCaiDat(dongMoi.tenNganhHangGoc)
 
             let khoaCoBanMoi = chuanHoaKhoaCoBanThiDua(dongMoi.tenNganhHangGoc)
-            let khoaCoBanHienThiMoi = chuanHoaKhoaCoBanThiDua(dongMoi.tenNganhHang)
             let khoaLienMachGocMoi = chuanHoaKhoaLienMachThiDua(dongMoi.tenNganhHangGoc)
-            let khoaLienMachHTMoi = chuanHoaKhoaLienMachThiDua(dongMoi.tenNganhHang)
-
             guard !khoaCoBanMoi.isEmpty || !khoaLienMachGocMoi.isEmpty else { continue }
 
-            // Tra cứu trùng 100% tên môn trong O(1) bằng Dictionary, kèm kiểm tra trùng chữ ký số liệu (thucHien + target) khi 1 dòng ở mép ảnh bị cắt chữ
-            var viTriTrungTen: Int? =
-                (!khoaCoBanMoi.isEmpty ? chiSoTheoKhoaCoBan[khoaCoBanMoi] : nil) ??
-                (!khoaCoBanHienThiMoi.isEmpty ? chiSoTheoKhoaCoBan[khoaCoBanHienThiMoi] : nil) ??
-                (!khoaLienMachGocMoi.isEmpty ? chiSoTheoKhoaLM[khoaLienMachGocMoi] : nil) ??
-                (!khoaLienMachHTMoi.isEmpty ? chiSoTheoKhoaLM[khoaLienMachHTMoi] : nil)
+            // Chỉ gộp thành 1 môn khi TRÙNG 100% VỀ TÊN và TRÙNG VỀ TARGET & THỰC HIỆN (hoặc 1 bên đang trống target/thực hiện = 0 khi ghép cặp ảnh 2 cột)
+            var viTriTrung: Int? = nil
+            for (idxCu, dongCu) in ketQua.enumerated() {
+                let khoaCoBanCu = chuanHoaKhoaCoBanThiDua(dongCu.tenNganhHangGoc)
+                let khoaLienMachCu = chuanHoaKhoaLienMachThiDua(dongCu.tenNganhHangGoc)
+                let trungTen100 = (!khoaCoBanMoi.isEmpty && khoaCoBanMoi == khoaCoBanCu) ||
+                                  (!khoaLienMachGocMoi.isEmpty && khoaLienMachGocMoi == khoaLienMachCu)
+                guard trungTen100 else { continue }
 
-            if viTriTrungTen == nil && dongMoi.target > 0 {
-                let moiLaChuan = laTenMonThiDuaChuanDMX(dongMoi.tenNganhHangGoc)
-                for (idxCu, itemCu) in ketQua.enumerated() where itemCu.target > 0 && itemCu.loaiChiTieu == dongMoi.loaiChiTieu {
-                    let cungSo = abs(itemCu.thucHien - dongMoi.thucHien) < 0.005 && abs(itemCu.target - dongMoi.target) < 0.005
-                    guard cungSo else { continue }
-                    let cuLaChuan = laTenMonThiDuaChuanDMX(itemCu.tenNganhHangGoc)
-                    let kCu = chuanHoaKhoaLienMachThiDua(itemCu.tenNganhHangGoc)
-                    if kCu == khoaLienMachGocMoi ||
-                       (kCu.count >= 4 && khoaLienMachGocMoi.count >= 4 && (kCu.contains(khoaLienMachGocMoi) || khoaLienMachGocMoi.contains(kCu))) ||
-                       (moiLaChuan != cuLaChuan) ||
-                       (abs(kCu.count - khoaLienMachGocMoi.count) <= 2 && khoangCachLevenshtein(kCu, khoaLienMachGocMoi) <= 2) {
-                        viTriTrungTen = idxCu
-                        break
-                    }
+                let cuChuaCoSo = (abs(dongCu.thucHien) < 0.0001 && abs(dongCu.target) < 0.0001) ||
+                                 (abs(dongCu.target) < 0.0001 && abs(dongMoi.thucHien) < 0.0001) ||
+                                 (abs(dongCu.thucHien) < 0.0001 && abs(dongMoi.target) < 0.0001)
+                let moiChuaCoSo = (abs(dongMoi.thucHien) < 0.0001 && abs(dongMoi.target) < 0.0001)
+                let trungTargetVaDoanhThu = abs(dongCu.target - dongMoi.target) < 0.05 &&
+                                            abs(dongCu.thucHien - dongMoi.thucHien) < 0.05
+
+                if trungTargetVaDoanhThu || cuChuaCoSo || moiChuaCoSo {
+                    viTriTrung = idxCu
+                    break
                 }
             }
 
-            if let viTri = viTriTrungTen {
+            if let viTri = viTriTrung {
                 var dongCu = ketQua[viTri]
-                // Ưu tiên giữ tên môn nằm trong danh mục chuẩn ĐMX và có độ dài đầy đủ
                 let moiLaChuan = laTenMonThiDuaChuanDMX(dongMoi.tenNganhHangGoc)
                 let cuLaChuan = laTenMonThiDuaChuanDMX(dongCu.tenNganhHangGoc)
-                let moiCoTienToT = dongMoi.tenNganhHangGoc.hasPrefix("T") && dongMoi.tenNganhHangGoc.contains("-")
-                let cuCoTienToT = dongCu.tenNganhHangGoc.hasPrefix("T") && dongCu.tenNganhHangGoc.contains("-")
-                if (moiLaChuan && !cuLaChuan) ||
-                   (moiLaChuan == cuLaChuan && ((moiCoTienToT && !cuCoTienToT) || (moiCoTienToT == cuCoTienToT && dongMoi.tenNganhHangGoc.count >= dongCu.tenNganhHangGoc.count))) {
+                if (moiLaChuan && !cuLaChuan) || (moiLaChuan == cuLaChuan && dongMoi.tenNganhHangGoc.count >= dongCu.tenNganhHangGoc.count) {
                     dongCu.tenNganhHangGoc = dongMoi.tenNganhHangGoc
                     dongCu.tenNganhHang = dongMoi.tenNganhHang
                 }
@@ -3049,17 +3006,8 @@ final class KhoDuLieu {
                     dongCu.duKienGoc = dkGoc
                 }
                 ketQua[viTri] = dongCu
-                if !khoaCoBanMoi.isEmpty { chiSoTheoKhoaCoBan[khoaCoBanMoi] = viTri }
-                if !khoaCoBanHienThiMoi.isEmpty { chiSoTheoKhoaCoBan[khoaCoBanHienThiMoi] = viTri }
-                if !khoaLienMachGocMoi.isEmpty { chiSoTheoKhoaLM[khoaLienMachGocMoi] = viTri }
-                if !khoaLienMachHTMoi.isEmpty { chiSoTheoKhoaLM[khoaLienMachHTMoi] = viTri }
             } else {
-                let viTriMoi = ketQua.count
                 ketQua.append(dongMoi)
-                if !khoaCoBanMoi.isEmpty { chiSoTheoKhoaCoBan[khoaCoBanMoi] = viTriMoi }
-                if !khoaCoBanHienThiMoi.isEmpty { chiSoTheoKhoaCoBan[khoaCoBanHienThiMoi] = viTriMoi }
-                if !khoaLienMachGocMoi.isEmpty { chiSoTheoKhoaLM[khoaLienMachGocMoi] = viTriMoi }
-                if !khoaLienMachHTMoi.isEmpty { chiSoTheoKhoaLM[khoaLienMachHTMoi] = viTriMoi }
             }
         }
         return ketQua

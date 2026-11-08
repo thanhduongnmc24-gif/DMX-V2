@@ -1043,7 +1043,6 @@ final class DichVuDocAnh {
         if coHTDuKien || coHangVung || (coChuongTrinh && (coHTDuKien || coHangVung)) {
             return true
         }
-        // Kiểm tra nếu có từ 3 dòng trở lên có đồng thời số % ở cột 4 (0.64..0.76) và số % ở cột 5 (0.76..0.89)
         let cacPT4 = phanTu.filter { $0.x >= 0.63 && $0.x < 0.76 && $0.chu.contains("%") }
         let cacPT5 = phanTu.filter { $0.x >= 0.76 && $0.x < 0.89 && $0.chu.contains("%") }
         if cacPT4.count >= 3 && cacPT5.count >= 3 {
@@ -1143,9 +1142,29 @@ final class DichVuDocAnh {
                     .filter { !$0.isEmpty }
 
                 if cacDong.count > 1 {
+                    // Khi Apple Vision gộp 2 dòng dọc liên tiếp vào 1 observation: chia chính xác toạ độ Y cho từng dòng độc lập;
+                    // TUYỆT ĐỐI KHÔNG gọi trichXuatCacPhanTuTokenSo trên boxGoc đa dòng vì sẽ tạo phần tử ở trung điểm 2 dòng làm dính dòng!
                     let caoM = box.size.height / CGFloat(cacDong.count)
                     for (i, d) in cacDong.enumerated() {
-                        ketQua.append(PhanTuVanBan(chu: d, x: box.origin.x, y: yTrenXuong + CGFloat(i) * caoM, rong: box.size.width, cao: caoM))
+                        let yDong = yTrenXuong + CGFloat(i) * caoM
+                        ketQua.append(PhanTuVanBan(chu: d, x: box.origin.x, y: yDong, rong: box.size.width, cao: caoM))
+                        if box.origin.x >= 0.30 && box.size.width > 0.12 {
+                            let tokens = d.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                            if tokens.count >= 2 {
+                                let buocX = box.size.width / CGFloat(tokens.count)
+                                for (idxT, tk) in tokens.enumerated() {
+                                    ketQua.append(
+                                        PhanTuVanBan(
+                                            chu: tk,
+                                            x: box.origin.x + CGFloat(idxT) * buocX,
+                                            y: yDong,
+                                            rong: buocX,
+                                            cao: caoM
+                                        )
+                                    )
+                                }
+                            }
+                        }
                     }
                 } else {
                     let cacCumTach = self.tachPhanTuTheoKhoangTrongNgang(tu: ungVien, boxGoc: box)
@@ -1154,12 +1173,11 @@ final class DichVuDocAnh {
                     } else {
                         ketQua.append(PhanTuVanBan(chu: chu, x: box.origin.x, y: yTrenXuong, rong: box.size.width, cao: box.size.height))
                     }
-                }
-
-                if box.size.width > 0.14 {
-                    let tokens = self.trichXuatCacPhanTuTokenSo(tu: ungVien, boxGoc: box)
-                    for tk in tokens where tk.x >= 0.30 {
-                        ketQua.append(tk)
+                    if box.size.width > 0.14 && box.size.height <= 0.025 {
+                        let tokens = self.trichXuatCacPhanTuTokenSo(tu: ungVien, boxGoc: box)
+                        for tk in tokens where tk.x >= 0.30 {
+                            ketQua.append(tk)
+                        }
                     }
                 }
             }
@@ -1235,7 +1253,7 @@ final class DichVuDocAnh {
         }
 
         var cacCum: [[Int]] = []
-        let khoangGop = max(4, h / 160)
+        let khoangGop = max(3, h / 220)
         for y in yStart..<h where isGrey[y] {
             if let cuoi = cacCum.last?.last, y - cuoi <= khoangGop {
                 cacCum[cacCum.count - 1].append(y)
@@ -1248,7 +1266,7 @@ final class DichVuDocAnh {
         for cum in cacCum {
             guard let yTop = cum.first, let yBot = cum.last else { continue }
             let spanNorm = CGFloat(yBot - yTop + 1) / CGFloat(h)
-            if spanNorm <= 0.018 {
+            if spanNorm <= 0.016 {
                 let tbY = Double(cum.reduce(0, +)) / Double(cum.count)
                 cacMoc.append(CGFloat(tbY) / CGFloat(h))
             }
@@ -1267,9 +1285,26 @@ final class DichVuDocAnh {
 
         // Quét bổ sung trên ảnh đã tẩy sạch watermark và ngôi sao vàng ⭐
         let boSung: [PhanTuVanBan] = (anh != nil) ? quetBoSungBangThiDua6CotTuAnhGoc(anh: anh!) : []
-        let nguonSo: [PhanTuVanBan] = (boSung.count >= 10) ? boSung : phanTu
-        let nguonTen: [PhanTuVanBan] = (boSung.count >= 10) ? boSung : (phanTu + boSung)
-        let nguonHeader: [PhanTuVanBan] = phanTu + boSung
+
+        // Mở rộng phanTu gốc theo từng dòng (không lấy các token đa dòng bị lệch Y)
+        var phanTuGocDonDong: [PhanTuVanBan] = []
+        for pt in phanTu {
+            let cacDong = pt.chu.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if cacDong.count > 1 {
+                let caoM = pt.cao / CGFloat(cacDong.count)
+                for (i, d) in cacDong.enumerated() {
+                    phanTuGocDonDong.append(PhanTuVanBan(chu: d, x: pt.x, y: pt.y + CGFloat(i) * caoM, rong: pt.rong, cao: caoM))
+                }
+            } else if pt.cao <= 0.028 {
+                phanTuGocDonDong.append(pt)
+            }
+        }
+
+        let nguonSo: [PhanTuVanBan] = (boSung.count >= 10) ? boSung : phanTuGocDonDong
+        let nguonTen: [PhanTuVanBan] = (boSung.count >= 10) ? boSung : (phanTuGocDonDong + boSung)
+        let nguonHeader: [PhanTuVanBan] = phanTuGocDonDong + boSung
 
         var maWM = watermark
         if maWM == nil {
@@ -1287,7 +1322,7 @@ final class DichVuDocAnh {
         }
 
         // 1. Tìm dòng Header của bảng 6 cột (CHƯƠNG TRÌNH | THỰC HIỆN | TARGET | % HT | % HT DỰ KIẾN | HẠNG VÙNG)
-        let vungHeader = nguonHeader.filter { $0.y < 0.16 }
+        let vungHeader = nguonHeader.filter { $0.y < 0.12 }
         let cacPTHeader = vungHeader.filter { pt in
             let u = boDau(pt.chu)
             return u.contains("CHUONG TRINH") || u.contains("THUC HIEN") || u.contains("TARGET") ||
@@ -1297,7 +1332,7 @@ final class DichVuDocAnh {
 
         var ySauHeader: CGFloat = cacPTHeader.map { $0.y + $0.cao }.max() ?? 0.008
         if !cacPTHeader.isEmpty {
-            ySauHeader = min(0.082, max(0.042, ySauHeader + 0.002))
+            ySauHeader = min(0.072, max(0.042, ySauHeader + 0.002))
         }
 
         // Ranh giới X chuẩn xác của 6 cột:
@@ -1323,7 +1358,6 @@ final class DichVuDocAnh {
             kq = kq.replacingOccurrences(of: "(?i)nguyễn\\s*thanh", with: " ", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(?i)dung\\s*nguyen(\\s*thanh)?", with: " ", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(?i)nguyen\\s*thanh", with: " ", options: .regularExpression)
-            // Chuẩn hoá khoảng trắng bị tách sau dấu phẩy hàng nghìn (ví dụ "1, 159.51" -> "1,159.51")
             kq = kq.replacingOccurrences(of: "(\\d),\\s+(\\d{3}\\b)", with: "$1,$2", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(\\d)\\.\\s+(\\d{2}\\b)", with: "$1.$2", options: .regularExpression)
             return kq.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1345,22 +1379,29 @@ final class DichVuDocAnh {
             }
         }
 
-        // 2. Gom cụm toạ độ Y tâm của từng dòng dựa trên các con số ở Cột 2..5 (THỰC HIỆN, TARGET, % HT, % HT DỰ KIẾN)
+        // 2. Gom cụm toạ độ Y tâm của từng dòng dựa trên các con số đơn dòng ở Cột 2..5 (THỰC HIỆN, TARGET, % HT, % HT DỰ KIẾN)
+        // Dùng ngưỡng gom cụm chặt (0.011) để 2 dòng 1-hàng liên tiếp (cách nhau ~0.027 như Nạp rút & Điện thoại Realme, Quạt gió & Sim, Tai nghe & Loa Phụ Kiện) KHÔNG BAO GIỜ bị gộp dính vào nhau!
         var cacYSo: [CGFloat] = []
         for pt in nguonSo {
+            guard pt.cao <= 0.024 else { continue }
             let yTam = pt.y + pt.cao / 2.0
             guard yTam > ySauHeader + 0.002 && yTam < 0.994 else { continue }
             let xTam = pt.x + min(pt.rong, 0.16) / 2.0
             guard xTam >= xRanhGioiTenVaTH && xTam < xRanhGioiDuKienVaHangVung else { continue }
-            if !trichSoHopLe(pt.chu).isEmpty {
-                cacYSo.append(yTam)
+            let cacSo = trichSoHopLe(pt.chu)
+            if !cacSo.isEmpty {
+                for _ in 0..<min(2, cacSo.count) {
+                    cacYSo.append(yTam)
+                }
             }
         }
         cacYSo.sort()
 
         var cacCumHang: [(yTB: CGFloat, cacY: [CGFloat])] = []
         for y in cacYSo {
-            if let idx = cacCumHang.indices.last, abs(y - cacCumHang[idx].yTB) < 0.020 {
+            if let idx = cacCumHang.indices.last,
+               abs(y - cacCumHang[idx].yTB) < 0.011,
+               abs(y - cacCumHang[idx].cacY[0]) < 0.013 {
                 cacCumHang[idx].cacY.append(y)
                 cacCumHang[idx].yTB = cacCumHang[idx].cacY.reduce(0, +) / CGFloat(cacCumHang[idx].cacY.count)
             } else {
@@ -1368,7 +1409,6 @@ final class DichVuDocAnh {
             }
         }
 
-        // Mỗi dòng hợp lệ của bảng 6 cột có ít nhất 2 cột số trên cùng 1 hàng ngang
         let cacHangY = cacCumHang.filter { $0.cacY.count >= 2 }.map(\.yTB)
         guard cacHangY.count >= 2 else { return [] }
 
@@ -1376,42 +1416,50 @@ final class DichVuDocAnh {
         var danhSachKetQua: [DongThiDua] = []
 
         for (k, yHang) in cacHangY.enumerated() {
+            // Khoảng cách tới tâm dòng số liền trên và liền dưới
+            let kcTren: CGFloat = (k == 0) ? max(0.016, yHang - ySauHeader) : (yHang - cacHangY[k - 1])
+            let kcDuoi: CGFloat = (k + 1 < cacHangY.count) ? (cacHangY[k + 1] - yHang) : max(0.020, 0.994 - yHang)
+
+            // Vì trong bảng HTML/CSS, chữ số ở cột 2..5 luôn căn giữa theo chiều dọc (vertical-align: middle) của mỗi dòng,
+            // nửa chiều cao thực của dòng k đối xứng qua yHang và không vượt quá min(kcTren, kcDuoi) * 0.58;
+            // nhờ đó dòng 1-hàng (như Loa Phụ Kiện, Sim, Điện thoại Realme, Sạc dự phòng) nằm sát dòng 2-3 hàng KHÔNG BAO GIỜ lấn sang lấy tên của dòng kế tiếp!
+            let nuaCaoDoiXung = min(max(0.013, min(kcTren, kcDuoi) * 0.56), 0.042)
+
             let yTren: CGFloat
             if k == 0 {
-                yTren = max(ySauHeader, yHang - 0.028)
+                yTren = max(ySauHeader, yHang - min(0.026, nuaCaoDoiXung + 0.004))
             } else {
                 let yTruoc = cacHangY[k - 1]
-                if let keGiua = duongKeNgang.first(where: { $0 > yTruoc + 0.008 && $0 < yHang - 0.008 }) {
-                    yTren = keGiua
+                if let keGiua = duongKeNgang.last(where: { $0 > yTruoc + 0.007 && $0 < yHang - 0.007 }) {
+                    yTren = max(yHang - nuaCaoDoiXung - 0.005, keGiua)
                 } else {
-                    yTren = (yTruoc + yHang) / 2.0
+                    yTren = max((yTruoc + yHang) / 2.0, yHang - nuaCaoDoiXung)
                 }
             }
 
             let yDuoi: CGFloat
             if k + 1 < cacHangY.count {
                 let yKe = cacHangY[k + 1]
-                if let keGiua = duongKeNgang.first(where: { $0 > yHang + 0.008 && $0 < yKe - 0.008 }) {
-                    yDuoi = keGiua
+                if let keGiua = duongKeNgang.first(where: { $0 > yHang + 0.007 && $0 < yKe - 0.007 }) {
+                    yDuoi = min(yHang + nuaCaoDoiXung + 0.005, keGiua)
                 } else {
-                    yDuoi = (yHang + yKe) / 2.0
+                    yDuoi = min((yHang + yKe) / 2.0, yHang + nuaCaoDoiXung)
                 }
             } else {
                 if let keCuoi = duongKeNgang.last(where: { $0 > yHang + 0.008 }) {
                     yDuoi = min(0.998, keCuoi)
                 } else {
-                    yDuoi = min(0.996, yHang + 0.032)
+                    yDuoi = min(0.996, yHang + min(0.036, nuaCaoDoiXung + 0.008))
                 }
             }
 
             // A. Đọc số liệu ở Cột 2 (THỰC HIỆN), Cột 3 (TARGET), Cột 4 (% HT), Cột 5 (% HT DỰ KIẾN)
-            // Các con số trong cùng 1 hàng luôn nằm trên cùng 1 đường ngang yHang (±0.018)
+            // Chỉ lấy phần tử số nằm đúng trên đường ngang yHang (±0.012) của dòng k
             let phanTuSoHang = nguonSo.filter { pt in
                 let yTam = pt.y + pt.cao / 2.0
                 let xTam = pt.x + min(pt.rong, 0.16) / 2.0
-                return abs(yTam - yHang) <= 0.018 && xTam >= xRanhGioiTenVaTH && xTam < xRanhGioiDuKienVaHangVung
+                return abs(yTam - yHang) <= 0.012 && xTam >= xRanhGioiTenVaTH && xTam < xRanhGioiDuKienVaHangVung
             }.sorted {
-                // Ưu tiên số nằm sát lề phải của từng cột
                 ($0.x + min($0.rong, 0.14)) > ($1.x + min($1.rong, 0.14))
             }
 
@@ -1446,7 +1494,6 @@ final class DichVuDocAnh {
                 }
             }
 
-            // Nếu 1 box gộp cả THỰC HIỆN và TARGET trên cùng dòng
             if thucHien == nil || target == nil {
                 for pt in phanTuSoHang.sorted(by: { $0.x < $1.x }) {
                     let chuSach = lamSachChuoi(pt.chu)
@@ -1464,10 +1511,10 @@ final class DichVuDocAnh {
                 continue
             }
 
-            // B. Xác định ĐVT (DT hay SL) từ huy hiệu DT/SL ở Cột 1 và định dạng số thập phân (.XX)
+            // B. Xác định ĐVT (DT hay SL) và ghép tên Chương trình ở Cột 1
             let trongHangTen = nguonTen.filter { pt in
                 let yTam = pt.y + pt.cao / 2.0
-                return pt.x < (xRanhGioiTenVaTH + 0.015) && yTam >= (yTren - 0.002) && yTam <= (yDuoi + 0.002)
+                return pt.x < (xRanhGioiTenVaTH + 0.015) && yTam >= (yTren - 0.001) && yTam <= (yDuoi + 0.001)
             }
 
             var coBadgeSL = false
@@ -1495,7 +1542,6 @@ final class DichVuDocAnh {
                 loai = .doanhThu
             }
 
-            // C. Ghép tên Chương trình thi đua ở Cột 1 (x < xRanhGioiTenVaTH)
             let phanTuTen = trongHangTen.filter { pt in
                 guard pt.x >= 0.055 && pt.x < xRanhGioiTenVaTH else { return false }
                 let chuSach = lamSachChuoi(pt.chu)
@@ -1516,35 +1562,49 @@ final class DichVuDocAnh {
             }.sorted {
                 let y1 = $0.y + $0.cao / 2.0
                 let y2 = $1.y + $1.cao / 2.0
-                if abs(y1 - y2) < 0.011 { return $0.x < $1.x }
+                if abs(y1 - y2) < 0.009 { return $0.x < $1.x }
                 return y1 < y2
             }
 
             var cacDongTen: [(yTam: CGFloat, tu: [PhanTuVanBan])] = []
             for pt in phanTuTen {
                 let yTam = pt.y + pt.cao / 2.0
-                if let idx = cacDongTen.indices.last, abs(yTam - cacDongTen[idx].yTam) < 0.012 {
+                if let idx = cacDongTen.indices.last, abs(yTam - cacDongTen[idx].yTam) < 0.010 {
                     cacDongTen[idx].tu.append(pt)
                 } else {
                     cacDongTen.append((yTam: yTam, tu: [pt]))
                 }
             }
 
-            let cacChuoiDong: [String] = cacDongTen.compactMap { dong -> String? in
+            // Trong bảng 6 cột, mỗi môn kết thúc ngay tại dòng chứa huy hiệu DT / SL của môn đó;
+            // nếu dòng trên cùng ở yTam < yHang - 0.005 đã kết thúc bằng DT/SL thì đó là đuôi của môn phía trên -> bỏ qua;
+            // nếu một dòng ở yTam >= yHang - 0.004 kết thúc bằng DT/SL thì dừng ngay sau dòng đó, không lấy lấn xuống môn phía dưới!
+            var cacChuoiDong: [String] = []
+            for dong in cacDongTen {
                 let gop = dong.tu.sorted { $0.x < $1.x }.map { lamSachChuoi($0.chu) }.joined(separator: " ")
+                let coBadgeCuoiDong = gop.range(of: "\\s+\\b(DT|SL|5L|0T|OT|SI)\\b\\s*$", options: [.regularExpression, .caseInsensitive]) != nil
+                if dong.yTam < yHang - 0.006 && coBadgeCuoiDong {
+                    cacChuoiDong.removeAll()
+                    continue
+                }
                 let sach = gop
                     .replacingOccurrences(of: "^[+⊕⊞★☆⭐\\s]+", with: "", options: .regularExpression)
                     .replacingOccurrences(of: "\\s+\\b(DT|SL|5L|0T|OT|SI)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                return sach.isEmpty ? nil : sach
+                if !sach.isEmpty {
+                    cacChuoiDong.append(sach)
+                }
+                if dong.yTam >= yHang - 0.005 && coBadgeCuoiDong && !cacChuoiDong.isEmpty {
+                    break
+                }
             }
 
             let chuoiTenGop = cacChuoiDong.joined(separator: " ")
             let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(chuoiTenGop)
             guard tenSach.count >= 2, !laTenTheDoanhThuKhongPhaiThiDua(tenSach) else { continue }
 
-            // Nếu dòng đầu tiên ngay sát dưới Header bị cắt mất nửa chữ (yHang - ySauHeader < 0.017) và tên không khớp danh mục chuẩn ĐMX thì bỏ qua để không sinh dòng rác
-            if k == 0 && (yHang - ySauHeader) < 0.017 && !KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) {
+            // Bỏ qua dòng đầu tiên nếu bị thanh tiêu đề che khuất một nửa (yHang - ySauHeader < 0.015)
+            if k == 0 && (yHang - ySauHeader) < 0.015 {
                 continue
             }
 
@@ -1594,7 +1654,6 @@ final class DichVuDocAnh {
                 phanTramDuBaoGoc: phanTramDuKien ?? phanTramHT,
                 duKienGoc: duKienTinh
             )
-            // Lọc trùng ngay khi thêm từng môn: môn nào trùng chỉ giữ 1 môn duy nhất
             danhSachKetQua = KhoDuLieu.gopDanhSachThiDua(cu: danhSachKetQua, moi: [dong])
         }
 
