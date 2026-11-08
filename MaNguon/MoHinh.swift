@@ -1250,7 +1250,9 @@ struct CaiDatDMX: Codable {
         monThiDuaTheoDoiRealtime = (try? c.decode([String].self, forKey: .monThiDuaTheoDoiRealtime)) ?? []
         let rawKey = (try? c.decode(String.self, forKey: .geminiApiKey))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let luuKeyUD = UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !rawKey.isEmpty && rawKey != Self.geminiKeyMacDinh {
+        if !luuKeyUD.isEmpty && luuKeyUD != Self.geminiKeyMacDinh {
+            geminiApiKey = luuKeyUD
+        } else if !rawKey.isEmpty && rawKey != Self.geminiKeyMacDinh {
             geminiApiKey = rawKey
         } else if !luuKeyUD.isEmpty {
             geminiApiKey = luuKeyUD
@@ -2160,9 +2162,10 @@ final class KhoDuLieu {
                 moi.phuongPhapQuetThiDua = luuPP
             }
             if let luuKey = UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey")?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !luuKey.isEmpty,
-               (moi.geminiApiKey.isEmpty || moi.geminiApiKey == CaiDatDMX.geminiKeyMacDinh) {
-                moi.geminiApiKey = luuKey
+               !luuKey.isEmpty {
+                if luuKey != CaiDatDMX.geminiKeyMacDinh || moi.geminiApiKey.isEmpty {
+                    moi.geminiApiKey = luuKey
+                }
             }
             caiDat = moi
         }
@@ -2627,7 +2630,7 @@ final class KhoDuLieu {
         "Máy lọc KK - Hút bụi - Hút ẩm",
         "Máy lọc nước",
         "Máy sấy / Máy rửa chén",
-        "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO",
+        "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO",
         "Phụ kiện công nghệ",
         "Phụ kiện khác IT & Nhóm khác",
         "Tivi TCL",
@@ -2669,6 +2672,12 @@ final class KhoDuLieu {
         // Ánh xạ tương thích cả bản rút gọn không có MCREDIT sang cùng 1 tên chuẩn
         map["TRACHAMFECREDITSAMSUNGFSHINHAN"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
         map["TRACHAMFECREDITSAMSUNGFSHINHANMCREDIT"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
+        map["MOTHETINDUNGVPBANKMWGVATPBAKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
+        map["MOTHETINDUNGVPBANKMWGVATPBANKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
+        map["MOTHETINDUNGVPBANKMWG"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
+        map["MOTHETINDUNGVPBANK"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
+        map["MWGVATPBAKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
+        map["MWGVATPBANKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
         map["BAOHIEMTHOICT"] = "Bảo hiểm Thợ ICT"
         map["BAOHIEMTHODMX"] = "Bảo hiểm Thợ ĐMX"
         map["VITRASAU"] = "Ví trả sau"
@@ -2755,7 +2764,18 @@ final class KhoDuLieu {
         }
         boHauTo = boHauTo.replacingOccurrences(of: "\\s+\\b(?:11|I1|1I|T11)\\b\\s*$", with: "", options: .regularExpression)
         var ketQua = boHauTo.replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression)
-        if ketQua == "TRACHAMFECREDITSAMSUNGFSHINHAN" {
+        if (ketQua.contains("MOTHETINDUNG") || ketQua.contains("THETINDUNG") || ketQua.contains("MOTHE")) &&
+           (ketQua.contains("VPBANK") || ketQua.contains("VP8ANK") || ketQua.contains("TPBAK") || ketQua.contains("TPBANK") || ketQua.contains("MWG") || ketQua.contains("EVO") || ketQua.contains("EV0")) {
+            ketQua = "MOTHETINDUNGVPBANKMWGVATPBAKEVO"
+        } else if (ketQua.contains("VPBANK") || ketQua.contains("VP8ANK")) &&
+                  (ketQua.contains("MWG") || ketQua.contains("TPBAK") || ketQua.contains("TPBANK") || ketQua.contains("EVO") || ketQua.contains("EV0") || ketQua.contains("TINDUNG")) {
+            ketQua = "MOTHETINDUNGVPBANKMWGVATPBAKEVO"
+        } else if (ketQua.contains("TPBAK") || ketQua.contains("TPBANK")) &&
+                  (ketQua.contains("MWG") || ketQua.contains("EVO") || ketQua.contains("EV0") || ketQua.contains("TINDUNG") || ketQua.contains("MOTHE")) {
+            ketQua = "MOTHETINDUNGVPBANKMWGVATPBAKEVO"
+        } else if ketQua == "MOTHETINDUNGVPBANKMWGVATPBANKEVO" {
+            ketQua = "MOTHETINDUNGVPBANKMWGVATPBAKEVO"
+        } else if ketQua == "TRACHAMFECREDITSAMSUNGFSHINHAN" {
             ketQua = "TRACHAMFECREDITSAMSUNGFSHINHANMCREDIT"
         } else if ketQua == "DIENTUY" || ketQua == "DIENTU0T" || ketQua == "DIENTUOT" {
             ketQua = "DIENTU"
@@ -2959,7 +2979,13 @@ final class KhoDuLieu {
     static func laTenDongNhanVienBiQuetNham(_ ten: String) -> Bool {
         let s = ten.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !s.isEmpty else { return true }
+        if laTenMonThiDuaChuanDMX(s) {
+            return false
+        }
         let u = chuanHoaKhoaSoSanh(s)
+        if u.contains("MO THE") || u.contains("TIN DUNG") || u.contains("VPBANK") || u.contains("TPBAK") || u.contains("TPBANK") {
+            return false
+        }
         if u.range(of: "\\b(?:ID|LD|1D)\\b", options: .regularExpression) != nil {
             return true
         }

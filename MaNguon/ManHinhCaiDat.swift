@@ -17,6 +17,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     // Cấu hình Gemini Flash API Key cho Phương pháp 3
     private let nhanTrangThaiGeminiKey = UILabel()
     private let oNhapGeminiKey = UITextField()
+    private let nutLuuGeminiKey = UIButton(type: .system)
     private let nutDungKeyCoSan = UIButton(type: .system)
     private let nutKiemTraGeminiKey = UIButton(type: .system)
 
@@ -53,6 +54,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         chonPhuongPhapQuetThiDua.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
         chonKieuHienThi.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
         chonSoCotXuat.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
+        oNhapGeminiKey.addTarget(self, action: #selector(dangGoGeminiKey), for: .editingChanged)
         oNhapGeminiKey.addTarget(self, action: #selector(thayDoiGeminiKey), for: .editingDidEnd)
 
         let nutLuu = UIBarButtonItem(
@@ -75,15 +77,25 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         capNhatThongBaoHeThong()
     }
 
-    private func capNhatHienThiGeminiKey(tu cd: CaiDatDMX) {
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        dongBoTamCaiDat()
+        khiThayDoiCaiDat?()
+    }
+
+    private func capNhatHienThiGeminiKey(tu cd: CaiDatDMX, giuNguyenONhap: Bool = false) {
         let keyLuu = cd.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if keyLuu.isEmpty || keyLuu == CaiDatDMX.geminiKeyMacDinh {
-            oNhapGeminiKey.text = ""
+            if !giuNguyenONhap && !oNhapGeminiKey.isFirstResponder {
+                oNhapGeminiKey.text = ""
+            }
             let duoi = String(CaiDatDMX.geminiKeyMacDinh.suffix(6))
             nhanTrangThaiGeminiKey.text = "🔑 Đang dùng: Key Gemini Flash tích hợp sẵn trong app (...\(duoi))"
             nhanTrangThaiGeminiKey.textColor = BangMauBCTD.xanhLaDam
         } else {
-            oNhapGeminiKey.text = keyLuu
+            if !giuNguyenONhap && !oNhapGeminiKey.isFirstResponder {
+                oNhapGeminiKey.text = keyLuu
+            }
             let duoi = String(keyLuu.suffix(6))
             nhanTrangThaiGeminiKey.text = "🔑 Đang dùng: Key Gemini Flash nhập mới tại Cài đặt (...\(duoi))"
             nhanTrangThaiGeminiKey.textColor = BangMauBCTD.xanhChuDaoDam
@@ -101,10 +113,36 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         khiThayDoiCaiDat?()
     }
 
+    @objc private func dangGoGeminiKey() {
+        dongBoTamCaiDat()
+        capNhatHienThiGeminiKey(tu: KhoDuLieu.dungChung.caiDat, giuNguyenONhap: true)
+    }
+
     @objc private func thayDoiGeminiKey() {
         dongBoTamCaiDat()
         capNhatHienThiGeminiKey(tu: KhoDuLieu.dungChung.caiDat)
         khiThayDoiCaiDat?()
+    }
+
+    @objc private func bamLuuGeminiKey() {
+        oNhapGeminiKey.resignFirstResponder()
+        dongBoTamCaiDat()
+        let cd = KhoDuLieu.dungChung.caiDat
+        capNhatHienThiGeminiKey(tu: cd)
+        khiThayDoiCaiDat?()
+        let keyHieuLuc = cd.geminiApiKeyHieuLuc
+        let duoi = String(keyHieuLuc.suffix(6))
+        if keyHieuLuc == CaiDatDMX.geminiKeyMacDinh {
+            hienThongBao(
+                tieuDe: "✅ Đã lưu cài đặt Key",
+                noiDung: "Đang sử dụng API Key Gemini Flash tích hợp sẵn trong ứng dụng (...\(duoi))."
+            )
+        } else {
+            hienThongBao(
+                tieuDe: "✅ Đã lưu API Key mới",
+                noiDung: "Đã lưu API Key Gemini Flash mới (...\(duoi)) cho Phương pháp 3."
+            )
+        }
     }
 
     @objc private func bamDungKeyCoSan() {
@@ -281,12 +319,20 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         oNhapGeminiKey.returnKeyType = .done
         oNhapGeminiKey.delegate = self
 
-        nutDungKeyCoSan.setTitle("🔄 Dùng Key có sẵn trong app", for: .normal)
+        nutLuuGeminiKey.setTitle("💾 Lưu Key", for: .normal)
+        nutLuuGeminiKey.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        nutLuuGeminiKey.backgroundColor = BangMauBCTD.xanhLaDam
+        nutLuuGeminiKey.setTitleColor(.white, for: .normal)
+        nutLuuGeminiKey.layer.cornerRadius = 8
+        nutLuuGeminiKey.contentEdgeInsets = UIEdgeInsets(top: 7, left: 8, bottom: 7, right: 8)
+        nutLuuGeminiKey.addTarget(self, action: #selector(bamLuuGeminiKey), for: .touchUpInside)
+
+        nutDungKeyCoSan.setTitle("🔄 Key có sẵn", for: .normal)
         nutDungKeyCoSan.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
         nutDungKeyCoSan.backgroundColor = BangMauBCTD.nenHeaderPhu
         nutDungKeyCoSan.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
         nutDungKeyCoSan.layer.cornerRadius = 8
-        nutDungKeyCoSan.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+        nutDungKeyCoSan.contentEdgeInsets = UIEdgeInsets(top: 7, left: 8, bottom: 7, right: 8)
         nutDungKeyCoSan.addTarget(self, action: #selector(bamDungKeyCoSan), for: .touchUpInside)
 
         nutKiemTraGeminiKey.setTitle("⚡ Kiểm tra Key", for: .normal)
@@ -294,12 +340,12 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nutKiemTraGeminiKey.backgroundColor = BangMauBCTD.xanhChuDao
         nutKiemTraGeminiKey.setTitleColor(.white, for: .normal)
         nutKiemTraGeminiKey.layer.cornerRadius = 8
-        nutKiemTraGeminiKey.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+        nutKiemTraGeminiKey.contentEdgeInsets = UIEdgeInsets(top: 7, left: 8, bottom: 7, right: 8)
         nutKiemTraGeminiKey.addTarget(self, action: #selector(bamKiemTraGeminiKey), for: .touchUpInside)
 
-        let hangNutGemini = UIStackView(arrangedSubviews: [nutDungKeyCoSan, nutKiemTraGeminiKey])
+        let hangNutGemini = UIStackView(arrangedSubviews: [nutLuuGeminiKey, nutDungKeyCoSan, nutKiemTraGeminiKey])
         hangNutGemini.axis = .horizontal
-        hangNutGemini.spacing = 8
+        hangNutGemini.spacing = 6
         hangNutGemini.distribution = .fillProportionally
 
         let nganGemini = UIStackView(arrangedSubviews: [
