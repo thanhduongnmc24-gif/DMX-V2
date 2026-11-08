@@ -6,6 +6,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     private let nhanHopThuThongBao = UILabel()
     private let nutDongBoNgay = UIButton(type: .system)
 
+    private let chonPhuongPhapQuetThiDua = UISegmentedControl(items: ["Phương pháp 1 (Thẻ/T11)", "Phương pháp 2 (Bảng 6 cột)"])
     private let chonKieuHienThi = UISegmentedControl(items: ["Bảng 8 cột (Chi tiết)", "Thẻ tiến độ (Gọn)"])
     private let chonSoCotXuat = UISegmentedControl(items: ["1 cột", "2 cột", "3 cột", "4 cột"])
     private let oNhapCumTu = UITextField()
@@ -21,6 +22,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         self.ngay = ngayMoi
         guard isViewLoaded else { return }
         let cd = KhoDuLieu.dungChung.caiDat
+        chonPhuongPhapQuetThiDua.selectedSegmentIndex = cd.phuongPhapQuetThiDua.rawValue
         chonKieuHienThi.selectedSegmentIndex = cd.kieuHienThi.rawValue
         danhSachCumTu = cd.danhSachCumTuLocBo
         chonSoCotXuat.selectedSegmentIndex = max(0, min(3, cd.soCotXuatAnh - 1))
@@ -36,6 +38,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         super.viewDidLoad()
         title = "Cài đặt"
         view.backgroundColor = BangMauBCTD.nenTrang
+        chonPhuongPhapQuetThiDua.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
         chonKieuHienThi.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
         chonSoCotXuat.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
 
@@ -48,6 +51,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         navigationItem.rightBarButtonItem = nutLuu
 
         let cd = KhoDuLieu.dungChung.caiDat
+        chonPhuongPhapQuetThiDua.selectedSegmentIndex = cd.phuongPhapQuetThiDua.rawValue
         chonKieuHienThi.selectedSegmentIndex = cd.kieuHienThi.rawValue
         danhSachCumTu = cd.danhSachCumTuLocBo
         let chiSoCot = max(0, min(3, cd.soCotXuatAnh - 1))
@@ -87,10 +91,12 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             oNhapCumTu.text = ""
         }
 
+        let phuongPhap = PhuongPhapQuetThiDua(rawValue: chonPhuongPhapQuetThiDua.selectedSegmentIndex) ?? .phuongPhap1
         let kieu = KieuHienThiBaoCao(rawValue: chonKieuHienThi.selectedSegmentIndex) ?? .bangChiTiet
         let soCot = chonSoCotXuat.selectedSegmentIndex + 1
 
         var moi = KhoDuLieu.dungChung.caiDat
+        moi.phuongPhapQuetThiDua = phuongPhap
         moi.kieuHienThi = kieu
         moi.danhSachCumTuLocBo = danhSachCumTu
         moi.soCotXuatAnh = soCot
@@ -157,6 +163,22 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nhanMoTaKieu.lineBreakMode = .byWordWrapping
         nhanMoTaKieu.adjustsFontSizeToFitWidth = false
 
+        let nhanMoTaPhuongPhapQuet = UILabel()
+        nhanMoTaPhuongPhapQuet.text = "Phương pháp quét ảnh môn thi đua (tự động lọc môn trùng chỉ hiện 1):"
+        nhanMoTaPhuongPhapQuet.font = .systemFont(ofSize: 13, weight: .semibold)
+        nhanMoTaPhuongPhapQuet.textColor = BangMauBCTD.chuChinh
+        nhanMoTaPhuongPhapQuet.numberOfLines = 0
+        nhanMoTaPhuongPhapQuet.lineBreakMode = .byWordWrapping
+        nhanMoTaPhuongPhapQuet.adjustsFontSizeToFitWidth = false
+
+        let nhanGhiChuPhuongPhapQuet = UILabel()
+        nhanGhiChuPhuongPhapQuet.text = "• Phương pháp 1: Ảnh lưới thẻ 2 cột hoặc bảng 4 cột có tiền tố T11.\n• Phương pháp 2: Ảnh bảng 6 cột (Chương trình | Thực hiện | Target | % HT | % HT Dự kiến | Hạng vùng)."
+        nhanGhiChuPhuongPhapQuet.font = .systemFont(ofSize: 11.5)
+        nhanGhiChuPhuongPhapQuet.textColor = BangMauBCTD.chuPhu
+        nhanGhiChuPhuongPhapQuet.numberOfLines = 0
+        nhanGhiChuPhuongPhapQuet.lineBreakMode = .byWordWrapping
+        nhanGhiChuPhuongPhapQuet.adjustsFontSizeToFitWidth = false
+
         let nhanMoTaCot = UILabel()
         nhanMoTaCot.text = "Số cột khi xuất ảnh (áp dụng cho mẫu Thẻ tiến độ):"
         nhanMoTaCot.font = .systemFont(ofSize: 13)
@@ -165,7 +187,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nhanMoTaCot.lineBreakMode = .byWordWrapping
         nhanMoTaCot.adjustsFontSizeToFitWidth = false
 
-        [chonKieuHienThi, chonSoCotXuat].forEach { seg in
+        [chonPhuongPhapQuetThiDua, chonKieuHienThi, chonSoCotXuat].forEach { seg in
             seg.backgroundColor = BangMauBCTD.nenThePhu
             seg.selectedSegmentTintColor = BangMauBCTD.vangSang
             seg.setTitleTextAttributes([
@@ -179,7 +201,15 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             seg.damBaoHienThiDayDuText()
         }
 
-        let nganKieu = UIStackView(arrangedSubviews: [nhanMoTaKieu, chonKieuHienThi, nhanMoTaCot, chonSoCotXuat])
+        let nganKieu = UIStackView(arrangedSubviews: [
+            nhanMoTaPhuongPhapQuet,
+            chonPhuongPhapQuetThiDua,
+            nhanGhiChuPhuongPhapQuet,
+            nhanMoTaKieu,
+            chonKieuHienThi,
+            nhanMoTaCot,
+            chonSoCotXuat
+        ])
         nganKieu.axis = .vertical
         nganKieu.spacing = 8
         nganKieu.translatesAutoresizingMaskIntoConstraints = false

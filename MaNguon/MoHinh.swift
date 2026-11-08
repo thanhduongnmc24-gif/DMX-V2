@@ -1110,12 +1110,27 @@ struct DongThiDua: Codable, Hashable, Identifiable {
     }
 }
 
+enum PhuongPhapQuetThiDua: Int, Codable, CaseIterable {
+    case phuongPhap1 = 0 // Phương pháp 1 (Mặc định: Thẻ tiến độ / Bảng 4 cột T11)
+    case phuongPhap2 = 1 // Phương pháp 2 (Bảng 6 cột: Chương trình | Thực hiện | Target | % HT | % HT Dự kiến | Hạng vùng)
+
+    var tieuDe: String {
+        switch self {
+        case .phuongPhap1:
+            return "Phương pháp 1 (Thẻ / Bảng T11)"
+        case .phuongPhap2:
+            return "Phương pháp 2 (Bảng 6 cột)"
+        }
+    }
+}
+
 struct CaiDatDMX: Codable {
     static let khoaKhongChonMonThiDua = "__KHONG_CHON_MON_NAO__"
     static let geminiKeyMacDinh = "AIzaSyBLV7N_qUxSuiJ3B3FETmj2Ta67CKeVKWo"
     static let geminiModelMacDinh = "gemini-2.5-flash"
 
     var kieuHienThi: KieuHienThiBaoCao = .bangChiTiet
+    var phuongPhapQuetThiDua: PhuongPhapQuetThiDua = .phuongPhap1
     var danhSachCumTuLocBo: [String] = []
     var soCotXuatAnh: Int = 3
     var danhSachNhanVien: [NhanVienQuanLy] = CaiDatDMX.nhanVienMau
@@ -1132,6 +1147,7 @@ struct CaiDatDMX: Codable {
 
     enum CodingKeys: String, CodingKey {
         case kieuHienThi
+        case phuongPhapQuetThiDua
         case danhSachCumTuLocBo
         case soCotXuatAnh
         case danhSachNhanVien
@@ -1168,6 +1184,7 @@ struct CaiDatDMX: Codable {
 
     init(
         kieuHienThi: KieuHienThiBaoCao = .bangChiTiet,
+        phuongPhapQuetThiDua: PhuongPhapQuetThiDua = .phuongPhap1,
         danhSachCumTuLocBo: [String] = [],
         soCotXuatAnh: Int = 3,
         danhSachNhanVien: [NhanVienQuanLy] = CaiDatDMX.nhanVienMau,
@@ -1182,6 +1199,7 @@ struct CaiDatDMX: Codable {
         dungGeminiQuetAnh: Bool = false
     ) {
         self.kieuHienThi = kieuHienThi
+        self.phuongPhapQuetThiDua = phuongPhapQuetThiDua
         self.danhSachCumTuLocBo = danhSachCumTuLocBo
         self.soCotXuatAnh = soCotXuatAnh
         var dsNV = danhSachNhanVien.isEmpty ? Self.nhanVienMau : danhSachNhanVien
@@ -1208,6 +1226,7 @@ struct CaiDatDMX: Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         kieuHienThi = (try? c.decode(KieuHienThiBaoCao.self, forKey: .kieuHienThi)) ?? .bangChiTiet
+        phuongPhapQuetThiDua = (try? c.decode(PhuongPhapQuetThiDua.self, forKey: .phuongPhapQuetThiDua)) ?? .phuongPhap1
         danhSachCumTuLocBo = (try? c.decode([String].self, forKey: .danhSachCumTuLocBo)) ?? []
         let cot = (try? c.decode(Int.self, forKey: .soCotXuatAnh)) ?? 3
         soCotXuatAnh = (cot >= 1 && cot <= 4) ? cot : 3
@@ -2577,10 +2596,13 @@ final class KhoDuLieu {
         "Máy sấy / Máy rửa chén",
         "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO",
         "Phụ kiện công nghệ",
+        "Phụ kiện khác IT & Nhóm khác",
         "Tivi TCL",
-        "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN",
+        "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT",
         "Trả chậm Homecredit",
         "Vay tiền mặt",
+        "Ví trả sau",
+        "Bảo hiểm Thợ ICT",
         "Bảo hiểm Thợ ĐMX",
         "Trả Chậm Điện máy & Gia dụng",
         "Bảo hiểm Tổng",
@@ -2596,6 +2618,7 @@ final class KhoDuLieu {
         "Nồi cơm & Nồi chiên",
         "Điện tử Samsung",
         "Sim ĐMX",
+        "Sim",
         "Điện thoại Vivo",
         "Sạc dự phòng",
         "VAS",
@@ -2610,8 +2633,21 @@ final class KhoDuLieu {
                 map[k] = ten
             }
         }
+        // Ánh xạ tương thích cả bản rút gọn không có MCREDIT sang cùng 1 tên chuẩn
+        map["TRACHAMFECREDITSAMSUNGFSHINHAN"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
+        map["TRACHAMFECREDITSAMSUNGFSHINHANMCREDIT"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
+        map["BAOHIEMTHOICT"] = "Bảo hiểm Thợ ICT"
+        map["BAOHIEMTHODMX"] = "Bảo hiểm Thợ ĐMX"
+        map["VITRASAU"] = "Ví trả sau"
+        map["PHUKIENKHACITNHOMKHAC"] = "Phụ kiện khác IT & Nhóm khác"
+        map["SIM"] = "Sim"
         return map
     }()
+
+    static func laTenMonThiDuaChuanDMX(_ ten: String) -> Bool {
+        let k = taoKhoaLienMachKhongThang(ten)
+        return bangAnhXaKhoaLienMachChuanDMX[k] != nil
+    }
 
     private static func khoangCachLevenshtein(_ a: String, _ b: String) -> Int {
         let s1 = Array(a.utf8)
@@ -2665,12 +2701,21 @@ final class KhoDuLieu {
         }
         khongDau = khongDau.replacingOccurrences(of: "^(?:T\\d{1,2}|711|111|I11|1I1|11)\\s+", with: "", options: .regularExpression)
 
-        let boHauTo = khongDau
+        var boHauTo = khongDau
             .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
             .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|SE|RI|BT)\\b\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\s+\\b(CE|ICT|1CT|LCT|LER|DV|BV|OV|0V|MDA|SDA|GD)\\b\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\s+\\b(?:11|I1|1I|T11)\\b\\s*$", with: "", options: .regularExpression)
-        let ketQua = boHauTo.replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression)
+        if !boHauTo.contains("THO ICT") && !boHauTo.contains("THO 1CT") && !boHauTo.contains("THO LCT") {
+            boHauTo = boHauTo.replacingOccurrences(of: "\\s+\\b(CE|ICT|1CT|LCT|LER|DV|BV|OV|0V|MDA|SDA|GD)\\b\\s*$", with: "", options: .regularExpression)
+        } else {
+            boHauTo = boHauTo
+                .replacingOccurrences(of: "THO 1CT", with: "THO ICT")
+                .replacingOccurrences(of: "THO LCT", with: "THO ICT")
+        }
+        boHauTo = boHauTo.replacingOccurrences(of: "\\s+\\b(?:11|I1|1I|T11)\\b\\s*$", with: "", options: .regularExpression)
+        var ketQua = boHauTo.replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression)
+        if ketQua == "TRACHAMFECREDITSAMSUNGFSHINHAN" {
+            ketQua = "TRACHAMFECREDITSAMSUNGFSHINHANMCREDIT"
+        }
 
         khoaBoNhoDemTinh.lock()
         boNhoDemKhoaLMKhongThang[ten] = ketQua
@@ -2734,11 +2779,14 @@ final class KhoDuLieu {
             }
         }
 
-        // Bỏ hậu tố đánh số (#2), đơn vị (DT/SL), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối
+        // Bỏ hậu tố đánh số (#2), đơn vị (DT/SL), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối (giữ nguyên ICT cho "Bảo hiểm Thợ ICT")
         s = s
             .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
             .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|SE|RI|BT)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
-            .replacingOccurrences(of: "\\s+\\b(CE|ICT|1CT|LCT|LER|DV|BV|OV|0V|MDA|SDA|GD)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
+        let sCheckKhongDau = s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
+        if !sCheckKhongDau.contains("THO ICT") && !sCheckKhongDau.contains("THO 1CT") && !sCheckKhongDau.contains("THO LCT") {
+            s = s.replacingOccurrences(of: "\\s+\\b(CE|ICT|1CT|LCT|LER|DV|BV|OV|0V|MDA|SDA|GD)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
+        }
             .replacingOccurrences(of: "\\s+\\b(?:11|T11)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
             .replacingOccurrences(of: "\\bCELG\\b", with: "CE LG", options: .regularExpression)
             .replacingOccurrences(of: "\\bBMX\\b", with: "ĐMX", options: .regularExpression)
@@ -2754,8 +2802,40 @@ final class KhoDuLieu {
         var tenChuan = s
         if let khopChinhXac = bangAnhXaKhoaLienMachChuanDMX[klm] {
             tenChuan = khopChinhXac
-        } else if klm == "DIENTHOAITABLET" || klm.hasPrefix("DIENTHOAITABLET") {
+        } else if klm.contains("DIENTHOAITABLET") || klm.contains("TABLETANDROID") {
             tenChuan = "ĐIỆN THOẠI & TABLET ANDROID"
+        } else if klm.contains("FECREDIT") || klm.contains("SHINHAN") || klm.contains("MCREDIT") {
+            tenChuan = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
+        } else if klm.contains("HOMECREDIT") {
+            tenChuan = "Trả chậm Homecredit"
+        } else if klm.contains("DIENMAYGIADUNG") || (klm.contains("TRACHAMDIENMAY")) {
+            tenChuan = "Trả Chậm Điện máy & Gia dụng"
+        } else if klm.contains("VPBANK") || klm.contains("TPBANK") || klm.contains("MOTHETINDUNG") {
+            tenChuan = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
+        } else if klm.contains("HUTBUI") || klm.contains("HUTAM") || klm.contains("MAYLOC") && klm.contains("KK") {
+            tenChuan = "Máy lọc KK - Hút bụi - Hút ẩm"
+        } else if klm.contains("MAYRUACHEN") || klm.contains("MAYSAY") {
+            tenChuan = "Máy sấy / Máy rửa chén"
+        } else if klm.contains("PHUKIENKHACIT") || klm.contains("NHOMKHAC") {
+            tenChuan = "Phụ kiện khác IT & Nhóm khác"
+        } else if klm.contains("THOICT") || klm.contains("THO1CT") {
+            tenChuan = "Bảo hiểm Thợ ICT"
+        } else if klm.contains("THODMX") || klm.contains("THOBMX") {
+            tenChuan = "Bảo hiểm Thợ ĐMX"
+        } else if klm.contains("BAOHIEMTONG") {
+            tenChuan = "Bảo hiểm Tổng"
+        } else if klm.contains("NANGLUONGMATTROI") {
+            tenChuan = "Đèn năng lượng mặt trời"
+        } else if klm.contains("SMARTWATCH") || klm.contains("DONGHO") {
+            tenChuan = "Đồng hồ & Smartwatch"
+        } else if klm.contains("NOICOM") || klm.contains("NOICHIEN") {
+            tenChuan = "Nồi cơm & Nồi chiên"
+        } else if klm.contains("TULANH") || klm.contains("DONGMAT") {
+            tenChuan = "Tủ Lạnh / Đông / Mát"
+        } else if klm.contains("VITRASAU") {
+            tenChuan = "Ví trả sau"
+        } else if klm.contains("VAYTIENMAT") {
+            tenChuan = "Vay tiền mặt"
         } else if klm == "SAMSUNG" || (klm.hasSuffix("SAMSUNG") && !klm.contains("FECREDIT")) {
             tenChuan = "Điện tử Samsung"
         } else if klm.count >= 6 {
@@ -2915,20 +2995,39 @@ final class KhoDuLieu {
 
             guard !khoaCoBanMoi.isEmpty || !khoaLienMachGocMoi.isEmpty else { continue }
 
-            // Tra cứu trùng 100% tên môn trong O(1) bằng Dictionary thay vì duyệt O(N^2)
-            let viTriTrungTen: Int? =
+            // Tra cứu trùng 100% tên môn trong O(1) bằng Dictionary, kèm kiểm tra trùng chữ ký số liệu (thucHien + target) khi 1 dòng ở mép ảnh bị cắt chữ
+            var viTriTrungTen: Int? =
                 (!khoaCoBanMoi.isEmpty ? chiSoTheoKhoaCoBan[khoaCoBanMoi] : nil) ??
                 (!khoaCoBanHienThiMoi.isEmpty ? chiSoTheoKhoaCoBan[khoaCoBanHienThiMoi] : nil) ??
                 (!khoaLienMachGocMoi.isEmpty ? chiSoTheoKhoaLM[khoaLienMachGocMoi] : nil) ??
                 (!khoaLienMachHTMoi.isEmpty ? chiSoTheoKhoaLM[khoaLienMachHTMoi] : nil)
 
+            if viTriTrungTen == nil && dongMoi.target > 0 {
+                let moiLaChuan = laTenMonThiDuaChuanDMX(dongMoi.tenNganhHangGoc)
+                for (idxCu, itemCu) in ketQua.enumerated() where itemCu.target > 0 && itemCu.loaiChiTieu == dongMoi.loaiChiTieu {
+                    let cungSo = abs(itemCu.thucHien - dongMoi.thucHien) < 0.005 && abs(itemCu.target - dongMoi.target) < 0.005
+                    guard cungSo else { continue }
+                    let cuLaChuan = laTenMonThiDuaChuanDMX(itemCu.tenNganhHangGoc)
+                    let kCu = chuanHoaKhoaLienMachThiDua(itemCu.tenNganhHangGoc)
+                    if kCu == khoaLienMachGocMoi ||
+                       (kCu.count >= 4 && khoaLienMachGocMoi.count >= 4 && (kCu.contains(khoaLienMachGocMoi) || khoaLienMachGocMoi.contains(kCu))) ||
+                       (moiLaChuan != cuLaChuan) ||
+                       (abs(kCu.count - khoaLienMachGocMoi.count) <= 2 && khoangCachLevenshtein(kCu, khoaLienMachGocMoi) <= 2) {
+                        viTriTrungTen = idxCu
+                        break
+                    }
+                }
+            }
+
             if let viTri = viTriTrungTen {
                 var dongCu = ketQua[viTri]
-                // Ưu tiên giữ tên gốc đầy đủ có tiền tố tháng (ví dụ "T11 - Máy Lạnh")
+                // Ưu tiên giữ tên môn nằm trong danh mục chuẩn ĐMX và có độ dài đầy đủ
+                let moiLaChuan = laTenMonThiDuaChuanDMX(dongMoi.tenNganhHangGoc)
+                let cuLaChuan = laTenMonThiDuaChuanDMX(dongCu.tenNganhHangGoc)
                 let moiCoTienToT = dongMoi.tenNganhHangGoc.hasPrefix("T") && dongMoi.tenNganhHangGoc.contains("-")
                 let cuCoTienToT = dongCu.tenNganhHangGoc.hasPrefix("T") && dongCu.tenNganhHangGoc.contains("-")
-                if (moiCoTienToT && !cuCoTienToT) ||
-                   (moiCoTienToT == cuCoTienToT && dongMoi.tenNganhHangGoc.count >= dongCu.tenNganhHangGoc.count) {
+                if (moiLaChuan && !cuLaChuan) ||
+                   (moiLaChuan == cuLaChuan && ((moiCoTienToT && !cuCoTienToT) || (moiCoTienToT == cuCoTienToT && dongMoi.tenNganhHangGoc.count >= dongCu.tenNganhHangGoc.count))) {
                     dongCu.tenNganhHangGoc = dongMoi.tenNganhHangGoc
                     dongCu.tenNganhHang = dongMoi.tenNganhHang
                 }
