@@ -496,6 +496,108 @@ struct TongHopNhanVien: Hashable {
     var doanhThuCaNhan: DoanhThuNhanVienItem?
 }
 
+/// Khung dữ liệu thông số Sức khỏe cá nhân Nhân viên (mẫu 27 điểm: Doanh thu 6, Năng suất 3, Hiệu quả khai thác 9, Đơn giá 8, Thi đua 1).
+/// Các trường Optional cho phép hiển thị khung chờ bổ sung khi chưa có số liệu, và tự động hiển thị ngay khi được cập nhật/bổ sung.
+struct DuLieuSucKhoeBoSungNV: Codable, Hashable {
+    // 1. Khối Doanh thu bổ sung
+    var mucTieuTargetQD: Double?
+    var phanTramTarget: Double?
+    var tbPhanTramTarget: Double?
+    var phanTramQuyDoi: Double?
+    var tbPhanTramQuyDoi: Double?
+    var phanTramTraCham: Double?
+    var tbPhanTramTraCham: Double?
+    var phanTramBanKem: Double?
+    var tbPhanTramBanKem: Double?
+
+    // 2. Khối Năng suất (3/3)
+    var diemThuongERP: Double?
+    var tbDiemThuongERP: Double?
+    var diemThuongTrenGioCong: Double?
+    var tbDiemThuongTrenGioCong: Double?
+    var dtqdTrenGioCong: Double?
+    var tbDtqdTrenGioCong: Double?
+
+    // 3. Khối Hiệu quả khai thác (0/9) - Lưu theo khóa danh mục chuẩn
+    var hieuQuaKhaiThac: [String: Double] = [:]
+
+    // 4. Khối Đơn giá (4/8) - Lưu giá trị cá nhân và TB siêu thị (đơn vị: triệu đồng)
+    var donGiaCaNhan: [String: Double] = [:]
+    var donGiaTrungBinhST: [String: Double] = [:]
+
+    // 5. Tỷ trọng ngành hàng (%)
+    var tyTrongNganhHang: [String: Double] = [:]
+
+    // 6. Doanh thu QĐ từng tháng ("MM/yyyy": triệu đồng)
+    var doanhThuQDTungThang: [String: Double] = [:]
+
+    static let danhSachMucHieuQuaTrai: [(khoa: String, nhan: String)] = [
+        ("phu_kien", "% Phụ kiện"),
+        ("may_loc_nuoc", "% Máy lọc nước"),
+        ("sim", "% Sim"),
+        ("vas", "% VAS"),
+        ("bao_hiem_dmx", "% Bảo hiểm ĐMX")
+    ]
+
+    static let danhSachMucHieuQuaPhai: [(khoa: String, nhan: String)] = [
+        ("camera", "% Camera"),
+        ("bao_hiem_tong", "% Bảo hiểm tổng"),
+        ("sac_du_phong", "% Sạc dự phòng"),
+        ("gia_dung", "% Gia dụng")
+    ]
+
+    static var tatCaMucHieuQua: [(khoa: String, nhan: String)] {
+        danhSachMucHieuQuaTrai + danhSachMucHieuQuaPhai
+    }
+
+    static let danhSachMucDonGia: [(khoa: String, nhan: String)] = [
+        ("tb_spc", "TB SẢN PHẨM CHÍNH"),
+        ("tivi", "TIVI"),
+        ("tu_lanh", "TỦ LẠNH"),
+        ("may_giat", "MÁY GIẶT"),
+        ("may_lanh", "MÁY LẠNH"),
+        ("mln", "MLN"),
+        ("dien_thoai", "ĐIỆN THOẠI"),
+        ("laptop", "LAPTOP")
+    ]
+
+    static let danhSachNhomTyTrongNganhHang: [(khoa: String, nhan: String)] = [
+        ("apple", "Apple"),
+        ("tu_lanh_dong_mat", "Tủ lạnh, đông, mát"),
+        ("dien_tu", "Điện tử"),
+        ("gia_dung", "Gia dụng"),
+        ("vien_thong_di_dong", "Viễn thông di động"),
+        ("laptop", "Laptop"),
+        ("may_lanh_nuoc_nong", "Máy lạnh & Máy nước nóng"),
+        ("khac", "Khác")
+    ]
+
+    func gop(voi moi: DuLieuSucKhoeBoSungNV) -> DuLieuSucKhoeBoSungNV {
+        var kq = self
+        if let v = moi.mucTieuTargetQD { kq.mucTieuTargetQD = v }
+        if let v = moi.phanTramTarget { kq.phanTramTarget = v }
+        if let v = moi.tbPhanTramTarget { kq.tbPhanTramTarget = v }
+        if let v = moi.phanTramQuyDoi { kq.phanTramQuyDoi = v }
+        if let v = moi.tbPhanTramQuyDoi { kq.tbPhanTramQuyDoi = v }
+        if let v = moi.phanTramTraCham { kq.phanTramTraCham = v }
+        if let v = moi.tbPhanTramTraCham { kq.tbPhanTramTraCham = v }
+        if let v = moi.phanTramBanKem { kq.phanTramBanKem = v }
+        if let v = moi.tbPhanTramBanKem { kq.tbPhanTramBanKem = v }
+        if let v = moi.diemThuongERP { kq.diemThuongERP = v }
+        if let v = moi.tbDiemThuongERP { kq.tbDiemThuongERP = v }
+        if let v = moi.diemThuongTrenGioCong { kq.diemThuongTrenGioCong = v }
+        if let v = moi.tbDiemThuongTrenGioCong { kq.tbDiemThuongTrenGioCong = v }
+        if let v = moi.dtqdTrenGioCong { kq.dtqdTrenGioCong = v }
+        if let v = moi.tbDtqdTrenGioCong { kq.tbDtqdTrenGioCong = v }
+        for (k, v) in moi.hieuQuaKhaiThac { kq.hieuQuaKhaiThac[k] = v }
+        for (k, v) in moi.donGiaCaNhan { kq.donGiaCaNhan[k] = v }
+        for (k, v) in moi.donGiaTrungBinhST { kq.donGiaTrungBinhST[k] = v }
+        for (k, v) in moi.tyTrongNganhHang { kq.tyTrongNganhHang[k] = v }
+        for (k, v) in moi.doanhThuQDTungThang { kq.doanhThuQDTungThang[k] = v }
+        return kq
+    }
+}
+
 enum LoaiBieuDoThang: Int, CaseIterable {
     case realtime = 0
     case sucKhoeNhanVien = 1
@@ -1176,6 +1278,7 @@ struct DuLieuNgayDMX: Codable {
     var thiDuaNhanVienRealtime: [String: [String: Double]] = [:]
     var doanhThuNhanVien: [DoanhThuNhanVienItem] = []
     var doanhThuNhanVienRealtime: [DoanhThuNhanVienItem] = []
+    var sucKhoeBoSungNhanVien: [String: DuLieuSucKhoeBoSungNV] = [:]
 
     init(
         khoaNgay: String,
@@ -1188,7 +1291,8 @@ struct DuLieuNgayDMX: Codable {
         thiDuaNhanVien: [String: [String: Double]] = [:],
         thiDuaNhanVienRealtime: [String: [String: Double]] = [:],
         doanhThuNhanVien: [DoanhThuNhanVienItem] = [],
-        doanhThuNhanVienRealtime: [DoanhThuNhanVienItem] = []
+        doanhThuNhanVienRealtime: [DoanhThuNhanVienItem] = [],
+        sucKhoeBoSungNhanVien: [String: DuLieuSucKhoeBoSungNV] = [:]
     ) {
         self.khoaNgay = khoaNgay
         self.capNhatLuc = capNhatLuc
@@ -1201,6 +1305,7 @@ struct DuLieuNgayDMX: Codable {
         self.thiDuaNhanVienRealtime = thiDuaNhanVienRealtime
         self.doanhThuNhanVien = doanhThuNhanVien
         self.doanhThuNhanVienRealtime = doanhThuNhanVienRealtime
+        self.sucKhoeBoSungNhanVien = sucKhoeBoSungNhanVien
     }
 
     init(from decoder: Decoder) throws {
@@ -1216,6 +1321,7 @@ struct DuLieuNgayDMX: Codable {
         thiDuaNhanVienRealtime = (try? c.decode([String: [String: Double]].self, forKey: .thiDuaNhanVienRealtime)) ?? [:]
         doanhThuNhanVien = (try? c.decode([DoanhThuNhanVienItem].self, forKey: .doanhThuNhanVien)) ?? []
         doanhThuNhanVienRealtime = (try? c.decode([DoanhThuNhanVienItem].self, forKey: .doanhThuNhanVienRealtime)) ?? []
+        sucKhoeBoSungNhanVien = (try? c.decode([String: DuLieuSucKhoeBoSungNV].self, forKey: .sucKhoeBoSungNhanVien)) ?? [:]
     }
 
     func danhSachThiDua(theo cheDo: LoaiCheDoDoanhThu) -> [DongThiDua] {
@@ -1533,6 +1639,69 @@ final class KhoDuLieu {
         let trong = ThongTinDoanhThu()
         boNhoDemDTLuyKeThang[khoa] = trong
         return trong
+    }
+
+    /// Lấy thông số Sức khỏe bổ sung của nhân viên trong tháng
+    func sucKhoeBoSungNhanVienThang(cho ngay: Date) -> [String: DuLieuSucKhoeBoSungNV] {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
+        let khoa = TienIchNgay.khoa.string(from: ngay)
+        let tienTo = String(khoa.prefix(7))
+        var ketQua: [String: DuLieuSucKhoeBoSungNV] = [:]
+        for k in cacNgay.keys.filter({ $0.hasPrefix(tienTo) && $0 <= khoa }).sorted() {
+            guard let bang = cacNgay[k]?.sucKhoeBoSungNhanVien, !bang.isEmpty else { continue }
+            for (ma, info) in bang {
+                if let cu = ketQua[ma] {
+                    ketQua[ma] = cu.gop(voi: info)
+                } else {
+                    ketQua[ma] = info
+                }
+            }
+        }
+        return ketQua
+    }
+
+    /// Lấy Doanh thu QĐ từng tháng trong 6 tháng gần nhất (kết thúc tại tháng của `ngay`) cho 1 nhân viên
+    func layDoanhThuQDTheo6ThangGanNhat(
+        maNV: String,
+        den ngay: Date,
+        doanhThuThangHienTai: Double,
+        boSung: DuLieuSucKhoeBoSungNV? = nil
+    ) -> [(nhanThang: String, giaTri: Double?)] {
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
+        let lich = TienIchNgay.lich
+        let maChuan = Self.chuanHoaMaNV(maNV)
+        var ketQua: [(nhanThang: String, giaTri: Double?)] = []
+
+        for offset in stride(from: -5, through: 0, by: 1) {
+            guard let ngayThang = lich.date(byAdding: .month, value: offset, to: ngay) else { continue }
+            let nam = lich.component(.year, from: ngayThang)
+            let thang = lich.component(.month, from: ngayThang)
+            let tienTo = String(format: "%04d-%02d", nam, thang)
+            let nhan = String(format: "%02d/%04d", thang, nam)
+
+            if let valBoSung = boSung?.doanhThuQDTungThang[nhan], valBoSung > 0 {
+                ketQua.append((nhan, valBoSung))
+                continue
+            }
+            if offset == 0 && doanhThuThangHienTai > 0 {
+                ketQua.append((nhan, doanhThuThangHienTai))
+                continue
+            }
+
+            var giaTriTimThay: Double?
+            for k in cacNgay.keys.filter({ $0.hasPrefix(tienTo) }).sorted(by: >) {
+                if let ds = cacNgay[k]?.doanhThuNhanVien,
+                   let item = ds.first(where: { Self.chuanHoaMaNV($0.maNV) == maChuan }),
+                   item.doanhThuQD > 0 {
+                    giaTriTimThay = item.doanhThuQD
+                    break
+                }
+            }
+            ketQua.append((nhan, giaTriTimThay))
+        }
+        return ketQua
     }
 
     /// Lấy Doanh thu Lũy kế Nhân viên của tháng (khi nhập mới sẽ thay thế dữ liệu cũ)
@@ -2385,7 +2554,7 @@ final class KhoDuLieu {
     }
 
     /// Danh mục tên môn thi đua chuẩn ĐMX để khôi phục dấu tiếng Việt và khoảng cách chuẩn xác 100% khi OCR bị dính chữ
-    private static let danhSachTenMonThiDuaChuanDMX: [String] = [
+    static let danhSachTenMonThiDuaChuanDMX: [String] = [
         "Máy Lạnh",
         "Đồng hồ & Smartwatch",
         "Cáp sạc",
@@ -2801,8 +2970,9 @@ final class KhoDuLieu {
         }
 
         let tenKhongSo = tenQuet
+            .replacingOccurrences(of: "(?i)\\b(?:id|ld|1d|ia|iđ|ma|mã)\\b\\s*[:.;\\-]?", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "\\d+", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "[-–—]", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "[-–—+]", with: " ", options: .regularExpression)
         let tenChuan = chuanHoaKhoaSoSanh(tenKhongSo)
 
         // Nếu có mã NV quét được bị lệch tối đa 1 chữ số và phần tên khớp đầu tên nhân viên trong danh sách

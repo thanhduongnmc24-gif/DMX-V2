@@ -2430,8 +2430,16 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     private let nganNoiDung = UIStackView()
     private let nganSucKhoeNV = UIStackView()
 
-    // Thành phần của Biểu đồ Sức khỏe Nhân viên (~16 NV)
+    // Thành phần của Bảng thông số Sức khỏe Nhân viên (27 điểm) & Biểu đồ Đội ngũ (~16 NV)
     private var baoCaoSucKhoeHienTai: BaoCaoSucKhoeDoiNgu?
+    private let chonKieuXemSK = UISegmentedControl(items: ["📋 Bảng thông số Sức khỏe NV", "📊 Biểu đồ Đội ngũ"])
+    private let khungChonNVSucKhoe = UIView()
+    private let nutSKNVTruoc = UIButton(type: .system)
+    private let nutSKNVSau = UIButton(type: .system)
+    private let nutChonNVSucKhoe = UIButton(type: .system)
+    private var maNVSucKhoeDangChon: String = ""
+    private var bangThongSoCaNhanSKView: BangThongSoSucKhoeNhanVienView?
+    private let nganBieuDoDoiNguSK = UIStackView()
     private let chonCheDoSK = UISegmentedControl(items: ["Theo Lũy kế", "Theo Realtime"])
     private let nutSapXepSK = UIButton(type: .system)
     private let nutXuatAnhSK = UIButton(type: .system)
@@ -2800,11 +2808,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nutXuatAnhSK.heightAnchor.constraint(greaterThanOrEqualToConstant: 46).isActive = true
         nutXuatAnhSK.addTarget(self, action: #selector(bamXuatAnhSucKhoe), for: .touchUpInside)
 
-        let hangCongCuSK = UIStackView(arrangedSubviews: [chonCheDoSK, nutSapXepSK])
-        hangCongCuSK.axis = .horizontal
-        hangCongCuSK.spacing = 6
-        hangCongCuSK.alignment = .fill
-        nutSapXepSK.setContentHuggingPriority(.required, for: .horizontal)
+        chonCheDoSK.heightAnchor.constraint(equalToConstant: 32).isActive = true
 
         // 2. Cụm 4 thẻ chỉ số sức khỏe đội ngũ
         let hangTheSK = UIStackView(arrangedSubviews: [theSKKhoe, theSKTrungBinh, theSKYeu, theSKDiemDoi])
@@ -2936,7 +2940,89 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             nganTrongMaTran.bottomAnchor.constraint(equalTo: khungMaTran.bottomAnchor, constant: -10)
         ])
 
-        [hangCongCuSK, nutXuatAnhSK, hangTheSK, khungCanhBao, khungBieuDoSK, khungMaTran].forEach {
+        chonKieuXemSK.selectedSegmentIndex = 0
+        chonKieuXemSK.backgroundColor = BangMauBCTD.nenThePhu
+        chonKieuXemSK.selectedSegmentTintColor = BangMauBCTD.xanhChuDao
+        chonKieuXemSK.setTitleTextAttributes([
+            .font: UIFont.systemFont(ofSize: 12.0, weight: .semibold),
+            .foregroundColor: BangMauBCTD.chuPhu
+        ], for: .normal)
+        chonKieuXemSK.setTitleTextAttributes([
+            .font: UIFont.systemFont(ofSize: 12.0, weight: .bold),
+            .foregroundColor: UIColor.white
+        ], for: .selected)
+        chonKieuXemSK.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        chonKieuXemSK.addTarget(self, action: #selector(doiKieuXemSucKhoe), for: .valueChanged)
+
+        // Thanh chọn nhân viên cho Bảng thông số Sức khỏe NV
+        khungChonNVSucKhoe.backgroundColor = .white
+        khungChonNVSucKhoe.layer.cornerRadius = 12
+        khungChonNVSucKhoe.layer.borderWidth = 1
+        khungChonNVSucKhoe.layer.borderColor = BangMauBCTD.vienThe.cgColor
+
+        for (nut, icon, action) in [
+            (nutSKNVTruoc, "chevron.left", #selector(bamSKNVTruoc)),
+            (nutSKNVSau, "chevron.right", #selector(bamSKNVSau))
+        ] {
+            nut.setImage(UIImage(systemName: icon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .bold)), for: .normal)
+            nut.tintColor = BangMauBCTD.xanhChuDaoDam
+            nut.backgroundColor = BangMauBCTD.nenThePhu
+            nut.layer.cornerRadius = 8
+            nut.layer.borderWidth = 1
+            nut.layer.borderColor = BangMauBCTD.vienDam.cgColor
+            nut.widthAnchor.constraint(equalToConstant: 36).isActive = true
+            nut.heightAnchor.constraint(equalToConstant: 36).isActive = true
+            nut.addTarget(self, action: action, for: .touchUpInside)
+        }
+
+        nutChonNVSucKhoe.titleLabel?.font = .systemFont(ofSize: 13.0, weight: .bold)
+        nutChonNVSucKhoe.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutChonNVSucKhoe.backgroundColor = BangMauBCTD.nenThePhu
+        nutChonNVSucKhoe.layer.cornerRadius = 8
+        nutChonNVSucKhoe.layer.borderWidth = 1
+        nutChonNVSucKhoe.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutChonNVSucKhoe.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+        nutChonNVSucKhoe.addTarget(self, action: #selector(bamMoMenuChonNVSucKhoe), for: .touchUpInside)
+
+        let hangChonNV = UIStackView(arrangedSubviews: [nutSKNVTruoc, nutChonNVSucKhoe, nutSKNVSau])
+        hangChonNV.axis = .horizontal
+        hangChonNV.spacing = 6
+        hangChonNV.alignment = .center
+        hangChonNV.translatesAutoresizingMaskIntoConstraints = false
+        khungChonNVSucKhoe.addSubview(hangChonNV)
+        NSLayoutConstraint.activate([
+            hangChonNV.topAnchor.constraint(equalTo: khungChonNVSucKhoe.topAnchor, constant: 6),
+            hangChonNV.bottomAnchor.constraint(equalTo: khungChonNVSucKhoe.bottomAnchor, constant: -6),
+            hangChonNV.leadingAnchor.constraint(equalTo: khungChonNVSucKhoe.leadingAnchor, constant: 8),
+            hangChonNV.trailingAnchor.constraint(equalTo: khungChonNVSucKhoe.trailingAnchor, constant: -8)
+        ])
+
+        let nvKhoiTao = TongHopNhanVien(
+            nhanVien: KhoDuLieu.dungChung.caiDat.danhSachNhanVien.first ?? NhanVienQuanLy(maNV: "116719", hoTen: "Đinh Thị Quỳnh Nga"),
+            soMonDat: 0,
+            tongMonGiao: 0,
+            phanTramHTTB: 0,
+            doanhThuQD: 0,
+            soLuongDon: 0,
+            dtQDKhoanVay: 0,
+            dtTraThangQD: 0,
+            cacMonGiao: [],
+            doanhThuCaNhan: nil
+        )
+        let bangCaNhan = BangThongSoSucKhoeNhanVienView(tongHop: nvKhoiTao, ngay: ngayHienTai, cheDo: cheDoSucKhoe)
+        bangCaNhan.khiYeuCauCapNhat = { [weak self] in
+            self?.capNhatDuLieuSucKhoeNV(epCapNhat: true)
+        }
+        bangThongSoCaNhanSKView = bangCaNhan
+
+        nganBieuDoDoiNguSK.axis = .vertical
+        nganBieuDoDoiNguSK.spacing = 10
+        [nutSapXepSK, hangTheSK, khungCanhBao, khungBieuDoSK, khungMaTran].forEach {
+            nganBieuDoDoiNguSK.addArrangedSubview($0)
+        }
+        nganBieuDoDoiNguSK.isHidden = true
+
+        [chonKieuXemSK, chonCheDoSK, khungChonNVSucKhoe, nutXuatAnhSK, bangCaNhan, nganBieuDoDoiNguSK].forEach {
             nganSucKhoeNV.addArrangedSubview($0)
         }
     }
@@ -3012,7 +3098,94 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         capNhatDanhSachVeBieuDoSK()
     }
 
+    @objc private func doiKieuXemSucKhoe() {
+        let xemBangThongSo = (chonKieuXemSK.selectedSegmentIndex == 0)
+        khungChonNVSucKhoe.isHidden = !xemBangThongSo
+        bangThongSoCaNhanSKView?.isHidden = !xemBangThongSo
+        nganBieuDoDoiNguSK.isHidden = xemBangThongSo
+        nutXuatAnhSK.setTitle(
+            xemBangThongSo ? "📸 XUẤT ẢNH BẢNG THÔNG SỐ SỨC KHỎE NV" : "📸 XUẤT ẢNH BIỂU ĐỒ SỨC KHỎE ĐỘI NGŨ",
+            for: .normal
+        )
+    }
+
+    private func danhSachTongHopNVSucKhoe() -> [TongHopNhanVien] {
+        KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .doanhThuQD, cheDo: cheDoSucKhoe)
+    }
+
+    private func capNhatBangThongSoCaNhanDangChon() {
+        let ds = danhSachTongHopNVSucKhoe()
+        guard !ds.isEmpty else { return }
+        let chon: TongHopNhanVien
+        let idx: Int
+        if let viTri = ds.firstIndex(where: { $0.nhanVien.maNV == maNVSucKhoeDangChon }) {
+            chon = ds[viTri]
+            idx = viTri
+        } else {
+            chon = ds[0]
+            idx = 0
+            maNVSucKhoeDangChon = chon.nhanVien.maNV
+        }
+        let dtStr = chon.doanhThuQD > 0 ? " • \(chon.doanhThuQD.chuoiSoGonVN) tr" : ""
+        nutChonNVSucKhoe.setTitle("👤 \(idx + 1)/\(ds.count). \(chon.nhanVien.hoTen) (id: \(chon.nhanVien.maNV))\(dtStr) ▾", for: .normal)
+        bangThongSoCaNhanSKView?.capNhat(tongHop: chon, ngay: ngayHienTai, cheDo: cheDoSucKhoe)
+    }
+
+    @objc private func bamSKNVTruoc() {
+        let ds = danhSachTongHopNVSucKhoe()
+        guard !ds.isEmpty else { return }
+        let idx = ds.firstIndex(where: { $0.nhanVien.maNV == maNVSucKhoeDangChon }) ?? 0
+        let moi = (idx - 1 + ds.count) % ds.count
+        maNVSucKhoeDangChon = ds[moi].nhanVien.maNV
+        capNhatBangThongSoCaNhanDangChon()
+    }
+
+    @objc private func bamSKNVSau() {
+        let ds = danhSachTongHopNVSucKhoe()
+        guard !ds.isEmpty else { return }
+        let idx = ds.firstIndex(where: { $0.nhanVien.maNV == maNVSucKhoeDangChon }) ?? 0
+        let moi = (idx + 1) % ds.count
+        maNVSucKhoeDangChon = ds[moi].nhanVien.maNV
+        capNhatBangThongSoCaNhanDangChon()
+    }
+
+    @objc private func bamMoMenuChonNVSucKhoe() {
+        guard let vc = timViewControllerCha() else { return }
+        let ds = danhSachTongHopNVSucKhoe()
+        guard !ds.isEmpty else { return }
+        var cacMuc: [MucChonDMX] = ds.enumerated().map { i, item in
+            let dtStr = item.doanhThuQD > 0 ? "\(item.doanhThuQD.chuoiSoGonVN) tr" : "--"
+            return MucChonDMX(
+                tieuDe: "\(i + 1). \(item.nhanVien.hoTen) (id: \(item.nhanVien.maNV)) • DT QĐ: \(dtStr)",
+                dangChon: item.nhanVien.maNV == maNVSucKhoeDangChon
+            ) { [weak self] in
+                guard let self else { return }
+                self.maNVSucKhoeDangChon = item.nhanVien.maNV
+                self.capNhatBangThongSoCaNhanDangChon()
+            }
+        }
+        cacMuc.append(MucChonDMX(tieuDe: "Đóng", kieu: .huy))
+        vc.hienMenuChon(tieuDe: "Chọn nhân viên xem Bảng thông số Sức khỏe", cacMuc: cacMuc)
+    }
+
     @objc private func bamXuatAnhSucKhoe() {
+        if chonKieuXemSK.selectedSegmentIndex == 0 {
+            let ds = danhSachTongHopNVSucKhoe()
+            if let chon = ds.first(where: { $0.nhanVien.maNV == maNVSucKhoeDangChon }) ?? ds.first,
+               let anh = BangThongSoSucKhoeNhanVienView.taoAnhBaoCao(cho: chon, ngay: ngayHienTai, cheDo: cheDoSucKhoe) {
+                if let khiChiaSeAnhSucKhoe {
+                    khiChiaSeAnhSucKhoe(anh)
+                } else if let vc = timViewControllerCha() {
+                    let hd = UIActivityViewController(activityItems: [anh], applicationActivities: nil)
+                    if let pop = hd.popoverPresentationController {
+                        pop.sourceView = nutXuatAnhSK
+                        pop.sourceRect = nutXuatAnhSK.bounds
+                    }
+                    vc.present(hd, animated: true)
+                }
+                return
+            }
+        }
         let dl = KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
         guard let anh = taoAnhBaoCaoSucKhoeNhanVien(
             ngay: ngayHienTai,
@@ -3196,6 +3369,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             }
         }
 
+        capNhatBangThongSoCaNhanDangChon()
         capNhatDanhSachVeBieuDoSK()
         capNhatBangMaTranNgay(bc)
     }
