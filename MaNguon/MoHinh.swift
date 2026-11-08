@@ -1112,14 +1112,17 @@ struct DongThiDua: Codable, Hashable, Identifiable {
 
 enum PhuongPhapQuetThiDua: Int, Codable, CaseIterable {
     case phuongPhap1 = 0 // Phương pháp 1 (Mặc định: Thẻ tiến độ / Bảng 4 cột T11)
-    case phuongPhap2 = 1 // Phương pháp 2 (Bảng 6 cột: Chương trình | Thực hiện | Target | % HT | % HT Dự kiến | Hạng vùng)
+    case phuongPhap2 = 1 // Phương pháp 2 (Lũy kế: Bảng 6 cột | Realtime theo ngày: Bảng 5 cột)
+    case phuongPhap3 = 2 // Phương pháp 3 (Quét ảnh với Gemini Flash AI)
 
     var tieuDe: String {
         switch self {
         case .phuongPhap1:
             return "Phương pháp 1 (Thẻ / Bảng T11)"
         case .phuongPhap2:
-            return "Phương pháp 2 (Bảng 6 cột)"
+            return "Phương pháp 2 (Bảng 5-6 cột)"
+        case .phuongPhap3:
+            return "Phương pháp 3 (Gemini Flash)"
         }
     }
 }
@@ -1246,10 +1249,22 @@ struct CaiDatDMX: Codable {
         monThiDuaTheoDoiLuyKe = (try? c.decode([String].self, forKey: .monThiDuaTheoDoiLuyKe)) ?? []
         monThiDuaTheoDoiRealtime = (try? c.decode([String].self, forKey: .monThiDuaTheoDoiRealtime)) ?? []
         let rawKey = (try? c.decode(String.self, forKey: .geminiApiKey))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        geminiApiKey = rawKey.isEmpty ? Self.geminiKeyMacDinh : rawKey
+        let luuKeyUD = UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !rawKey.isEmpty && rawKey != Self.geminiKeyMacDinh {
+            geminiApiKey = rawKey
+        } else if !luuKeyUD.isEmpty {
+            geminiApiKey = luuKeyUD
+        } else {
+            geminiApiKey = Self.geminiKeyMacDinh
+        }
         let rawModel = (try? c.decode(String.self, forKey: .geminiModel))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         geminiModel = rawModel.isEmpty ? Self.geminiModelMacDinh : rawModel
-        dungGeminiQuetAnh = (try? c.decode(Bool.self, forKey: .dungGeminiQuetAnh)) ?? false
+        dungGeminiQuetAnh = (try? c.decode(Bool.self, forKey: .dungGeminiQuetAnh)) ?? (phuongPhapQuetThiDua == .phuongPhap3)
+    }
+
+    var geminiApiKeyHieuLuc: String {
+        let k = geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        return k.isEmpty ? Self.geminiKeyMacDinh : k
     }
 
     func phanTramTarget(cho cheDo: LoaiCheDoDoanhThu) -> Double {
@@ -2103,6 +2118,7 @@ final class KhoDuLieu {
         moi.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(moi.danhSachNhanVien)
         let doiCumTu = (caiDat.danhSachCumTuLocBo != moi.danhSachCumTuLocBo)
         UserDefaults.standard.set(moi.phuongPhapQuetThiDua.rawValue, forKey: "dmx.caiDat.phuongPhapQuetThiDua")
+        UserDefaults.standard.set(moi.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "dmx.caiDat.geminiApiKey")
         caiDat = moi
         xoaBoNhoDem(xoaonLocTen: doiCumTu)
         let banSaoCaiDat = moi
@@ -2142,6 +2158,11 @@ final class KhoDuLieu {
             if UserDefaults.standard.object(forKey: "dmx.caiDat.phuongPhapQuetThiDua") != nil,
                let luuPP = PhuongPhapQuetThiDua(rawValue: UserDefaults.standard.integer(forKey: "dmx.caiDat.phuongPhapQuetThiDua")) {
                 moi.phuongPhapQuetThiDua = luuPP
+            }
+            if let luuKey = UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey")?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !luuKey.isEmpty,
+               (moi.geminiApiKey.isEmpty || moi.geminiApiKey == CaiDatDMX.geminiKeyMacDinh) {
+                moi.geminiApiKey = luuKey
             }
             caiDat = moi
         }
