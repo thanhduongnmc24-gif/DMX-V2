@@ -136,7 +136,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         let nutXoaDuLieuMon = UIButton(type: .system)
         let cfgTrash = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
         nutXoaDuLieuMon.setImage(UIImage(systemName: "trash.fill", withConfiguration: cfgTrash), for: .normal)
-        nutXoaDuLieuMon.backgroundColor = BangMauBCTD.doYeuNen
+        nutXoaDuLieuMon.backgroundColor = BangMauBCTD.doYeuPill
         nutXoaDuLieuMon.tintColor = BangMauBCTD.doYeuChu
         nutXoaDuLieuMon.layer.cornerRadius = 9
         nutXoaDuLieuMon.layer.borderWidth = 1

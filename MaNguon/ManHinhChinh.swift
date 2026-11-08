@@ -3284,8 +3284,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                     tieuDe = "Đã xuất ảnh lên Server"
                     thongDiep = "Đã xuất và cập nhật thành công \(soThanhCong) ảnh báo cáo lên Supabase (thay thế ảnh cũ)."
                 } else if soThanhCong > 0 {
+                    let chiTietLoi = thongBaoLoiCuoi ?? ""
                     tieuDe = "Đã xuất \(soThanhCong) ảnh lên Server"
-                    thongDiep = "Đã cập nhật \(soThanhCong) ảnh lên Supabase (\(soLoi) ảnh lỗi: \(thongBaoLoiCuoi ?? \"\"))."
+                    thongDiep = "Đã cập nhật \(soThanhCong) ảnh lên Supabase (\(soLoi) ảnh lỗi: \(chiTietLoi))."
                 } else {
                     tieuDe = "Chưa tải được ảnh lên Server"
                     thongDiep = thongBaoLoiCuoi ?? "Chưa có dữ liệu báo cáo để tạo ảnh hoặc kết nối máy chủ gặp sự cố."

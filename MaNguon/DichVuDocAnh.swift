@@ -4557,14 +4557,12 @@ final class DichVuDocAnh {
 
                         for (rIdx, kh) in cacKhoangHang.enumerated() {
                             let cacTextCot1 = (bangCot1[rIdx] ?? []).sorted { $0.y < $1.y }.map(\.chu)
-                            let gopCot1 = cacTextCot1.joined(separator: "
-")
+                            let gopCot1 = cacTextCot1.joined(separator: "\n")
 
                             // Nếu là dòng Chương trình ở đầu bảng (không có id: và không phải dòng siêu thị ĐML_QNG_QNG)
                             if trichMaId(tu: gopCot1) == nil {
                                 if tenMonTuAnh.isEmpty, rIdx <= 1, !laDongKhongPhaiNhanVien(gopCot1) {
-                                    let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(gopCot1.replacingOccurrences(of: "
-", with: " "))
+                                    let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(gopCot1.replacingOccurrences(of: "\n", with: " "))
                                     if !tenSach.isEmpty && !laTenTheDoanhThuKhongPhaiThiDua(tenSach) {
                                         tenMonTuAnh = tenSach
                                     }
