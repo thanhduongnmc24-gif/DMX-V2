@@ -1226,7 +1226,14 @@ struct CaiDatDMX: Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         kieuHienThi = (try? c.decode(KieuHienThiBaoCao.self, forKey: .kieuHienThi)) ?? .bangChiTiet
-        phuongPhapQuetThiDua = (try? c.decode(PhuongPhapQuetThiDua.self, forKey: .phuongPhapQuetThiDua)) ?? .phuongPhap1
+        if let pp = try? c.decode(PhuongPhapQuetThiDua.self, forKey: .phuongPhapQuetThiDua) {
+            phuongPhapQuetThiDua = pp
+        } else if UserDefaults.standard.object(forKey: "dmx.caiDat.phuongPhapQuetThiDua") != nil,
+                  let luuPP = PhuongPhapQuetThiDua(rawValue: UserDefaults.standard.integer(forKey: "dmx.caiDat.phuongPhapQuetThiDua")) {
+            phuongPhapQuetThiDua = luuPP
+        } else {
+            phuongPhapQuetThiDua = .phuongPhap1
+        }
         danhSachCumTuLocBo = (try? c.decode([String].self, forKey: .danhSachCumTuLocBo)) ?? []
         let cot = (try? c.decode(Int.self, forKey: .soCotXuatAnh)) ?? 3
         soCotXuatAnh = (cot >= 1 && cot <= 4) ? cot : 3
@@ -2095,6 +2102,7 @@ final class KhoDuLieu {
         var moi = moi
         moi.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(moi.danhSachNhanVien)
         let doiCumTu = (caiDat.danhSachCumTuLocBo != moi.danhSachCumTuLocBo)
+        UserDefaults.standard.set(moi.phuongPhapQuetThiDua.rawValue, forKey: "dmx.caiDat.phuongPhapQuetThiDua")
         caiDat = moi
         xoaBoNhoDem(xoaonLocTen: doiCumTu)
         let banSaoCaiDat = moi
@@ -2131,6 +2139,10 @@ final class KhoDuLieu {
         khoaTruyCap.lock()
         if var moi {
             moi.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(moi.danhSachNhanVien)
+            if UserDefaults.standard.object(forKey: "dmx.caiDat.phuongPhapQuetThiDua") != nil,
+               let luuPP = PhuongPhapQuetThiDua(rawValue: UserDefaults.standard.integer(forKey: "dmx.caiDat.phuongPhapQuetThiDua")) {
+                moi.phuongPhapQuetThiDua = luuPP
+            }
             caiDat = moi
         }
         xoaBoNhoDem(xoaonLocTen: true)
@@ -2703,8 +2715,17 @@ final class KhoDuLieu {
 
         var boHauTo = khongDau
             .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|SE|RI|BT)\\b\\s*$", with: "", options: .regularExpression)
-        if !boHauTo.contains("THO ICT") && !boHauTo.contains("THO 1CT") && !boHauTo.contains("THO LCT") {
+            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51)\\b\\s*$", with: "", options: .regularExpression)
+        let laBaoHiem = boHauTo.contains("BAO HIEM") || boHauTo.contains("BAOHIEM")
+        if laBaoHiem {
+            if boHauTo.contains("ICT") || boHauTo.contains("1CT") || boHauTo.contains("LCT") || boHauTo.contains("IC7") {
+                boHauTo = "BAO HIEM THO ICT"
+            } else if boHauTo.contains("DMX") || boHauTo.contains("OMX") || boHauTo.contains("BMX") || boHauTo.contains("0MX") {
+                boHauTo = "BAO HIEM THO DMX"
+            } else if boHauTo.contains("TONG") || boHauTo.contains("T0NG") {
+                boHauTo = "BAO HIEM TONG"
+            }
+        } else if !boHauTo.contains("THO ICT") && !boHauTo.contains("THO 1CT") && !boHauTo.contains("THO LCT") {
             boHauTo = boHauTo.replacingOccurrences(of: "\\s+\\b(CE|ICT|1CT|LCT|LER|DV|BV|OV|0V|MDA|SDA|GD)\\b\\s*$", with: "", options: .regularExpression)
         } else {
             boHauTo = boHauTo
@@ -2715,6 +2736,12 @@ final class KhoDuLieu {
         var ketQua = boHauTo.replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression)
         if ketQua == "TRACHAMFECREDITSAMSUNGFSHINHAN" {
             ketQua = "TRACHAMFECREDITSAMSUNGFSHINHANMCREDIT"
+        } else if ketQua == "DIENTUY" || ketQua == "DIENTU0T" || ketQua == "DIENTUOT" {
+            ketQua = "DIENTU"
+        } else if ketQua == "SIMOMX" || ketQua == "SIMBMX" || ketQua == "SIM0MX" {
+            ketQua = "SIMDMX"
+        } else if ketQua == "5IM" || ketQua == "S1M" {
+            ketQua = "SIM"
         }
 
         khoaBoNhoDemTinh.lock()
@@ -2782,9 +2809,10 @@ final class KhoDuLieu {
         // Bỏ hậu tố đánh số (#2), đơn vị (DT/SL), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối (giữ nguyên ICT cho "Bảo hiểm Thợ ICT")
         s = s
             .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|SE|RI|BT)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
         let sCheckKhongDau = s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
-        if !sCheckKhongDau.contains("THO ICT") && !sCheckKhongDau.contains("THO 1CT") && !sCheckKhongDau.contains("THO LCT") {
+        let laBaoHiemCheck = sCheckKhongDau.contains("BAO HIEM") || sCheckKhongDau.contains("BAOHIEM")
+        if !laBaoHiemCheck && !sCheckKhongDau.contains("THO ICT") && !sCheckKhongDau.contains("THO 1CT") && !sCheckKhongDau.contains("THO LCT") {
             s = s.replacingOccurrences(of: "\\s+\\b(CE|ICT|1CT|LCT|LER|DV|BV|OV|0V|MDA|SDA|GD)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
         }
         s = s

@@ -4162,6 +4162,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                     let cu = dl.danhSachThiDua(theo: cheDoTab)
                     let gop = KhoDuLieu.gopDanhSachThiDua(cu: cu, moi: kq.danhSachThiDua)
                     dl.ganDanhSachThiDua(gop, theo: cheDoTab)
+                    var cd = KhoDuLieu.dungChung.caiDat
+                    let dangTheoDoi = cd.khoaMonTheoDoi(cho: cheDoTab)
+                    if !dangTheoDoi.isEmpty && dangTheoDoi != [CaiDatDMX.khoaKhongChonMonThiDua] {
+                        cd.ganKhoaMonTheoDoi([], cho: cheDoTab)
+                        KhoDuLieu.dungChung.luuCaiDat(cd)
+                    }
                     cacMucDaDien.append("• Thi đua \(tenCheDo) (\(kq.soAnhThiDua) ảnh): \(gop.count) ngành hàng (đã lọc trùng)")
                 }
 
@@ -4262,6 +4268,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                     let cu = self.thayTheBangThiDuaKhiQuet ? [] : dl.danhSachThiDua(theo: loai)
                     let gop = KhoDuLieu.gopDanhSachThiDua(cu: cu, moi: kq.danhSach)
                     dl.ganDanhSachThiDua(gop, theo: loai)
+                    var cd = KhoDuLieu.dungChung.caiDat
+                    let dangTheoDoi = cd.khoaMonTheoDoi(cho: loai)
+                    if !dangTheoDoi.isEmpty && dangTheoDoi != [CaiDatDMX.khoaKhongChonMonThiDua] {
+                        cd.ganKhoaMonTheoDoi([], cho: loai)
+                        KhoDuLieu.dungChung.luuCaiDat(cd)
+                    }
                 }
                 self.thayTheBangThiDuaKhiQuet = false
                 if !kq.thiDuaNhanVien.isEmpty {
