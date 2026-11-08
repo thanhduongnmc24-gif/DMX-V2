@@ -2787,6 +2787,7 @@ final class KhoDuLieu {
         if !sCheckKhongDau.contains("THO ICT") && !sCheckKhongDau.contains("THO 1CT") && !sCheckKhongDau.contains("THO LCT") {
             s = s.replacingOccurrences(of: "\\s+\\b(CE|ICT|1CT|LCT|LER|DV|BV|OV|0V|MDA|SDA|GD)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
         }
+        s = s
             .replacingOccurrences(of: "\\s+\\b(?:11|T11)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
             .replacingOccurrences(of: "\\bCELG\\b", with: "CE LG", options: .regularExpression)
             .replacingOccurrences(of: "\\bBMX\\b", with: "ĐMX", options: .regularExpression)
