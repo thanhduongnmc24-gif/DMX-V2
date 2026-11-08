@@ -133,10 +133,29 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         nutChiaTarget.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
         nutChiaTarget.addTarget(self, action: #selector(bamMoChiaTarget), for: .touchUpInside)
 
-        let hangNut = UIStackView(arrangedSubviews: [nutQuetAnhNV, nutChiaTarget])
+        let nutXoaDuLieuMon = UIButton(type: .system)
+        let cfgTrash = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+        nutXoaDuLieuMon.setImage(UIImage(systemName: "trash.fill", withConfiguration: cfgTrash), for: .normal)
+        nutXoaDuLieuMon.backgroundColor = BangMauBCTD.doYeuNen
+        nutXoaDuLieuMon.tintColor = BangMauBCTD.doYeuChu
+        nutXoaDuLieuMon.layer.cornerRadius = 9
+        nutXoaDuLieuMon.layer.borderWidth = 1
+        nutXoaDuLieuMon.layer.borderColor = BangMauBCTD.doYeuChu.withAlphaComponent(0.55).cgColor
+        nutXoaDuLieuMon.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        nutXoaDuLieuMon.accessibilityLabel = "Xóa dữ liệu thi đua môn này"
+        nutXoaDuLieuMon.translatesAutoresizingMaskIntoConstraints = false
+        nutXoaDuLieuMon.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        nutXoaDuLieuMon.addTarget(self, action: #selector(bamXoaDuLieuThiDuaMon), for: .touchUpInside)
+
+        let hangNutChinh = UIStackView(arrangedSubviews: [nutQuetAnhNV, nutChiaTarget])
+        hangNutChinh.axis = .horizontal
+        hangNutChinh.spacing = 8
+        hangNutChinh.distribution = .fillEqually
+
+        let hangNut = UIStackView(arrangedSubviews: [hangNutChinh, nutXoaDuLieuMon])
         hangNut.axis = .horizontal
         hangNut.spacing = 8
-        hangNut.distribution = .fillEqually
+        hangNut.distribution = .fill
 
         let nganDau = UIStackView(arrangedSubviews: [nhanPhuDe, nhanThongTinTarget, hangNut])
         nganDau.axis = .vertical
@@ -372,10 +391,25 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
                         return
                     }
 
+                    var cacKhoiCapNhat = cacKhoi
+                    for i in cacKhoiCapNhat.indices {
+                        if self.dong.target > 0 && cacKhoiCapNhat[i].targetNganhGoiY <= 0 {
+                            cacKhoiCapNhat[i].targetNganhGoiY = self.dong.target
+                        } else if self.dong.target <= 0 && cacKhoiCapNhat[i].targetNganhGoiY > 0 {
+                            self.dong.target = cacKhoiCapNhat[i].targetNganhGoiY
+                            KhoDuLieu.dungChung.capNhatTargetNganhHang(
+                                dongGoc: self.dong,
+                                targetMoi: cacKhoiCapNhat[i].targetNganhGoiY,
+                                cho: self.ngay,
+                                cheDo: self.cheDo
+                            )
+                        }
+                    }
+
                     var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
                     let bangMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
                         hienTai: dl.thiDuaNhanVien(theo: self.cheDo),
-                        mangKhoiNV: cacKhoi,
+                        mangKhoiNV: cacKhoiCapNhat,
                         ngay: self.ngay,
                         cheDo: self.cheDo,
                         khoaNganhMacDinh: khoaMacDinh
@@ -387,6 +421,26 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
                 }
             )
         }
+    }
+
+    @objc private func bamXoaDuLieuThiDuaMon() {
+        let hop = UIAlertController(
+            title: "Xóa dữ liệu thi đua môn này?",
+            message: "Bạn có chắc muốn xóa toàn bộ số liệu thi đua nhân viên của môn \"\(dong.tenNganhHang)\" (\(cheDo.tieuDe)) không?",
+            preferredStyle: .alert
+        )
+        hop.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        hop.addAction(UIAlertAction(title: "Xóa dữ liệu", style: .destructive) { [weak self] _ in
+            guard let self = self else { return }
+            KhoDuLieu.dungChung.xoaThiDuaNhanVienTheoMon(
+                dong: self.dong,
+                ngay: self.ngay,
+                cheDo: self.cheDo
+            )
+            self.napDuLieu()
+            self.khiCapNhatDuLieu?()
+        })
+        present(hop, animated: true)
     }
 
     @objc private func bamMoChiaTarget() {

@@ -56,6 +56,7 @@ final class DichVuAnhBaoCaoBot {
         _ anh: UIImage,
         loai: String,
         ngay: String,
+        buocDungSupabase: Bool = false,
         hoanTat: ((Result<String, Error>) -> Void)? = nil
     ) {
         let cauHinh = self.cauHinh
@@ -65,7 +66,7 @@ final class DichVuAnhBaoCaoBot {
                 DispatchQueue.main.async { hoanTat?(.failure(NSError.dmx("Không nén được ảnh báo cáo."))) }
                 return
             }
-            if cauHinh.driveDaSanSang {
+            if !buocDungSupabase && cauHinh.driveDaSanSang {
                 self.taiLenDrive(jpeg, loai: loai, ngay: ngay, cauHinh: cauHinh) { ketQua in
                     switch ketQua {
                     case .success(let url):

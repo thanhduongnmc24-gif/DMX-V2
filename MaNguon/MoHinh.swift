@@ -2562,7 +2562,8 @@ final class KhoDuLieu {
         return ketQua
     }
 
-    /// Gộp kết quả quét thực hiện nhân viên theo ngành hàng vào dữ liệu ngày (theo chế độ Lũy kế hoặc Realtime)
+    /// Gộp kết quả quét thực hiện nhân viên theo ngành hàng vào dữ liệu ngày (theo chế độ Lũy kế hoặc Realtime).
+    /// Nếu ảnh quét theo mẫu chỉ có % nhân viên đạt được (`item.laPhanTram == true`), tự động quy đổi từ % và Target cá nhân được chia (`targetCaNhan = targetMon / soNVChia`) ra số lượng/doanh thu thực hiện.
     func gopKetQuaThiDuaNhanVien(
         hienTai: [String: [String: Double]],
         mangKhoiNV: [KetQuaThiDuaNhanVienKhoi],
@@ -2577,12 +2578,17 @@ final class KhoDuLieu {
         if matHangThang.isEmpty {
             matHangThang = danhSachMatHangThang(den: ngay, cheDo: .luyKe)
         }
+        let dlNgay = duLieu(cho: ngay)
+        let dsThiDuaNgay = dlNgay.danhSachThiDua(theo: cheDo)
 
         for khoi in mangKhoiNV {
             let tenLoc = Self.apDungLocTuCaiDat(khoi.tenNganhHang)
             var khoaNganh = Self.chuanHoaKhoaSoSanh(tenLoc)
 
-            if !khoaNganh.isEmpty {
+            if let macDinh = khoaNganhMacDinh, !macDinh.isEmpty {
+                // Khi người dùng bấm trực tiếp vào 1 môn thi đua để nhập ảnh cho môn đó, ưu tiên gắn đúng vào môn đang mở
+                khoaNganh = macDinh
+            } else if !khoaNganh.isEmpty {
                 if let khop = matHangThang.first(where: {
                     let k = Self.chuanHoaKhoaSoSanh($0.tenNganhHang)
                     return k == khoaNganh || k.contains(khoaNganh) || khoaNganh.contains(k)
@@ -2590,10 +2596,29 @@ final class KhoDuLieu {
                     khoaNganh = Self.chuanHoaKhoaSoSanh(khop.tenNganhHang)
                 }
             }
-            if (khoaNganh.isEmpty || khoaNganh == "NGANH HANG"), let macDinh = khoaNganhMacDinh, !macDinh.isEmpty {
-                khoaNganh = macDinh
-            }
             guard !khoaNganh.isEmpty else { continue }
+
+            // Tìm thông tin môn thi đua để biết Target ngành và số nhân viên được chia Target
+            let dongMon = matHangThang.first(where: {
+                Self.chuanHoaKhoaSoSanh($0.tenNganhHang) == khoaNganh ||
+                Self.chuanHoaKhoaSoSanh($0.tenNganhHangGoc) == khoaNganh
+            }) ?? dsThiDuaNgay.first(where: {
+                Self.chuanHoaKhoaSoSanh($0.tenNganhHang) == khoaNganh ||
+                Self.chuanHoaKhoaSoSanh($0.tenNganhHangGoc) == khoaNganh
+            })
+
+            let targetCaNhan: Double
+            if let dongMon {
+                let dsMaDuocChon = danhSachMaNVChiaTarget(cho: dongMon)
+                let soNV = max(1, dsMaDuocChon.isEmpty ? max(1, caiDat.danhSachNhanVien.count) : dsMaDuocChon.count)
+                let targetMon = dongMon.target > 0 ? dongMon.target : khoi.targetNganhGoiY
+                targetCaNhan = targetMon / Double(soNV)
+            } else {
+                let tatCaMa = caiDat.danhSachNhanVien.map(\.maNV)
+                let dsChon = caiDat.chiaTargetNganhHang[khoaNganh]?.filter { tatCaMa.contains($0) } ?? tatCaMa
+                let soNV = max(1, dsChon.isEmpty ? max(1, khoi.danhSach.count) : dsChon.count)
+                targetCaNhan = khoi.targetNganhGoiY > 0 ? (khoi.targetNganhGoiY / Double(soNV)) : 0
+            }
 
             var bangCu = ketQua[khoaNganh] ?? [:]
             for item in khoi.danhSach {
@@ -2610,12 +2635,64 @@ final class KhoDuLieu {
                 }
                 guard !maLuu.isEmpty else { continue }
                 if item.thucHien >= 0 {
-                    bangCu[maLuu] = item.thucHien
+                    if item.laPhanTram {
+                        // Từ % nhân viên đạt được và phần Target cá nhân được chia, tính ra số lượng (hoặc doanh thu) thực hiện
+                        if targetCaNhan > 0 {
+                            let thucHienQuyDoi = ((item.thucHien / 100.0) * targetCaNhan * 10000.0).rounded() / 10000.0
+                            bangCu[maLuu] = thucHienQuyDoi
+                        } else {
+                            bangCu[maLuu] = item.thucHien
+                        }
+                    } else {
+                        bangCu[maLuu] = item.thucHien
+                    }
                 }
             }
             ketQua[khoaNganh] = bangCu
         }
         return ketQua
+    }
+
+    /// Xóa dữ liệu thi đua nhân viên của riêng 1 môn (ngành hàng) cụ thể theo chế độ Lũy kế hoặc Realtime
+    func xoaThiDuaNhanVienTheoMon(dong: DongThiDua, ngay: Date, cheDo: LoaiCheDoDoanhThu) {
+        khoaTruyCap.lock()
+        let k1 = Self.chuanHoaKhoaSoSanh(dong.tenNganhHang)
+        let k2 = Self.chuanHoaKhoaSoSanh(dong.tenNganhHangGoc)
+        let cacKhoaMon = Set([k1, k2].filter { !$0.isEmpty })
+        var dl = duLieu(cho: ngay)
+
+        if cheDo == .realtime {
+            for k in cacKhoaMon {
+                dl.thiDuaNhanVienRealtime.removeValue(forKey: k)
+            }
+            khoaTruyCap.unlock()
+            luu(dl)
+            return
+        }
+
+        for k in cacKhoaMon {
+            dl.thiDuaNhanVien.removeValue(forKey: k)
+        }
+        let tienTo = String(dl.khoaNgay.prefix(7))
+        var cacNgayCanDay: [DuLieuNgayDMX] = []
+        for kNgay in cacNgay.keys where kNgay.hasPrefix(tienTo) && kNgay != dl.khoaNgay {
+            guard var dlCu = cacNgay[kNgay] else { continue }
+            var coXoa = false
+            for k in cacKhoaMon {
+                if dlCu.thiDuaNhanVien.removeValue(forKey: k) != nil {
+                    coXoa = true
+                }
+            }
+            if coXoa {
+                cacNgay[kNgay] = dlCu
+                cacNgayCanDay.append(dlCu)
+            }
+        }
+        khoaTruyCap.unlock()
+        luu(dl)
+        for dlCu in cacNgayCanDay {
+            DichVuDongBo.dungChung.dayDuLieuNgay(dlCu)
+        }
     }
 
     /// Danh mục tên môn thi đua chuẩn ĐMX để khôi phục dấu tiếng Việt và khoảng cách chuẩn xác 100% khi OCR bị dính chữ
