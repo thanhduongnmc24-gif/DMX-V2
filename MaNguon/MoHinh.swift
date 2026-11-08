@@ -2847,6 +2847,40 @@ final class KhoDuLieu {
 
     /// Gộp và lọc trùng danh sách môn thi đua với độ phức tạp O(N) qua bảng băm:
     /// So sánh giữa các môn mới quét được với nhau và so sánh với các môn có sẵn; nếu tên môn giống nhau 100% thì chỉ giữ lại 1 môn duy nhất.
+    /// Kiểm tra xem một chuỗi tên có phải là dòng nhân viên (có mã NV 5-7 số, tiền tố id:, hoặc trùng tên nhân viên) bị quét nhầm vào bảng Thi đua hay không
+    static func laTenDongNhanVienBiQuetNham(_ ten: String) -> Bool {
+        let s = ten.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return true }
+        let u = chuanHoaKhoaSoSanh(s)
+        if u.range(of: "\\b(?:ID|LD|1D)\\b", options: .regularExpression) != nil {
+            return true
+        }
+        if s.range(of: "(?i)\\b(?:id|ld|1d)\\s*[:.;\\-]?\\s*\\d{3,7}", options: .regularExpression) != nil {
+            return true
+        }
+        if s.range(of: "\\b\\d{5,7}\\b", options: .regularExpression) != nil {
+            return true
+        }
+        if u == "NHAN VIEN" || u.contains("NGANH HANG BI") || u.contains("NHOM HANG BI") || u.contains("DT QD KHOAN VAY") || u.contains("TI TRONG") {
+            return true
+        }
+        let tenKhongId = u
+            .replacingOccurrences(of: "\\b(?:ID|LD|1D)\\b", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\d+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        for nv in CaiDatDMX.nhanVienMau {
+            let tenNV = chuanHoaKhoaSoSanh(nv.hoTen)
+            if tenKhongId == tenNV || u.contains(tenNV) {
+                return true
+            }
+        }
+        if tenKhongId == "PHAN THUONG VINH" || tenKhongId == "VINH" {
+            return true
+        }
+        return false
+    }
+
     static func gopDanhSachThiDua(cu: [DongThiDua], moi: [DongThiDua]) -> [DongThiDua] {
         let tatCa = cu.isEmpty ? moi : (cu + moi)
         guard !tatCa.isEmpty else { return [] }
@@ -2858,7 +2892,7 @@ final class KhoDuLieu {
 
         for var dongMoi in tatCa {
             let tenKiemTra = dongMoi.tenNganhHangGoc.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !tenKiemTra.isEmpty else { continue }
+            guard !tenKiemTra.isEmpty, !laTenDongNhanVienBiQuetNham(tenKiemTra), !laTenDongNhanVienBiQuetNham(dongMoi.tenNganhHang) else { continue }
 
             let gocSach = chuanHoaTenMonThiDuaChuan(dongMoi.tenNganhHangGoc)
             dongMoi.tenNganhHangGoc = gocSach.isEmpty ? dongMoi.tenNganhHangGoc : gocSach
