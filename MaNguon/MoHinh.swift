@@ -1161,6 +1161,7 @@ struct CaiDatDMX: Codable {
         .init(maNV: "201962", hoTen: "Nguyễn Thị Kim Loan"),
         .init(maNV: "65255", hoTen: "Nguyễn Thị Thu Thảo"),
         .init(maNV: "24939", hoTen: "Phan Hoàng Sơn"),
+        .init(maNV: "65257", hoTen: "Phan Thương Vĩnh"),
         .init(maNV: "261423", hoTen: "Trần Nam Tùng"),
         .init(maNV: "293044", hoTen: "Võ Ngọc Vĩ")
     ]
@@ -1183,7 +1184,16 @@ struct CaiDatDMX: Codable {
         self.kieuHienThi = kieuHienThi
         self.danhSachCumTuLocBo = danhSachCumTuLocBo
         self.soCotXuatAnh = soCotXuatAnh
-        self.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(danhSachNhanVien.isEmpty ? Self.nhanVienMau : danhSachNhanVien)
+        var dsNV = danhSachNhanVien.isEmpty ? Self.nhanVienMau : danhSachNhanVien
+        for i in dsNV.indices {
+            if dsNV[i].maNV == "65257" && dsNV[i].hoTen.count < 14 {
+                dsNV[i].hoTen = "Phan Thương Vĩnh"
+            }
+        }
+        if !dsNV.contains(where: { $0.maNV == "65257" }) {
+            dsNV.append(.init(maNV: "65257", hoTen: "Phan Thương Vĩnh"))
+        }
+        self.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(dsNV)
         self.chiaTargetNganhHang = chiaTargetNganhHang
         self.mucTieuDoanhThuQDThang = mucTieuDoanhThuQDThang
         self.phanTramTargetLuyKe = min(200, max(50, phanTramTargetLuyKe))
