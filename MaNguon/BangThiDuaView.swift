@@ -2477,9 +2477,9 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     private let nganNoiDung = UIStackView()
     private let nganSucKhoeNV = UIStackView()
 
-    // Thành phần của Bảng thông số Sức khỏe Nhân viên (27 điểm) & Biểu đồ Đội ngũ (~16 NV)
+    // Thành phần của Bảng Chi tiết Sức khỏe Nhân viên & Biểu đồ Đội ngũ (~16 NV)
     private var baoCaoSucKhoeHienTai: BaoCaoSucKhoeDoiNgu?
-    private let chonKieuXemSK = UISegmentedControl(items: ["📋 Bảng thông số Sức khỏe NV", "📊 Biểu đồ Đội ngũ"])
+    private let chonKieuXemSK = UISegmentedControl(items: ["📋 Chi tiết Sức khỏe NV", "📊 Biểu đồ & Chuỗi ngày"])
     private let khungChonNVSucKhoe = UIView()
     private let nutSKNVTruoc = UIButton(type: .system)
     private let nutSKNVSau = UIButton(type: .system)
@@ -2522,7 +2522,9 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     private let veBieuDoSucKhoe = VeBieuDoSucKhoeNhanVienView()
     private var rangBuocCaoBieuDoSucKhoe: NSLayoutConstraint?
 
+    private let cuonNgangMaTran = UIScrollView()
     private let nganBangMaTranNgay = UIStackView()
+    private var dsMaTranDangHienThi: [HoSoSucKhoeNhanVien] = []
 
     private let nhanTieuDeLuyKe = UILabel()
     private let theLuyKeThuc = TheDoanhThuView(
@@ -2962,6 +2964,8 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         let khungMaTran = UIView()
         khungMaTran.backgroundColor = .secondarySystemGroupedBackground
         khungMaTran.layer.cornerRadius = 12
+        khungMaTran.layer.borderWidth = 1
+        khungMaTran.layer.borderColor = UIColor.separator.withAlphaComponent(0.35).cgColor
 
         let lbTieuDeMaTran = UILabel()
         lbTieuDeMaTran.text = "🗓️ BẢNG THEO DÕI CHUỖI NGÀY SỨC KHỎE NHÂN VIÊN TRONG THÁNG"
@@ -2971,12 +2975,34 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         lbTieuDeMaTran.lineBreakMode = .byWordWrapping
         lbTieuDeMaTran.adjustsFontSizeToFitWidth = false
 
-        nganBangMaTranNgay.axis = .vertical
-        nganBangMaTranNgay.spacing = 4
+        let lbPhuDeMaTran = UILabel()
+        lbPhuDeMaTran.text = "Chạm vào từng nhân viên để xem Sức khỏe chi tiết • Vuốt ngang bảng nếu màn hình nhỏ"
+        lbPhuDeMaTran.font = .systemFont(ofSize: 10.5, weight: .medium)
+        lbPhuDeMaTran.textColor = .secondaryLabel
+        lbPhuDeMaTran.numberOfLines = 0
 
-        let nganTrongMaTran = UIStackView(arrangedSubviews: [lbTieuDeMaTran, nganBangMaTranNgay])
+        nganBangMaTranNgay.axis = .vertical
+        nganBangMaTranNgay.spacing = 5
+        nganBangMaTranNgay.translatesAutoresizingMaskIntoConstraints = false
+
+        cuonNgangMaTran.showsHorizontalScrollIndicator = false
+        cuonNgangMaTran.showsVerticalScrollIndicator = false
+        cuonNgangMaTran.bounces = true
+        cuonNgangMaTran.translatesAutoresizingMaskIntoConstraints = false
+        cuonNgangMaTran.addSubview(nganBangMaTranNgay)
+
+        NSLayoutConstraint.activate([
+            nganBangMaTranNgay.topAnchor.constraint(equalTo: cuonNgangMaTran.contentLayoutGuide.topAnchor),
+            nganBangMaTranNgay.bottomAnchor.constraint(equalTo: cuonNgangMaTran.contentLayoutGuide.bottomAnchor),
+            nganBangMaTranNgay.leadingAnchor.constraint(equalTo: cuonNgangMaTran.contentLayoutGuide.leadingAnchor),
+            nganBangMaTranNgay.trailingAnchor.constraint(equalTo: cuonNgangMaTran.contentLayoutGuide.trailingAnchor),
+            cuonNgangMaTran.heightAnchor.constraint(equalTo: nganBangMaTranNgay.heightAnchor),
+            nganBangMaTranNgay.widthAnchor.constraint(greaterThanOrEqualTo: cuonNgangMaTran.frameLayoutGuide.widthAnchor)
+        ])
+
+        let nganTrongMaTran = UIStackView(arrangedSubviews: [lbTieuDeMaTran, lbPhuDeMaTran, cuonNgangMaTran])
         nganTrongMaTran.axis = .vertical
-        nganTrongMaTran.spacing = 8
+        nganTrongMaTran.spacing = 6
         nganTrongMaTran.translatesAutoresizingMaskIntoConstraints = false
         khungMaTran.addSubview(nganTrongMaTran)
 
@@ -3460,6 +3486,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         let ds = danhSachHoSoSauLocVaSapXep(tu: bc)
         veBieuDoSucKhoe.danhSachHoSo = ds
         rangBuocCaoBieuDoSucKhoe?.constant = veBieuDoSucKhoe.chieuCaoCanThiet(cho: ds.count)
+        capNhatBangMaTranNgay(bc)
     }
 
     private func capNhatBangMaTranNgay(_ bc: BaoCaoSucKhoeDoiNgu) {
@@ -3470,22 +3497,32 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
 
         guard !bc.danhSachTatCa.isEmpty else { return }
         let cacNgay = Array(bc.cacNhanNgayTheoDoi.suffix(6))
+        let dsSapXep = danhSachHoSoSauLocVaSapXep(tu: bc)
+        dsMaTranDangHienThi = dsSapXep
+
+        let wCotTenToiThieu: CGFloat = 132
+        let wCotNgay: CGFloat = 38
+        let wCotChuoi: CGFloat = 48
 
         // Dòng tiêu đề cột
         let header = UIStackView()
         header.axis = .horizontal
-        header.spacing = 4
+        header.spacing = 5
+        header.alignment = .center
         header.backgroundColor = BangMauBCTD.nenHeaderBang
-        header.layer.cornerRadius = 6
+        header.layer.cornerRadius = 8
         header.isLayoutMarginsRelativeArrangement = true
-        header.layoutMargins = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
+        header.layoutMargins = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
 
         let lbHNV = UILabel()
-        lbHNV.text = "NHÂN VIÊN (\(bc.danhSachTatCa.count))"
-        lbHNV.font = .systemFont(ofSize: 10.5, weight: .bold)
+        lbHNV.text = "NHÂN VIÊN (\(dsSapXep.count))"
+        lbHNV.font = .systemFont(ofSize: 11.0, weight: .bold)
         lbHNV.textColor = BangMauBCTD.vangChuDao
-        lbHNV.numberOfLines = 0
-        lbHNV.lineBreakMode = .byWordWrapping
+        lbHNV.numberOfLines = 1
+        lbHNV.lineBreakMode = .byTruncatingTail
+        lbHNV.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        lbHNV.setContentCompressionResistancePriority(.required, for: .horizontal)
+        lbHNV.widthAnchor.constraint(greaterThanOrEqualToConstant: wCotTenToiThieu).isActive = true
         header.addArrangedSubview(lbHNV)
 
         for ng in cacNgay {
@@ -3494,7 +3531,9 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             lb.font = .monospacedDigitSystemFont(ofSize: 10.0, weight: .bold)
             lb.textColor = .white
             lb.textAlignment = .center
-            lb.widthAnchor.constraint(equalToConstant: 38).isActive = true
+            lb.setContentHuggingPriority(.required, for: .horizontal)
+            lb.setContentCompressionResistancePriority(.required, for: .horizontal)
+            lb.widthAnchor.constraint(equalToConstant: wCotNgay).isActive = true
             header.addArrangedSubview(lb)
         }
 
@@ -3502,34 +3541,48 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         lbHChuoi.text = "CHUỖI"
         lbHChuoi.font = .systemFont(ofSize: 10.0, weight: .bold)
         lbHChuoi.textColor = BangMauBCTD.vangChuDao
-        lbHChuoi.textAlignment = .right
-        lbHChuoi.widthAnchor.constraint(equalToConstant: 48).isActive = true
+        lbHChuoi.textAlignment = .center
+        lbHChuoi.setContentHuggingPriority(.required, for: .horizontal)
+        lbHChuoi.setContentCompressionResistancePriority(.required, for: .horizontal)
+        lbHChuoi.widthAnchor.constraint(equalToConstant: wCotChuoi).isActive = true
         header.addArrangedSubview(lbHChuoi)
 
         nganBangMaTranNgay.addArrangedSubview(header)
 
-        let dsSapXep = danhSachHoSoSauLocVaSapXep(tu: bc)
         for (idx, hs) in dsSapXep.enumerated() {
             let dong = UIStackView()
             dong.axis = .horizontal
-            dong.spacing = 4
+            dong.spacing = 5
             dong.alignment = .center
-            dong.layer.cornerRadius = 6
+            dong.layer.cornerRadius = 8
             dong.isLayoutMarginsRelativeArrangement = true
-            dong.layoutMargins = UIEdgeInsets(top: 5, left: 6, bottom: 5, right: 6)
+            dong.layoutMargins = UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
+            dong.tag = idx
+            dong.isUserInteractionEnabled = true
+            let tap = UITapGestureRecognizer(target: self, action: #selector(bamDongMaTranNgay(_:)))
+            dong.addGestureRecognizer(tap)
+
             if hs.laCanhBaoTop5 {
                 dong.backgroundColor = UIColor.systemRed.withAlphaComponent(0.08)
+                dong.layer.borderWidth = 0.8
+                dong.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.22).cgColor
             } else if idx % 2 == 1 {
-                dong.backgroundColor = UIColor.secondarySystemFill.withAlphaComponent(0.25)
+                dong.backgroundColor = UIColor.secondarySystemFill.withAlphaComponent(0.32)
+            } else {
+                dong.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.6)
             }
 
             let lbTen = UILabel()
             lbTen.text = "\(idx + 1). \(hs.nhanVien.hoTen)"
-            lbTen.font = .systemFont(ofSize: 11.0, weight: hs.laCanhBaoTop5 ? .bold : .semibold)
+            lbTen.font = .systemFont(ofSize: 11.5, weight: hs.laCanhBaoTop5 ? .bold : .semibold)
             lbTen.textColor = hs.laCanhBaoTop5 ? UIColor(red: 0.76, green: 0.10, blue: 0.10, alpha: 1) : .label
-            lbTen.numberOfLines = 0
-            lbTen.lineBreakMode = .byWordWrapping
-            lbTen.adjustsFontSizeToFitWidth = false
+            lbTen.numberOfLines = 1
+            lbTen.lineBreakMode = .byTruncatingTail
+            lbTen.adjustsFontSizeToFitWidth = true
+            lbTen.minimumScaleFactor = 0.80
+            lbTen.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            lbTen.setContentCompressionResistancePriority(.required, for: .horizontal)
+            lbTen.widthAnchor.constraint(greaterThanOrEqualToConstant: wCotTenToiThieu).isActive = true
             dong.addArrangedSubview(lbTen)
 
             let mapNgay = Dictionary(uniqueKeysWithValues: hs.lichSuNgay.map { ($0.nhanNgay, $0) })
@@ -3537,10 +3590,12 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
                 let lbO = UILabel()
                 lbO.font = .monospacedDigitSystemFont(ofSize: 10.0, weight: .bold)
                 lbO.textAlignment = .center
-                lbO.layer.cornerRadius = 5
+                lbO.layer.cornerRadius = 6
                 lbO.clipsToBounds = true
-                lbO.widthAnchor.constraint(equalToConstant: 38).isActive = true
-                lbO.heightAnchor.constraint(equalToConstant: 22).isActive = true
+                lbO.setContentHuggingPriority(.required, for: .horizontal)
+                lbO.setContentCompressionResistancePriority(.required, for: .horizontal)
+                lbO.widthAnchor.constraint(equalToConstant: wCotNgay).isActive = true
+                lbO.heightAnchor.constraint(equalToConstant: 24).isActive = true
 
                 if let diemNg = mapNgay[ng], diemNg.mucDo != .chuaCoSo {
                     lbO.text = "\(Int(round(diemNg.diemSucKhoe)))%"
@@ -3567,20 +3622,34 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             }
 
             let lbChuoi = UILabel()
-            lbChuoi.font = .systemFont(ofSize: 10.5, weight: .bold)
-            lbChuoi.textAlignment = .right
-            lbChuoi.widthAnchor.constraint(equalToConstant: 48).isActive = true
+            lbChuoi.font = .systemFont(ofSize: 10.0, weight: .bold)
+            lbChuoi.textAlignment = .center
+            lbChuoi.layer.cornerRadius = 6
+            lbChuoi.clipsToBounds = true
+            lbChuoi.setContentHuggingPriority(.required, for: .horizontal)
+            lbChuoi.setContentCompressionResistancePriority(.required, for: .horizontal)
+            lbChuoi.widthAnchor.constraint(equalToConstant: wCotChuoi).isActive = true
+            lbChuoi.heightAnchor.constraint(equalToConstant: 24).isActive = true
             if hs.soNgayYeuLienTuc > 0 {
                 lbChuoi.text = "🔥\(hs.soNgayYeuLienTuc)N"
-                lbChuoi.textColor = .systemRed
+                lbChuoi.textColor = UIColor(red: 0.76, green: 0.10, blue: 0.10, alpha: 1)
+                lbChuoi.backgroundColor = UIColor.systemRed.withAlphaComponent(0.14)
             } else {
-                lbChuoi.text = "0N"
-                lbChuoi.textColor = .secondaryLabel
+                lbChuoi.text = "✓ 0N"
+                lbChuoi.textColor = UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
+                lbChuoi.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.12)
             }
             dong.addArrangedSubview(lbChuoi)
 
             nganBangMaTranNgay.addArrangedSubview(dong)
         }
+    }
+
+    @objc private func bamDongMaTranNgay(_ gesture: UITapGestureRecognizer) {
+        guard let view = gesture.view else { return }
+        let idx = view.tag
+        guard idx >= 0 && idx < dsMaTranDangHienThi.count else { return }
+        khiChonNhanVienSucKhoe?(dsMaTranDangHienThi[idx].tongHopHienTai, cheDoSucKhoe)
     }
 
     @objc private func bamSuaLuyKe() {
