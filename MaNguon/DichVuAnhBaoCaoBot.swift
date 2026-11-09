@@ -6,10 +6,6 @@ enum KhoAnhBaoCaoBot: String, Codable, CaseIterable {
     case apiKey
     case googleDrive
 
-    // Giữ các case cũ để đọc được cấu hình đã lưu từ những bản trước, nhưng
-    // bản hiện tại chỉ cho phép tải ảnh báo cáo vào Supabase.
-    static var allCases: [KhoAnhBaoCaoBot] { [.supabase] }
-
     var tieuDe: String {
         switch self {
         case .supabase: return "Supabase"
@@ -51,8 +47,8 @@ struct CauHinhKhoAnhBaoCaoBot: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        kho = .supabase
-        apiKeyImgBB = ""
+        kho = (try? c.decode(KhoAnhBaoCaoBot.self, forKey: .kho)) ?? .supabase
+        apiKeyImgBB = (try? c.decode(String.self, forKey: .apiKeyImgBB)) ?? ""
         driveClientId = (try? c.decode(String.self, forKey: .driveClientId)) ?? ""
         driveClientSecret = (try? c.decode(String.self, forKey: .driveClientSecret)) ?? ""
         driveRefreshToken = (try? c.decode(String.self, forKey: .driveRefreshToken)) ?? ""
@@ -142,12 +138,7 @@ final class DichVuAnhBaoCaoBot {
 
     var cauHinh: CauHinhKhoAnhBaoCaoBot {
         get { docCauHinh() ?? CauHinhKhoAnhBaoCaoBot() }
-        set {
-            var cauHinhSupabase = newValue
-            cauHinhSupabase.kho = .supabase
-            cauHinhSupabase.apiKeyImgBB = ""
-            luuCauHinh(cauHinhSupabase)
-        }
+        set { luuCauHinh(newValue) }
     }
 
     func taiAnh(
@@ -157,15 +148,65 @@ final class DichVuAnhBaoCaoBot {
         buocDungSupabase: Bool = false,
         hoanTat: ((Result<String, Error>) -> Void)? = nil
     ) {
+        let cauHinh = self.cauHinh
         hangDoi.async { [weak self] in
             guard let self,
                   let jpeg = self.duLieuJPEGToiUu(anh) else {
                 DispatchQueue.main.async { hoanTat?(.failure(NSError.dmx("Không nén được ảnh báo cáo."))) }
                 return
             }
-            // Mọi ảnh bot đều đi thẳng vào Supabase. Không còn nhánh ImgBB /
-            // Google Drive nên bot không thể vô tình lấy URL ngoài hoặc ảnh cũ.
-            self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+            if buocDungSupabase || cauHinh.kho == .supabase {
+                self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+            } else if cauHinh.kho == .apiKey && cauHinh.apiKeyDaSanSang {
+                self.taiLenImgBB(jpeg, loai: loai, ngay: ngay, apiKey: cauHinh.apiKeyImgBB) { ketQua in
+                    switch ketQua {
+                    case .success(let url):
+                        DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, urlDrive: url) { kq in
+                            hoanTat?(kq.map { "API Key (ImgBB)" })
+                        }
+                    case .failure:
+                        self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+                    }
+                }
+            } else if cauHinh.kho == .googleDrive && cauHinh.driveTrucTiepDaSanSang {
+                self.taiLenDriveTrucTiep(jpeg, loai: loai, ngay: ngay, cauHinh: cauHinh) { ketQua in
+                    switch ketQua {
+                    case .success(let url):
+                        DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, urlDrive: url) { kq in
+                            hoanTat?(kq.map { "Google Drive (API trực tiếp)" })
+                        }
+                    case .failure:
+                        if cauHinh.driveAppsScriptDaSanSang {
+                            self.taiLenDrive(jpeg, loai: loai, ngay: ngay, cauHinh: cauHinh) { kqScript in
+                                switch kqScript {
+                                case .success(let url):
+                                    DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, urlDrive: url) { kq in
+                                        hoanTat?(kq.map { "Google Drive" })
+                                    }
+                                case .failure:
+                                    self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+                                }
+                            }
+                        } else {
+                            self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+                        }
+                    }
+                }
+            } else if cauHinh.kho == .googleDrive && cauHinh.driveAppsScriptDaSanSang {
+                self.taiLenDrive(jpeg, loai: loai, ngay: ngay, cauHinh: cauHinh) { ketQua in
+                    switch ketQua {
+                    case .success(let url):
+                        DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, urlDrive: url) { kq in
+                            hoanTat?(kq.map { "Google Drive" })
+                        }
+                    case .failure:
+                        // Drive lỗi không làm mất lịch gửi: tự lưu bản mới nhất sang Supabase.
+                        self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+                    }
+                }
+            } else {
+                self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+            }
         }
     }
 

@@ -96,7 +96,7 @@ final class BangGuiBaoCaoView: UIView {
 
         ngan.addArrangedSubview(taoDuongKe())
         ngan.addArrangedSubview(taoNhan("KHO ẢNH GỬI NHANH", dam: true))
-        ngan.addArrangedSubview(taoNhan("Ảnh báo cáo được tải trực tiếp và lấy lại từ Supabase. Mỗi loại chỉ giữ bản mới nhất của đúng ngày và đúng siêu thị."))
+        ngan.addArrangedSubview(taoNhan("Chọn kho lưu ảnh báo cáo: Supabase (trực tiếp), API Key (ImgBB siêu tốc không qua Apps Script), hoặc Google Drive (API trực tiếp / Apps Script)."))
         chonKhoAnh.addTarget(self, action: #selector(doiKhoAnh), for: .valueChanged)
         ngan.addArrangedSubview(chonKhoAnh)
 
@@ -105,7 +105,7 @@ final class BangGuiBaoCaoView: UIView {
         nganCauHinhApiKey.addArrangedSubview(taoNhan("⚡ Tải ảnh trực tiếp bằng 1 API Key (lấy miễn phí tại api.imgbb.com, tốc độ ~0.4 giây/ảnh, không qua Apps Script):"))
         cauHinhO(oApiKeyImgBB, goiY: "Nhập API Key ImgBB (ví dụ: 6d207e02198a847aa98d0a2a901485a5)", baoMat: true)
         nganCauHinhApiKey.addArrangedSubview(oApiKeyImgBB)
-        nganCauHinhApiKey.isHidden = true
+        ngan.addArrangedSubview(nganCauHinhApiKey)
 
         nganCauHinhDrive.axis = .vertical
         nganCauHinhDrive.spacing = 7
@@ -123,7 +123,7 @@ final class BangGuiBaoCaoView: UIView {
         nganCauHinhDrive.addArrangedSubview(oURLAppsScript)
         nganCauHinhDrive.addArrangedSubview(oKhoaDrive)
         nganCauHinhDrive.addArrangedSubview(oFolderId)
-        nganCauHinhDrive.isHidden = true
+        ngan.addArrangedSubview(nganCauHinhDrive)
 
         // Nút Lưu luôn hiển thị cho mọi kho ảnh (kể cả khi chuyển từ Drive về Supabase)
         ngan.addArrangedSubview(taoNut("💾 Lưu cấu hình kho ảnh", #selector(luuCauHinhKhoAnh)))
