@@ -1682,7 +1682,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutCopyJSONXuatAnh.addTarget(self, action: #selector(bamCopyJSONTuMucXuatAnh), for: .touchUpInside)
 
         let nutXuatTatCaLenServer = UIButton(type: .system)
-        nutXuatTatCaLenServer.setTitle("☁️ XUẤT TẤT CẢ ẢNH LÊN SERVER (SUPABASE)", for: .normal)
+        nutXuatTatCaLenServer.setTitle("☁️ XUẤT TẤT CẢ ẢNH LÊN KHO ĐÃ CHỌN", for: .normal)
         nutXuatTatCaLenServer.titleLabel?.font = .systemFont(ofSize: 14.0, weight: .heavy)
         nutXuatTatCaLenServer.titleLabel?.numberOfLines = 0
         nutXuatTatCaLenServer.titleLabel?.lineBreakMode = .byWordWrapping
@@ -3265,63 +3265,101 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             }
         }
 
+        let cauHinhKho = DichVuAnhBaoCaoBot.dungChung.cauHinh
+        let tenKhoUuTien = cauHinhKho.driveDaSanSang ? "Google Drive" : "Supabase"
+
         lopPhuTai.isHidden = false
         vongQuay.startAnimating()
-        nhanTienTrinh.text = "Đang chuẩn bị xuất \(danhSachMuc.count) ảnh báo cáo lên Supabase..."
+        nhanTienTrinh.text = "Đang chuẩn bị xuất \(danhSachMuc.count) ảnh báo cáo lên \(tenKhoUuTien)..."
 
         var soThanhCong = 0
         var soLoi = 0
+        var soDangTai = 0
+        var soDaXuLy = 0
+        var viTriTiepTheo = 0
         var thongBaoLoiCuoi: String?
+        var soAnhTheoKho: [String: Int] = [:]
+        let soLuongTaiDongThoi = 3
 
-        func xuatTiep(_ viTri: Int) {
-            guard self.maLanTaoAnhBot == maLanXuat else { return }
-            if viTri >= danhSachMuc.count {
-                self.vongQuay.stopAnimating()
-                self.lopPhuTai.isHidden = true
-                let tieuDe: String
-                let thongDiep: String
-                if soThanhCong > 0 && soLoi == 0 {
-                    tieuDe = "Đã xuất ảnh lên Server"
-                    thongDiep = "Đã xuất và cập nhật thành công \(soThanhCong) ảnh báo cáo lên Supabase (thay thế ảnh cũ)."
-                } else if soThanhCong > 0 {
-                    let chiTietLoi = thongBaoLoiCuoi ?? ""
-                    tieuDe = "Đã xuất \(soThanhCong) ảnh lên Server"
-                    thongDiep = "Đã cập nhật \(soThanhCong) ảnh lên Supabase (\(soLoi) ảnh lỗi: \(chiTietLoi))."
-                } else {
-                    tieuDe = "Chưa tải được ảnh lên Server"
-                    thongDiep = thongBaoLoiCuoi ?? "Chưa có dữ liệu báo cáo để tạo ảnh hoặc kết nối máy chủ gặp sự cố."
-                }
-                let tb = UIAlertController(title: tieuDe, message: thongDiep, preferredStyle: .alert)
-                tb.addAction(UIAlertAction(title: "Đóng", style: .default))
-                self.present(tb, animated: true)
-                return
+        func ketThucNeuDaXong() -> Bool {
+            guard soDaXuLy >= danhSachMuc.count else { return false }
+            guard self.maLanTaoAnhBot == maLanXuat else { return true }
+            self.vongQuay.stopAnimating()
+            self.lopPhuTai.isHidden = true
+            let tieuDe: String
+            let thongDiep: String
+            let moTaKho = soAnhTheoKho
+                .sorted { $0.key < $1.key }
+                .map { "\($0.value) ảnh \($0.key)" }
+                .joined(separator: ", ")
+            if soThanhCong > 0 && soLoi == 0 {
+                tieuDe = "Đã xuất ảnh lên Server"
+                thongDiep = "Đã xuất và cập nhật thành công \(soThanhCong) ảnh báo cáo (\(moTaKho)); ảnh mới đã thay thế ảnh cũ."
+            } else if soThanhCong > 0 {
+                let chiTietLoi = thongBaoLoiCuoi ?? ""
+                tieuDe = "Đã xuất \(soThanhCong) ảnh lên Server"
+                thongDiep = "Đã cập nhật \(soThanhCong) ảnh (\(moTaKho)); \(soLoi) ảnh lỗi: \(chiTietLoi)."
+            } else {
+                tieuDe = "Chưa tải được ảnh lên Server"
+                thongDiep = thongBaoLoiCuoi ?? "Chưa có dữ liệu báo cáo để tạo ảnh hoặc kết nối máy chủ gặp sự cố."
             }
+            let tb = UIAlertController(title: tieuDe, message: thongDiep, preferredStyle: .alert)
+            tb.addAction(UIAlertAction(title: "Đóng", style: .default))
+            self.present(tb, animated: true)
+            return true
+        }
 
-            let muc = danhSachMuc[viTri]
-            self.nhanTienTrinh.text = "Đang xuất & tải lên Supabase (\(viTri + 1)/\(danhSachMuc.count)):\n\(muc.ten)..."
+        func capNhatTienTrinh() {
+            self.nhanTienTrinh.text = "Đang tải ảnh lên \(tenKhoUuTien): \(soDaXuLy)/\(danhSachMuc.count) hoàn tất, \(soDangTai) đang tải..."
+        }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-                guard let self, self.maLanTaoAnhBot == maLanXuat else { return }
-                let anh = autoreleasepool { taoAnh(muc.ma) }
-                guard let anh else {
-                    xuatTiep(viTri + 1)
-                    return
-                }
-                DichVuAnhBaoCaoBot.dungChung.taiAnh(anh, loai: muc.ma, ngay: ngay, buocDungSupabase: true) { [weak self] ketQua in
+        func batDauThemAnhNeuCan() {
+            guard self.maLanTaoAnhBot == maLanXuat else { return }
+            if ketThucNeuDaXong() { return }
+
+            while soDangTai < soLuongTaiDongThoi && viTriTiepTheo < danhSachMuc.count {
+                let viTri = viTriTiepTheo
+                let muc = danhSachMuc[viTri]
+                viTriTiepTheo += 1
+                soDangTai += 1
+                capNhatTienTrinh()
+
+                // Tạo ảnh vẫn thực hiện tuần tự trên main thread để UIKit ổn định,
+                // nhưng upload mạng chạy đồng thời tối đa 3 ảnh.
+                DispatchQueue.main.async { [weak self] in
                     guard let self, self.maLanTaoAnhBot == maLanXuat else { return }
-                    switch ketQua {
-                    case .success:
-                        soThanhCong += 1
-                    case .failure(let err):
+                    let anh = autoreleasepool { taoAnh(muc.ma) }
+                    guard let anh else {
+                        soDangTai -= 1
+                        soDaXuLy += 1
                         soLoi += 1
-                        thongBaoLoiCuoi = err.localizedDescription
+                        thongBaoLoiCuoi = "Không tạo được ảnh \(muc.ten)."
+                        capNhatTienTrinh()
+                        batDauThemAnhNeuCan()
+                        return
                     }
-                    xuatTiep(viTri + 1)
+                    DichVuAnhBaoCaoBot.dungChung.taiAnh(
+                        anh, loai: muc.ma, ngay: ngay
+                    ) { [weak self] ketQua in
+                        guard let self, self.maLanTaoAnhBot == maLanXuat else { return }
+                        soDangTai -= 1
+                        soDaXuLy += 1
+                        switch ketQua {
+                        case .success(let khoDaDung):
+                            soThanhCong += 1
+                            soAnhTheoKho[khoDaDung, default: 0] += 1
+                        case .failure(let err):
+                            soLoi += 1
+                            thongBaoLoiCuoi = "\(muc.ten): \(err.localizedDescription)"
+                        }
+                        capNhatTienTrinh()
+                        batDauThemAnhNeuCan()
+                    }
                 }
             }
         }
 
-        xuatTiep(0)
+        batDauThemAnhNeuCan()
     }
 
     private func capNhatNoiDungTheoMucDangChon(dl: DuLieuNgayDMX? = nil, dsThiDuaDangChon: [DongThiDua]? = nil) {
@@ -4765,7 +4803,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .tenAZ, cheDo: cheDoNV)
 
         let cacMuc: [MucChonDMX] = [
-            MucChonDMX(tieuDe: "☁️ Xuất tất cả ảnh lên Server (Supabase)") { [weak self] in
+            MucChonDMX(tieuDe: "☁️ Xuất tất cả ảnh lên kho đã chọn") { [weak self] in
                 self?.xuatTatCaAnhLenServerSupabase()
             },
             MucChonDMX(tieuDe: "📊 Ảnh Bảng Xếp Hạng Nhân Viên — Lũy kế") { [weak self] in
@@ -4831,7 +4869,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let dsDangChon = dl.danhSachThiDua(theo: cheDoCSV)
 
         let cacMuc: [MucChonDMX] = [
-            MucChonDMX(tieuDe: "☁️ Xuất tất cả ảnh lên Server (Supabase)") { [weak self] in
+            MucChonDMX(tieuDe: "☁️ Xuất tất cả ảnh lên kho đã chọn") { [weak self] in
                 self?.xuatTatCaAnhLenServerSupabase()
             },
             MucChonDMX(tieuDe: "🖼️ Mở mục 3. Xuất ảnh (Có ô Text báo cáo + Copy gửi LINE)") { [weak self] in
@@ -4952,7 +4990,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
     private func hienBangNutXuatAnh() {
         var cacNut: [(tieuDe: String, hanhDong: () -> Void)] = [
-            (tieuDe: "☁️ Xuất tất cả ảnh lên Server (Supabase)", hanhDong: { [weak self] in
+            (tieuDe: "☁️ Xuất tất cả ảnh lên kho đã chọn", hanhDong: { [weak self] in
                 self?.xuatTatCaAnhLenServerSupabase()
             })
         ]

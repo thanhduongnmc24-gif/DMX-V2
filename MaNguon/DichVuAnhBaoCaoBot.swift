@@ -137,21 +137,30 @@ final class DichVuAnhBaoCaoBot {
 
     private func duLieuJPEGToiUu(_ anh: UIImage) -> Data? {
         let gioiHan = 2_900_000
-        let cacMoc: [(CGFloat, CGFloat)] = [
-            (1400, 0.90), (1400, 0.82), (1200, 0.84),
-            (1050, 0.80), (900, 0.76), (760, 0.72)
-        ]
+        // Ảnh gộp chi tiết nhân viên có thể rất cao. Bộ nén cũ chỉ thử vài
+        // chiều rộng cố định nên vẫn có thể vượt 2,9 MB và bị bỏ hoàn toàn.
+        // Thu nhỏ dần cả hai chiều cho tới khi có bản JPEG hợp lệ.
+        let cacChieuRong: [CGFloat] = [1600, 1400, 1200, 1050, 900, 760, 640, 540, 460, 380, 320, 280, 240]
+        let cacChatLuong: [CGFloat] = [0.88, 0.78, 0.68, 0.58, 0.48, 0.38, 0.30, 0.24]
         var ketQuaNhoNhat: Data?
-        for (rongToiDa, chatLuong) in cacMoc {
-            let anhXuat = thuNho(anh, rongToiDa: rongToiDa)
-            guard let data = anhXuat.jpegData(compressionQuality: chatLuong) else { continue }
-            if ketQuaNhoNhat == nil || data.count < ketQuaNhoNhat!.count { ketQuaNhoNhat = data }
-            if data.count <= gioiHan { return data }
+
+        for rongToiDa in cacChieuRong {
+            autoreleasepool {
+                let anhXuat = thuNho(anh, rongToiDa: rongToiDa)
+                for chatLuong in cacChatLuong {
+                    guard let data = anhXuat.jpegData(compressionQuality: chatLuong) else { continue }
+                    if ketQuaNhoNhat == nil || data.count < ketQuaNhoNhat!.count {
+                        ketQuaNhoNhat = data
+                    }
+                    if data.count <= gioiHan { return }
+                }
+            }
+            if let ketQuaNhoNhat, ketQuaNhoNhat.count <= gioiHan {
+                return ketQuaNhoNhat
+            }
         }
-        if let ketQuaNhoNhat, ketQuaNhoNhat.count <= gioiHan {
-            return ketQuaNhoNhat
-        }
-        return nil
+
+        return ketQuaNhoNhat.flatMap { $0.count <= gioiHan ? $0 : nil }
     }
 
     private func thuNho(_ anh: UIImage, rongToiDa: CGFloat) -> UIImage {
