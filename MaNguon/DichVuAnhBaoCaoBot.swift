@@ -90,8 +90,41 @@ final class DichVuAnhBaoCaoBot {
         ngay: String,
         hoanTat: ((Result<String, Error>) -> Void)?
     ) {
-        DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, duLieuJPEG: jpeg) { kq in
-            hoanTat?(kq.map { "Supabase" })
+        DichVuDongBo.dungChung.taoPhienTaiAnhBaoCaoTrucTiep(loai: loai, ngay: ngay) { [weak self] ketQua in
+            guard let self else { return }
+            switch ketQua {
+            case .failure(let loi):
+                hoanTat?(.failure(loi))
+            case .success(let phienTai):
+                var request = URLRequest(url: phienTai.signedURL)
+                request.httpMethod = "PUT"
+                request.httpBody = jpeg
+                request.timeoutInterval = 60
+                request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+                request.setValue("max-age=31536000", forHTTPHeaderField: "Cache-Control")
+                request.setValue("false", forHTTPHeaderField: "x-upsert")
+                request.setValue(String(jpeg.count), forHTTPHeaderField: "Content-Length")
+                self.phienMang.dataTask(with: request) { _, response, error in
+                    if let error {
+                        DispatchQueue.main.async { hoanTat?(.failure(error)) }
+                        return
+                    }
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    guard (200..<300).contains(status) else {
+                        DispatchQueue.main.async {
+                            hoanTat?(.failure(NSError.dmx("Supabase từ chối tải ảnh trực tiếp (HTTP \(status)).")))
+                        }
+                        return
+                    }
+                    DichVuDongBo.dungChung.xacNhanTaiAnhBaoCaoTrucTiep(
+                        loai: loai,
+                        ngay: ngay,
+                        duongDanLuuTru: phienTai.duongDanLuuTru
+                    ) { kq in
+                        hoanTat?(kq.map { "Supabase" })
+                    }
+                }.resume()
+            }
         }
     }
 
@@ -137,36 +170,44 @@ final class DichVuAnhBaoCaoBot {
 
     private func duLieuJPEGToiUu(_ anh: UIImage) -> Data? {
         let gioiHan = 2_900_000
-        // Ảnh gộp chi tiết nhân viên có thể rất cao. Bộ nén cũ chỉ thử vài
-        // chiều rộng cố định nên vẫn có thể vượt 2,9 MB và bị bỏ hoàn toàn.
-        // Thu nhỏ dần cả hai chiều cho tới khi có bản JPEG hợp lệ.
-        let cacChieuRong: [CGFloat] = [1600, 1400, 1200, 1050, 900, 760, 640, 540, 460, 380, 320, 280, 240]
-        let cacChatLuong: [CGFloat] = [0.88, 0.78, 0.68, 0.58, 0.48, 0.38, 0.30, 0.24]
-        var ketQuaNhoNhat: Data?
+        let rong = max(1, anh.size.width)
+        let cao = max(1, anh.size.height)
+        let gioiHanDiemAnh: CGFloat = 6_000_000
+        let tiLeTheoRong = min(1, 1_400 / rong)
+        let tiLeTheoDiemAnh = min(1, sqrt(gioiHanDiemAnh / (rong * cao)))
+        var anhDangNen = thuNho(anh, tiLe: min(tiLeTheoRong, tiLeTheoDiemAnh))
 
-        for rongToiDa in cacChieuRong {
-            autoreleasepool {
-                let anhXuat = thuNho(anh, rongToiDa: rongToiDa)
-                for chatLuong in cacChatLuong {
-                    guard let data = anhXuat.jpegData(compressionQuality: chatLuong) else { continue }
-                    if ketQuaNhoNhat == nil || data.count < ketQuaNhoNhat!.count {
-                        ketQuaNhoNhat = data
-                    }
-                    if data.count <= gioiHan { return }
-                }
+        // Chỉ mã hóa vài lần có tính toán. Cách cũ có thể mã hóa hơn 100 lần
+        // đối với ảnh thứ 8 rất dài, khiến người dùng tưởng mạng tải chậm.
+        let cacChatLuong: [CGFloat] = [0.82, 0.66, 0.50, 0.36]
+        var nhoNhat: Data?
+        for _ in 0..<4 {
+            for chatLuong in cacChatLuong {
+                guard let data = anhDangNen.jpegData(compressionQuality: chatLuong) else { continue }
+                if nhoNhat == nil || data.count < nhoNhat!.count { nhoNhat = data }
+                if data.count <= gioiHan { return data }
             }
-            if let ketQuaNhoNhat, ketQuaNhoNhat.count <= gioiHan {
-                return ketQuaNhoNhat
-            }
+
+            guard let nhoNhat else { return nil }
+            let tiLeDuKien = sqrt(CGFloat(gioiHan) / CGFloat(max(1, nhoNhat.count))) * 0.90
+            let tiLeThuNho = min(0.82, max(0.45, tiLeDuKien))
+            anhDangNen = thuNho(anhDangNen, tiLe: tiLeThuNho)
         }
 
-        return ketQuaNhoNhat.flatMap { $0.count <= gioiHan ? $0 : nil }
+        return nhoNhat.flatMap { $0.count <= gioiHan ? $0 : nil }
     }
 
     private func thuNho(_ anh: UIImage, rongToiDa: CGFloat) -> UIImage {
         guard anh.size.width > rongToiDa else { return anh }
-        let tiLe = rongToiDa / anh.size.width
-        let kichThuoc = CGSize(width: rongToiDa, height: max(1, anh.size.height * tiLe))
+        return thuNho(anh, tiLe: rongToiDa / anh.size.width)
+    }
+
+    private func thuNho(_ anh: UIImage, tiLe: CGFloat) -> UIImage {
+        guard tiLe < 0.999 else { return anh }
+        let kichThuoc = CGSize(
+            width: max(1, anh.size.width * tiLe),
+            height: max(1, anh.size.height * tiLe)
+        )
         return UIGraphicsImageRenderer(size: kichThuoc).image { _ in
             anh.draw(in: CGRect(origin: .zero, size: kichThuoc))
         }
