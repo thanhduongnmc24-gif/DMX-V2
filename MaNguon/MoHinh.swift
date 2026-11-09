@@ -1041,7 +1041,8 @@ struct DongThiDua: Codable, Hashable, Identifiable {
     var phanTramHT: Double {
         if target > 0.0001 {
             let htTinh = (thucHien / target) * 100.0
-            if let goc = phanTramHTGoc, abs(goc) > 0.0001, abs(htTinh - goc) <= 1.2 {
+            let nguong: Double = (loaiChiTieu == .soLuong && target <= 25) ? 3.5 : 1.2
+            if let goc = phanTramHTGoc, abs(goc) > 0.0001, abs(htTinh - goc) <= nguong {
                 return goc
             }
             return htTinh

@@ -1920,6 +1920,52 @@ final class DichVuDocAnh {
                                     reqO.minimumTextHeight = 0.04
                                     let hdl = VNImageRequestHandler(cgImage: cgO, orientation: anhGoc.cgImageOrientation, options: [:])
                                     try? hdl.perform([reqO])
+
+                                    // Nếu ô số chỉ có 1 chữ số đơn lẻ (như 0, 1, 2, 5, 8) khiến Vision bỏ qua khi đứng một mình,
+                                    // ghép nhãn neo "100 : " bên trái ô để Vision luôn nhận diện thành dòng chữ hoàn chỉnh
+                                    if kqO.isEmpty && !cot.laCotTen {
+                                        let kichThuocNeo = CGSize(width: 260, height: 64)
+                                        let renderer = UIGraphicsImageRenderer(size: kichThuocNeo)
+                                        let anhNeo = renderer.image { ctx in
+                                            UIColor.white.setFill()
+                                            ctx.fill(CGRect(origin: .zero, size: kichThuocNeo))
+                                            let fontNeo = UIFont.monospacedDigitSystemFont(ofSize: 24, weight: .bold)
+                                            ("100 :" as NSString).draw(
+                                                at: CGPoint(x: 10, y: 16),
+                                                withAttributes: [.font: fontNeo, .foregroundColor: UIColor.black]
+                                            )
+                                            let uiO = UIImage(cgImage: cgO)
+                                            let tyLe = CGFloat(cgO.width) / CGFloat(max(1, cgO.height))
+                                            let rongVe = min(155, max(36, 44.0 * tyLe))
+                                            uiO.draw(in: CGRect(x: 92, y: 10, width: rongVe, height: 44))
+                                        }
+                                        if let cgNeo = anhNeo.cgImage {
+                                            let reqNeo = VNRecognizeTextRequest { r, _ in
+                                                guard let list = r.results as? [VNRecognizedTextObservation] else { return }
+                                                for obs in list {
+                                                    for cand in obs.topCandidates(3) {
+                                                        let s = cand.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                                        if let viTri = s.firstIndex(of: ":") {
+                                                            let sau = String(s[s.index(after: viTri)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                                                            if !sau.isEmpty {
+                                                                kqO.append((y: 0.5, x: 0.5, chu: sau))
+                                                                break
+                                                            }
+                                                        } else if obs.boundingBox.origin.x > 0.30 && !s.isEmpty {
+                                                            kqO.append((y: 0.5, x: obs.boundingBox.origin.x, chu: s))
+                                                            break
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            reqNeo.recognitionLevel = .accurate
+                                            reqNeo.usesLanguageCorrection = false
+                                            reqNeo.minimumTextHeight = 0.05
+                                            let hdlNeo = VNImageRequestHandler(cgImage: cgNeo, orientation: .up, options: [:])
+                                            try? hdlNeo.perform([reqNeo])
+                                        }
+                                    }
+
                                     kqO.sort {
                                         if abs($0.y - $1.y) < 0.08 { return $0.x < $1.x }
                                         return $0.y < $1.y
@@ -1979,21 +2025,32 @@ final class DichVuDocAnh {
                                         for pt in ptHangGoc {
                                             let s = lamSachChuoi(pt.chu)
                                             let xTam = pt.x + min(pt.rong, 0.14) / 2.0
-                                            for tk in s.components(separatedBy: .whitespaces) where !tk.isEmpty {
+                                            let cacToken = s.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                                            let traiQuaCot2Va3 = (pt.x < xv2 && (pt.x + pt.rong) > (xv2 + 0.03) && cacToken.count >= 2)
+                                            let traiQuaCot4Va5 = (pt.x >= xv3 && pt.x < xv4 && (pt.x + pt.rong) > (xv4 + 0.03) && cacToken.count >= 2)
+                                            for (idxTk, tk) in cacToken.enumerated() {
                                                 if let v = trichSoHopLe(tk).first {
                                                     if tk.contains("%") || xTam >= xv3 {
-                                                        if xTam < xv4 && ht == nil { ht = v }
-                                                        else if xTam >= xv4 && dk == nil { dk = v }
-                                                        else if ht == nil { ht = v }
-                                                        else if dk == nil { dk = v }
+                                                        if traiQuaCot4Va5 {
+                                                            if idxTk == 0 && ht == nil { ht = v }
+                                                            else if idxTk == 1 && dk == nil { dk = v }
+                                                        } else if xTam < xv4 {
+                                                            if ht == nil { ht = v }
+                                                        } else if xTam >= xv4 {
+                                                            if dk == nil { dk = v }
+                                                        }
                                                     } else {
                                                         if tk.range(of: "\\d+[.]\\d{1,2}\\b", options: .regularExpression) != nil {
                                                             coThapPhan = true
                                                         }
-                                                        if xTam < xv2 && th == nil { th = v }
-                                                        else if xTam >= xv2 && xTam < xv3 && tg == nil { tg = v }
-                                                        else if th == nil { th = v }
-                                                        else if tg == nil { tg = v }
+                                                        if traiQuaCot2Va3 {
+                                                            if idxTk == 0 && th == nil { th = v }
+                                                            else if idxTk == 1 && tg == nil { tg = v }
+                                                        } else if xTam < xv2 {
+                                                            if th == nil { th = v }
+                                                        } else if xTam >= xv2 && xTam < xv3 {
+                                                            if tg == nil { tg = v }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -2064,10 +2121,20 @@ final class DichVuDocAnh {
                                         }
                                     }
 
+                                    if let hVal = ht, hVal <= 0.001, soTG > 0 {
+                                        if th == nil || (soTH / soTG) * 100.0 >= 2.0 {
+                                            soTH = 0.0
+                                        }
+                                    }
                                     if soTG > 0 && soTH >= 0 {
-                                        let htChuan = ((soTH / soTG) * 1000.0).rounded() / 10.0
-                                        if ht == nil || abs((ht ?? 0) - htChuan) > 1.2 {
-                                            ht = htChuan
+                                        if soTH <= 0.0001 {
+                                            ht = 0.0
+                                        } else {
+                                            let htChuan = ((soTH / soTG) * 1000.0).rounded() / 10.0
+                                            let nguongLech: Double = (loai == .soLuong && soTG <= 25) ? 3.5 : 1.2
+                                            if ht == nil || abs((ht ?? 0) - htChuan) > nguongLech {
+                                                ht = htChuan
+                                            }
                                         }
                                     }
 
@@ -2119,8 +2186,11 @@ final class DichVuDocAnh {
                                 if xTam < 0.758 && htM == nil { htM = v }
                                 else if dkM == nil { dkM = v }
                             } else {
-                                if xTam < 0.495 && thM == nil { thM = v }
-                                else if tgM == nil { tgM = v }
+                                if xTam < 0.495 {
+                                    if thM == nil { thM = v }
+                                } else if xTam >= 0.495 && xTam < 0.640 {
+                                    if tgM == nil { tgM = v }
+                                }
                             }
                         }
                     }
@@ -2934,7 +3004,9 @@ final class DichVuDocAnh {
                                         for pt in ptHangGoc {
                                             let s = lamSachChuoi(pt.chu)
                                             let xTam = pt.x + min(pt.rong, 0.14) / 2.0
-                                            for tk in s.components(separatedBy: .whitespaces) where !tk.isEmpty {
+                                            let cacToken = s.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                                            let traiQuaCot2Va3 = (pt.x < xv2 && (pt.x + pt.rong) > (xv2 + 0.03) && cacToken.count >= 2)
+                                            for (idxTk, tk) in cacToken.enumerated() {
                                                 if let v = trichSoHopLe(tk).first {
                                                     if tk.contains("%") || xTam >= xv3 {
                                                         if ht == nil { ht = v }
@@ -2942,10 +3014,14 @@ final class DichVuDocAnh {
                                                         if tk.range(of: "\\d+[.]\\d{1,2}\\b", options: .regularExpression) != nil {
                                                             coThapPhan = true
                                                         }
-                                                        if xTam < xv2 && th == nil { th = v }
-                                                        else if xTam >= xv2 && xTam < xv3 && tg == nil { tg = v }
-                                                        else if th == nil { th = v }
-                                                        else if tg == nil { tg = v }
+                                                        if traiQuaCot2Va3 {
+                                                            if idxTk == 0 && th == nil { th = v }
+                                                            else if idxTk == 1 && tg == nil { tg = v }
+                                                        } else if xTam < xv2 {
+                                                            if th == nil { th = v }
+                                                        } else if xTam >= xv2 && xTam < xv3 {
+                                                            if tg == nil { tg = v }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -3000,12 +3076,19 @@ final class DichVuDocAnh {
                                         }
                                     }
 
+                                    // Nếu % HT trên bảng là 0% thì Thực hiện bắt buộc là 0 (tránh nhận nhầm số rác hoặc tràn cột thành 100%)
+                                    if let hVal = ht, hVal <= 0.001, soTG > 0 {
+                                        if th == nil || (soTH / soTG) * 100.0 >= 2.0 {
+                                            soTH = 0.0
+                                        }
+                                    }
                                     if soTG > 0 && soTH >= 0 {
                                         if soTH <= 0.0001 {
                                             ht = 0.0
                                         } else {
                                             let htChuan = ((soTH / soTG) * 1000.0).rounded() / 10.0
-                                            if ht == nil || abs((ht ?? 0) - htChuan) > 1.2 {
+                                            let nguongLech: Double = (loai == .soLuong && soTG <= 25) ? 3.5 : 1.2
+                                            if ht == nil || abs((ht ?? 0) - htChuan) > nguongLech {
                                                 ht = htChuan
                                             }
                                         }
@@ -3056,8 +3139,11 @@ final class DichVuDocAnh {
                             if tk.contains("%") || xTam >= 0.720 {
                                 if htM == nil { htM = v }
                             } else {
-                                if xTam < 0.558 && thM == nil { thM = v }
-                                else if tgM == nil { tgM = v }
+                                if xTam < 0.558 {
+                                    if thM == nil { thM = v }
+                                } else if xTam >= 0.558 && xTam < 0.720 {
+                                    if tgM == nil { tgM = v }
+                                }
                             }
                         }
                     }
