@@ -1681,7 +1681,20 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         nutCopyJSONXuatAnh.contentEdgeInsets = UIEdgeInsets(top: 12, left: 10, bottom: 12, right: 10)
         nutCopyJSONXuatAnh.addTarget(self, action: #selector(bamCopyJSONTuMucXuatAnh), for: .touchUpInside)
 
-        let nganVB = UIStackView(arrangedSubviews: [nutXuatAnhThat])
+        let nutXuatTatCaLenServer = UIButton(type: .system)
+        nutXuatTatCaLenServer.setTitle("☁️ XUẤT TẤT CẢ ẢNH LÊN KHO ĐÃ CHỌN", for: .normal)
+        nutXuatTatCaLenServer.titleLabel?.font = .systemFont(ofSize: 14.0, weight: .heavy)
+        nutXuatTatCaLenServer.titleLabel?.numberOfLines = 0
+        nutXuatTatCaLenServer.titleLabel?.lineBreakMode = .byWordWrapping
+        nutXuatTatCaLenServer.titleLabel?.textAlignment = .center
+        nutXuatTatCaLenServer.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutXuatTatCaLenServer.backgroundColor = BangMauBCTD.xanhChuDao
+        nutXuatTatCaLenServer.setTitleColor(.white, for: .normal)
+        nutXuatTatCaLenServer.layer.cornerRadius = 12
+        nutXuatTatCaLenServer.contentEdgeInsets = UIEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
+        nutXuatTatCaLenServer.addTarget(self, action: #selector(bamXuatTatCaAnhLenServerSupabase), for: .touchUpInside)
+
+        let nganVB = UIStackView(arrangedSubviews: [nutXuatAnhThat, nutXuatTatCaLenServer])
         nganVB.axis = .vertical
         nganVB.spacing = 10
         nganVB.translatesAutoresizingMaskIntoConstraints = false
@@ -3044,8 +3057,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let maLanTao = maLanTaoAnhBot
         let congViec = DispatchWorkItem { [weak self] in
             guard let self, self.maLanTaoAnhBot == maLanTao else { return }
-            // Luôn tạo đủ mọi mẫu ảnh mà app hỗ trợ. Nhờ vậy lệnh bot và lịch mới
-            // không phụ thuộc vào việc loại ảnh đó đã được chọn ở lịch cũ hay chưa.
+            // Luôn tạo đủ 7 mẫu ảnh tổng hợp/biểu đồ mà app hỗ trợ (đã bỏ ảnh gộp chi tiết nhân viên theo yêu cầu để tăng tốc tải lên server).
             let cacLoai: Set<String> = [
                 "luyke_du_kien",
                 "doanhthu_thidua_luyke",
@@ -3053,8 +3065,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 "xep_hang_nv_luyke",
                 "xep_hang_nv_realtime",
                 "bieu_do_realtime_thang",
-                "bieu_do_suc_khoe_nv",
-                "chi_tiet_nhan_vien"
+                "bieu_do_suc_khoe_nv"
             ]
             self.taoVaTaiAnhBaoCaoBot(cacLoai: cacLoai, dl: dl, ngayBaoCao: ngay, maLanTao: maLanTao) { [weak self] thanhCong in
                 guard let self, self.maLanTaoAnhBot == maLanTao else { return }
@@ -3147,7 +3158,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 guard let self, self.maLanTaoAnhBot == maLanTao else { return }
                 let loai = danhSachLoai[viTri]
                 let anh = autoreleasepool { taoAnh(loai) }
-                guard let anh else { hoanTat(false); return }
+                guard let anh else {
+                    taoTiep(viTri + 1)
+                    return
+                }
                 DichVuAnhBaoCaoBot.dungChung.taiAnh(anh, loai: loai, ngay: ngay) { [weak self] ketQua in
                     guard let self, self.maLanTaoAnhBot == maLanTao else { return }
                     guard case .success = ketQua else { hoanTat(false); return }
@@ -3156,6 +3170,193 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             }
         }
         taoTiep(0)
+    }
+
+    @objc private func bamXuatTatCaAnhLenServerSupabase() {
+        xuatTatCaAnhLenServerSupabase()
+    }
+
+    /// Xuất toàn bộ ảnh báo cáo và tải trực tiếp lên Supabase để thay thế các ảnh cũ trên Server
+    private func xuatTatCaAnhLenServerSupabase() {
+        guard DichVuDongBo.dungChung.daDangNhap else {
+            let tb = UIAlertController(
+                title: "Chưa đăng nhập Server",
+                message: "Vui lòng đăng nhập tài khoản đồng bộ trước khi xuất tất cả ảnh lên Server (Supabase).",
+                preferredStyle: .alert
+            )
+            tb.addAction(UIAlertAction(title: "Đóng", style: .default))
+            present(tb, animated: true)
+            return
+        }
+
+        congViecTaoAnhBot?.cancel()
+        maLanTaoAnhBot = UUID()
+        let maLanXuat = maLanTaoAnhBot
+
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
+        let ngayBaoCao = ngayHienTai
+        let ngay = dl.khoaNgay
+        let doanhThuLuyKeHienThi = doanhThuHienThi(dl.doanhThu, cheDo: .luyKe)
+        let doanhThuRealtimeHienThi = doanhThuHienThi(dl.doanhThuRealtime, cheDo: .realtime)
+
+        let bangThiDuaXuat = BangThiDuaView()
+        let bangNhanVienXuat = BangNhanVienView()
+        let bangRealtimeXuat = BangTongHopRealtimeThangView()
+
+        let danhSachMuc: [(ma: String, ten: String)] = [
+            ("doanhthu_thidua_luyke", "Bảng Thi đua Lũy kế"),
+            ("luyke_du_kien", "Bảng Thi đua Lũy kế (% Dự kiến)"),
+            ("doanhthu_thidua_realtime", "Bảng Thi đua Realtime"),
+            ("xep_hang_nv_luyke", "Bảng Xếp hạng NV Lũy kế"),
+            ("xep_hang_nv_realtime", "Bảng Xếp hạng NV Realtime"),
+            ("bieu_do_suc_khoe_nv", "Biểu đồ Sức khỏe NV"),
+            ("bieu_do_realtime_thang", "Biểu đồ Realtime Tháng")
+        ]
+
+        func taoAnh(_ loai: String) -> UIImage? {
+            switch loai {
+            case "doanhthu_thidua_luyke":
+                return bangThiDuaXuat.taoAnhBaoCao(
+                    ngay: ngayBaoCao, doanhThu: doanhThuLuyKeHienThi, danhSach: dl.danhSachThiDua,
+                    cheDoDoanhThu: .luyKe, xemDuKien: false,
+                    thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            case "luyke_du_kien":
+                return bangThiDuaXuat.taoAnhBaoCao(
+                    ngay: ngayBaoCao, doanhThu: doanhThuLuyKeHienThi, danhSach: dl.danhSachThiDua,
+                    cheDoDoanhThu: .luyKe, xemDuKien: true,
+                    thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            case "doanhthu_thidua_realtime":
+                return bangThiDuaXuat.taoAnhBaoCao(
+                    ngay: ngayBaoCao, doanhThu: doanhThuRealtimeHienThi, danhSach: dl.danhSachThiDuaRealtime,
+                    cheDoDoanhThu: .realtime, xemDuKien: false,
+                    thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            case "xep_hang_nv_luyke":
+                bangNhanVienXuat.capNhat(cho: ngayBaoCao, cheDo: .luyKe)
+                return bangNhanVienXuat.taoAnhBaoCaoNhanVien(
+                    ngay: ngayBaoCao, cheDo: .luyKe,
+                    thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            case "xep_hang_nv_realtime":
+                bangNhanVienXuat.capNhat(cho: ngayBaoCao, cheDo: .realtime)
+                return bangNhanVienXuat.taoAnhBaoCaoNhanVien(
+                    ngay: ngayBaoCao, cheDo: .realtime,
+                    thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            case "bieu_do_suc_khoe_nv":
+                bangRealtimeXuat.capNhat(cho: ngayBaoCao)
+                return bangRealtimeXuat.taoAnhBaoCaoSucKhoeNhanVien(
+                    ngay: ngayBaoCao, thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            case "bieu_do_realtime_thang":
+                bangRealtimeXuat.capNhat(cho: ngayBaoCao)
+                return bangRealtimeXuat.taoAnhBaoCaoRealtimeThang(
+                    ngay: ngayBaoCao, thongTinDonVi: dl.thongTinDonVi, capNhatLuc: dl.capNhatLuc
+                )
+            case "chi_tiet_nhan_vien":
+                return ManHinhChiTietNhanVien.taoAnhGopTatCaSucKhoe(cho: ngayBaoCao, cheDo: .luyKe)
+            default:
+                return nil
+            }
+        }
+
+        let cauHinhKho = DichVuAnhBaoCaoBot.dungChung.cauHinh
+        let tenKhoUuTien = cauHinhKho.tenKhoHieuLuc
+
+        lopPhuTai.isHidden = false
+        vongQuay.startAnimating()
+        nhanTienTrinh.text = "Đang chuẩn bị xuất \(danhSachMuc.count) ảnh báo cáo lên \(tenKhoUuTien)..."
+
+        var soThanhCong = 0
+        var soLoi = 0
+        var soDangTai = 0
+        var soDaXuLy = 0
+        var viTriTiepTheo = 0
+        var thongBaoLoiCuoi: String?
+        var soAnhTheoKho: [String: Int] = [:]
+        let soLuongTaiDongThoi = 3
+
+        func ketThucNeuDaXong() -> Bool {
+            guard soDaXuLy >= danhSachMuc.count else { return false }
+            guard self.maLanTaoAnhBot == maLanXuat else { return true }
+            self.vongQuay.stopAnimating()
+            self.lopPhuTai.isHidden = true
+            let tieuDe: String
+            let thongDiep: String
+            let moTaKho = soAnhTheoKho
+                .sorted { $0.key < $1.key }
+                .map { "\($0.value) ảnh \($0.key)" }
+                .joined(separator: ", ")
+            if soThanhCong > 0 && soLoi == 0 {
+                tieuDe = "Đã xuất ảnh lên Server"
+                thongDiep = "Đã xuất và cập nhật thành công \(soThanhCong) ảnh báo cáo (\(moTaKho)); ảnh mới đã thay thế ảnh cũ."
+            } else if soThanhCong > 0 {
+                let chiTietLoi = thongBaoLoiCuoi ?? ""
+                tieuDe = "Đã xuất \(soThanhCong) ảnh lên Server"
+                thongDiep = "Đã cập nhật \(soThanhCong) ảnh (\(moTaKho)); \(soLoi) ảnh lỗi: \(chiTietLoi)."
+            } else {
+                tieuDe = "Chưa tải được ảnh lên Server"
+                thongDiep = thongBaoLoiCuoi ?? "Chưa có dữ liệu báo cáo để tạo ảnh hoặc kết nối máy chủ gặp sự cố."
+            }
+            let tb = UIAlertController(title: tieuDe, message: thongDiep, preferredStyle: .alert)
+            tb.addAction(UIAlertAction(title: "Đóng", style: .default))
+            self.present(tb, animated: true)
+            return true
+        }
+
+        func capNhatTienTrinh() {
+            self.nhanTienTrinh.text = "Đang tải ảnh lên \(tenKhoUuTien): \(soDaXuLy)/\(danhSachMuc.count) hoàn tất, \(soDangTai) đang tải..."
+        }
+
+        func batDauThemAnhNeuCan() {
+            guard self.maLanTaoAnhBot == maLanXuat else { return }
+            if ketThucNeuDaXong() { return }
+
+            while soDangTai < soLuongTaiDongThoi && viTriTiepTheo < danhSachMuc.count {
+                let viTri = viTriTiepTheo
+                let muc = danhSachMuc[viTri]
+                viTriTiepTheo += 1
+                soDangTai += 1
+                capNhatTienTrinh()
+
+                // Tạo ảnh vẫn thực hiện tuần tự trên main thread để UIKit ổn định,
+                // nhưng upload mạng chạy đồng thời tối đa 3 ảnh.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.maLanTaoAnhBot == maLanXuat else { return }
+                    let anh = autoreleasepool { taoAnh(muc.ma) }
+                    guard let anh else {
+                        soDangTai -= 1
+                        soDaXuLy += 1
+                        soLoi += 1
+                        thongBaoLoiCuoi = "Không tạo được ảnh \(muc.ten)."
+                        capNhatTienTrinh()
+                        batDauThemAnhNeuCan()
+                        return
+                    }
+                    DichVuAnhBaoCaoBot.dungChung.taiAnh(
+                        anh, loai: muc.ma, ngay: ngay
+                    ) { [weak self] ketQua in
+                        guard let self, self.maLanTaoAnhBot == maLanXuat else { return }
+                        soDangTai -= 1
+                        soDaXuLy += 1
+                        switch ketQua {
+                        case .success(let khoDaDung):
+                            soThanhCong += 1
+                            soAnhTheoKho[khoDaDung, default: 0] += 1
+                        case .failure(let err):
+                            soLoi += 1
+                            thongBaoLoiCuoi = "\(muc.ten): \(err.localizedDescription)"
+                        }
+                        capNhatTienTrinh()
+                        batDauThemAnhNeuCan()
+                    }
+                }
+            }
+        }
+
+        batDauThemAnhNeuCan()
     }
 
     private func capNhatNoiDungTheoMucDangChon(dl: DuLieuNgayDMX? = nil, dsThiDuaDangChon: [DongThiDua]? = nil) {
@@ -4599,6 +4800,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .tenAZ, cheDo: cheDoNV)
 
         let cacMuc: [MucChonDMX] = [
+            MucChonDMX(tieuDe: "☁️ Xuất tất cả ảnh lên kho đã chọn") { [weak self] in
+                self?.xuatTatCaAnhLenServerSupabase()
+            },
             MucChonDMX(tieuDe: "📊 Ảnh Bảng Xếp Hạng Nhân Viên — Lũy kế") { [weak self] in
                 guard let self = self,
                       let anh = self.bangNhanVien.taoAnhBaoCaoNhanVien(
@@ -4662,6 +4866,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let dsDangChon = dl.danhSachThiDua(theo: cheDoCSV)
 
         let cacMuc: [MucChonDMX] = [
+            MucChonDMX(tieuDe: "☁️ Xuất tất cả ảnh lên kho đã chọn") { [weak self] in
+                self?.xuatTatCaAnhLenServerSupabase()
+            },
             MucChonDMX(tieuDe: "🖼️ Mở mục 3. Xuất ảnh (Có ô Text báo cáo + Copy gửi LINE)") { [weak self] in
                 self?.mucMenuChinh = .doSoXemSo
                 self?.mucConDoSo = .xuatAnh
@@ -4779,13 +4986,18 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     }
 
     private func hienBangNutXuatAnh() {
-        let cacNut: [(tieuDe: String, hanhDong: () -> Void)] = LoaiBaoCaoXuatAnh.allCases.map { loai in
+        var cacNut: [(tieuDe: String, hanhDong: () -> Void)] = [
+            (tieuDe: "☁️ Xuất tất cả ảnh lên kho đã chọn", hanhDong: { [weak self] in
+                self?.xuatTatCaAnhLenServerSupabase()
+            })
+        ]
+        cacNut.append(contentsOf: LoaiBaoCaoXuatAnh.allCases.map { loai in
             (tieuDe: loai.tieuDeNgan, hanhDong: { [weak self] in
                 guard let self, let anh = self.taoAnhTheoLoaiBaoCao(loai) else { return }
                 self.chiaSe([anh])
             })
-        }
-        hienBangNut(tieuDe: "Xuất ảnh", huongDan: "CHỌN NỘI DUNG ẢNH", cacNut: cacNut)
+        })
+        hienBangNut(tieuDe: "Xuất ảnh", huongDan: "CHỌN NỘI DUNG ẢNH HOẶC TẢI LÊN SERVER", cacNut: cacNut)
     }
 
     private func hienBangNut(tieuDe: String, huongDan: String, cacNut: [(tieuDe: String, hanhDong: () -> Void)], nguyHiem: Bool = false) {

@@ -3,11 +3,13 @@ import Security
 
 enum KhoAnhBaoCaoBot: String, Codable, CaseIterable {
     case supabase
+    case apiKey
     case googleDrive
 
     var tieuDe: String {
         switch self {
         case .supabase: return "Supabase"
+        case .apiKey: return "API Key (ImgBB)"
         case .googleDrive: return "Google Drive"
         }
     }
@@ -15,15 +17,82 @@ enum KhoAnhBaoCaoBot: String, Codable, CaseIterable {
 
 struct CauHinhKhoAnhBaoCaoBot: Codable, Equatable {
     var kho: KhoAnhBaoCaoBot = .supabase
+    var apiKeyImgBB: String = ""
+    var driveClientId: String = ""
+    var driveClientSecret: String = ""
+    var driveRefreshToken: String = ""
     var urlAppsScript: String = ""
     var khoaBiMat: String = ""
     var folderId: String = ""
 
-    var driveDaSanSang: Bool {
+    init(
+        kho: KhoAnhBaoCaoBot = .supabase,
+        apiKeyImgBB: String = "",
+        driveClientId: String = "",
+        driveClientSecret: String = "",
+        driveRefreshToken: String = "",
+        urlAppsScript: String = "",
+        khoaBiMat: String = "",
+        folderId: String = ""
+    ) {
+        self.kho = kho
+        self.apiKeyImgBB = apiKeyImgBB
+        self.driveClientId = driveClientId
+        self.driveClientSecret = driveClientSecret
+        self.driveRefreshToken = driveRefreshToken
+        self.urlAppsScript = urlAppsScript
+        self.khoaBiMat = khoaBiMat
+        self.folderId = folderId
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kho = (try? c.decode(KhoAnhBaoCaoBot.self, forKey: .kho)) ?? .supabase
+        apiKeyImgBB = (try? c.decode(String.self, forKey: .apiKeyImgBB)) ?? ""
+        driveClientId = (try? c.decode(String.self, forKey: .driveClientId)) ?? ""
+        driveClientSecret = (try? c.decode(String.self, forKey: .driveClientSecret)) ?? ""
+        driveRefreshToken = (try? c.decode(String.self, forKey: .driveRefreshToken)) ?? ""
+        urlAppsScript = (try? c.decode(String.self, forKey: .urlAppsScript)) ?? ""
+        khoaBiMat = (try? c.decode(String.self, forKey: .khoaBiMat)) ?? ""
+        folderId = (try? c.decode(String.self, forKey: .folderId)) ?? ""
+    }
+
+    var apiKeyDaSanSang: Bool {
+        kho == .apiKey &&
+        !apiKeyImgBB.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var driveTrucTiepDaSanSang: Bool {
+        let token = driveRefreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cid = driveClientId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let secret = driveClientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+        return kho == .googleDrive &&
+            !token.isEmpty &&
+            ((!cid.isEmpty && !secret.isEmpty) || token.hasPrefix("ya29."))
+    }
+
+    var driveAppsScriptDaSanSang: Bool {
         kho == .googleDrive &&
         urlAppsScript.lowercased().hasPrefix("https://script.google.com/") &&
         !khoaBiMat.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !folderId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var driveDaSanSang: Bool {
+        driveTrucTiepDaSanSang || driveAppsScriptDaSanSang
+    }
+
+    var tenKhoHieuLuc: String {
+        switch kho {
+        case .supabase:
+            return "Supabase"
+        case .apiKey:
+            return apiKeyDaSanSang ? "API Key (ImgBB)" : "Supabase"
+        case .googleDrive:
+            if driveTrucTiepDaSanSang { return "Google Drive (API trực tiếp)" }
+            if driveAppsScriptDaSanSang { return "Google Drive" }
+            return "Supabase"
+        }
     }
 }
 
@@ -32,6 +101,24 @@ private struct PhanHoiGoogleDrive: Decodable {
     var url: String?
     var fileId: String?
     var error: String?
+}
+
+private struct PhanHoiImgBB: Decodable {
+    struct DuLieuImgBB: Decodable {
+        var url: String?
+        var display_url: String?
+    }
+    var success: Bool?
+    var data: DuLieuImgBB?
+}
+
+private struct PhanHoiTokenGoogle: Decodable {
+    var access_token: String?
+    var expires_in: Double?
+}
+
+private struct PhanHoiDriveFileAPI: Decodable {
+    var id: String?
 }
 
 final class DichVuAnhBaoCaoBot {
@@ -44,6 +131,8 @@ final class DichVuAnhBaoCaoBot {
         cfg.timeoutIntervalForResource = 60
         return URLSession(configuration: cfg)
     }()
+    private var accessTokenDriveTam: String = ""
+    private var hanAccessTokenDrive: Date = .distantPast
 
     private init() {}
 
@@ -56,6 +145,7 @@ final class DichVuAnhBaoCaoBot {
         _ anh: UIImage,
         loai: String,
         ngay: String,
+        buocDungSupabase: Bool = false,
         hoanTat: ((Result<String, Error>) -> Void)? = nil
     ) {
         let cauHinh = self.cauHinh
@@ -65,7 +155,44 @@ final class DichVuAnhBaoCaoBot {
                 DispatchQueue.main.async { hoanTat?(.failure(NSError.dmx("Không nén được ảnh báo cáo."))) }
                 return
             }
-            if cauHinh.driveDaSanSang {
+            if buocDungSupabase || cauHinh.kho == .supabase {
+                self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+            } else if cauHinh.kho == .apiKey && cauHinh.apiKeyDaSanSang {
+                self.taiLenImgBB(jpeg, loai: loai, ngay: ngay, apiKey: cauHinh.apiKeyImgBB) { ketQua in
+                    switch ketQua {
+                    case .success(let url):
+                        DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, urlDrive: url) { kq in
+                            hoanTat?(kq.map { "API Key (ImgBB)" })
+                        }
+                    case .failure:
+                        self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+                    }
+                }
+            } else if cauHinh.kho == .googleDrive && cauHinh.driveTrucTiepDaSanSang {
+                self.taiLenDriveTrucTiep(jpeg, loai: loai, ngay: ngay, cauHinh: cauHinh) { ketQua in
+                    switch ketQua {
+                    case .success(let url):
+                        DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, urlDrive: url) { kq in
+                            hoanTat?(kq.map { "Google Drive (API trực tiếp)" })
+                        }
+                    case .failure:
+                        if cauHinh.driveAppsScriptDaSanSang {
+                            self.taiLenDrive(jpeg, loai: loai, ngay: ngay, cauHinh: cauHinh) { kqScript in
+                                switch kqScript {
+                                case .success(let url):
+                                    DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, urlDrive: url) { kq in
+                                        hoanTat?(kq.map { "Google Drive" })
+                                    }
+                                case .failure:
+                                    self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+                                }
+                            }
+                        } else {
+                            self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+                        }
+                    }
+                }
+            } else if cauHinh.kho == .googleDrive && cauHinh.driveAppsScriptDaSanSang {
                 self.taiLenDrive(jpeg, loai: loai, ngay: ngay, cauHinh: cauHinh) { ketQua in
                     switch ketQua {
                     case .success(let url):
@@ -89,9 +216,215 @@ final class DichVuAnhBaoCaoBot {
         ngay: String,
         hoanTat: ((Result<String, Error>) -> Void)?
     ) {
-        DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, duLieuJPEG: jpeg) { kq in
-            hoanTat?(kq.map { "Supabase" })
+        DichVuDongBo.dungChung.taoPhienTaiAnhBaoCaoTrucTiep(loai: loai, ngay: ngay) { [weak self] ketQua in
+            guard let self else { return }
+            switch ketQua {
+            case .failure(let loi):
+                hoanTat?(.failure(loi))
+            case .success(let phienTai):
+                var request = URLRequest(url: phienTai.signedURL)
+                request.httpMethod = "PUT"
+                request.httpBody = jpeg
+                request.timeoutInterval = 60
+                request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+                request.setValue("max-age=31536000", forHTTPHeaderField: "Cache-Control")
+                request.setValue("false", forHTTPHeaderField: "x-upsert")
+                request.setValue(String(jpeg.count), forHTTPHeaderField: "Content-Length")
+                self.phienMang.dataTask(with: request) { _, response, error in
+                    if let error {
+                        DispatchQueue.main.async { hoanTat?(.failure(error)) }
+                        return
+                    }
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    guard (200..<300).contains(status) else {
+                        DispatchQueue.main.async {
+                            hoanTat?(.failure(NSError.dmx("Supabase từ chối tải ảnh trực tiếp (HTTP \(status)).")))
+                        }
+                        return
+                    }
+                    DichVuDongBo.dungChung.xacNhanTaiAnhBaoCaoTrucTiep(
+                        loai: loai,
+                        ngay: ngay,
+                        duongDanLuuTru: phienTai.duongDanLuuTru
+                    ) { kq in
+                        hoanTat?(kq.map { "Supabase" })
+                    }
+                }.resume()
+            }
         }
+    }
+
+    /// Tải ảnh nhị phân trực tiếp lên ImgBB qua API Key (không cần qua Apps Script, tốc độ 0.3-0.6s/ảnh)
+    private func taiLenImgBB(
+        _ jpeg: Data,
+        loai: String,
+        ngay: String,
+        apiKey: String,
+        hoanTat: @escaping (Result<String, Error>) -> Void
+    ) {
+        let keySach = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var comp = URLComponents(string: "https://api.imgbb.com/1/upload") else {
+            hoanTat(.failure(NSError.dmx("URL ImgBB không hợp lệ.")))
+            return
+        }
+        comp.queryItems = [
+            URLQueryItem(name: "key", value: keySach),
+            URLQueryItem(name: "name", value: "dmx-\(loai)-\(ngay)")
+        ]
+        guard let url = comp.url else {
+            hoanTat(.failure(NSError.dmx("API Key ImgBB không hợp lệ.")))
+            return
+        }
+
+        let ranhGioi = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+        body.append("--\(ranhGioi)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"image\"; filename=\"dmx-\(loai)-\(ngay).jpg\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+        body.append(jpeg)
+        body.append("\r\n--\(ranhGioi)--\r\n".data(using: .utf8)!)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = body
+        request.setValue("multipart/form-data; boundary=\(ranhGioi)", forHTTPHeaderField: "Content-Type")
+        request.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
+
+        phienMang.dataTask(with: request) { data, response, error in
+            if let error { hoanTat(.failure(error)); return }
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard (200..<300).contains(status), let data,
+                  let kq = try? JSONDecoder().decode(PhanHoiImgBB.self, from: data),
+                  kq.success == true,
+                  let urlAnh = kq.data?.url ?? kq.data?.display_url,
+                  URL(string: urlAnh)?.scheme == "https" else {
+                hoanTat(.failure(NSError.dmx("API Key ImgBB từ chối ảnh hoặc không hợp lệ.")))
+                return
+            }
+            hoanTat(.success(urlAnh))
+        }.resume()
+    }
+
+    /// Tải ảnh nhị phân trực tiếp lên Google Drive REST API v3 (bỏ qua trung gian Google Apps Script)
+    private func taiLenDriveTrucTiep(
+        _ jpeg: Data,
+        loai: String,
+        ngay: String,
+        cauHinh: CauHinhKhoAnhBaoCaoBot,
+        hoanTat: @escaping (Result<String, Error>) -> Void
+    ) {
+        layAccessTokenGoogleDrive(cauHinh: cauHinh) { [weak self] ketQuaToken in
+            guard let self else { return }
+            switch ketQuaToken {
+            case .failure(let loi):
+                hoanTat(.failure(loi))
+            case .success(let accessToken):
+                guard let urlUpload = URL(string: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id") else {
+                    hoanTat(.failure(NSError.dmx("URL Google Drive API không hợp lệ.")))
+                    return
+                }
+                let ranhGioi = "Boundary-\(UUID().uuidString)"
+                var meta: [String: Any] = [
+                    "name": "dmx-\(loai)-\(ngay).jpg",
+                    "mimeType": "image/jpeg"
+                ]
+                let folder = cauHinh.folderId.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !folder.isEmpty {
+                    meta["parents"] = [folder]
+                }
+                let metaData = (try? JSONSerialization.data(withJSONObject: meta)) ?? Data("{}".utf8)
+
+                var body = Data()
+                body.append("--\(ranhGioi)\r\n".data(using: .utf8)!)
+                body.append("Content-Type: application/json; charset=UTF-8\r\n\r\n".data(using: .utf8)!)
+                body.append(metaData)
+                body.append("\r\n--\(ranhGioi)\r\n".data(using: .utf8)!)
+                body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+                body.append(jpeg)
+                body.append("\r\n--\(ranhGioi)--\r\n".data(using: .utf8)!)
+
+                var request = URLRequest(url: urlUpload)
+                request.httpMethod = "POST"
+                request.httpBody = body
+                request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+                request.setValue("multipart/related; boundary=\(ranhGioi)", forHTTPHeaderField: "Content-Type")
+                request.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
+
+                self.phienMang.dataTask(with: request) { data, response, error in
+                    if let error { hoanTat(.failure(error)); return }
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    guard (200..<300).contains(status), let data,
+                          let file = try? JSONDecoder().decode(PhanHoiDriveFileAPI.self, from: data),
+                          let fileId = file.id, !fileId.isEmpty else {
+                        hoanTat(.failure(NSError.dmx("Google Drive API từ chối tải ảnh (HTTP \(status)).")))
+                        return
+                    }
+                    // Mở quyền xem công khai để LINE Bot tải được ảnh
+                    if let urlPerm = URL(string: "https://www.googleapis.com/drive/v3/files/\(fileId)/permissions") {
+                        var reqPerm = URLRequest(url: urlPerm)
+                        reqPerm.httpMethod = "POST"
+                        reqPerm.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+                        reqPerm.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        reqPerm.httpBody = Data("{\"role\":\"reader\",\"type\":\"anyone\"}".utf8)
+                        self.phienMang.dataTask(with: reqPerm) { _, _, _ in
+                            let urlCongKhai = "https://lh3.googleusercontent.com/d/\(fileId)=w2000"
+                            hoanTat(.success(urlCongKhai))
+                        }.resume()
+                    } else {
+                        let urlCongKhai = "https://lh3.googleusercontent.com/d/\(fileId)=w2000"
+                        hoanTat(.success(urlCongKhai))
+                    }
+                }.resume()
+            }
+        }
+    }
+
+    private func layAccessTokenGoogleDrive(
+        cauHinh: CauHinhKhoAnhBaoCaoBot,
+        hoanTat: @escaping (Result<String, Error>) -> Void
+    ) {
+        let tokenNhap = cauHinh.driveRefreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        if tokenNhap.hasPrefix("ya29.") {
+            hoanTat(.success(tokenNhap))
+            return
+        }
+        if !accessTokenDriveTam.isEmpty && Date() < hanAccessTokenDrive {
+            hoanTat(.success(accessTokenDriveTam))
+            return
+        }
+        let clientId = cauHinh.driveClientId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let clientSecret = cauHinh.driveClientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clientId.isEmpty, !clientSecret.isEmpty, !tokenNhap.isEmpty,
+              let url = URL(string: "https://oauth2.googleapis.com/token") else {
+            hoanTat(.failure(NSError.dmx("Thiếu Client ID, Client Secret hoặc Refresh Token của Google Drive API.")))
+            return
+        }
+
+        var comp = URLComponents()
+        comp.queryItems = [
+            URLQueryItem(name: "client_id", value: clientId),
+            URLQueryItem(name: "client_secret", value: clientSecret),
+            URLQueryItem(name: "refresh_token", value: tokenNhap),
+            URLQueryItem(name: "grant_type", value: "refresh_token")
+        ]
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = comp.percentEncodedQuery?.data(using: .utf8)
+
+        phienMang.dataTask(with: request) { [weak self] data, response, error in
+            if let error { hoanTat(.failure(error)); return }
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard (200..<300).contains(status), let data,
+                  let kq = try? JSONDecoder().decode(PhanHoiTokenGoogle.self, from: data),
+                  let tokenMoi = kq.access_token, !tokenMoi.isEmpty else {
+                hoanTat(.failure(NSError.dmx("Không lấy được Access Token từ Google OAuth2 (HTTP \(status)).")))
+                return
+            }
+            self?.accessTokenDriveTam = tokenMoi
+            self?.hanAccessTokenDrive = Date().addingTimeInterval(max(60, (kq.expires_in ?? 3500) - 120))
+            hoanTat(.success(tokenMoi))
+        }.resume()
     }
 
     private func taiLenDrive(
@@ -136,33 +469,52 @@ final class DichVuAnhBaoCaoBot {
 
     private func duLieuJPEGToiUu(_ anh: UIImage) -> Data? {
         let gioiHan = 2_900_000
-        let cacMoc: [(CGFloat, CGFloat)] = [
-            (1400, 0.90), (1400, 0.82), (1200, 0.84),
-            (1050, 0.80), (900, 0.76), (760, 0.72)
-        ]
-        var ketQuaNhoNhat: Data?
-        for (rongToiDa, chatLuong) in cacMoc {
-            let anhXuat = thuNho(anh, rongToiDa: rongToiDa)
-            guard let data = anhXuat.jpegData(compressionQuality: chatLuong) else { continue }
-            if ketQuaNhoNhat == nil || data.count < ketQuaNhoNhat!.count { ketQuaNhoNhat = data }
-            if data.count <= gioiHan { return data }
+        let rong = max(1, anh.size.width)
+        let cao = max(1, anh.size.height)
+        let gioiHanDiemAnh: CGFloat = 6_000_000
+        let tiLeTheoRong = min(1, 1_400 / rong)
+        let tiLeTheoDiemAnh = min(1, sqrt(gioiHanDiemAnh / (rong * cao)))
+        var anhDangNen = thuNho(anh, tiLe: min(tiLeTheoRong, tiLeTheoDiemAnh))
+
+        // Chỉ mã hóa vài lần có tính toán. Cách cũ có thể mã hóa hơn 100 lần
+        // đối với ảnh thứ 8 rất dài, khiến người dùng tưởng mạng tải chậm.
+        let cacChatLuong: [CGFloat] = [0.82, 0.66, 0.50, 0.36]
+        var nhoNhat: Data?
+        for _ in 0..<4 {
+            for chatLuong in cacChatLuong {
+                guard let data = anhDangNen.jpegData(compressionQuality: chatLuong) else { continue }
+                if nhoNhat == nil || data.count < nhoNhat!.count { nhoNhat = data }
+                if data.count <= gioiHan { return data }
+            }
+
+            guard let nhoNhat else { return nil }
+            let tiLeDuKien = sqrt(CGFloat(gioiHan) / CGFloat(max(1, nhoNhat.count))) * 0.90
+            let tiLeThuNho = min(0.82, max(0.45, tiLeDuKien))
+            anhDangNen = thuNho(anhDangNen, tiLe: tiLeThuNho)
         }
-        if let ketQuaNhoNhat, ketQuaNhoNhat.count <= gioiHan {
-            return ketQuaNhoNhat
-        }
-        return nil
+
+        return nhoNhat.flatMap { $0.count <= gioiHan ? $0 : nil }
     }
 
     private func thuNho(_ anh: UIImage, rongToiDa: CGFloat) -> UIImage {
         guard anh.size.width > rongToiDa else { return anh }
-        let tiLe = rongToiDa / anh.size.width
-        let kichThuoc = CGSize(width: rongToiDa, height: max(1, anh.size.height * tiLe))
+        return thuNho(anh, tiLe: rongToiDa / anh.size.width)
+    }
+
+    private func thuNho(_ anh: UIImage, tiLe: CGFloat) -> UIImage {
+        guard tiLe < 0.999 else { return anh }
+        let kichThuoc = CGSize(
+            width: max(1, anh.size.width * tiLe),
+            height: max(1, anh.size.height * tiLe)
+        )
         return UIGraphicsImageRenderer(size: kichThuoc).image { _ in
             anh.draw(in: CGRect(origin: .zero, size: kichThuoc))
         }
     }
 
     private func luuCauHinh(_ value: CauHinhKhoAnhBaoCaoBot) {
+        accessTokenDriveTam = ""
+        hanAccessTokenDrive = .distantPast
         guard let data = try? JSONEncoder().encode(value) else { return }
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrAccount as String: khoaKeychain]
         SecItemDelete(query as CFDictionary)

@@ -45,6 +45,55 @@ extension UIView {
         }
         return nil
     }
+
+    func buocBoCucToanBo() {
+        overrideUserInterfaceStyle = .light
+        setNeedsLayout()
+        layoutIfNeeded()
+        if let stack = self as? UIStackView {
+            for v in stack.arrangedSubviews {
+                v.buocBoCucToanBo()
+            }
+        }
+        for sub in subviews {
+            sub.buocBoCucToanBo()
+        }
+        if bounds.width > 0 && bounds.height > 0 {
+            layer.contentsScale = 3.0
+            if self is VeBieuDoCotRealtimeView || self is VeBieuDoSucKhoeNhanVienView {
+                layer.setNeedsDisplay()
+                layer.displayIfNeeded()
+            }
+        }
+    }
+
+    func ketXuatAnhChuanSang(scale: CGFloat = 3.0) -> UIImage? {
+        let traitSang = UITraitCollection(userInterfaceStyle: .light)
+        var ketQua: UIImage?
+        traitSang.performAsCurrent {
+            self.buocBoCucToanBo()
+            self.buocBoCucToanBo()
+            CATransaction.flush()
+
+            let fmt = UIGraphicsImageRendererFormat.default()
+            fmt.scale = scale
+            fmt.opaque = true
+            if #available(iOS 12.0, *) {
+                fmt.preferredRange = .standard
+            }
+            let anhTho = UIGraphicsImageRenderer(size: self.bounds.size, format: fmt).image { ctx in
+                (self.backgroundColor ?? .white).setFill()
+                ctx.fill(self.bounds)
+                self.layer.render(in: ctx.cgContext)
+            }
+            if let png = anhTho.pngData(), let anhPNG = UIImage(data: png, scale: scale) {
+                ketQua = anhPNG
+            } else {
+                ketQua = anhTho
+            }
+        }
+        return ketQua
+    }
 }
 
 // MARK: - Thẻ Chỉ Số Gradient & Cụm 8 Thẻ "Chỉ Số Chính" (Chữ đồng nhất kích cỡ, tự xuống dòng, không bao giờ "...")
@@ -141,7 +190,10 @@ final class TheDoanhThuView: UIControl {
         let w = bounds.width
         let h = bounds.height
         guard w > 10, h > 10 else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         lopGradient.frame = bounds
+        CATransaction.commit()
 
         // Cố định toạ độ Y của vùng tiêu đề, số chính và đường gạch ngang theo chiều cao thẻ H
         // để mọi thẻ trên cùng 1 hàng có số chính và đường gạch ngang thẳng hàng ngang tuyệt đối
@@ -1890,12 +1942,7 @@ final class BangThiDuaView: UIView, UICollectionViewDataSource, UICollectionView
             yHang += caoO + khoangCachO
         }
 
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.scale = 2.0
-        khung.layoutIfNeeded()
-        return UIGraphicsImageRenderer(size: khung.bounds.size, format: fmt).image { ctx in
-            khung.layer.render(in: ctx.cgContext)
-        }
+        return khung.ketXuatAnhChuanSang(scale: 3.0)
     }
 
     // MARK: - Xuất File Excel (.csv chuẩn UTF-8 BOM)
@@ -4085,12 +4132,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
             vDong.addSubview(vach)
             khungBang.addSubview(vDong)
         }
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.scale = 2.0
-        let anh = UIGraphicsImageRenderer(size: khung.bounds.size, format: fmt).image { ctx in
-            khung.layer.render(in: ctx.cgContext)
-        }
-        return anh
+        return khung.ketXuatAnhChuanSang(scale: 3.0)
     }
 
     // MARK: - Xuất File Excel (.csv) cho Bảng Biểu Đồ & Tổng Hợp Realtime Tháng
@@ -4312,10 +4354,6 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         chart.danhSachHoSo = dsVe
         hopBD.addSubview(chart)
 
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.scale = 2.0
-        return UIGraphicsImageRenderer(size: khung.bounds.size, format: fmt).image { ctx in
-            khung.layer.render(in: ctx.cgContext)
-        }
+        return khung.ketXuatAnhChuanSang(scale: 3.0)
     }
 }

@@ -133,10 +133,29 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         nutChiaTarget.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
         nutChiaTarget.addTarget(self, action: #selector(bamMoChiaTarget), for: .touchUpInside)
 
-        let hangNut = UIStackView(arrangedSubviews: [nutQuetAnhNV, nutChiaTarget])
+        let nutXoaDuLieuMon = UIButton(type: .system)
+        let cfgTrash = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+        nutXoaDuLieuMon.setImage(UIImage(systemName: "trash.fill", withConfiguration: cfgTrash), for: .normal)
+        nutXoaDuLieuMon.backgroundColor = BangMauBCTD.doYeuPill
+        nutXoaDuLieuMon.tintColor = BangMauBCTD.doYeuChu
+        nutXoaDuLieuMon.layer.cornerRadius = 9
+        nutXoaDuLieuMon.layer.borderWidth = 1
+        nutXoaDuLieuMon.layer.borderColor = BangMauBCTD.doYeuChu.withAlphaComponent(0.55).cgColor
+        nutXoaDuLieuMon.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        nutXoaDuLieuMon.accessibilityLabel = "Xóa dữ liệu thi đua môn này"
+        nutXoaDuLieuMon.translatesAutoresizingMaskIntoConstraints = false
+        nutXoaDuLieuMon.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        nutXoaDuLieuMon.addTarget(self, action: #selector(bamXoaDuLieuThiDuaMon), for: .touchUpInside)
+
+        let hangNutChinh = UIStackView(arrangedSubviews: [nutQuetAnhNV, nutChiaTarget])
+        hangNutChinh.axis = .horizontal
+        hangNutChinh.spacing = 8
+        hangNutChinh.distribution = .fillEqually
+
+        let hangNut = UIStackView(arrangedSubviews: [hangNutChinh, nutXoaDuLieuMon])
         hangNut.axis = .horizontal
         hangNut.spacing = 8
-        hangNut.distribution = .fillEqually
+        hangNut.distribution = .fill
 
         let nganDau = UIStackView(arrangedSubviews: [nhanPhuDe, nhanThongTinTarget, hangNut])
         nganDau.axis = .vertical
@@ -372,10 +391,30 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
                         return
                     }
 
+                    var cacKhoiCapNhat = cacKhoi
+                    for i in cacKhoiCapNhat.indices {
+                        if self.dong.thucHien > 0 && cacKhoiCapNhat[i].thucHienNganhGoiY <= 0 {
+                            cacKhoiCapNhat[i].thucHienNganhGoiY = self.dong.thucHien
+                        } else if self.dong.thucHien <= 0 && cacKhoiCapNhat[i].thucHienNganhGoiY > 0 {
+                            self.dong.thucHien = cacKhoiCapNhat[i].thucHienNganhGoiY
+                        }
+                        if self.dong.target > 0 && cacKhoiCapNhat[i].targetNganhGoiY <= 0 {
+                            cacKhoiCapNhat[i].targetNganhGoiY = self.dong.target
+                        } else if self.dong.target <= 0 && cacKhoiCapNhat[i].targetNganhGoiY > 0 {
+                            self.dong.target = cacKhoiCapNhat[i].targetNganhGoiY
+                            KhoDuLieu.dungChung.capNhatTargetNganhHang(
+                                dongGoc: self.dong,
+                                targetMoi: cacKhoiCapNhat[i].targetNganhGoiY,
+                                cho: self.ngay,
+                                cheDo: self.cheDo
+                            )
+                        }
+                    }
+
                     var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
                     let bangMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
                         hienTai: dl.thiDuaNhanVien(theo: self.cheDo),
-                        mangKhoiNV: cacKhoi,
+                        mangKhoiNV: cacKhoiCapNhat,
                         ngay: self.ngay,
                         cheDo: self.cheDo,
                         khoaNganhMacDinh: khoaMacDinh
@@ -387,6 +426,26 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
                 }
             )
         }
+    }
+
+    @objc private func bamXoaDuLieuThiDuaMon() {
+        let hop = UIAlertController(
+            title: "Xóa dữ liệu thi đua môn này?",
+            message: "Bạn có chắc muốn xóa toàn bộ số liệu thi đua nhân viên của môn \"\(dong.tenNganhHang)\" (\(cheDo.tieuDe)) không?",
+            preferredStyle: .alert
+        )
+        hop.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        hop.addAction(UIAlertAction(title: "Xóa dữ liệu", style: .destructive) { [weak self] _ in
+            guard let self = self else { return }
+            KhoDuLieu.dungChung.xoaThiDuaNhanVienTheoMon(
+                dong: self.dong,
+                ngay: self.ngay,
+                cheDo: self.cheDo
+            )
+            self.napDuLieu()
+            self.khiCapNhatDuLieu?()
+        })
+        present(hop, animated: true)
     }
 
     @objc private func bamMoChiaTarget() {
@@ -585,24 +644,48 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         guard indexPath.row < danhSachXepHang.count else { return }
         let item = danhSachXepHang[indexPath.row]
+        let thucHienMon = dong.thucHien
         let hop = UIAlertController(
             title: "\(item.hoTen) (\(item.maNV))",
-            message: "Nhập số Thực hiện (\(cheDo.tieuDe)) cho mặt hàng \(dong.tenNganhHang):",
+            message: "Môn \(dong.tenNganhHang) • Đã thực hiện: \(thucHienMon.chuoiSoGonVN) • Target chia: \(item.targetCaNhan.chuoiSoGonVN)\nNhập % đóng góp của nhân viên (tự tính = Đã thực hiện ÷ 100 × %) hoặc nhập trực tiếp số lượng:",
             preferredStyle: .alert
         )
         hop.addTextField { tf in
-            tf.placeholder = "Thực hiện"
+            tf.placeholder = "Nhập % (VD: 24) hoặc số thực hiện"
             tf.keyboardType = .decimalPad
             if item.thucHien > 0 {
                 tf.text = item.thucHien.chuoiSoGonVN.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
             }
         }
-        hop.addAction(UIAlertAction(title: "Lưu", style: .default) { [weak self] _ in
+        hop.addAction(UIAlertAction(title: "Lưu theo % của môn (÷100 × %)", style: .default) { [weak self] _ in
             guard let self = self else { return }
             let chu = (hop.textFields?.first?.text ?? "")
+                .replacingOccurrences(of: "%", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: ",", with: ".")
-            let giaTri = Double(chu) ?? 0
+            let phanTram = Double(chu) ?? 0
+            let giaTri = self.dong.thucHien > 0 ? (((self.dong.thucHien / 100.0) * phanTram * 10000.0).rounded() / 10000.0) : phanTram
+            let khoa = KhoDuLieu.chuanHoaKhoaSoSanh(self.dong.tenNganhHang)
+            var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
+            var bangNV = dl.thiDuaNhanVien(theo: self.cheDo)
+            bangNV[khoa, default: [:]][item.maNV] = giaTri
+            dl.ganThiDuaNhanVien(bangNV, theo: self.cheDo)
+            KhoDuLieu.dungChung.luu(dl)
+            self.napDuLieu()
+            self.khiCapNhatDuLieu?()
+        })
+        hop.addAction(UIAlertAction(title: "Lưu số lượng trực tiếp", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            let chuGoc = (hop.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let coDauPhanTram = chuGoc.contains("%")
+            let chu = chuGoc
+                .replacingOccurrences(of: "%", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: ",", with: ".")
+            let soNhap = Double(chu) ?? 0
+            let giaTri = (coDauPhanTram && self.dong.thucHien > 0)
+                ? (((self.dong.thucHien / 100.0) * soNhap * 10000.0).rounded() / 10000.0)
+                : soNhap
             let khoa = KhoDuLieu.chuanHoaKhoaSoSanh(self.dong.tenNganhHang)
             var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
             var bangNV = dl.thiDuaNhanVien(theo: self.cheDo)
@@ -1345,11 +1428,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
             self.danhSach = cu
         }
 
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.scale = 2.0
-        let anh = UIGraphicsImageRenderer(size: khungBaoCao.bounds.size, format: fmt).image { ctx in
-            khungBaoCao.layer.render(in: ctx.cgContext)
-        }
+        let anh = khungBaoCao.ketXuatAnhChuanSang(scale: 3.0)
         bang.reloadData()
         return anh
     }

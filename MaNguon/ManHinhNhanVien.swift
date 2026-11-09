@@ -1428,11 +1428,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
             self.danhSach = cu
         }
 
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.scale = 2.0
-        let anh = UIGraphicsImageRenderer(size: khungBaoCao.bounds.size, format: fmt).image { ctx in
-            khungBaoCao.layer.render(in: ctx.cgContext)
-        }
+        let anh = khungBaoCao.ketXuatAnhChuanSang(scale: 3.0)
         bang.reloadData()
         return anh
     }

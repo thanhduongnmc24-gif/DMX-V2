@@ -6,10 +6,16 @@ final class BangGuiBaoCaoView: UIView {
     private let nhanMa = UILabel()
     private let nutSaoChepLenhGanNhom = UIButton(type: .system)
     private let chonKhoAnh = UISegmentedControl(items: KhoAnhBaoCaoBot.allCases.map(\.tieuDe))
+    private let oApiKeyImgBB = UITextField()
+    private let nganCauHinhApiKey = UIStackView()
+    private let oDriveClientId = UITextField()
+    private let oDriveClientSecret = UITextField()
+    private let oDriveRefreshToken = UITextField()
     private let oURLAppsScript = UITextField()
     private let oKhoaDrive = UITextField()
     private let oFolderId = UITextField()
     private let nganCauHinhDrive = UIStackView()
+    private let nhanTrangThaiKhoAnh = UILabel()
     private let nutChonNhom = UIButton(type: .system)
     private let chonGio = UIDatePicker()
     private let chonKieuGui = UISegmentedControl(items: ["🖼️ Gửi ảnh", "📝 Gửi văn bản"])
@@ -32,8 +38,7 @@ final class BangGuiBaoCaoView: UIView {
         ("xep_hang_nv_realtime", "🔥 Bảng xếp hạng nhân viên realtime"),
         ("xep_hang_nv_luyke", "👥 Bảng xếp hạng nhân viên lũy kế"),
         ("bieu_do_realtime_thang", "📆 Biểu đồ realtime tháng"),
-        ("bieu_do_suc_khoe_nv", "❤️‍🩹 Biểu đồ sức khỏe 16 NV"),
-        ("chi_tiet_nhan_vien", "👤 Gộp chi tiết các nhân viên")
+        ("bieu_do_suc_khoe_nv", "❤️‍🩹 Biểu đồ sức khỏe 16 NV")
     ]
 
     override init(frame: CGRect) {
@@ -91,20 +96,41 @@ final class BangGuiBaoCaoView: UIView {
 
         ngan.addArrangedSubview(taoDuongKe())
         ngan.addArrangedSubview(taoNhan("KHO ẢNH GỬI NHANH", dam: true))
-        ngan.addArrangedSubview(taoNhan("Mặc định dùng Supabase và chỉ ghi đè ảnh mới nhất. Có thể chọn Google Drive; nếu Drive lỗi, app tự dự phòng sang Supabase."))
+        ngan.addArrangedSubview(taoNhan("Chọn kho lưu ảnh báo cáo: Supabase (trực tiếp), API Key (ImgBB siêu tốc không qua Apps Script), hoặc Google Drive (API trực tiếp / Apps Script)."))
         chonKhoAnh.addTarget(self, action: #selector(doiKhoAnh), for: .valueChanged)
         ngan.addArrangedSubview(chonKhoAnh)
 
+        nganCauHinhApiKey.axis = .vertical
+        nganCauHinhApiKey.spacing = 7
+        nganCauHinhApiKey.addArrangedSubview(taoNhan("⚡ Tải ảnh trực tiếp bằng 1 API Key (lấy miễn phí tại api.imgbb.com, tốc độ ~0.4 giây/ảnh, không qua Apps Script):"))
+        cauHinhO(oApiKeyImgBB, goiY: "Nhập API Key ImgBB (ví dụ: 6d207e02198a847aa98d0a2a901485a5)", baoMat: true)
+        nganCauHinhApiKey.addArrangedSubview(oApiKeyImgBB)
+        ngan.addArrangedSubview(nganCauHinhApiKey)
+
         nganCauHinhDrive.axis = .vertical
         nganCauHinhDrive.spacing = 7
+        nganCauHinhDrive.addArrangedSubview(taoNhan("⚡ Cách 1 — Tải trực tiếp lên Google Drive API v3 (Nhanh gấp 4 lần, không qua Apps Script):"))
+        cauHinhO(oDriveClientId, goiY: "Google OAuth Client ID (để trống nếu dùng ya29. Access Token)")
+        cauHinhO(oDriveClientSecret, goiY: "Google OAuth Client Secret", baoMat: true)
+        cauHinhO(oDriveRefreshToken, goiY: "Google OAuth Refresh Token (1//...) hoặc Access Token (ya29...)", baoMat: true)
+        nganCauHinhDrive.addArrangedSubview(oDriveClientId)
+        nganCauHinhDrive.addArrangedSubview(oDriveClientSecret)
+        nganCauHinhDrive.addArrangedSubview(oDriveRefreshToken)
+        nganCauHinhDrive.addArrangedSubview(taoNhan("🌐 Cách 2 — Hoặc tải qua Google Apps Script Web App (nếu không dùng OAuth ở trên):"))
         cauHinhO(oURLAppsScript, goiY: "URL Google Apps Script Web App")
         cauHinhO(oKhoaDrive, goiY: "Khóa bí mật của Apps Script", baoMat: true)
-        cauHinhO(oFolderId, goiY: "ID thư mục Google Drive")
+        cauHinhO(oFolderId, goiY: "ID thư mục Google Drive (dùng chung cho cả 2 cách)")
         nganCauHinhDrive.addArrangedSubview(oURLAppsScript)
         nganCauHinhDrive.addArrangedSubview(oKhoaDrive)
         nganCauHinhDrive.addArrangedSubview(oFolderId)
-        nganCauHinhDrive.addArrangedSubview(taoNut("💾 Lưu cấu hình kho ảnh", #selector(luuCauHinhKhoAnh)))
         ngan.addArrangedSubview(nganCauHinhDrive)
+
+        // Nút Lưu luôn hiển thị cho mọi kho ảnh (kể cả khi chuyển từ Drive về Supabase)
+        ngan.addArrangedSubview(taoNut("💾 Lưu cấu hình kho ảnh", #selector(luuCauHinhKhoAnh)))
+        nhanTrangThaiKhoAnh.font = .systemFont(ofSize: 12.5, weight: .semibold)
+        nhanTrangThaiKhoAnh.textColor = BangMauBCTD.xanhLaDam
+        nhanTrangThaiKhoAnh.numberOfLines = 0
+        ngan.addArrangedSubview(nhanTrangThaiKhoAnh)
         napCauHinhKhoAnh()
 
         ngan.addArrangedSubview(taoDuongKe())
@@ -321,39 +347,113 @@ final class BangGuiBaoCaoView: UIView {
         hienThongBao(tieuDe: "✅ Đã sao chép", noiDung: "Đã sao chép \(lenhGanNhomHienTai). Mở đúng nhóm LINE và dán lệnh này.")
     }
 
-    @objc private func doiKhoAnh() {
-        nganCauHinhDrive.isHidden = chonKhoAnh.selectedSegmentIndex != 1
+    private func khoDangChonTrenGiaoDien() -> KhoAnhBaoCaoBot {
+        let tatCa = KhoAnhBaoCaoBot.allCases
+        let idx = chonKhoAnh.selectedSegmentIndex
+        guard tatCa.indices.contains(idx) else { return .supabase }
+        return tatCa[idx]
     }
 
-    @objc private func luuCauHinhKhoAnh() {
-        var cfg = CauHinhKhoAnhBaoCaoBot()
-        cfg.kho = chonKhoAnh.selectedSegmentIndex == 1 ? .googleDrive : .supabase
+    private func docCauHinhTuCacO() -> CauHinhKhoAnhBaoCaoBot {
+        var cfg = DichVuAnhBaoCaoBot.dungChung.cauHinh
+        cfg.kho = khoDangChonTrenGiaoDien()
+        cfg.apiKeyImgBB = (oApiKeyImgBB.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        cfg.driveClientId = (oDriveClientId.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        cfg.driveClientSecret = (oDriveClientSecret.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        cfg.driveRefreshToken = (oDriveRefreshToken.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         cfg.urlAppsScript = (oURLAppsScript.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         cfg.khoaBiMat = (oKhoaDrive.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         cfg.folderId = (oFolderId.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if cfg.kho == .googleDrive && !cfg.driveDaSanSang {
-            hienLoi("Drive cần đủ URL Apps Script, khóa bí mật và ID thư mục.")
-            return
+        return cfg
+    }
+
+    @objc private func doiKhoAnh() {
+        let kho = khoDangChonTrenGiaoDien()
+        nganCauHinhApiKey.isHidden = kho != .apiKey
+        nganCauHinhDrive.isHidden = kho != .googleDrive
+
+        // Tự động áp dụng ngay khi chuyển về Supabase (hoặc khi kho đã đủ thông tin)
+        // để tránh lỗi chọn Supabase nhưng ấn Tải ảnh vẫn đẩy lên Google Drive.
+        let cfg = docCauHinhTuCacO()
+        if kho == .supabase || (kho == .apiKey && cfg.apiKeyDaSanSang) || (kho == .googleDrive && cfg.driveDaSanSang) {
+            DichVuAnhBaoCaoBot.dungChung.cauHinh = cfg
+        }
+        capNhatNhanTrangThaiKhoAnh(cfg: DichVuAnhBaoCaoBot.dungChung.cauHinh)
+    }
+
+    @objc private func luuCauHinhKhoAnh() {
+        let cfg = docCauHinhTuCacO()
+        switch cfg.kho {
+        case .supabase:
+            break
+        case .apiKey:
+            if !cfg.apiKeyDaSanSang {
+                hienLoi("Vui lòng nhập API Key ImgBB trước khi lưu.")
+                return
+            }
+        case .googleDrive:
+            if !cfg.driveDaSanSang {
+                hienLoi("Google Drive cần nhập bộ OAuth (Client ID + Secret + Refresh Token) HOẶC bộ Apps Script (URL + Khóa bí mật + Folder ID).")
+                return
+            }
         }
         DichVuAnhBaoCaoBot.dungChung.cauHinh = cfg
         NotificationCenter.default.post(name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
+        capNhatNhanTrangThaiKhoAnh(cfg: cfg)
         nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
-        nhanTrangThai.text = cfg.kho == .googleDrive
-            ? "Đã chọn Google Drive. Nếu tải Drive thất bại, ảnh sẽ tự lưu dự phòng sang Supabase."
-            : "Đã chọn Supabase. Mỗi loại chỉ giữ một ảnh mới nhất nên dung lượng không tăng theo lịch sử."
+        nhanTrangThai.text = "✅ Đã lưu kho ảnh: \(cfg.tenKhoHieuLuc)."
         viewKetThucNhap()
+    }
+
+    private func capNhatNhanTrangThaiKhoAnh(cfg: CauHinhKhoAnhBaoCaoBot) {
+        nhanTrangThaiKhoAnh.textColor = BangMauBCTD.xanhLaDam
+        switch cfg.kho {
+        case .supabase:
+            nhanTrangThaiKhoAnh.text = "🟢 Kho đang dùng: Supabase (tải trực tiếp qua Signed URL, mỗi loại chỉ giữ 1 ảnh mới nhất)."
+        case .apiKey:
+            if cfg.apiKeyDaSanSang {
+                nhanTrangThaiKhoAnh.text = "🟢 Kho đang dùng: API Key (ImgBB) — tải nhị phân trực tiếp siêu tốc, tự dự phòng sang Supabase nếu lỗi."
+            } else {
+                nhanTrangThaiKhoAnh.textColor = .systemOrange
+                nhanTrangThaiKhoAnh.text = "🟠 Đang chọn API Key (ImgBB) nhưng chưa lưu API Key (tạm dùng Supabase)."
+            }
+        case .googleDrive:
+            if cfg.driveTrucTiepDaSanSang {
+                nhanTrangThaiKhoAnh.text = "🟢 Kho đang dùng: Google Drive (API trực tiếp — không qua Apps Script)."
+            } else if cfg.driveAppsScriptDaSanSang {
+                nhanTrangThaiKhoAnh.text = "🟢 Kho đang dùng: Google Drive (qua Apps Script)."
+            } else {
+                nhanTrangThaiKhoAnh.textColor = .systemOrange
+                nhanTrangThaiKhoAnh.text = "🟠 Đang chọn Google Drive nhưng chưa đủ thông tin xác thực (tạm dùng Supabase)."
+            }
+        }
     }
 
     private func napCauHinhKhoAnh() {
         let cfg = DichVuAnhBaoCaoBot.dungChung.cauHinh
-        chonKhoAnh.selectedSegmentIndex = cfg.kho == .googleDrive ? 1 : 0
+        if let idx = KhoAnhBaoCaoBot.allCases.firstIndex(of: cfg.kho) {
+            chonKhoAnh.selectedSegmentIndex = idx
+        } else {
+            chonKhoAnh.selectedSegmentIndex = 0
+        }
+        oApiKeyImgBB.text = cfg.apiKeyImgBB
+        oDriveClientId.text = cfg.driveClientId
+        oDriveClientSecret.text = cfg.driveClientSecret
+        oDriveRefreshToken.text = cfg.driveRefreshToken
         oURLAppsScript.text = cfg.urlAppsScript
         oKhoaDrive.text = cfg.khoaBiMat
         oFolderId.text = cfg.folderId
-        doiKhoAnh()
+        let kho = khoDangChonTrenGiaoDien()
+        nganCauHinhApiKey.isHidden = kho != .apiKey
+        nganCauHinhDrive.isHidden = kho != .googleDrive
+        capNhatNhanTrangThaiKhoAnh(cfg: cfg)
     }
 
     private func viewKetThucNhap() {
+        oApiKeyImgBB.resignFirstResponder()
+        oDriveClientId.resignFirstResponder()
+        oDriveClientSecret.resignFirstResponder()
+        oDriveRefreshToken.resignFirstResponder()
         oURLAppsScript.resignFirstResponder()
         oKhoaDrive.resignFirstResponder()
         oFolderId.resignFirstResponder()

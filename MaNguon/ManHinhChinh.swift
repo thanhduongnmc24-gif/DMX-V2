@@ -3057,8 +3057,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let maLanTao = maLanTaoAnhBot
         let congViec = DispatchWorkItem { [weak self] in
             guard let self, self.maLanTaoAnhBot == maLanTao else { return }
-            // Luôn tạo đủ mọi mẫu ảnh mà app hỗ trợ. Nhờ vậy lệnh bot và lịch mới
-            // không phụ thuộc vào việc loại ảnh đó đã được chọn ở lịch cũ hay chưa.
+            // Luôn tạo đủ 7 mẫu ảnh tổng hợp/biểu đồ mà app hỗ trợ (đã bỏ ảnh gộp chi tiết nhân viên theo yêu cầu để tăng tốc tải lên server).
             let cacLoai: Set<String> = [
                 "luyke_du_kien",
                 "doanhthu_thidua_luyke",
@@ -3066,8 +3065,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 "xep_hang_nv_luyke",
                 "xep_hang_nv_realtime",
                 "bieu_do_realtime_thang",
-                "bieu_do_suc_khoe_nv",
-                "chi_tiet_nhan_vien"
+                "bieu_do_suc_khoe_nv"
             ]
             self.taoVaTaiAnhBaoCaoBot(cacLoai: cacLoai, dl: dl, ngayBaoCao: ngay, maLanTao: maLanTao) { [weak self] thanhCong in
                 guard let self, self.maLanTaoAnhBot == maLanTao else { return }
@@ -3212,8 +3210,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             ("xep_hang_nv_luyke", "Bảng Xếp hạng NV Lũy kế"),
             ("xep_hang_nv_realtime", "Bảng Xếp hạng NV Realtime"),
             ("bieu_do_suc_khoe_nv", "Biểu đồ Sức khỏe NV"),
-            ("bieu_do_realtime_thang", "Biểu đồ Realtime Tháng"),
-            ("chi_tiet_nhan_vien", "Ảnh Gộp Chi tiết Sức khỏe NV")
+            ("bieu_do_realtime_thang", "Biểu đồ Realtime Tháng")
         ]
 
         func taoAnh(_ loai: String) -> UIImage? {
@@ -3266,7 +3263,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         }
 
         let cauHinhKho = DichVuAnhBaoCaoBot.dungChung.cauHinh
-        let tenKhoUuTien = cauHinhKho.driveDaSanSang ? "Google Drive" : "Supabase"
+        let tenKhoUuTien = cauHinhKho.tenKhoHieuLuc
 
         lopPhuTai.isHidden = false
         vongQuay.startAnimating()
