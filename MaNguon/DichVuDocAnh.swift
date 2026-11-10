@@ -423,7 +423,6 @@ final class DichVuDocAnh {
         }
 
         // 3. Xác định mốc Y của các khối: DOANH THU (Hàng 0, Hàng 1), NĂNG SUẤT, HIỆU QUẢ KHAI THÁC, THI ĐUA, ĐƠN GIÁ
-        var yDTHeader: CGFloat = 0.172
         var yRow0Title: CGFloat = 0.198
         var yRow1Title: CGFloat = 0.244
         var yNSHeader: CGFloat = 0.302
@@ -437,9 +436,7 @@ final class DichVuDocAnh {
 
         for pt in tatCaPT {
             let u = boDau(pt.chu).trimmingCharacters(in: .whitespacesAndNewlines)
-            if pt.x < 0.28 && pt.y > 0.14 && pt.y < 0.21 && u.hasPrefix("DOANH THU") && !u.contains("QD") {
-                yDTHeader = pt.y
-            } else if pt.y > 0.17 && pt.y < 0.24 && (u.contains("DOANH THU QD") || u == "% TARGET" || u.contains("SO LUOT BILL") || u.contains("BILL BAN HANG")) {
+            if pt.y > 0.17 && pt.y < 0.24 && (u.contains("DOANH THU QD") || u == "% TARGET" || u.contains("SO LUOT BILL") || u.contains("BILL BAN HANG")) {
                 cacYRow0.append(pt.y)
             } else if pt.y > 0.22 && pt.y < 0.28 && (u.contains("QUY DOI") || u.contains("TRA CHAM") || u.contains("BAN KEM")) {
                 cacYRow1.append(pt.y)
