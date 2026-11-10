@@ -1281,14 +1281,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         // 2 Nút lớn: NHẬP TẤT CẢ LŨY KẾ & NHẬP TẤT CẢ REALTIME
         let nutNhapAllLK = taoNutLonNhapSo(
             tieuDe: "📥 NHẬP TẤT CẢ LŨY KẾ (Chọn nhiều ảnh 1 lần)",
-            moTa: "Tự động đọc & phân loại: Doanh thu Lũy kế + Thi đua ngành hàng Lũy kế + Doanh thu NV & Thi đua NV Lũy kế",
+            moTa: "Tự động đọc & phân loại: Doanh thu Lũy kế + Thi đua ngành hàng Lũy kế + Phiếu Sức khỏe NV Lũy kế (Doanh thu & Thi đua)",
             mauNen: BangMauBCTD.xanhChuDao,
             mauChu: .white,
             action: #selector(bamNhapTatCaLuyKe)
         )
         let nutNhapAllRT = taoNutLonNhapSo(
             tieuDe: "⚡ NHẬP TẤT CẢ REALTIME (Chọn nhiều ảnh 1 lần)",
-            moTa: "Tự động đọc & phân loại: Doanh thu Realtime + Thi đua ngành hàng Realtime + Doanh thu NV & Thi đua NV Realtime",
+            moTa: "Tự động đọc & phân loại: Doanh thu Realtime + Thi đua ngành hàng Realtime + Bảng Doanh thu NV Realtime",
             mauNen: BangMauBCTD.xanhDatVach,
             mauChu: .white,
             action: #selector(bamNhapTatCaRealtime)
@@ -1303,21 +1303,19 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 ("📷 Quét 2 ảnh Doanh thu Lũy kế (Thực + QĐ)", #selector(bamQuetDoanhThuLK)),
                 ("✏️ Nhập / Sửa tay số liệu Doanh thu Lũy kế", #selector(bamSuaTayDoanhThuLK)),
                 ("📋 Quét ảnh Bảng Thi đua Ngành hàng Lũy kế", #selector(bamQuetThiDuaLK)),
-                ("👥 Quét ảnh Doanh thu Hợp nhất Nhân viên Lũy kế", #selector(bamQuetDoanhThuNVLK)),
-                ("🏆 Quét ảnh Thực hiện Thi đua Nhân viên Lũy kế", #selector(bamQuetThiDuaNVLK))
+                ("🪪 Quét ảnh Sức khỏe Nhân viên Lũy kế (Doanh thu & Thi đua)", #selector(bamQuetThiDuaNVLK))
             ]
         )
         ngan.addArrangedSubview(theLK)
 
-        // Khung nhập từng phần Realtime
+        // Khung nhập từng phần Realtime (Realtime nhân viên chỉ có Doanh thu, không có Thi đua)
         let theRT = taoKhungNhapTungPhan(
             tieuDe: "⚡ NHẬP / SỬA TỪNG PHẦN — REALTIME HÔM NAY",
             cacNut: [
                 ("📷 Quét 2 ảnh Doanh thu Realtime (Thực + QĐ)", #selector(bamQuetDoanhThuRT)),
                 ("✏️ Nhập / Sửa tay số liệu Doanh thu Realtime", #selector(bamSuaTayDoanhThuRT)),
                 ("📋 Quét ảnh Bảng Thi đua Ngành hàng Realtime", #selector(bamQuetThiDuaRT)),
-                ("👥 Quét ảnh Doanh thu Hợp nhất Nhân viên Realtime", #selector(bamQuetDoanhThuNVRT)),
-                ("🏆 Quét ảnh Thực hiện Thi đua Nhân viên Realtime", #selector(bamQuetThiDuaNVRT))
+                ("👥 Quét ảnh Bảng Doanh thu Nhân viên Realtime", #selector(bamQuetDoanhThuNVRT))
             ]
         )
         ngan.addArrangedSubview(theRT)
@@ -3701,11 +3699,19 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
         let nhanCheDo = cheDoDoanhThu.tieuDe
         if laNhanVien {
-            nutThemAnhMoi.setTitle(" Nhập ảnh Thi đua NV (\(nhanCheDo))", for: .normal)
-            nutNhapDoanhThuNV.setTitle(" Nhập ảnh Doanh thu (\(nhanCheDo))", for: .normal)
-            nutNhapDoanhThuNV.isHidden = false
-            rangBuocBangRongHaiNutNV?.isActive = true
+            if cheDoDoanhThu == .luyKe {
+                nutThemAnhMoi.isHidden = false
+                nutThemAnhMoi.setTitle(" Nhập ảnh Sức khỏe NV (DT & Thi đua Lũy kế)", for: .normal)
+                nutNhapDoanhThuNV.isHidden = true
+                rangBuocBangRongHaiNutNV?.isActive = false
+            } else {
+                nutThemAnhMoi.isHidden = true
+                nutNhapDoanhThuNV.isHidden = false
+                nutNhapDoanhThuNV.setTitle(" Nhập ảnh Doanh thu NV (Realtime)", for: .normal)
+                rangBuocBangRongHaiNutNV?.isActive = false
+            }
         } else {
+            nutThemAnhMoi.isHidden = false
             nutThemAnhMoi.setTitle(" Thêm ảnh Thi đua (\(nhanCheDo))", for: .normal)
             nutNhapDoanhThuNV.isHidden = true
             rangBuocBangRongHaiNutNV?.isActive = false
@@ -3969,7 +3975,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         case .luyKe, .realtime:
             moHuongDanQuetAnhThiDua()
         case .nhanVien:
-            moChonAnh(cheDo: .thiDuaNhanVien(cheDoDoanhThu), gioiHan: 0)
+            if cheDoDoanhThu == .realtime {
+                moChonAnh(cheDo: .doanhThuNhanVien(.realtime), gioiHan: 0)
+            } else {
+                moChonAnh(cheDo: .thiDuaNhanVien(.luyKe), gioiHan: 0)
+            }
         case .bieuDo:
             moChonAnh(cheDo: .doanhThu(.realtime), gioiHan: 2)
         case .tonKho:
@@ -3978,7 +3988,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     }
 
     @objc private func bamNhapAnhDoanhThuNV() {
-        moChonAnh(cheDo: .thiDuaNhanVien(cheDoDoanhThu), gioiHan: 0)
+        if cheDoDoanhThu == .realtime {
+            moChonAnh(cheDo: .doanhThuNhanVien(.realtime), gioiHan: 0)
+        } else {
+            moChonAnh(cheDo: .thiDuaNhanVien(.luyKe), gioiHan: 0)
+        }
     }
 
     private func moHuongDanQuetAnhThiDua(cheDo: LoaiCheDoDoanhThu? = nil) {
@@ -4023,27 +4037,44 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let tenCheDo = cheDoXoa.tieuDe
 
         if tabXemSo == .nhanVien {
-            hienMenuChon(
-                tieuDe: "Xoá dữ liệu Nhân viên (\(tenCheDo))?",
-                thongDiep: "Chọn phần dữ liệu Nhân viên muốn xoá:",
-                cacMuc: [
-                    MucChonDMX(tieuDe: "🗑️ Xoá Doanh thu & Sức khỏe NV", kieu: .nguyHiem) { [weak self] in
-                        guard let self = self else { return }
-                        KhoDuLieu.dungChung.xoaDoanhThuNhanVienLuyKeThang(cho: self.ngayHienTai, xoaCaThiDuaNV: false)
-                        self.dsThiDuaDaNapUI = nil
-                        self.khoaCumChiSoDaNapUI = ""
-                        self.napDuLieu()
-                    },
-                    MucChonDMX(tieuDe: "🗑️ Xoá TẤT CẢ Doanh thu, Sức khỏe & Thi đua NV", kieu: .nguyHiem) { [weak self] in
-                        guard let self = self else { return }
-                        KhoDuLieu.dungChung.xoaDoanhThuNhanVienLuyKeThang(cho: self.ngayHienTai, xoaCaThiDuaNV: true)
-                        self.dsThiDuaDaNapUI = nil
-                        self.khoaCumChiSoDaNapUI = ""
-                        self.napDuLieu()
-                    },
-                    MucChonDMX(tieuDe: "Huỷ", kieu: .huy)
-                ]
-            )
+            if cheDoXoa == .realtime {
+                hienMenuChon(
+                    tieuDe: "Xoá Doanh thu Nhân viên Realtime?",
+                    thongDiep: "Sẽ xoá sạch bảng Doanh thu Nhân viên Realtime của ngày đang chọn:",
+                    cacMuc: [
+                        MucChonDMX(tieuDe: "🗑️ Xoá Doanh thu Nhân viên Realtime", kieu: .nguyHiem) { [weak self] in
+                            guard let self = self else { return }
+                            KhoDuLieu.dungChung.xoaDoanhThuNhanVienRealtime(cho: self.ngayHienTai)
+                            self.dsThiDuaDaNapUI = nil
+                            self.khoaCumChiSoDaNapUI = ""
+                            self.napDuLieu()
+                        },
+                        MucChonDMX(tieuDe: "Huỷ", kieu: .huy)
+                    ]
+                )
+            } else {
+                hienMenuChon(
+                    tieuDe: "Xoá dữ liệu Nhân viên Lũy kế?",
+                    thongDiep: "Chọn phần dữ liệu Nhân viên Lũy kế muốn xoá:",
+                    cacMuc: [
+                        MucChonDMX(tieuDe: "🗑️ Xoá Doanh thu & Sức khỏe NV Lũy kế", kieu: .nguyHiem) { [weak self] in
+                            guard let self = self else { return }
+                            KhoDuLieu.dungChung.xoaDoanhThuNhanVienLuyKeThang(cho: self.ngayHienTai, xoaCaThiDuaNV: false)
+                            self.dsThiDuaDaNapUI = nil
+                            self.khoaCumChiSoDaNapUI = ""
+                            self.napDuLieu()
+                        },
+                        MucChonDMX(tieuDe: "🗑️ Xoá TẤT CẢ Doanh thu, Sức khỏe & Thi đua NV", kieu: .nguyHiem) { [weak self] in
+                            guard let self = self else { return }
+                            KhoDuLieu.dungChung.xoaDoanhThuNhanVienLuyKeThang(cho: self.ngayHienTai, xoaCaThiDuaNV: true)
+                            self.dsThiDuaDaNapUI = nil
+                            self.khoaCumChiSoDaNapUI = ""
+                            self.napDuLieu()
+                        },
+                        MucChonDMX(tieuDe: "Huỷ", kieu: .huy)
+                    ]
+                )
+            }
             return
         }
 
@@ -4197,11 +4228,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 MucChonDMX(tieuDe: "📋 Ảnh thi đua ngành hàng") { [weak self] in
                     self?.moHuongDanQuetAnhThiDua(cheDo: cheDo)
                 },
-                MucChonDMX(tieuDe: "👥 Ảnh doanh thu nhân viên") { [weak self] in
-                    self?.moChonAnh(cheDo: .doanhThuNhanVien(cheDo), gioiHan: 0)
-                },
-                MucChonDMX(tieuDe: "🏆 Ảnh thi đua nhân viên") { [weak self] in
-                    self?.moChonAnh(cheDo: .thiDuaNhanVien(cheDo), gioiHan: 0)
+                MucChonDMX(tieuDe: cheDo == .realtime ? "👥 Ảnh bảng Doanh thu Nhân viên (Realtime)" : "🪪 Ảnh Sức khỏe Nhân viên (DT & Thi đua Lũy kế)") { [weak self] in
+                    if cheDo == .realtime {
+                        self?.moChonAnh(cheDo: .doanhThuNhanVien(.realtime), gioiHan: 0)
+                    } else {
+                        self?.moChonAnh(cheDo: .thiDuaNhanVien(.luyKe), gioiHan: 0)
+                    }
                 },
                 MucChonDMX(tieuDe: "✏️ Nhập / Sửa tay Doanh thu \(tenCheDo) (& Lượt khách)") { [weak self] in
                     self?.moHopThoaiNhapDoanhThu()
@@ -4637,7 +4669,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
     }
 
     private func xuLyQuetDoanhThuNhanVien(_ cacAnh: [UIImage], loai: LoaiCheDoDoanhThu) {
-        xuLyQuetThiDuaNhanVien(cacAnh, loai: loai)
+        if loai == .luyKe {
+            xuLyQuetThiDuaNhanVien(cacAnh, loai: .luyKe)
+        } else {
+            xuLyQuetDoanhThuNhanVienCu(cacAnh, loai: .realtime)
+        }
     }
 
     private func xuLyQuetDoanhThuNhanVienCu(_ cacAnh: [UIImage], loai: LoaiCheDoDoanhThu) {

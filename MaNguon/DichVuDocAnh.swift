@@ -913,8 +913,9 @@ final class DichVuDocAnh {
                     kq.thongTinDonVi = dv
                 }
 
-                // ƯU TIÊN 0: Kiểm tra xem có phải ảnh Phiếu Sức Khỏe & Thi Đua Cá Nhân Nhân Viên 27 Điểm (suc-khoe-nv-*.jpg) không
-                if self.laAnhSucKhoeCaNhan27Diem(phanTu: phanTu, anh: anh),
+                // ƯU TIÊN 0: Kiểm tra xem có phải ảnh Phiếu Sức Khỏe & Thi Đua Cá Nhân Nhân Viên 27 Điểm (suc-khoe-nv-*.jpg) không (chỉ dùng cho Lũy kế)
+                if !laRealtime,
+                   self.laAnhSucKhoeCaNhan27Diem(phanTu: phanTu, anh: anh),
                    let kqSK = self.phanTichAnhSucKhoeCaNhan27Diem(phanTu: phanTu, anh: anh) {
                     if let cu = kq.sucKhoeNhanVien[kqSK.maNV] {
                         kq.sucKhoeNhanVien[kqSK.maNV] = cu.gop(voi: kqSK.sucKhoe)
@@ -949,7 +950,8 @@ final class DichVuDocAnh {
                         u.contains("CON / VUOT")
                     )
                 }
-                if (coCotHangTrongST || self.laAnhBangThiDuaNhanVienTheoMonMoRong(phanTu: phanTu)),
+                if !laRealtime,
+                   (coCotHangTrongST || self.laAnhBangThiDuaNhanVienTheoMonMoRong(phanTu: phanTu)),
                    let khoiNV = self.phanTichThiDuaNhanVienOffline(phanTu: phanTu, anh: anh, tenNganhGoiY: nil, watermark: wm),
                    !khoiNV.danhSach.isEmpty {
                     kq.thiDuaNhanVien.append(khoiNV)

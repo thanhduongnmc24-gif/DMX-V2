@@ -881,8 +881,15 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
     private var phienBanDaNapUI: Int = -1
     private var sapXepDaNapUI: KieuSapXepNhanVien?
 
-    private let chieuRongCot: [CGFloat] = [44, 170, 78, 92, 84, 78, 96, 92]
+    private var chieuRongCot: [CGFloat] {
+        if cheDoDoanhThu == .realtime {
+            return [44, 185, 84, 108, 108, 92]
+        } else {
+            return [44, 170, 78, 92, 84, 78, 96, 92]
+        }
+    }
     private var tongChieuRongBang: CGFloat { chieuRongCot.reduce(0, +) }
+    private var rangBuocRongBang: NSLayoutConstraint?
 
     private let nhanTieuDe = UILabel()
     private let nutChiaSeAnh = UIButton(type: .system)
@@ -1006,7 +1013,6 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
             bang.leadingAnchor.constraint(equalTo: cuonNgang.contentLayoutGuide.leadingAnchor),
             bang.trailingAnchor.constraint(equalTo: cuonNgang.contentLayoutGuide.trailingAnchor),
             bang.heightAnchor.constraint(equalTo: cuonNgang.frameLayoutGuide.heightAnchor),
-            bang.widthAnchor.constraint(equalToConstant: tongChieuRongBang),
 
             khungTrong.topAnchor.constraint(equalTo: thanhDieuKhien.bottomAnchor, constant: 6),
             khungTrong.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
@@ -1018,6 +1024,9 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
             nhanTrong.leadingAnchor.constraint(equalTo: khungTrong.leadingAnchor, constant: 20),
             nhanTrong.trailingAnchor.constraint(equalTo: khungTrong.trailingAnchor, constant: -20)
         ])
+        let rgRong = bang.widthAnchor.constraint(equalToConstant: tongChieuRongBang)
+        rgRong.isActive = true
+        rangBuocRongBang = rgRong
     }
 
     @objc private func bamMoMenuSapXep() {
@@ -1062,8 +1071,13 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         sapXepDaNapUI = kieuSapXep
 
         let moi = kho.tongHopNhanVien(den: ngay, sapXep: kieuSapXep, cheDo: cheDo)
-        let soMonThang = kho.danhSachMatHangThang(den: ngay, cheDo: cheDo).count
-        nhanTieuDe.text = "🏆 Xếp Hạng \(cheDo.tieuDe) (\(moi.count) NV • \(soMonThang) môn)"
+        if cheDo == .realtime {
+            nhanTieuDe.text = "⚡ Doanh Thu Nhân Viên Realtime (\(moi.count) NV)"
+        } else {
+            let soMonThang = kho.danhSachMatHangThang(den: ngay, cheDo: cheDo).count
+            nhanTieuDe.text = "🏆 Xếp Hạng \(cheDo.tieuDe) (\(moi.count) NV • \(soMonThang) môn)"
+        }
+        rangBuocRongBang?.constant = tongChieuRongBang
 
         let trong = moi.isEmpty
         khungTrong.isHidden = !trong
@@ -1112,21 +1126,31 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
     }
 
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
-        let khung = UIView(frame: CGRect(x: 0, y: 0, width: tongChieuRongBang, height: 42))
+        let cacRong = chieuRongCot
+        let rongBang = tongChieuRongBang
+        let khung = UIView(frame: CGRect(x: 0, y: 0, width: rongBang, height: 42))
         khung.backgroundColor = BangMauBCTD.nenHeaderBang
 
-        let tieuDe = ["HẠNG", "NHÂN VIÊN (CHẠM XEM SK)", "% TỈ TRỌNG", "DOANH THU QĐ", "% HT TB", "SỐ LƯỢNG", "SỐ MÔN ĐẠT", "DT KHOẢN VAY"]
+        let laRT = (cheDoDoanhThu == .realtime)
+        let tieuDe: [String] = laRT
+            ? ["HẠNG", "NHÂN VIÊN", "SỐ LƯỢNG", "DOANH THU QĐ", "DT QĐ KHOẢN VAY", "% TỈ TRỌNG"]
+            : ["HẠNG", "NHÂN VIÊN (CHẠM XEM SK)", "% TỈ TRỌNG", "DOANH THU QĐ", "% HT TB", "SỐ LƯỢNG", "SỐ MÔN ĐẠT", "DT KHOẢN VAY"]
+
         var xHienTai: CGFloat = 0
         for (i, chu) in tieuDe.enumerated() {
-            let w = chieuRongCot[i]
+            let w = cacRong[i]
             let nhan = UILabel(frame: CGRect(x: xHienTai + 4, y: 2, width: w - 8, height: 37))
             nhan.text = chu
             nhan.font = .systemFont(ofSize: 10.5, weight: .bold)
-            nhan.textColor = (i == 3 || i == 6) ? BangMauBCTD.vangChuDao : .white
+            nhan.textColor = (i == 3 || (!laRT && i == 6)) ? BangMauBCTD.vangChuDao : .white
             nhan.numberOfLines = 0
             nhan.lineBreakMode = .byWordWrapping
             nhan.adjustsFontSizeToFitWidth = false
-            nhan.textAlignment = (i == 1) ? .left : ((i == 0 || i == 4 || i == 6) ? .center : .right)
+            if laRT {
+                nhan.textAlignment = (i == 1) ? .left : (i == 0 ? .center : .right)
+            } else {
+                nhan.textAlignment = (i == 1) ? .left : ((i == 0 || i == 4 || i == 6) ? .center : .right)
+            }
             khung.addSubview(nhan)
 
             xHienTai += w
@@ -1136,7 +1160,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
                 khung.addSubview(vach)
             }
         }
-        let vachDuoi = UIView(frame: CGRect(x: 0, y: 39.5, width: tongChieuRongBang, height: 2.5))
+        let vachDuoi = UIView(frame: CGRect(x: 0, y: 39.5, width: rongBang, height: 2.5))
         vachDuoi.backgroundColor = BangMauBCTD.vangChuDao
         khung.addSubview(vachDuoi)
         return khung
@@ -1152,8 +1176,11 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         let caoDong = tinhChieuCaoDongNV(row)
         let hang = indexPath.row + 1
         let laTop3 = hang <= 3
+        let cacRong = chieuRongCot
+        let rongBang = tongChieuRongBang
+        let laRT = (cheDoDoanhThu == .realtime)
 
-        let khung = UIView(frame: CGRect(x: 0, y: 0, width: tongChieuRongBang, height: caoDong))
+        let khung = UIView(frame: CGRect(x: 0, y: 0, width: rongBang, height: caoDong))
         khung.backgroundColor = laTop3
             ? BangMauBCTD.xanhDatNenDong
             : ((indexPath.row % 2 == 1) ? BangMauBCTD.nenThePhu : BangMauBCTD.nenThe)
@@ -1168,116 +1195,180 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         let fontChuDongNhat = UIFont.systemFont(ofSize: 12.5, weight: .bold)
 
         var x: CGFloat = 0
-        for i in 0..<chieuRongCot.count {
-            let w = chieuRongCot[i]
+        for i in 0..<cacRong.count {
+            let w = cacRong[i]
             let rect = CGRect(x: x, y: 0, width: w, height: caoDong)
 
-            switch i {
-            case 0:
-                let lb = UILabel(frame: rect)
-                lb.text = KhoDuLieu.huyChuongHang(hang)
-                lb.font = fontDongNhat
-                lb.textAlignment = .center
-                lb.numberOfLines = 0
-                lb.lineBreakMode = .byWordWrapping
-                lb.adjustsFontSizeToFitWidth = false
-                khung.addSubview(lb)
-            case 1:
-                let rongTen = w - 16
-                let rectTen = (row.nhanVien.hoTen as NSString).boundingRect(
-                    with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
-                    options: [.usesLineFragmentOrigin, .usesFontLeading],
-                    attributes: [.font: fontChuDongNhat],
-                    context: nil
-                )
-                let caoTen = max(20, ceil(rectTen.height))
-                let caoMa = max(18, caoDong - caoTen - 12)
+            if laRT {
+                switch i {
+                case 0: // HẠNG
+                    let lb = UILabel(frame: rect)
+                    lb.text = KhoDuLieu.huyChuongHang(hang)
+                    lb.font = fontDongNhat
+                    lb.textAlignment = .center
+                    khung.addSubview(lb)
+                case 1: // NHÂN VIÊN
+                    let rongTen = w - 16
+                    let rectTen = (row.nhanVien.hoTen as NSString).boundingRect(
+                        with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
+                        options: [.usesLineFragmentOrigin, .usesFontLeading],
+                        attributes: [.font: fontChuDongNhat],
+                        context: nil
+                    )
+                    let caoTen = max(20, ceil(rectTen.height))
+                    let caoMa = max(18, caoDong - caoTen - 12)
 
-                let lbTen = UILabel(frame: CGRect(x: x + 8, y: 5, width: rongTen, height: caoTen))
-                lbTen.text = row.nhanVien.hoTen
-                lbTen.font = fontChuDongNhat
-                lbTen.numberOfLines = 0
-                lbTen.lineBreakMode = .byWordWrapping
-                lbTen.adjustsFontSizeToFitWidth = false
+                    let lbTen = UILabel(frame: CGRect(x: x + 8, y: 5, width: rongTen, height: caoTen))
+                    lbTen.text = row.nhanVien.hoTen
+                    lbTen.font = fontChuDongNhat
+                    lbTen.numberOfLines = 0
+                    lbTen.lineBreakMode = .byWordWrapping
 
-                let lbMa = UILabel(frame: CGRect(x: x + 8, y: 5 + caoTen + 2, width: rongTen, height: caoMa))
-                lbMa.text = "id: \(row.nhanVien.maNV)"
-                lbMa.font = .systemFont(ofSize: 12.0, weight: .medium)
-                lbMa.textColor = .secondaryLabel
-                lbMa.numberOfLines = 0
-                lbMa.lineBreakMode = .byWordWrapping
-                lbMa.adjustsFontSizeToFitWidth = false
+                    let lbMa = UILabel(frame: CGRect(x: x + 8, y: 5 + caoTen + 2, width: rongTen, height: caoMa))
+                    lbMa.text = "id: \(row.nhanVien.maNV)"
+                    lbMa.font = .systemFont(ofSize: 12.0, weight: .medium)
+                    lbMa.textColor = .secondaryLabel
+                    khung.addSubview(lbTen)
+                    khung.addSubview(lbMa)
+                case 2: // SỐ LƯỢNG
+                    let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
+                    lb.text = row.soLuongDon.chuoiSoNguyenVN
+                    lb.font = fontDongNhat
+                    lb.textColor = row.soLuongDon < 0 ? .systemRed : BangMauBCTD.chuChinh
+                    lb.textAlignment = .right
+                    khung.addSubview(lb)
+                case 3: // DOANH THU QĐ
+                    let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
+                    lb.text = row.doanhThuQD.chuoiSoLieu
+                    lb.font = fontDongNhat
+                    lb.textColor = row.doanhThuQD < 0 ? .systemRed : UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
+                    lb.textAlignment = .right
+                    khung.addSubview(lb)
+                case 4: // DT QĐ KHOẢN VAY
+                    let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
+                    lb.text = row.dtQDKhoanVay > 0 ? row.dtQDKhoanVay.chuoiSoLieu : "0"
+                    lb.font = fontDongNhat
+                    lb.textColor = .secondaryLabel
+                    lb.textAlignment = .right
+                    khung.addSubview(lb)
+                case 5: // % TỈ TRỌNG
+                    let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
+                    lb.text = String(format: "%.1f%%", row.phanTramTiTrong)
+                    lb.font = fontDongNhat
+                    lb.textColor = row.phanTramTiTrong < 0 ? .systemRed : BangMauBCTD.chuChinh
+                    lb.textAlignment = .right
+                    khung.addSubview(lb)
+                default:
+                    break
+                }
+            } else {
+                switch i {
+                case 0:
+                    let lb = UILabel(frame: rect)
+                    lb.text = KhoDuLieu.huyChuongHang(hang)
+                    lb.font = fontDongNhat
+                    lb.textAlignment = .center
+                    lb.numberOfLines = 0
+                    lb.lineBreakMode = .byWordWrapping
+                    lb.adjustsFontSizeToFitWidth = false
+                    khung.addSubview(lb)
+                case 1:
+                    let rongTen = w - 16
+                    let rectTen = (row.nhanVien.hoTen as NSString).boundingRect(
+                        with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
+                        options: [.usesLineFragmentOrigin, .usesFontLeading],
+                        attributes: [.font: fontChuDongNhat],
+                        context: nil
+                    )
+                    let caoTen = max(20, ceil(rectTen.height))
+                    let caoMa = max(18, caoDong - caoTen - 12)
 
-                khung.addSubview(lbTen)
-                khung.addSubview(lbMa)
-            case 2:
-                let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
-                lb.text = String(format: "%.1f%%", row.phanTramTiTrong)
-                lb.font = fontDongNhat
-                lb.textColor = row.phanTramTiTrong < 0 ? .systemRed : BangMauBCTD.chuChinh
-                lb.textAlignment = .right
-                lb.numberOfLines = 0
-                lb.lineBreakMode = .byWordWrapping
-                lb.adjustsFontSizeToFitWidth = false
-                khung.addSubview(lb)
-            case 3:
-                let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
-                lb.text = row.doanhThuQD.chuoiSoLieu
-                lb.font = fontDongNhat
-                lb.textColor = row.doanhThuQD < 0 ? .systemRed : UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
-                lb.textAlignment = .right
-                lb.numberOfLines = 0
-                lb.lineBreakMode = .byWordWrapping
-                lb.adjustsFontSizeToFitWidth = false
-                khung.addSubview(lb)
-            case 4:
-                let lb = UILabel(frame: rect.insetBy(dx: 4, dy: 2))
-                lb.text = row.tongMonGiao > 0 ? String(format: "%.1f%%", row.phanTramHTTB) : "--"
-                lb.font = fontDongNhat
-                lb.textAlignment = .center
-                lb.numberOfLines = 0
-                lb.lineBreakMode = .byWordWrapping
-                lb.adjustsFontSizeToFitWidth = false
-                khung.addSubview(lb)
-            case 5:
-                let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
-                lb.text = row.soLuongDon.chuoiSoNguyenVN
-                lb.font = fontDongNhat
-                lb.textColor = row.soLuongDon < 0 ? .systemRed : .secondaryLabel
-                lb.textAlignment = .right
-                lb.numberOfLines = 0
-                lb.lineBreakMode = .byWordWrapping
-                lb.adjustsFontSizeToFitWidth = false
-                khung.addSubview(lb)
-            case 6:
-                let pill = UILabel(frame: rect.insetBy(dx: 5, dy: max(6, (caoDong - 34) / 2)))
-                pill.text = "🏆 \(row.soMonDat)/\(row.tongMonGiao) môn"
-                pill.font = fontChuDongNhat
-                pill.textAlignment = .center
-                pill.numberOfLines = 0
-                pill.lineBreakMode = .byWordWrapping
-                pill.adjustsFontSizeToFitWidth = false
-                pill.layer.cornerRadius = 8
-                pill.clipsToBounds = true
-                pill.backgroundColor = row.soMonDat > 0 ? UIColor.systemGreen.withAlphaComponent(0.16) : UIColor.systemRed.withAlphaComponent(0.14)
-                pill.textColor = row.soMonDat > 0 ? UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1) : UIColor(red: 0.78, green: 0.14, blue: 0.14, alpha: 1)
-                khung.addSubview(pill)
-            case 7:
-                let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
-                lb.text = row.dtQDKhoanVay > 0 ? row.dtQDKhoanVay.chuoiSoLieu : "0"
-                lb.font = fontDongNhat
-                lb.textColor = .secondaryLabel
-                lb.textAlignment = .right
-                lb.numberOfLines = 0
-                lb.lineBreakMode = .byWordWrapping
-                lb.adjustsFontSizeToFitWidth = false
-                khung.addSubview(lb)
-            default:
-                break
+                    let lbTen = UILabel(frame: CGRect(x: x + 8, y: 5, width: rongTen, height: caoTen))
+                    lbTen.text = row.nhanVien.hoTen
+                    lbTen.font = fontChuDongNhat
+                    lbTen.numberOfLines = 0
+                    lbTen.lineBreakMode = .byWordWrapping
+                    lbTen.adjustsFontSizeToFitWidth = false
+
+                    let lbMa = UILabel(frame: CGRect(x: x + 8, y: 5 + caoTen + 2, width: rongTen, height: caoMa))
+                    lbMa.text = "id: \(row.nhanVien.maNV)"
+                    lbMa.font = .systemFont(ofSize: 12.0, weight: .medium)
+                    lbMa.textColor = .secondaryLabel
+                    lbMa.numberOfLines = 0
+                    lbMa.lineBreakMode = .byWordWrapping
+                    lbMa.adjustsFontSizeToFitWidth = false
+
+                    khung.addSubview(lbTen)
+                    khung.addSubview(lbMa)
+                case 2:
+                    let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
+                    lb.text = String(format: "%.1f%%", row.phanTramTiTrong)
+                    lb.font = fontDongNhat
+                    lb.textColor = row.phanTramTiTrong < 0 ? .systemRed : BangMauBCTD.chuChinh
+                    lb.textAlignment = .right
+                    lb.numberOfLines = 0
+                    lb.lineBreakMode = .byWordWrapping
+                    lb.adjustsFontSizeToFitWidth = false
+                    khung.addSubview(lb)
+                case 3:
+                    let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
+                    lb.text = row.doanhThuQD.chuoiSoLieu
+                    lb.font = fontDongNhat
+                    lb.textColor = row.doanhThuQD < 0 ? .systemRed : UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1)
+                    lb.textAlignment = .right
+                    lb.numberOfLines = 0
+                    lb.lineBreakMode = .byWordWrapping
+                    lb.adjustsFontSizeToFitWidth = false
+                    khung.addSubview(lb)
+                case 4:
+                    let lb = UILabel(frame: rect.insetBy(dx: 4, dy: 2))
+                    lb.text = row.tongMonGiao > 0 ? String(format: "%.1f%%", row.phanTramHTTB) : "--"
+                    lb.font = fontDongNhat
+                    lb.textAlignment = .center
+                    lb.numberOfLines = 0
+                    lb.lineBreakMode = .byWordWrapping
+                    lb.adjustsFontSizeToFitWidth = false
+                    khung.addSubview(lb)
+                case 5:
+                    let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
+                    lb.text = row.soLuongDon.chuoiSoNguyenVN
+                    lb.font = fontDongNhat
+                    lb.textColor = row.soLuongDon < 0 ? .systemRed : .secondaryLabel
+                    lb.textAlignment = .right
+                    lb.numberOfLines = 0
+                    lb.lineBreakMode = .byWordWrapping
+                    lb.adjustsFontSizeToFitWidth = false
+                    khung.addSubview(lb)
+                case 6:
+                    let pill = UILabel(frame: rect.insetBy(dx: 5, dy: max(6, (caoDong - 34) / 2)))
+                    pill.text = "🏆 \(row.soMonDat)/\(row.tongMonGiao) môn"
+                    pill.font = fontChuDongNhat
+                    pill.textAlignment = .center
+                    pill.numberOfLines = 0
+                    pill.lineBreakMode = .byWordWrapping
+                    pill.adjustsFontSizeToFitWidth = false
+                    pill.layer.cornerRadius = 8
+                    pill.clipsToBounds = true
+                    pill.backgroundColor = row.soMonDat > 0 ? UIColor.systemGreen.withAlphaComponent(0.16) : UIColor.systemRed.withAlphaComponent(0.14)
+                    pill.textColor = row.soMonDat > 0 ? UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1) : UIColor(red: 0.78, green: 0.14, blue: 0.14, alpha: 1)
+                    khung.addSubview(pill)
+                case 7:
+                    let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
+                    lb.text = row.dtQDKhoanVay > 0 ? row.dtQDKhoanVay.chuoiSoLieu : "0"
+                    lb.font = fontDongNhat
+                    lb.textColor = .secondaryLabel
+                    lb.textAlignment = .right
+                    lb.numberOfLines = 0
+                    lb.lineBreakMode = .byWordWrapping
+                    lb.adjustsFontSizeToFitWidth = false
+                    khung.addSubview(lb)
+                default:
+                    break
+                }
             }
 
             x += w
-            if i < chieuRongCot.count - 1 {
+            if i < cacRong.count - 1 {
                 let vach = UIView(frame: CGRect(x: x, y: 0, width: 0.5, height: caoDong))
                 vach.backgroundColor = .separator
                 khung.addSubview(vach)
@@ -1302,6 +1393,10 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         capNhatLuc: String = ""
     ) -> UIImage? {
         let cheDoXuat = cheDo ?? cheDoDoanhThu
+        let cheDoCu = self.cheDoDoanhThu
+        self.cheDoDoanhThu = cheDoXuat
+        defer { self.cheDoDoanhThu = cheDoCu }
+
         let ds = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: kieuSapXep, cheDo: cheDoXuat)
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
         let soMonThang = KhoDuLieu.dungChung.danhSachMatHangThang(den: ngay, cheDo: cheDoXuat).count
@@ -1324,7 +1419,9 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
             context: nil
         ).height))
 
-        let chuChinh = "🏆 BẢNG XẾP HẠNG NHÂN VIÊN - \(cheDoXuat.tieuDe.uppercased()) (\(ds.count) NV • \(soMonThang) MÔN)"
+        let chuChinh = (cheDoXuat == .realtime)
+            ? "⚡ BẢNG DOANH THU NHÂN VIÊN - REALTIME (\(ds.count) NV)"
+            : "🏆 BẢNG XẾP HẠNG NHÂN VIÊN - \(cheDoXuat.tieuDe.uppercased()) (\(ds.count) NV • \(soMonThang) MÔN)"
         let fontChinh = UIFont.systemFont(ofSize: 18.5, weight: .heavy)
         let caoChinh = max(28, ceil((chuChinh as NSString).boundingRect(
             with: CGSize(width: rongBang, height: CGFloat.greatestFiniteMagnitude),
@@ -1333,7 +1430,9 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
             context: nil
         ).height))
 
-        let chuTomTat = "Tổng DT Quy đổi (\(cheDoXuat.tieuDe)): \(tongDTQD.chuoiSoGonVN)   •   Tổng đơn: \(tongDon.chuoiSoNguyenVN)   •   DT Khoản vay: \(tongVay.chuoiSoGonVN)   •   % HT TB: \(String(format: "%.1f%%", tbHT))"
+        let chuTomTat = (cheDoXuat == .realtime)
+            ? "Tổng DT Quy đổi (Realtime): \(tongDTQD.chuoiSoGonVN)   •   Tổng số lượng: \(tongDon.chuoiSoNguyenVN)   •   DT QĐ Khoản vay: \(tongVay.chuoiSoGonVN)"
+            : "Tổng DT Quy đổi (\(cheDoXuat.tieuDe)): \(tongDTQD.chuoiSoGonVN)   •   Tổng đơn: \(tongDon.chuoiSoNguyenVN)   •   DT Khoản vay: \(tongVay.chuoiSoGonVN)   •   % HT TB: \(String(format: "%.1f%%", tbHT))"
         let fontTomTat = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let caoTextTomTat = max(24, ceil((chuTomTat as NSString).boundingRect(
             with: CGSize(width: rongBang - 24, height: CGFloat.greatestFiniteMagnitude),
@@ -3764,9 +3863,14 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
     private var bangThongSoView: BangThongSoSucKhoeNhanVienView!
 
     init(_ tongHop: TongHopNhanVien, ngay: Date = Date(), cheDo: LoaiCheDoDoanhThu = .luyKe) {
-        self.tongHop = tongHop
         self.ngay = ngay
-        self.cheDo = cheDo
+        self.cheDo = .luyKe
+        if cheDo == .realtime,
+           let lk = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .doanhThuQD, cheDo: .luyKe).first(where: { $0.nhanVien.maNV == tongHop.nhanVien.maNV }) {
+            self.tongHop = lk
+        } else {
+            self.tongHop = tongHop
+        }
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -3836,7 +3940,8 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
         chonCheDo.addTarget(self, action: #selector(doiCheDo), for: .valueChanged)
         chonCheDo.widthAnchor.constraint(equalToConstant: 132).isActive = true
 
-        let hangTren = UIStackView(arrangedSubviews: [nutNVTruoc, nutChonNV, nutNVSau, chonCheDo])
+        chonCheDo.isHidden = true
+        let hangTren = UIStackView(arrangedSubviews: [nutNVTruoc, nutChonNV, nutNVSau])
         hangTren.axis = .horizontal
         hangTren.spacing = 6
         hangTren.alignment = .center

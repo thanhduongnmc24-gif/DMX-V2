@@ -1946,6 +1946,29 @@ final class KhoDuLieu {
         }
     }
 
+    /// Xoá riêng dữ liệu Doanh thu Nhân viên Realtime của ngày đang chọn
+    func xoaDoanhThuNhanVienRealtime(cho ngay: Date) {
+        khoaTruyCap.lock()
+        let khoa = TienIchNgay.khoa.string(from: ngay)
+        if var dl = cacNgay[khoa] {
+            dl.doanhThuNhanVienRealtime = []
+            dl.thiDuaNhanVienRealtime = [:]
+            cacNgay[khoa] = dl
+        }
+        xoaBoNhoDem()
+        let banSaoNgay = cacNgay
+        let dlDaXoa = cacNgay[khoa]
+        khoaTruyCap.unlock()
+
+        ThuMucDuLieu.dungChung.ghiNgayBatDongBo(banSaoNgay)
+        if let dlDaXoa {
+            DichVuDongBo.dungChung.dayDuLieuNgay(dlDaXoa)
+        }
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .duLieuDMXDaThayDoiTaiMay, object: khoa)
+        }
+    }
+
     /// Xoá dữ liệu đã quét của riêng 1 nhân viên cụ thể trong toàn bộ tháng
     func xoaDuLieuMotNhanVien(maNV: String, cho ngay: Date) {
         let maChuan = Self.chuanHoaMaNV(maNV)
@@ -2796,8 +2819,52 @@ final class KhoDuLieu {
             dtNVList = dlHienTai.doanhThuNhanVienRealtime
         }
 
-        // Tiền tính toán thông tin mặt hàng và chia Target 1 lần duy nhất thay vì lặp lại 16 x 35 lần
         let tatCaMaSet = Set(dsNV.map(\.maNV))
+
+        // Riêng Realtime: không có thi đua nhân viên, chỉ lấy đúng dữ liệu Doanh thu Nhân viên Realtime
+        if cheDo == .realtime {
+            var mapDTRealtime: [String: DoanhThuNhanVienItem] = [:]
+            for item in dtNVList {
+                let maChuan = Self.chuanHoaMaNV(item.maNV)
+                if tatCaMaSet.contains(maChuan) {
+                    if mapDTRealtime[maChuan] == nil {
+                        mapDTRealtime[maChuan] = item
+                    }
+                } else if let khop = Self.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsNV) {
+                    if mapDTRealtime[khop.maNV] == nil {
+                        mapDTRealtime[khop.maNV] = item
+                    }
+                }
+            }
+            let ketQuaRealtime: [TongHopNhanVien] = dsNV.map { nv in
+                let dtCaNhan = mapDTRealtime[nv.maNV]
+                let dtQDCuoi = dtCaNhan?.doanhThuQD ?? 0
+                let soDonCuoi = dtCaNhan?.soLuong ?? 0
+                let tiTrongCuoi: Double = {
+                    if let dtCaNhan, dtCaNhan.phanTramQuyDoi != 0 { return dtCaNhan.phanTramQuyDoi }
+                    if let dtCaNhan, dtCaNhan.dtTraThangQD != 0 { return dtCaNhan.dtTraThangQD }
+                    return 0
+                }()
+                return TongHopNhanVien(
+                    nhanVien: nv,
+                    soMonDat: 0,
+                    tongMonGiao: 0,
+                    phanTramHTTB: 0,
+                    cacMonGiao: [],
+                    doanhThuCaNhan: dtCaNhan,
+                    doanhThuQD: dtQDCuoi,
+                    soLuongDon: soDonCuoi,
+                    phanTramTiTrong: tiTrongCuoi,
+                    dtQDKhoanVay: dtCaNhan?.dtTraGopQD ?? 0
+                )
+            }
+            let sapXepAnToan: KieuSapXepNhanVien = (sapXep == .soMonDat || sapXep == .phanTramTB) ? .doanhThuQD : sapXep
+            let ketQua = Self.sapXepDanhSachTongHopNV(ketQuaRealtime, theo: sapXepAnToan)
+            boNhoDemTongHopNV[khoaDem] = ketQua
+            return ketQua
+        }
+
+        // Tiền tính toán thông tin mặt hàng và chia Target 1 lần duy nhất thay vì lặp lại 16 x 35 lần
         let bangChiaTarget = caiDat.chiaTargetNganhHang
         struct ThongTinMatHangTienXuLy {
             let mh: DongThiDua
