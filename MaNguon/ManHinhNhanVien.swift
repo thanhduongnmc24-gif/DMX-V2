@@ -2345,60 +2345,33 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
         let khungNangSuat3Muc = taoKhungNangSuat3Muc(sk: skNV)
         nganChinh.addArrangedSubview(khungNangSuat3Muc)
 
-        // ==================== 2. CỤM 4 THẺ CHỈ SỐ CHÍNH (GRADIENT MÀU NỔI BẬT NHƯ ẢNH MẪU) ====================
-        let dtQD = tongHop.doanhThuQD
-        let soDon = tongHop.soLuongDon
-        let dtThang = tongHop.dtTraThangQD
-        let dtVay = tongHop.dtQDKhoanVay
+        // ==================== 2. TỔNG HỢP NHANH KẾT QUẢ THI ĐUA CÁ NHÂN ====================
         let tongMon = tongHop.tongMonGiao
         let soMonDat = tongHop.soMonDat
         let soMonChua = max(0, tongMon - soMonDat)
         let soMonGanDat = tongHop.cacMonGiao.filter { !$0.daDat && $0.phanTramHT >= 70.0 }.count
         let tyLeMon = tongMon > 0 ? Int(round(Double(soMonDat) / Double(tongMon) * 100.0)) : 0
 
-        let phuThe1: String
-        if dtThang > 0 {
-            phuThe1 = "DT THẲNG: \(dtThang.chuoiSoVN)"
-        } else if tongHop.phanTramTiTrong > 0 {
-            phuThe1 = "TỶ TRỌNG: \(String(format: "%.1f%%", tongHop.phanTramTiTrong))"
-        } else {
-            phuThe1 = "DT THẲNG: 0,00"
-        }
-
-        let the1 = taoTheKPISucKhoe(
-            tieuDe: "💼 DOANH THU QĐ",
-            giaTri: dtQD > 0 ? "\(dtQD.chuoiSoGonVN)tr" : "0tr",
-            phuDe: phuThe1,
-            mauBatDau: UIColor(red: 0.12, green: 0.38, blue: 0.92, alpha: 1),
-            mauKetThuc: UIColor(red: 0.18, green: 0.27, blue: 0.86, alpha: 1)
-        )
         let the2 = taoTheKPISucKhoe(
-            tieuDe: "🏆 MÔN THI ĐUA HT",
+            tieuDe: "🏆 MÔN THI ĐUA HOÀN THÀNH",
             giaTri: "\(soMonDat)/\(tongMon)",
             phuDe: "HOÀN THÀNH: \(tyLeMon)% SỐ MÔN",
             mauBatDau: UIColor(red: 0.95, green: 0.56, blue: 0.05, alpha: 1),
             mauKetThuc: UIColor(red: 0.86, green: 0.44, blue: 0.02, alpha: 1)
         )
-        let the3 = taoTheKPISucKhoe(
-            tieuDe: "🧾 SỐ LƯỢNG / KHOẢN VAY",
-            giaTri: soDon.chuoiSoNguyenVN,
-            phuDe: "QĐ VAY: \(dtVay.chuoiSoGonVN)",
-            mauBatDau: UIColor(red: 0.08, green: 0.62, blue: 0.30, alpha: 1),
-            mauKetThuc: UIColor(red: 0.06, green: 0.49, blue: 0.24, alpha: 1)
-        )
         let the4 = taoTheKPISucKhoe(
-            tieuDe: "📈 % HT THI ĐUA TB",
+            tieuDe: "📈 % HT THI ĐUA TRUNG BÌNH",
             giaTri: tongHop.phanTramHTTB.chuoiPhanTramVN,
-            phuDe: "ĐẠT \(soMonDat) • CHƯA \(soMonChua)",
+            phuDe: "ĐẠT \(soMonDat) • GẦN ĐẠT \(soMonGanDat) • CHƯA \(soMonChua)",
             mauBatDau: UIColor(red: 0.55, green: 0.31, blue: 0.95, alpha: 1),
             mauKetThuc: UIColor(red: 0.45, green: 0.22, blue: 0.88, alpha: 1)
         )
 
-        let hangThe = UIStackView(arrangedSubviews: [the1, the2, the3, the4])
+        let hangThe = UIStackView(arrangedSubviews: [the2, the4])
         hangThe.axis = .horizontal
-        hangThe.spacing = laCheDoXuatAnhRong ? 8 : 5
+        hangThe.spacing = laCheDoXuatAnhRong ? 8 : 6
         hangThe.distribution = .fillEqually
-        hangThe.heightAnchor.constraint(equalToConstant: laCheDoXuatAnhRong ? 84 : 74).isActive = true
+        hangThe.heightAnchor.constraint(equalToConstant: laCheDoXuatAnhRong ? 76 : 68).isActive = true
         nganChinh.addArrangedSubview(hangThe)
 
         // ==================== 3. THANH LỌC & SẮP XẾP NHANH (CHỈ HIỆN TRÊN APP) ====================
@@ -3096,6 +3069,8 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
     private let nutNVTruoc = UIButton(type: .system)
     private let nutNVSau = UIButton(type: .system)
     private let chonCheDo = UISegmentedControl(items: ["Lũy kế", "Realtime"])
+    private let nutUploadAnhNV = UIButton(type: .system)
+    private let nutXoaDuLieuNV = UIButton(type: .system)
     private let cuonDoc = UIScrollView()
     private var bangThongSoView: BangThongSoSucKhoeNhanVienView!
 
@@ -3176,8 +3151,41 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
         hangTren.axis = .horizontal
         hangTren.spacing = 6
         hangTren.alignment = .center
-        hangTren.translatesAutoresizingMaskIntoConstraints = false
-        thanhDieuKhien.addSubview(hangTren)
+
+        nutUploadAnhNV.setImage(UIImage(systemName: "photo.badge.plus"), for: .normal)
+        nutUploadAnhNV.setTitle(" Upload ảnh NV (Doanh thu & Thi đua)", for: .normal)
+        nutUploadAnhNV.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .bold)
+        nutUploadAnhNV.backgroundColor = BangMauBCTD.xanhChuDao
+        nutUploadAnhNV.tintColor = .white
+        nutUploadAnhNV.setTitleColor(.white, for: .normal)
+        nutUploadAnhNV.layer.cornerRadius = 8
+        nutUploadAnhNV.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+        nutUploadAnhNV.addTarget(self, action: #selector(bamQuetAnhSucKhoeNV), for: .touchUpInside)
+
+        nutXoaDuLieuNV.setImage(UIImage(systemName: "trash.fill"), for: .normal)
+        nutXoaDuLieuNV.setTitle(" Xoá", for: .normal)
+        nutXoaDuLieuNV.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .bold)
+        nutXoaDuLieuNV.backgroundColor = BangMauBCTD.doYeuPill
+        nutXoaDuLieuNV.tintColor = BangMauBCTD.doYeuChu
+        nutXoaDuLieuNV.setTitleColor(BangMauBCTD.doYeuChu, for: .normal)
+        nutXoaDuLieuNV.layer.cornerRadius = 8
+        nutXoaDuLieuNV.layer.borderWidth = 1
+        nutXoaDuLieuNV.layer.borderColor = BangMauBCTD.doYeuVach.withAlphaComponent(0.35).cgColor
+        nutXoaDuLieuNV.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+        nutXoaDuLieuNV.setContentHuggingPriority(.required, for: .horizontal)
+        nutXoaDuLieuNV.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutXoaDuLieuNV.addTarget(self, action: #selector(bamXoaDuLieuCuaNV), for: .touchUpInside)
+
+        let hangNutUpload = UIStackView(arrangedSubviews: [nutUploadAnhNV, nutXoaDuLieuNV])
+        hangNutUpload.axis = .horizontal
+        hangNutUpload.spacing = 6
+        hangNutUpload.alignment = .fill
+
+        let nganDieuKhien = UIStackView(arrangedSubviews: [hangTren, hangNutUpload])
+        nganDieuKhien.axis = .vertical
+        nganDieuKhien.spacing = 6
+        nganDieuKhien.translatesAutoresizingMaskIntoConstraints = false
+        thanhDieuKhien.addSubview(nganDieuKhien)
 
         cuonDoc.alwaysBounceVertical = true
         cuonDoc.showsVerticalScrollIndicator = true
@@ -3199,10 +3207,10 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
             thanhDieuKhien.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
             thanhDieuKhien.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
 
-            hangTren.topAnchor.constraint(equalTo: thanhDieuKhien.topAnchor, constant: 6),
-            hangTren.bottomAnchor.constraint(equalTo: thanhDieuKhien.bottomAnchor, constant: -6),
-            hangTren.leadingAnchor.constraint(equalTo: thanhDieuKhien.leadingAnchor, constant: 8),
-            hangTren.trailingAnchor.constraint(equalTo: thanhDieuKhien.trailingAnchor, constant: -8),
+            nganDieuKhien.topAnchor.constraint(equalTo: thanhDieuKhien.topAnchor, constant: 6),
+            nganDieuKhien.bottomAnchor.constraint(equalTo: thanhDieuKhien.bottomAnchor, constant: -6),
+            nganDieuKhien.leadingAnchor.constraint(equalTo: thanhDieuKhien.leadingAnchor, constant: 8),
+            nganDieuKhien.trailingAnchor.constraint(equalTo: thanhDieuKhien.trailingAnchor, constant: -8),
 
             cuonDoc.topAnchor.constraint(equalTo: thanhDieuKhien.bottomAnchor, constant: 4),
             cuonDoc.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -3285,6 +3293,28 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
 
     // MARK: - Xuất / Chia sẻ ảnh Sức khoẻ chi tiết
 
+    @objc private func bamXoaDuLieuCuaNV() {
+        let tenNV = tongHop.nhanVien.hoTen
+        let maNV = tongHop.nhanVien.maNV
+        hienMenuChon(
+            tieuDe: "Xoá dữ liệu nhân viên?",
+            thongDiep: "Chọn phạm vi dữ liệu muốn xoá:",
+            cacMuc: [
+                MucChonDMX(tieuDe: "🗑️ Xoá dữ liệu đã quét của \(tenNV) (\(maNV))", kieu: .nguyHiem) { [weak self] in
+                    guard let self else { return }
+                    KhoDuLieu.dungChung.xoaDuLieuMotNhanVien(maNV: maNV, cho: self.ngay)
+                    self.napLaiDuLieuHienTai()
+                },
+                MucChonDMX(tieuDe: "🗑️ Xoá TOÀN BỘ dữ liệu của tất cả nhân viên", kieu: .nguyHiem) { [weak self] in
+                    guard let self else { return }
+                    KhoDuLieu.dungChung.xoaDoanhThuNhanVienLuyKeThang(cho: self.ngay, xoaCaThiDuaNV: true)
+                    self.napLaiDuLieuHienTai()
+                },
+                MucChonDMX(tieuDe: "Huỷ", kieu: .huy)
+            ]
+        )
+    }
+
     @objc private func bamQuetAnhSucKhoeNV() {
         var cauHinh = PHPickerConfiguration()
         cauHinh.filter = .images
@@ -3342,6 +3372,10 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
                         dl.ganThiDuaNhanVien(bangNVMoi, theo: self.cheDo)
                     }
                     if !skQuetDuoc.isEmpty {
+                        let maDangXem = self.tongHop.nhanVien.maNV
+                        if cacAnh.count == 1, skQuetDuoc[maDangXem] == nil, let skDau = skQuetDuoc.values.first {
+                            skQuetDuoc[maDangXem] = skDau
+                        }
                         KhoDuLieu.dungChung.apDungSucKhoeNhanVienQuetDuoc(
                             skQuetDuoc,
                             vao: &dl,
@@ -3350,10 +3384,6 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
                         )
                     }
                     KhoDuLieu.dungChung.luu(dl)
-                    if let maDau = skQuetDuoc.keys.first,
-                       let nvMoi = self.danhSachNVHienTai().first(where: { $0.nhanVien.maNV == maDau }) {
-                        self.tongHop = nvMoi
-                    }
                     self.napLaiDuLieuHienTai()
                 }
             )
