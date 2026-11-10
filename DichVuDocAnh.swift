@@ -178,9 +178,9 @@ final class DichVuDocAnh {
             .replacingOccurrences(of: "↑", with: "")
             .replacingOccurrences(of: "↓", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let r = sach.range(of: "[+\-]?\d+(?:[.,]\d+)*", options: .regularExpression) else { return nil }
+        guard let r = sach.range(of: "[+\\-]?\\d+(?:[.,]\\d+)*", options: .regularExpression) else { return nil }
         sach = String(sach[r])
-        if laSoNguyenLon || sach.range(of: "^\d{1,3}(?:,\d{3})+$", options: .regularExpression) != nil {
+        if laSoNguyenLon || sach.range(of: "^\\d{1,3}(?:,\\d{3})+$", options: .regularExpression) != nil {
             sach = sach.replacingOccurrences(of: ",", with: "").replacingOccurrences(of: ".", with: "")
             return Double(sach)
         }
@@ -218,9 +218,9 @@ final class DichVuDocAnh {
             if u.contains("DUNG NGUYEN") || u.contains("54453") { continue }
 
             if maNVTim.isEmpty,
-               let rMa = chu.range(of: "\b(\d{4,7})\s*[-–—]\s*(?:BP|DMX|ĐMX)", options: [.regularExpression, .caseInsensitive]) {
+               let rMa = chu.range(of: "\\b(\\d{4,7})\\s*[-–—]\\s*(?:BP|DMX|ĐMX)", options: [.regularExpression, .caseInsensitive]) {
                 let doan = String(chu[rMa])
-                if let rSo = doan.range(of: "\d{4,7}", options: .regularExpression) {
+                if let rSo = doan.range(of: "\\d{4,7}", options: .regularExpression) {
                     maNVTim = String(doan[rSo])
                 }
             }
@@ -242,7 +242,7 @@ final class DichVuDocAnh {
             for pt in tatCaPT where pt.y > 0.015 && pt.y < 0.065 && pt.x > 0.10 && pt.x < 0.55 {
                 let s = pt.chu.trimmingCharacters(in: .whitespacesAndNewlines)
                 let u = boDau(s)
-                if s.count >= 5 && !u.contains("54453") && !u.contains("DUNG NGUYEN") && !u.contains("BP ") && !u.contains("HANG ") && s.range(of: "\d{4,}", options: .regularExpression) == nil {
+                if s.count >= 5 && !u.contains("54453") && !u.contains("DUNG NGUYEN") && !u.contains("BP ") && !u.contains("HANG ") && s.range(of: "\\d{4,}", options: .regularExpression) == nil {
                     hoTenTim = s
                     break
                 }
@@ -263,7 +263,7 @@ final class DichVuDocAnh {
         for pt in tatCaPT where pt.y < 0.16 {
             let s = pt.chu
             let u = boDau(s)
-            if let r27 = s.range(of: "\b(\d{1,2})\s*/\s*27\b", options: .regularExpression) {
+            if let r27 = s.range(of: "\\b(\\d{1,2})\\s*/\\s*27\\b", options: .regularExpression) {
                 let sub = String(s[r27])
                 if let d = sub.split(separator: "/").first.flatMap({ Int($0.trimmingCharacters(in: .whitespaces)) }) {
                     sk.diemDat27 = d
@@ -273,7 +273,7 @@ final class DichVuDocAnh {
             if u.contains("HOAN THANH"), let v = docSoThapPhanSucKhoe(s) {
                 sk.phanTramHoanThanhChung = v
             }
-            if u.contains("NGAY"), let rNgay = s.range(of: "\b(\d{1,2})\s*/\s*(\d{2})\b", options: .regularExpression) {
+            if u.contains("NGAY"), let rNgay = s.range(of: "\\b(\\d{1,2})\\s*/\\s*(\\d{2})\\b", options: .regularExpression) {
                 let parts = String(s[rNgay]).split(separator: "/")
                 if parts.count == 2,
                    let d1 = Int(parts[0].trimmingCharacters(in: .whitespaces)),
@@ -325,13 +325,13 @@ final class DichVuDocAnh {
             let hang: Int = (pt.y < yDTMid) ? 0 : 1
 
             // Tách MT nếu có (trong ô % TARGET)
-            if let rMT = u.range(of: "MT\s*([0-9]+(?:[.,][0-9]+)?)", options: .regularExpression) {
+            if let rMT = u.range(of: "MT\\s*([0-9]+(?:[.,][0-9]+)?)", options: .regularExpression) {
                 if let valMT = docSoThapPhanSucKhoe(String(u[rMT])) {
                     sk.mucTieuTargetQD = valMT
                 }
             }
             // Tách TB nếu có
-            if let rTB = u.range(of: "TB\s*([0-9]+(?:[.,][0-9]+)?)", options: .regularExpression) {
+            if let rTB = u.range(of: "TB\\s*([0-9]+(?:[.,][0-9]+)?)", options: .regularExpression) {
                 if let valTB = docSoThapPhanSucKhoe(String(u[rTB])) {
                     switch (hang, cot) {
                     case (0, 0): sk.tbDoanhThuQDSieuThi = valTB
@@ -349,8 +349,8 @@ final class DichVuDocAnh {
             let laBenPhaiThe: Bool = (cot == 0 && xTam > 0.19) || (cot == 1 && xTam > 0.52) || (cot == 2 && xTam > 0.82)
             if (!u.contains("TB") && !u.contains("MT")) || laBenPhaiThe {
                 let sKhongTBMT = u
-                    .replacingOccurrences(of: "TB\s*[0-9.,]+\s*(?:TR|%)?", with: " ", options: .regularExpression)
-                    .replacingOccurrences(of: "MT\s*[0-9.,]+\s*(?:TR|%)?", with: " ", options: .regularExpression)
+                    .replacingOccurrences(of: "TB\\s*[0-9.,]+\\s*(?:TR|%)?", with: " ", options: .regularExpression)
+                    .replacingOccurrences(of: "MT\\s*[0-9.,]+\\s*(?:TR|%)?", with: " ", options: .regularExpression)
                 if let valChinh = docSoThapPhanSucKhoe(sKhongTBMT), valChinh != 54453 {
                     switch (hang, cot) {
                     case (0, 0): sk.doanhThuQDSucKhoe = valChinh
@@ -446,24 +446,24 @@ final class DichVuDocAnh {
             while i < cacDong.count {
                 let chuoiDong = cacDong[i].cacChu.joined(separator: " ")
                 var phanTramTim: Double?
-                if let rPT = chuoiDong.range(of: "(\d+(?:[.,]\d+)?)\s*%", options: .regularExpression) {
+                if let rPT = chuoiDong.range(of: "(\\d+(?:[.,]\\d+)?)\\s*%", options: .regularExpression) {
                     phanTramTim = docSoThapPhanSucKhoe(String(chuoiDong[rPT]))
                 }
-                var tenTho = chuoiDong.replacingOccurrences(of: "\b\d+(?:[.,]\d+)?\s*%", with: " ", options: .regularExpression)
+                var tenTho = chuoiDong.replacingOccurrences(of: "\\b\\d+(?:[.,]\\d+)?\\s*%", with: " ", options: .regularExpression)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
 
                 if i + 1 < cacDong.count {
                     let chuoiTiep = cacDong[i + 1].cacChu.joined(separator: " ")
-                    let tiepCoPT = chuoiTiep.range(of: "\d+\s*%", options: .regularExpression) != nil
+                    let tiepCoPT = chuoiTiep.range(of: "\\d+\\s*%", options: .regularExpression) != nil
                     let dy = cacDong[i + 1].y - cacDong[i].y
                     if !tiepCoPT && dy <= 0.018 {
                         tenTho += " " + chuoiTiep
                         i += 1
                     } else if phanTramTim == nil && tiepCoPT && dy <= 0.015 {
-                        if let rPT2 = chuoiTiep.range(of: "(\d+(?:[.,]\d+)?)\s*%", options: .regularExpression) {
+                        if let rPT2 = chuoiTiep.range(of: "(\\d+(?:[.,]\\d+)?)\\s*%", options: .regularExpression) {
                             phanTramTim = docSoThapPhanSucKhoe(String(chuoiTiep[rPT2]))
                         }
-                        let tenTiep = chuoiTiep.replacingOccurrences(of: "\b\d+(?:[.,]\d+)?\s*%", with: " ", options: .regularExpression)
+                        let tenTiep = chuoiTiep.replacingOccurrences(of: "\\b\\d+(?:[.,]\\d+)?\\s*%", with: " ", options: .regularExpression)
                         tenTho += " " + tenTiep
                         i += 1
                     }
