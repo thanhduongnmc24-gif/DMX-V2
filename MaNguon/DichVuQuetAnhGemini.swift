@@ -160,6 +160,16 @@ final class DichVuQuetAnhGemini {
                     kqTong.thiDuaNhanVien.append(contentsOf: kq.thiDuaNhanVien)
                     kqTong.soAnhThiDuaNV += max(1, kq.soAnhThiDuaNV)
                 }
+                if !kq.sucKhoeNhanVien.isEmpty {
+                    for (ma, sk) in kq.sucKhoeNhanVien {
+                        if let cu = kqTong.sucKhoeNhanVien[ma] {
+                            kqTong.sucKhoeNhanVien[ma] = cu.gop(voi: sk)
+                        } else {
+                            kqTong.sucKhoeNhanVien[ma] = sk
+                        }
+                    }
+                    kqTong.soAnhSucKhoeNV += max(1, kq.soAnhSucKhoeNV)
+                }
             }
 
             if dtGop.coDuLieu {
@@ -385,6 +395,7 @@ final class DichVuQuetAnhGemini {
         2. Đọc ĐẦY ĐỦ TẤT CẢ các dòng môn thi đua từ trên xuống dưới, kể cả các dòng tên dài xuống 2-3 hàng chữ như "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO" (loai: "SL") hoặc "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT" và kể cả dòng có Thực hiện = 0, Target = 0. Không đưa nhãn DT, SL, CE, ICT, DV hay dấu + vào trong "ten".
         3. Với bảng doanh thu nhân viên 5 cột (NHÂN VIÊN / NGÀNH HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG), trích đúng "maNV" (bỏ tiền tố id:) và "hoTen" vào mảng "nhanVien".
         4. Với bảng chi tiết môn thi đua của nhân viên (bảng mở rộng 1 môn thi đua có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % đóng góp của nhân viên như 24%, 14%, 8%...): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien" (bỏ qua dòng tên chương trình và dòng tên siêu thị ĐML_...), đặt "laPhanTram": true, "thucHien" là con số phần trăm (ví dụ 24% -> 24), đặt "thucHienNganhGoiY" là số THỰC HIỆN của môn đó ở dòng đầu bảng, và đặt "targetNganhGoiY" là số TARGET của môn đó ở dòng đầu bảng.
+        5. Nếu ảnh là PHIẾU SỨC KHỎE & THI ĐUA CÁ NHÂN NHÂN VIÊN 27 ĐIỂM (có tên nhân viên, mã NV 6 số, khối DOANH THU 6 mục, khối NĂNG SUẤT 3 mục, khối THI ĐUA gồm lưới thẻ % các môn): hãy trả thêm trường "sucKhoeNhanVien": [{"maNV":"293044","hoTen":"Võ Ngọc Vĩ","doanhThuQD":97.1,"tbDoanhThuQD":228.7,"phanTramTarget":46,"tbPhanTramTarget":108,"mucTieuTargetQD":703.7,"soLuotBill":33,"tbSoLuotBill":35,"phanTramQuyDoi":64,"tbPhanTramQuyDoi":43,"phanTramTraCham":45,"tbPhanTramTraCham":53,"phanTramBanKem":100,"tbPhanTramBanKem":61,"diemThuongERP":1254937,"tbDiemThuongERP":1496937,"diemThuongGioCong":17317,"tbDiemThuongGioCong":20855,"dtqdGioCong":1.34,"tbDtqdGioCong":3.20,"thiDua":[{"ten":"Phụ kiện công nghệ","phanTram":107}]}] (các môn nằm ở phần "Chưa có số liệu" đặt phanTram: 0).
         """
     }
 
@@ -510,6 +521,114 @@ final class DichVuQuetAnhGemini {
                 return ds.isEmpty ? nil : KetQuaThiDuaNhanVienKhoi(tenNganhHang: nganh, danhSach: ds, thucHienNganhGoiY: thucHienGoiY, targetNganhGoiY: targetGoiY)
             }
             kq.soAnhThiDuaNV = kq.thiDuaNhanVien.count
+        }
+        if let arrSK = json["sucKhoeNhanVien"] as? [[String: Any]] {
+            let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
+            for item in arrSK {
+                let maTho = (item["maNV"] as? String) ?? ""
+                let tenTho = (item["hoTen"] as? String) ?? ""
+                let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: maTho, tenQuet: tenTho, dsQuanLy: dsQuanLy)
+                let ma = nvKhop?.maNV ?? KhoDuLieu.chuanHoaMaNV(maTho)
+                let ten = nvKhop?.hoTen ?? (tenTho.isEmpty ? "NV \(ma)" : tenTho)
+                guard !ma.isEmpty else { continue }
+
+                var sk = DuLieuSucKhoeBoSungNV()
+                let dtQD = so(item, "doanhThuQD")
+                let tbDTQD = so(item, "tbDoanhThuQD")
+                let ptTG = so(item, "phanTramTarget")
+                let tbTG = so(item, "tbPhanTramTarget")
+                let mtQD = so(item, "mucTieuTargetQD")
+                let bill = so(item, "soLuotBill")
+                let tbBill = so(item, "tbSoLuotBill")
+                let ptQD = so(item, "phanTramQuyDoi")
+                let tbQD = so(item, "tbPhanTramQuyDoi")
+                let ptTC = so(item, "phanTramTraCham")
+                let tbTC = so(item, "tbPhanTramTraCham")
+                let ptBK = so(item, "phanTramBanKem")
+                let tbBK = so(item, "tbPhanTramBanKem")
+                let erp = so(item, "diemThuongERP")
+                let tbErp = so(item, "tbDiemThuongERP")
+                let erpGC = so(item, "diemThuongGioCong")
+                let tbErpGC = so(item, "tbDiemThuongGioCong")
+                let dtGC = so(item, "dtqdGioCong")
+                let tbDtGC = so(item, "tbDtqdGioCong")
+
+                if dtQD > 0 { sk.doanhThuQDSucKhoe = dtQD }
+                if tbDTQD > 0 { sk.tbDoanhThuQDSieuThi = tbDTQD }
+                if ptTG > 0 { sk.phanTramTarget = ptTG }
+                if tbTG > 0 { sk.tbPhanTramTarget = tbTG }
+                if mtQD > 0 { sk.mucTieuTargetQD = mtQD }
+                if bill > 0 { sk.soLuotBillBanHang = bill }
+                if tbBill > 0 { sk.tbSoLuotBillBanHang = tbBill }
+                if ptQD > 0 { sk.phanTramQuyDoi = ptQD }
+                if tbQD > 0 { sk.tbPhanTramQuyDoi = tbQD }
+                if ptTC > 0 { sk.phanTramTraCham = ptTC }
+                if tbTC > 0 { sk.tbPhanTramTraCham = tbTC }
+                if ptBK > 0 { sk.phanTramBanKem = ptBK }
+                if tbBK > 0 { sk.tbPhanTramBanKem = tbBK }
+                if erp > 0 { sk.diemThuongERP = erp }
+                if tbErp > 0 { sk.tbDiemThuongERP = tbErp }
+                if erpGC > 0 { sk.diemThuongTrenGioCong = erpGC }
+                if tbErpGC > 0 { sk.tbDiemThuongTrenGioCong = tbErpGC }
+                if dtGC > 0 { sk.dtqdTrenGioCong = dtGC }
+                if tbDtGC > 0 { sk.tbDtqdTrenGioCong = tbDtGC }
+
+                var bangPT: [String: Double] = [:]
+                for tenChuan in KhoDuLieu.danhSachTenMonThiDuaChuanDMX {
+                    let kLM = KhoDuLieu.chuanHoaKhoaLienMachThiDua(tenChuan)
+                    let kSS = KhoDuLieu.chuanHoaKhoaSoSanh(tenChuan)
+                    if !kLM.isEmpty { bangPT[kLM] = 0 }
+                    if !kSS.isEmpty { bangPT[kSS] = 0 }
+                }
+                if let dsTD = item["thiDua"] as? [[String: Any]] {
+                    for td in dsTD {
+                        let tenMon = KhoDuLieu.chuanHoaTenMonThiDuaChuan((td["ten"] as? String) ?? "")
+                        guard !tenMon.isEmpty else { continue }
+                        let ptVal = so(td, "phanTram")
+                        let kLM = KhoDuLieu.chuanHoaKhoaLienMachThiDua(tenMon)
+                        let kSS = KhoDuLieu.chuanHoaKhoaSoSanh(tenMon)
+                        if !kLM.isEmpty { bangPT[kLM] = max(0, ptVal) }
+                        if !kSS.isEmpty { bangPT[kSS] = max(0, ptVal) }
+                    }
+                }
+                sk.phanTramThiDuaCaNhan = bangPT
+                kq.sucKhoeNhanVien[ma] = sk
+                kq.soAnhSucKhoeNV += 1
+
+                kq.doanhThuNhanVien.append(DoanhThuNhanVienItem(
+                    maNV: ma,
+                    hoTen: ten,
+                    soLuong: bill,
+                    doanhThuThuc: 0,
+                    doanhThuQD: dtQD,
+                    dtQDKhoanVay: 0,
+                    dtTraThangQD: ptQD,
+                    phanTramQuyDoi: ptQD,
+                    phanTramTraGop: ptTC,
+                    target: mtQD,
+                    phanTramHT: ptTG
+                ))
+                kq.soAnhDoanhThuNV += 1
+
+                for tenChuan in KhoDuLieu.danhSachTenMonThiDuaChuanDMX {
+                    let kLM = KhoDuLieu.chuanHoaKhoaLienMachThiDua(tenChuan)
+                    let ptMon = bangPT[kLM] ?? 0
+                    kq.thiDuaNhanVien.append(KetQuaThiDuaNhanVienKhoi(
+                        tenNganhHang: tenChuan,
+                        danhSach: [
+                            DongThiDuaNhanVienQuet(
+                                maNV: ma,
+                                hoTen: ten,
+                                thucHien: ptMon,
+                                target: 0,
+                                laPhanTram: true,
+                                laPhanTramTargetCaNhan: true
+                            )
+                        ]
+                    ))
+                }
+                kq.soAnhThiDuaNV += 1
+            }
         }
         return kq
     }

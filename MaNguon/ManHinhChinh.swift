@@ -4423,6 +4423,16 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                     cacMucDaDien.append("• Thực hiện NV theo ngành \(tenCheDo) (\(kq.soAnhThiDuaNV) ảnh): \(kq.thiDuaNhanVien.count) nhóm ngành")
                 }
 
+                if !kq.sucKhoeNhanVien.isEmpty {
+                    KhoDuLieu.dungChung.apDungSucKhoeNhanVienQuetDuoc(
+                        kq.sucKhoeNhanVien,
+                        vao: &dl,
+                        ngay: self.ngayHienTai,
+                        cheDo: cheDoTab
+                    )
+                    cacMucDaDien.append("• Sức khỏe & Thi đua cá nhân NV (\(kq.soAnhSucKhoeNV) ảnh): \(kq.sucKhoeNhanVien.count) NV (Đủ 6 mục Doanh thu, 3 mục Năng suất & các môn Thi đua)")
+                }
+
                 if !kq.capNhatLuc.isEmpty { dl.capNhatLuc = kq.capNhatLuc }
                 if !kq.thongTinDonVi.isEmpty { dl.thongTinDonVi = kq.thongTinDonVi }
 
@@ -4486,6 +4496,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                     )
                     dl.ganThiDuaNhanVien(bangNVMoi, theo: loai)
                 }
+                if !kq.sucKhoeNhanVien.isEmpty {
+                    KhoDuLieu.dungChung.apDungSucKhoeNhanVienQuetDuoc(
+                        kq.sucKhoeNhanVien,
+                        vao: &dl,
+                        ngay: self.ngayHienTai,
+                        cheDo: loai
+                    )
+                }
                 dl.capNhatLuc = kq.capNhatLuc
                 if !kq.thongTinDonVi.isEmpty { dl.thongTinDonVi = kq.thongTinDonVi }
                 KhoDuLieu.dungChung.luu(dl)
@@ -4496,20 +4514,24 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
     private func xuLyQuetThiDuaNhanVien(_ cacAnh: [UIImage], loai: LoaiCheDoDoanhThu) {
         let tenCheDo = loai.tieuDe
-        hienTienTrinh("Đang đọc \(cacAnh.count) ảnh Thi đua Nhân viên (\(tenCheDo))...")
+        hienTienTrinh("Đang đọc \(cacAnh.count) ảnh Thi đua / Sức khỏe Nhân viên (\(tenCheDo))...")
+        var skQuetDuoc: [String: DuLieuSucKhoeBoSungNV] = [:]
         DichVuDocAnh.dungChung.quetAnhThiDuaNhanVien(
             danhSachAnh: cacAnh,
             tenNganhGoiY: nil,
             tienTrinh: { [weak self] tt in
                 self?.nhanTienTrinh.text = tt
             },
+            hoanTatSucKhoe: { bangSK in
+                skQuetDuoc = bangSK
+            },
             hoanTat: { [weak self] cacKhoi in
                 guard let self = self else { return }
                 self.anTienTrinh()
-                guard !cacKhoi.isEmpty else {
+                guard !cacKhoi.isEmpty || !skQuetDuoc.isEmpty else {
                     let tb = UIAlertController(
                         title: "Chưa đọc được dữ liệu Thi đua NV",
-                        message: "Hãy chụp rõ bảng Thực hiện Thi đua Nhân viên theo ngành hàng rồi thử lại.",
+                        message: "Hãy chọn ảnh Phiếu Sức Khỏe / Thi Đua Cá Nhân Nhân Viên (27 điểm) hoặc bảng Thực hiện Thi đua Nhân viên rồi thử lại.",
                         preferredStyle: .alert
                     )
                     tb.addAction(UIAlertAction(title: "Đóng", style: .default))
@@ -4518,13 +4540,23 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 }
 
                 var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
-                let bangNVMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
-                    hienTai: dl.thiDuaNhanVien(theo: loai),
-                    mangKhoiNV: cacKhoi,
-                    ngay: self.ngayHienTai,
-                    cheDo: loai
-                )
-                dl.ganThiDuaNhanVien(bangNVMoi, theo: loai)
+                if !cacKhoi.isEmpty {
+                    let bangNVMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
+                        hienTai: dl.thiDuaNhanVien(theo: loai),
+                        mangKhoiNV: cacKhoi,
+                        ngay: self.ngayHienTai,
+                        cheDo: loai
+                    )
+                    dl.ganThiDuaNhanVien(bangNVMoi, theo: loai)
+                }
+                if !skQuetDuoc.isEmpty {
+                    KhoDuLieu.dungChung.apDungSucKhoeNhanVienQuetDuoc(
+                        skQuetDuoc,
+                        vao: &dl,
+                        ngay: self.ngayHienTai,
+                        cheDo: loai
+                    )
+                }
                 KhoDuLieu.dungChung.luu(dl)
                 self.napDuLieu()
             }
@@ -4533,11 +4565,15 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
     private func xuLyQuetDoanhThuNhanVien(_ cacAnh: [UIImage], loai: LoaiCheDoDoanhThu) {
         let tenCheDo = loai.tieuDe
-        hienTienTrinh("Đang đọc \(cacAnh.count) ảnh Doanh thu Nhân viên (\(tenCheDo))...")
+        hienTienTrinh("Đang đọc \(cacAnh.count) ảnh Doanh thu / Sức khỏe Nhân viên (\(tenCheDo))...")
+        var skQuetDuoc: [String: DuLieuSucKhoeBoSungNV] = [:]
         DichVuDocAnh.dungChung.quetAnhDoanhThuNhanVien(
             danhSachAnh: cacAnh,
             tienTrinh: { [weak self] tt in
                 self?.nhanTienTrinh.text = tt
+            },
+            hoanTatSucKhoe: { bangSK in
+                skQuetDuoc = bangSK
             },
             hoanTat: { [weak self] dsQuet in
                 guard let self = self else { return }
@@ -4590,6 +4626,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                     mapDTNV[ma] = capNhat
                 }
                 dl.ganDoanhThuNhanVien(Array(mapDTNV.values), theo: loai)
+                if !skQuetDuoc.isEmpty {
+                    KhoDuLieu.dungChung.apDungSucKhoeNhanVienQuetDuoc(
+                        skQuetDuoc,
+                        vao: &dl,
+                        ngay: self.ngayHienTai,
+                        cheDo: loai
+                    )
+                }
                 KhoDuLieu.dungChung.luu(dl)
                 self.napDuLieu()
             }

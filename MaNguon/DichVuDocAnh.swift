@@ -8,6 +8,7 @@ struct DongThiDuaNhanVienQuet: Hashable {
     var thucHien: Double
     var target: Double
     var laPhanTram: Bool = false
+    var laPhanTramTargetCaNhan: Bool = false
 }
 
 struct KetQuaThiDuaNhanVienKhoi: Hashable {
@@ -21,6 +22,7 @@ struct KetQuaQuetThiDua {
     var danhSach: [DongThiDua]
     var thiDuaNhanVien: [KetQuaThiDuaNhanVienKhoi]
     var doanhThuQuetDuoc: ThongTinDoanhThu?
+    var sucKhoeNhanVien: [String: DuLieuSucKhoeBoSungNV] = [:]
     var capNhatLuc: String
     var thongTinDonVi: String
 }
@@ -38,6 +40,9 @@ struct KetQuaQuetTatCaAnh {
     var thiDuaNhanVien: [KetQuaThiDuaNhanVienKhoi] = []
     var soAnhThiDuaNV: Int = 0
 
+    var sucKhoeNhanVien: [String: DuLieuSucKhoeBoSungNV] = [:]
+    var soAnhSucKhoeNV: Int = 0
+
     var capNhatLuc: String = ""
     var thongTinDonVi: String = ""
 
@@ -45,7 +50,8 @@ struct KetQuaQuetTatCaAnh {
         (doanhThu?.coDuLieu ?? false) ||
         !danhSachThiDua.isEmpty ||
         !doanhThuNhanVien.isEmpty ||
-        !thiDuaNhanVien.isEmpty
+        !thiDuaNhanVien.isEmpty ||
+        !sucKhoeNhanVien.isEmpty
     }
 }
 
@@ -61,10 +67,466 @@ final class DichVuDocAnh {
         let cao: CGFloat
     }
 
+    // MARK: - Nhận diện & Bóc tách Ảnh Sức Khỏe / Thi Đua Cá Nhân Nhân Viên 27 Điểm (suc-khoe-nv-*.jpg)
+
+    /// Nhận diện ảnh chụp phiếu Sức khỏe & Thi đua cá nhân nhân viên (có khối DOANH THU 6 mục, NĂNG SUẤT 3 mục, HIỆU QUẢ KHAI THÁC, THI ĐUA, ĐƠN GIÁ)
+    private func laAnhSucKhoeCaNhan27Diem(phanTu: [PhanTuVanBan]) -> Bool {
+        var coNangSuat = false
+        var coHieuQua = false
+        var coDonGia = false
+        var coBillBanHang = false
+        var coDiemThuongERP = false
+        var coChuaCoSoLieu = false
+        var coDiem27 = false
+        var coBPAllInOne = false
+
+        for pt in phanTu {
+            let u = boDau(pt.chu).trimmingCharacters(in: .whitespacesAndNewlines)
+            if u.contains("NANG SUAT") { coNangSuat = true }
+            if u.contains("HIEU QUA KHAI THAC") || u.contains("HIEU QUA") { coHieuQua = true }
+            if u.contains("DON GIA") || u.contains("TB SAN PHAM CHINH") { coDonGia = true }
+            if u.contains("SO LUOT BILL") || u.contains("BILL BAN HANG") { coBillBanHang = true }
+            if u.contains("DIEM THUONG ERP") || u.contains("DTQD / GIO CONG") || u.contains("GIO CONG") { coDiemThuongERP = true }
+            if u.contains("CHUA CO SO LIEU") || u.contains("CHUONG TRINH DAT") { coChuaCoSoLieu = true }
+            if u.contains("/27") || u.contains("/ 27") { coDiem27 = true }
+            if u.contains("BP ALL IN ONE") || u.contains("ALL IN ONE") { coBPAllInOne = true }
+        }
+
+        let soDauHieu = [coNangSuat, coHieuQua, coDonGia, coBillBanHang, coDiemThuongERP, coChuaCoSoLieu, coDiem27, coBPAllInOne].filter { $0 }.count
+        return soDauHieu >= 2
+    }
+
+    /// Thực hiện OCR độ phân giải cao trên 4 dải ngang của phiếu Sức khỏe cá nhân (giúp đọc chính xác ảnh dọc 526x1024 có chữ nhỏ)
+    private func thucHienOCRBanDaiSucKhoe(anh: UIImage) -> [PhanTuVanBan] {
+        guard let cgGoc = anh.cgImage else { return [] }
+        let w = CGFloat(cgGoc.width)
+        let h = CGFloat(cgGoc.height)
+        guard w > 60, h > 120 else { return [] }
+
+        let cacDai: [(y0: CGFloat, y1: CGFloat)] = [
+            (0.00, 0.16),
+            (0.15, 0.39),
+            (0.37, 0.75),
+            (0.73, 1.00)
+        ]
+        var ketQua: [PhanTuVanBan] = []
+
+        for dai in cacDai {
+            let rectCrop = CGRect(
+                x: 0,
+                y: floor(dai.y0 * h),
+                width: w,
+                height: ceil((dai.y1 - dai.y0) * h)
+            ).intersection(CGRect(x: 0, y: 0, width: w, height: h))
+            guard rectCrop.width > 20, rectCrop.height > 20,
+                  let cgCrop = cgGoc.cropping(to: rectCrop) else { continue }
+
+            let heSo: Int = (cgCrop.width < 1200) ? 3 : 2
+            let rw = cgCrop.width * heSo
+            let rh = cgCrop.height * heSo
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            guard let ctx = CGContext(
+                data: nil,
+                width: rw,
+                height: rh,
+                bitsPerComponent: 8,
+                bytesPerRow: rw * 4,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { continue }
+            ctx.interpolationQuality = .high
+            ctx.draw(cgCrop, in: CGRect(x: 0, y: 0, width: rw, height: rh))
+            guard let cgPhong = ctx.makeImage() else { continue }
+
+            var ptDai: [PhanTuVanBan] = []
+            let yeuCau = VNRecognizeTextRequest { req, _ in
+                guard let kq = req.results as? [VNRecognizedTextObservation] else { return }
+                for obs in kq {
+                    guard let ungVien = obs.topCandidates(1).first else { continue }
+                    let chu = ungVien.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !chu.isEmpty else { continue }
+                    let box = obs.boundingBox
+                    let cacCon = self.tachPhanTuTheoKhoangTrongNgang(tu: ungVien, boxGoc: box)
+                    if cacCon.count >= 2 {
+                        for c in cacCon {
+                            let yFull = dai.y0 + c.y * (dai.y1 - dai.y0)
+                            let caoFull = c.cao * (dai.y1 - dai.y0)
+                            ptDai.append(PhanTuVanBan(chu: c.chu, x: c.x, y: yFull, rong: c.rong, cao: caoFull))
+                        }
+                    } else {
+                        let yTren = 1.0 - box.origin.y - box.size.height
+                        let yFull = dai.y0 + yTren * (dai.y1 - dai.y0)
+                        let caoFull = box.size.height * (dai.y1 - dai.y0)
+                        ptDai.append(PhanTuVanBan(chu: chu, x: box.origin.x, y: yFull, rong: box.size.width, cao: caoFull))
+                    }
+                }
+            }
+            yeuCau.recognitionLevel = .accurate
+            yeuCau.usesLanguageCorrection = true
+            yeuCau.recognitionLanguages = ["vi-VN", "en-US"]
+            yeuCau.minimumTextHeight = 0.005
+            let handler = VNImageRequestHandler(cgImage: cgPhong, options: [:])
+            try? handler.perform([yeuCau])
+            ketQua.append(contentsOf: ptDai)
+        }
+        return ketQua
+    }
+
+    private func docSoThapPhanSucKhoe(_ s: String, laSoNguyenLon: Bool = false) -> Double? {
+        var sach = s
+            .replacingOccurrences(of: "%", with: "")
+            .replacingOccurrences(of: "↑", with: "")
+            .replacingOccurrences(of: "↓", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let r = sach.range(of: "[+\-]?\d+(?:[.,]\d+)*", options: .regularExpression) else { return nil }
+        sach = String(sach[r])
+        if laSoNguyenLon || sach.range(of: "^\d{1,3}(?:,\d{3})+$", options: .regularExpression) != nil {
+            sach = sach.replacingOccurrences(of: ",", with: "").replacingOccurrences(of: ".", with: "")
+            return Double(sach)
+        }
+        if sach.contains(",") && sach.contains(".") {
+            sach = sach.replacingOccurrences(of: ",", with: "")
+        } else if sach.contains(",") {
+            let parts = sach.split(separator: ",")
+            if parts.count == 2 && parts[1].count == 3 {
+                sach = sach.replacingOccurrences(of: ",", with: "")
+            } else {
+                sach = sach.replacingOccurrences(of: ",", with: ".")
+            }
+        }
+        return Double(sach)
+    }
+
+    /// Phân tích đầy đủ phiếu Sức khỏe & Thi đua cá nhân nhân viên 27 điểm (Doanh thu 6 mục, Năng suất 3 mục, Thi đua cá nhân 39 môn)
+    private func phanTichAnhSucKhoeCaNhan27Diem(
+        phanTu: [PhanTuVanBan],
+        anh: UIImage,
+        maNVGoiY: String? = nil
+    ) -> (maNV: String, hoTen: String, sucKhoe: DuLieuSucKhoeBoSungNV, doanhThuItem: DoanhThuNhanVienItem, cacKhoiThiDua: [KetQuaThiDuaNhanVienKhoi])? {
+        let ptDai = thucHienOCRBanDaiSucKhoe(anh: anh)
+        let tatCaPT = ptDai.isEmpty ? phanTu : (ptDai + phanTu)
+        guard !tatCaPT.isEmpty else { return nil }
+
+        let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
+        var maNVTim = ""
+        var hoTenTim = ""
+
+        // 1. Tìm Mã NV và Họ tên ở vùng Header (y < 0.16)
+        for pt in tatCaPT where pt.y < 0.16 {
+            let chu = pt.chu.trimmingCharacters(in: .whitespacesAndNewlines)
+            let u = boDau(chu)
+            if u.contains("DUNG NGUYEN") || u.contains("54453") { continue }
+
+            if maNVTim.isEmpty,
+               let rMa = chu.range(of: "\b(\d{4,7})\s*[-–—]\s*(?:BP|DMX|ĐMX)", options: [.regularExpression, .caseInsensitive]) {
+                let doan = String(chu[rMa])
+                if let rSo = doan.range(of: "\d{4,7}", options: .regularExpression) {
+                    maNVTim = String(doan[rSo])
+                }
+            }
+            if let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: maNVTim.isEmpty ? chu : maNVTim, tenQuet: chu, dsQuanLy: dsQuanLy) {
+                maNVTim = nvKhop.maNV
+                hoTenTim = nvKhop.hoTen
+            }
+        }
+
+        if maNVTim.isEmpty, let goiY = maNVGoiY, !goiY.isEmpty {
+            maNVTim = KhoDuLieu.chuanHoaMaNV(goiY)
+        }
+        if !maNVTim.isEmpty && hoTenTim.isEmpty {
+            if let nv = dsQuanLy.first(where: { KhoDuLieu.chuanHoaMaNV($0.maNV) == maNVTim }) {
+                hoTenTim = nv.hoTen
+            }
+        }
+        if hoTenTim.isEmpty {
+            for pt in tatCaPT where pt.y > 0.015 && pt.y < 0.065 && pt.x > 0.10 && pt.x < 0.55 {
+                let s = pt.chu.trimmingCharacters(in: .whitespacesAndNewlines)
+                let u = boDau(s)
+                if s.count >= 5 && !u.contains("54453") && !u.contains("DUNG NGUYEN") && !u.contains("BP ") && !u.contains("HANG ") && s.range(of: "\d{4,}", options: .regularExpression) == nil {
+                    hoTenTim = s
+                    break
+                }
+            }
+        }
+        if maNVTim.isEmpty && !hoTenTim.isEmpty {
+            if let nv = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: "", tenQuet: hoTenTim, dsQuanLy: dsQuanLy) {
+                maNVTim = nv.maNV
+                hoTenTim = nv.hoTen
+            }
+        }
+        guard !maNVTim.isEmpty else { return nil }
+        if hoTenTim.isEmpty { hoTenTim = "NV \(maNVTim)" }
+
+        var sk = DuLieuSucKhoeBoSungNV()
+
+        // 2. Thông tin chung trên Header (5/27, Hoàn thành 19%, 9/30 ngày)
+        for pt in tatCaPT where pt.y < 0.16 {
+            let s = pt.chu
+            let u = boDau(s)
+            if let r27 = s.range(of: "\b(\d{1,2})\s*/\s*27\b", options: .regularExpression) {
+                let sub = String(s[r27])
+                if let d = sub.split(separator: "/").first.flatMap({ Int($0.trimmingCharacters(in: .whitespaces)) }) {
+                    sk.diemDat27 = d
+                    sk.tongDiem27 = 27
+                }
+            }
+            if u.contains("HOAN THANH"), let v = docSoThapPhanSucKhoe(s) {
+                sk.phanTramHoanThanhChung = v
+            }
+            if u.contains("NGAY"), let rNgay = s.range(of: "\b(\d{1,2})\s*/\s*(\d{2})\b", options: .regularExpression) {
+                let parts = String(s[rNgay]).split(separator: "/")
+                if parts.count == 2,
+                   let d1 = Int(parts[0].trimmingCharacters(in: .whitespaces)),
+                   let d2 = Int(parts[1].trimmingCharacters(in: .whitespaces)) {
+                    sk.soNgayDaQuaThang = d1
+                    sk.tongSoNgayThang = d2
+                }
+            }
+        }
+
+        // 3. Xác định mốc Y của các khối: DOANH THU, NĂNG SUẤT, HIỆU QUẢ KHAI THÁC, THI ĐUA, ĐƠN GIÁ
+        var yDTHeader: CGFloat = 0.172
+        var yNSHeader: CGFloat = 0.302
+        var yHQHeader: CGFloat = 0.382
+        var yTDHeader: CGFloat = 0.508
+        var yChuaCoSoLieu: CGFloat = 0.680
+        var yDGHeader: CGFloat = 0.742
+
+        for pt in tatCaPT {
+            let u = boDau(pt.chu).trimmingCharacters(in: .whitespacesAndNewlines)
+            if pt.x < 0.25 && pt.y > 0.14 && pt.y < 0.22 && u.hasPrefix("DOANH THU") && !u.contains("QD") {
+                yDTHeader = min(yDTHeader, pt.y)
+            } else if pt.x < 0.25 && pt.y > 0.27 && pt.y < 0.34 && u.hasPrefix("NANG SUAT") {
+                yNSHeader = pt.y
+            } else if pt.x < 0.35 && pt.y > 0.35 && pt.y < 0.43 && u.hasPrefix("HIEU QUA") {
+                yHQHeader = pt.y
+            } else if pt.x < 0.25 && pt.y > 0.47 && pt.y < 0.55 && u.hasPrefix("THI DUA") {
+                yTDHeader = pt.y
+            } else if pt.x < 0.35 && pt.y > 0.64 && pt.y < 0.74 && (u.contains("CHUA CO SO LIEU") || u.contains("SIEU THI KHONG CO TARGET")) {
+                yChuaCoSoLieu = min(yChuaCoSoLieu, pt.y)
+            } else if pt.x < 0.25 && pt.y > 0.71 && pt.y < 0.79 && u.hasPrefix("DON GIA") {
+                yDGHeader = pt.y
+            }
+        }
+
+        // 4. Bóc tách 6 mục DOANH THU (2 hàng x 3 cột trong yDTHeader .. yNSHeader)
+        let yDTMid = (yDTHeader + 0.016 + yNSHeader) / 2.0
+        for pt in tatCaPT where pt.y > (yDTHeader + 0.008) && pt.y < (yNSHeader - 0.002) {
+            let s = pt.chu.trimmingCharacters(in: .whitespacesAndNewlines)
+            let u = boDau(s)
+            if u.contains("54453") || u.contains("DUNG NGUYEN") || u.contains("QUY TAC") { continue }
+            if u == "DOANH THU QD" || u == "% TARGET" || u.contains("SO LUOT BILL") ||
+               u == "% QUY DOI" || u == "% TRA CHAM" || u == "% BAN KEM" {
+                continue
+            }
+
+            let xTam = pt.x + pt.rong * 0.5
+            let cot: Int = (xTam < 0.34) ? 0 : ((xTam < 0.66) ? 1 : 2)
+            let hang: Int = (pt.y < yDTMid) ? 0 : 1
+
+            // Tách MT nếu có (trong ô % TARGET)
+            if let rMT = u.range(of: "MT\s*([0-9]+(?:[.,][0-9]+)?)", options: .regularExpression) {
+                if let valMT = docSoThapPhanSucKhoe(String(u[rMT])) {
+                    sk.mucTieuTargetQD = valMT
+                }
+            }
+            // Tách TB nếu có
+            if let rTB = u.range(of: "TB\s*([0-9]+(?:[.,][0-9]+)?)", options: .regularExpression) {
+                if let valTB = docSoThapPhanSucKhoe(String(u[rTB])) {
+                    switch (hang, cot) {
+                    case (0, 0): sk.tbDoanhThuQDSieuThi = valTB
+                    case (0, 1): sk.tbPhanTramTarget = valTB
+                    case (0, 2): sk.tbSoLuotBillBanHang = valTB
+                    case (1, 0): sk.tbPhanTramQuyDoi = valTB
+                    case (1, 1): sk.tbPhanTramTraCham = valTB
+                    case (1, 2): sk.tbPhanTramBanKem = valTB
+                    default: break
+                    }
+                }
+            }
+
+            // Nếu chuỗi không bắt đầu bằng TB/MT (hoặc nằm ở nửa phải của thẻ) -> giá trị chính của thẻ
+            let laBenPhaiThe: Bool = (cot == 0 && xTam > 0.19) || (cot == 1 && xTam > 0.52) || (cot == 2 && xTam > 0.82)
+            if (!u.contains("TB") && !u.contains("MT")) || laBenPhaiThe {
+                let sKhongTBMT = u
+                    .replacingOccurrences(of: "TB\s*[0-9.,]+\s*(?:TR|%)?", with: " ", options: .regularExpression)
+                    .replacingOccurrences(of: "MT\s*[0-9.,]+\s*(?:TR|%)?", with: " ", options: .regularExpression)
+                if let valChinh = docSoThapPhanSucKhoe(sKhongTBMT), valChinh != 54453 {
+                    switch (hang, cot) {
+                    case (0, 0): sk.doanhThuQDSucKhoe = valChinh
+                    case (0, 1): sk.phanTramTarget = valChinh
+                    case (0, 2): sk.soLuotBillBanHang = valChinh
+                    case (1, 0): sk.phanTramQuyDoi = valChinh
+                    case (1, 1): sk.phanTramTraCham = valChinh
+                    case (1, 2): sk.phanTramBanKem = valChinh
+                    default: break
+                    }
+                }
+            }
+        }
+
+        // 5. Bóc tách 3 mục NĂNG SUẤT (1 hàng x 3 cột trong yNSHeader .. yHQHeader)
+        for pt in tatCaPT where pt.y > (yNSHeader + 0.008) && pt.y < (yHQHeader - 0.002) {
+            let s = pt.chu.trimmingCharacters(in: .whitespacesAndNewlines)
+            let u = boDau(s)
+            if u.contains("54453") || u.contains("DUNG NGUYEN") || u.contains("QUY TAC") { continue }
+            if u.contains("DIEM THUONG") || u.contains("GIO CONG") { continue }
+
+            let xTam = pt.x + pt.rong * 0.5
+            let cot: Int = (xTam < 0.34) ? 0 : ((xTam < 0.66) ? 1 : 2)
+            let laSoNguyenLon = (cot == 0 || cot == 1)
+
+            if u.contains("TB") {
+                let sauTB = u.replacingOccurrences(of: "^.*TB", with: "", options: .regularExpression)
+                if let valTB = docSoThapPhanSucKhoe(sauTB, laSoNguyenLon: laSoNguyenLon), valTB != 54453 {
+                    if cot == 0 { sk.tbDiemThuongERP = valTB }
+                    else if cot == 1 { sk.tbDiemThuongTrenGioCong = valTB }
+                    else { sk.tbDtqdTrenGioCong = valTB }
+                }
+            } else if let valChinh = docSoThapPhanSucKhoe(s, laSoNguyenLon: laSoNguyenLon), valChinh != 54453 {
+                if cot == 0 { sk.diemThuongERP = valChinh }
+                else if cot == 1 { sk.diemThuongTrenGioCong = valChinh }
+                else { sk.dtqdTrenGioCong = valChinh }
+            }
+        }
+
+        // 6. Bóc tách toàn bộ các môn THI ĐUA cá nhân (môn nào chưa có hoặc nằm trong Chưa có số liệu mặc định = 0)
+        var bangPTThiDua: [String: Double] = [:]
+        for tenChuan in KhoDuLieu.danhSachTenMonThiDuaChuanDMX {
+            let kLM = KhoDuLieu.chuanHoaKhoaLienMachThiDua(tenChuan)
+            let kSS = KhoDuLieu.chuanHoaKhoaSoSanh(tenChuan)
+            if !kLM.isEmpty { bangPTThiDua[kLM] = 0 }
+            if !kSS.isEmpty { bangPTThiDua[kSS] = 0 }
+        }
+
+        // Tìm vùng lưới 5 cột thẻ mini Thi đua (dưới dòng "Đạt ... Gần đạt ... Cần cố gắng" và trên dòng "Chưa có số liệu")
+        var yMiniTop = yTDHeader + 0.052
+        for pt in tatCaPT where pt.y > yTDHeader && pt.y < (yTDHeader + 0.075) {
+            let u = boDau(pt.chu)
+            if u.contains("CHUONG TRINH DAT") || u.contains("CAN CO GANG") || u.contains("GAN DAT") {
+                yMiniTop = max(yMiniTop, pt.y + pt.cao + 0.004)
+            }
+        }
+        let yMiniBottom = min(yChuaCoSoLieu - 0.002, yDGHeader - 0.020)
+
+        // Chia 5 cột ngang đều nhau từ x = 0.03 đến x = 0.97
+        let ranhCot: [CGFloat] = [0.00, 0.218, 0.406, 0.594, 0.782, 1.00]
+        for cIdx in 0..<5 {
+            let xMin = ranhCot[cIdx]
+            let xMax = ranhCot[cIdx + 1]
+            let ptCot = tatCaPT.filter { pt in
+                guard pt.y >= yMiniTop && pt.y <= yMiniBottom else { return false }
+                let u = boDau(pt.chu)
+                if u.contains("54453") || u.contains("DUNG NGUYEN") || u.contains("CHUA CO SO LIEU") || u.contains("SIEU THI KHONG CO") {
+                    return false
+                }
+                let xTam = pt.x + min(pt.rong * 0.35, 0.04)
+                return xTam >= xMin && xTam < xMax
+            }.sorted {
+                if abs($0.y - $1.y) > 0.008 { return $0.y < $1.y }
+                return $0.x < $1.x
+            }
+
+            struct DongMini {
+                var y: CGFloat
+                var cacChu: [String]
+            }
+            var cacDong: [DongMini] = []
+            for p in ptCot {
+                if let lastIdx = cacDong.indices.last, abs(p.y - cacDong[lastIdx].y) <= 0.009 {
+                    if !cacDong[lastIdx].cacChu.contains(p.chu) {
+                        cacDong[lastIdx].cacChu.append(p.chu)
+                    }
+                } else {
+                    cacDong.append(DongMini(y: p.y, cacChu: [p.chu]))
+                }
+            }
+
+            var i = 0
+            while i < cacDong.count {
+                let chuoiDong = cacDong[i].cacChu.joined(separator: " ")
+                var phanTramTim: Double?
+                if let rPT = chuoiDong.range(of: "(\d+(?:[.,]\d+)?)\s*%", options: .regularExpression) {
+                    phanTramTim = docSoThapPhanSucKhoe(String(chuoiDong[rPT]))
+                }
+                var tenTho = chuoiDong.replacingOccurrences(of: "\b\d+(?:[.,]\d+)?\s*%", with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                if i + 1 < cacDong.count {
+                    let chuoiTiep = cacDong[i + 1].cacChu.joined(separator: " ")
+                    let tiepCoPT = chuoiTiep.range(of: "\d+\s*%", options: .regularExpression) != nil
+                    let dy = cacDong[i + 1].y - cacDong[i].y
+                    if !tiepCoPT && dy <= 0.018 {
+                        tenTho += " " + chuoiTiep
+                        i += 1
+                    } else if phanTramTim == nil && tiepCoPT && dy <= 0.015 {
+                        if let rPT2 = chuoiTiep.range(of: "(\d+(?:[.,]\d+)?)\s*%", options: .regularExpression) {
+                            phanTramTim = docSoThapPhanSucKhoe(String(chuoiTiep[rPT2]))
+                        }
+                        let tenTiep = chuoiTiep.replacingOccurrences(of: "\b\d+(?:[.,]\d+)?\s*%", with: " ", options: .regularExpression)
+                        tenTho += " " + tenTiep
+                        i += 1
+                    }
+                }
+
+                let tenChuan = KhoDuLieu.chuanHoaTenMonThiDuaChuan(tenTho)
+                if !tenChuan.isEmpty, let ptVal = phanTramTim,
+                   (KhoDuLieu.laTenMonThiDuaChuanDMX(tenChuan) || tenChuan.count >= 3) {
+                    let kLM = KhoDuLieu.chuanHoaKhoaLienMachThiDua(tenChuan)
+                    let kSS = KhoDuLieu.chuanHoaKhoaSoSanh(tenChuan)
+                    if !kLM.isEmpty { bangPTThiDua[kLM] = max(bangPTThiDua[kLM] ?? 0, ptVal) }
+                    if !kSS.isEmpty { bangPTThiDua[kSS] = max(bangPTThiDua[kSS] ?? 0, ptVal) }
+                }
+                i += 1
+            }
+        }
+
+        sk.phanTramThiDuaCaNhan = bangPTThiDua
+
+        // Tạo DoanhThuNhanVienItem và danh sách KetQuaThiDuaNhanVienKhoi tương ứng
+        let dtItem = DoanhThuNhanVienItem(
+            maNV: maNVTim,
+            hoTen: hoTenTim,
+            soLuong: sk.soLuotBillBanHang ?? 0,
+            doanhThuThuc: 0,
+            doanhThuQD: sk.doanhThuQDSucKhoe ?? 0,
+            dtQDKhoanVay: 0,
+            dtTraThangQD: sk.phanTramQuyDoi ?? 0,
+            phanTramQuyDoi: sk.phanTramQuyDoi ?? 0,
+            phanTramTraGop: sk.phanTramTraCham ?? 0,
+            target: sk.mucTieuTargetQD ?? 0,
+            phanTramHT: sk.phanTramTarget ?? 0
+        )
+
+        var cacKhoi: [KetQuaThiDuaNhanVienKhoi] = []
+        for tenChuan in KhoDuLieu.danhSachTenMonThiDuaChuanDMX {
+            let kLM = KhoDuLieu.chuanHoaKhoaLienMachThiDua(tenChuan)
+            let ptMon = bangPTThiDua[kLM] ?? 0
+            cacKhoi.append(KetQuaThiDuaNhanVienKhoi(
+                tenNganhHang: tenChuan,
+                danhSach: [
+                    DongThiDuaNhanVienQuet(
+                        maNV: maNVTim,
+                        hoTen: hoTenTim,
+                        thucHien: ptMon,
+                        target: 0,
+                        laPhanTram: true,
+                        laPhanTramTargetCaNhan: true
+                    )
+                ]
+            ))
+        }
+
+        return (maNVTim, hoTenTim, sk, dtItem, cacKhoi)
+    }
+
     // MARK: - Nhận diện chính xác Ảnh chụp màn hình Doanh thu Siêu thị (tránh nhầm sang bảng Thi đua)
 
     /// Kiểm tra xem bức ảnh có phải là màn hình Tổng quan Doanh thu (chứa các thẻ: DT thực, DT quy đổi, % HT target, TT vs TB 3 tháng, TLPVTC, Tỷ trọng trả chậm, Chi phí) hay không.
     private func laAnhDoanhThuSieuThi(phanTu: [PhanTuVanBan]) -> Bool {
+        if laAnhSucKhoeCaNhan27Diem(phanTu: phanTu) {
+            return false
+        }
         var coDauHieuDoanhThu = 0
         for pt in phanTu where pt.y > 0.30 && pt.y < 0.96 {
             let u = boDau(pt.chu).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -247,6 +709,22 @@ final class DichVuDocAnh {
                 }
                 if kq.thongTinDonVi.isEmpty, let dv = dv, !dv.isEmpty {
                     kq.thongTinDonVi = dv
+                }
+
+                // ƯU TIÊN 0: Kiểm tra xem có phải ảnh Phiếu Sức Khỏe & Thi Đua Cá Nhân Nhân Viên 27 Điểm (suc-khoe-nv-*.jpg) không
+                if self.laAnhSucKhoeCaNhan27Diem(phanTu: phanTu),
+                   let kqSK = self.phanTichAnhSucKhoeCaNhan27Diem(phanTu: phanTu, anh: anh) {
+                    if let cu = kq.sucKhoeNhanVien[kqSK.maNV] {
+                        kq.sucKhoeNhanVien[kqSK.maNV] = cu.gop(voi: kqSK.sucKhoe)
+                    } else {
+                        kq.sucKhoeNhanVien[kqSK.maNV] = kqSK.sucKhoe
+                    }
+                    kq.soAnhSucKhoeNV += 1
+                    kq.doanhThuNhanVien.append(kqSK.doanhThuItem)
+                    kq.soAnhDoanhThuNV += 1
+                    kq.thiDuaNhanVien.append(contentsOf: kqSK.cacKhoiThiDua)
+                    kq.soAnhThiDuaNV += 1
+                    continue
                 }
 
                 // ƯU TIÊN 1: Kiểm tra xem có phải ảnh Doanh thu Siêu thị (DT thực / DT quy đổi) không
@@ -496,6 +974,16 @@ final class DichVuDocAnh {
                     donViOffline = dv
                 }
 
+                // Nếu là ảnh Phiếu Sức Khỏe & Thi Đua Cá Nhân Nhân Viên 27 Điểm: tách sang Sức khỏe & Thi đua NV
+                if self.laAnhSucKhoeCaNhan27Diem(phanTu: phanTu),
+                   let kqSK = self.phanTichAnhSucKhoeCaNhan27Diem(phanTu: phanTu, anh: anh) {
+                    cacKhoiNV.append(contentsOf: kqSK.cacKhoiThiDua)
+                    var dlTam = KhoDuLieu.dungChung.duLieu(cho: Date())
+                    KhoDuLieu.dungChung.apDungSucKhoeNhanVienQuetDuoc([kqSK.maNV: kqSK.sucKhoe], vao: &dlTam, ngay: Date(), cheDo: laRealtime ? .realtime : .luyKe)
+                    KhoDuLieu.dungChung.luu(dlTam)
+                    continue
+                }
+
                 // Nếu là ảnh Doanh thu Siêu thị (DT thực / DT quy đổi): tách sang Doanh thu, tuyệt đối không đưa vào bảng Thi đua
                 if self.laAnhDoanhThuSieuThi(phanTu: phanTu) {
                     let dt = self.phanTichDoanhThu(phanTu: phanTu)
@@ -674,16 +1162,29 @@ final class DichVuDocAnh {
     func quetAnhThiDuaNhanVien(
         danhSachAnh: [UIImage],
         tenNganhGoiY: String? = nil,
+        maNVGoiY: String? = nil,
         tienTrinh: ((String) -> Void)? = nil,
+        hoanTatSucKhoe: (([String: DuLieuSucKhoeBoSungNV]) -> Void)? = nil,
         hoanTat: @escaping ([KetQuaThiDuaNhanVienKhoi]) -> Void
     ) {
         DispatchQueue.global(qos: .userInitiated).async {
             var cacKhoi: [KetQuaThiDuaNhanVienKhoi] = []
+            var bangSucKhoe: [String: DuLieuSucKhoeBoSungNV] = [:]
             for (chiSo, anh) in danhSachAnh.enumerated() {
                 DispatchQueue.main.async {
                     tienTrinh?("Đang đọc ảnh Thực hiện NV \(chiSo + 1)/\(danhSachAnh.count)...")
                 }
                 let phanTu = self.thucHienOCR(anh: anh)
+                if self.laAnhSucKhoeCaNhan27Diem(phanTu: phanTu),
+                   let kqSK = self.phanTichAnhSucKhoeCaNhan27Diem(phanTu: phanTu, anh: anh, maNVGoiY: maNVGoiY) {
+                    if let cu = bangSucKhoe[kqSK.maNV] {
+                        bangSucKhoe[kqSK.maNV] = cu.gop(voi: kqSK.sucKhoe)
+                    } else {
+                        bangSucKhoe[kqSK.maNV] = kqSK.sucKhoe
+                    }
+                    cacKhoi.append(contentsOf: kqSK.cacKhoiThiDua)
+                    continue
+                }
                 let watermark = self.timMaWatermarkAnToan(phanTu: phanTu, yGioiHan: 0.16)
                 if let khoi = self.phanTichThiDuaNhanVienOffline(phanTu: phanTu, anh: anh, tenNganhGoiY: tenNganhGoiY, watermark: watermark),
                    !khoi.danhSach.isEmpty {
@@ -691,6 +1192,9 @@ final class DichVuDocAnh {
                 }
             }
             DispatchQueue.main.async {
+                if !bangSucKhoe.isEmpty {
+                    hoanTatSucKhoe?(bangSucKhoe)
+                }
                 hoanTat(cacKhoi)
             }
         }
@@ -724,19 +1228,35 @@ final class DichVuDocAnh {
 
     func quetAnhDoanhThuNhanVien(
         danhSachAnh: [UIImage],
+        maNVGoiY: String? = nil,
         tienTrinh: ((String) -> Void)? = nil,
+        hoanTatSucKhoe: (([String: DuLieuSucKhoeBoSungNV]) -> Void)? = nil,
         hoanTat: @escaping ([DoanhThuNhanVienItem]) -> Void
     ) {
         DispatchQueue.global(qos: .userInitiated).async {
             var dsQuet: [DoanhThuNhanVienItem] = []
+            var bangSucKhoe: [String: DuLieuSucKhoeBoSungNV] = [:]
             for (chiSo, anh) in danhSachAnh.enumerated() {
                 DispatchQueue.main.async {
                     tienTrinh?("Đang đọc ảnh Doanh thu NV \(chiSo + 1)/\(danhSachAnh.count)...")
                 }
                 let phanTu = self.thucHienOCR(anh: anh)
+                if self.laAnhSucKhoeCaNhan27Diem(phanTu: phanTu),
+                   let kqSK = self.phanTichAnhSucKhoeCaNhan27Diem(phanTu: phanTu, anh: anh, maNVGoiY: maNVGoiY) {
+                    if let cu = bangSucKhoe[kqSK.maNV] {
+                        bangSucKhoe[kqSK.maNV] = cu.gop(voi: kqSK.sucKhoe)
+                    } else {
+                        bangSucKhoe[kqSK.maNV] = kqSK.sucKhoe
+                    }
+                    dsQuet.append(kqSK.doanhThuItem)
+                    continue
+                }
                 dsQuet.append(contentsOf: self.phanTichDoanhThuNhanVienOffline(phanTu: phanTu, anh: anh))
             }
             DispatchQueue.main.async {
+                if !bangSucKhoe.isEmpty {
+                    hoanTatSucKhoe?(bangSucKhoe)
+                }
                 hoanTat(dsQuet)
             }
         }

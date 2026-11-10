@@ -1384,6 +1384,9 @@ final class DichVuGeminiAI {
             "temperature": 0.4,
             "maxOutputTokens": maxTokens
         ]
+        if model.hasPrefix("gemini-2.5-flash") {
+            genConfig["thinkingConfig"] = ["thinkingBudget": 0]
+        }
         if epKieuJSON {
             genConfig["responseMimeType"] = "application/json"
         }

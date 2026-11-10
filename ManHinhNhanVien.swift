@@ -2334,6 +2334,17 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
         ])
         nganChinh.addArrangedSubview(khungTienDo)
 
+        // ==================== 1B. KHỐI DOANH THU Ở ĐẦU (ĐỦ 6 MỤC DƯỚI TÊN NHÂN VIÊN) ====================
+        let skNV = dl.sucKhoeBoSungNhanVien[tongHop.nhanVien.maNV]
+            ?? kho.sucKhoeBoSungNhanVienThang(cho: ngay)[tongHop.nhanVien.maNV]
+
+        let khungDoanhThu6Muc = taoKhungDoanhThu6Muc(sk: skNV)
+        nganChinh.addArrangedSubview(khungDoanhThu6Muc)
+
+        // ==================== 1C. KHỐI NĂNG SUẤT (3 MỤC · CÓ TÙY CHỌN HIỂN THỊ HOẶC ĐỂ DẤU *) ====================
+        let khungNangSuat3Muc = taoKhungNangSuat3Muc(sk: skNV)
+        nganChinh.addArrangedSubview(khungNangSuat3Muc)
+
         // ==================== 2. CỤM 4 THẺ CHỈ SỐ CHÍNH (GRADIENT MÀU NỔI BẬT NHƯ ẢNH MẪU) ====================
         let dtQD = tongHop.doanhThuQD
         let soDon = tongHop.soLuongDon
@@ -2722,23 +2733,301 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
         return Double(s)
     }
 
+    private func taoKhungDoanhThu6Muc(sk: DuLieuSucKhoeBoSungNV?) -> UIView {
+        let khung = UIView()
+        khung.backgroundColor = UIColor(red: 0.94, green: 0.97, blue: 1.0, alpha: 1)
+        khung.layer.cornerRadius = 12
+        khung.layer.borderWidth = 1
+        khung.layer.borderColor = UIColor(red: 0.82, green: 0.89, blue: 0.98, alpha: 1).cgColor
+
+        let dtQD = (sk?.doanhThuQDSucKhoe ?? 0) > 0 ? (sk?.doanhThuQDSucKhoe ?? 0) : max(0, tongHop.doanhThuQD)
+        let tbDTQD = sk?.tbDoanhThuQDSieuThi
+
+        let mtQD = (sk?.mucTieuTargetQD ?? 0) > 0 ? (sk?.mucTieuTargetQD ?? 0) : max(0, tongHop.doanhThuCaNhan?.target ?? 0)
+        let ptTarget: Double = {
+            if let v = sk?.phanTramTarget, v > 0 { return v }
+            if mtQD > 0 && dtQD > 0 { return (dtQD / mtQD) * 100.0 }
+            return max(0, tongHop.doanhThuCaNhan?.phanTramHT ?? 0)
+        }()
+        let tbTarget = sk?.tbPhanTramTarget
+
+        let soBill = (sk?.soLuotBillBanHang ?? 0) > 0 ? (sk?.soLuotBillBanHang ?? 0) : max(0, tongHop.soLuongDon)
+        let tbBill = sk?.tbSoLuotBillBanHang
+
+        let ptQuyDoi = (sk?.phanTramQuyDoi ?? 0) > 0 ? (sk?.phanTramQuyDoi ?? 0) : max(0, tongHop.phanTramTiTrong)
+        let tbQuyDoi = sk?.tbPhanTramQuyDoi
+
+        let ptTraCham = (sk?.phanTramTraCham ?? 0) > 0 ? (sk?.phanTramTraCham ?? 0) : max(0, tongHop.doanhThuCaNhan?.phanTramTraGop ?? 0)
+        let tbTraCham = sk?.tbPhanTramTraCham
+
+        let ptBanKem = max(0, sk?.phanTramBanKem ?? 0)
+        let tbBanKem = sk?.tbPhanTramBanKem
+
+        func trangThaiSoVoiTB(_ giaTri: Double, _ tb: Double?) -> TheChiSoSucKhoeView.TrangThaiThe {
+            if let tb = tb, tb > 0 {
+                return giaTri >= tb - 0.001 ? .dat : .chuaDat
+            }
+            return giaTri > 0 ? .dat : .chuaCoSo
+        }
+
+        let tt1 = trangThaiSoVoiTB(dtQD, tbDTQD)
+        let tt2 = trangThaiSoVoiTB(ptTarget, tbTarget)
+        let tt3 = trangThaiSoVoiTB(soBill, tbBill)
+        let tt4 = trangThaiSoVoiTB(ptQuyDoi, tbQuyDoi)
+        let tt5 = trangThaiSoVoiTB(ptTraCham, tbTraCham)
+        let tt6 = trangThaiSoVoiTB(ptBanKem, tbBanKem)
+        let soMucDat = [tt1, tt2, tt3, tt4, tt5, tt6].filter { $0 == .dat }.count
+
+        let lbTieuDe = UILabel()
+        lbTieuDe.text = "DOANH THU"
+        lbTieuDe.font = .systemFont(ofSize: 12.0, weight: .heavy)
+        lbTieuDe.textColor = UIColor(red: 0.08, green: 0.32, blue: 0.78, alpha: 1)
+
+        let lbDem = UILabel()
+        lbDem.text = " \(soMucDat)/6 "
+        lbDem.font = .monospacedDigitSystemFont(ofSize: 11.0, weight: .heavy)
+        lbDem.textColor = UIColor(red: 0.08, green: 0.32, blue: 0.78, alpha: 1)
+        lbDem.backgroundColor = UIColor.white
+        lbDem.layer.cornerRadius = 6
+        lbDem.clipsToBounds = true
+
+        let hangDau = UIStackView(arrangedSubviews: [lbTieuDe, lbDem, UIView()])
+        hangDau.axis = .horizontal
+        hangDau.spacing = 6
+        hangDau.alignment = .center
+
+        let the1 = TheChiSoSucKhoeView(
+            tieuDe: "DOANH THU QĐ",
+            giaTri: "\(dtQD.chuoiSoMotLeVN) tr",
+            chuoiTB: tbDTQD != nil ? "TB \(tbDTQD!.chuoiSoMotLeVN) tr" : "TB 0 tr",
+            trangThai: tt1
+        )
+        let the2 = TheChiSoSucKhoeView(
+            tieuDe: "% TARGET",
+            giaTri: "\(Int(round(ptTarget)))%",
+            chuoiTB: tbTarget != nil ? "TB \(Int(round(tbTarget!)))%" : "TB 0%",
+            chuoiPhu: mtQD > 0 ? "MT \(mtQD.chuoiSoMotLeVN) tr" : nil,
+            trangThai: tt2
+        )
+        let the3 = TheChiSoSucKhoeView(
+            tieuDe: "SỐ LƯỢT BILL BÁN HÀNG",
+            giaTri: soBill.chuoiSoNguyenVN,
+            chuoiTB: tbBill != nil ? "TB \(tbBill!.chuoiSoNguyenVN)" : "TB 0",
+            trangThai: tt3
+        )
+        let the4 = TheChiSoSucKhoeView(
+            tieuDe: "% QUY ĐỔI",
+            giaTri: "\(Int(round(ptQuyDoi)))%",
+            chuoiTB: tbQuyDoi != nil ? "TB \(Int(round(tbQuyDoi!)))%" : "TB 0%",
+            trangThai: tt4
+        )
+        let the5 = TheChiSoSucKhoeView(
+            tieuDe: "% TRẢ CHẬM",
+            giaTri: "\(Int(round(ptTraCham)))%",
+            chuoiTB: tbTraCham != nil ? "TB \(Int(round(tbTraCham!)))%" : "TB 0%",
+            trangThai: tt5
+        )
+        let the6 = TheChiSoSucKhoeView(
+            tieuDe: "% BÁN KÈM",
+            giaTri: "\(Int(round(ptBanKem)))%",
+            chuoiTB: tbBanKem != nil ? "TB \(Int(round(tbBanKem!)))%" : "TB 0%",
+            trangThai: tt6
+        )
+
+        let nganLuoi = UIStackView()
+        nganLuoi.axis = .vertical
+        nganLuoi.spacing = 6
+
+        if laCheDoXuatAnhRong {
+            let hang1 = UIStackView(arrangedSubviews: [the1, the2, the3])
+            hang1.axis = .horizontal
+            hang1.spacing = 8
+            hang1.distribution = .fillEqually
+
+            let hang2 = UIStackView(arrangedSubviews: [the4, the5, the6])
+            hang2.axis = .horizontal
+            hang2.spacing = 8
+            hang2.distribution = .fillEqually
+
+            nganLuoi.addArrangedSubview(hang1)
+            nganLuoi.addArrangedSubview(hang2)
+        } else {
+            for cap in [[the1, the2], [the3, the4], [the5, the6]] {
+                let h = UIStackView(arrangedSubviews: cap)
+                h.axis = .horizontal
+                h.spacing = 6
+                h.distribution = .fillEqually
+                nganLuoi.addArrangedSubview(h)
+            }
+        }
+
+        let ngan = UIStackView(arrangedSubviews: [hangDau, nganLuoi])
+        ngan.axis = .vertical
+        ngan.spacing = 8
+        ngan.translatesAutoresizingMaskIntoConstraints = false
+        khung.addSubview(ngan)
+
+        NSLayoutConstraint.activate([
+            ngan.topAnchor.constraint(equalTo: khung.topAnchor, constant: 10),
+            ngan.bottomAnchor.constraint(equalTo: khung.bottomAnchor, constant: -10),
+            ngan.leadingAnchor.constraint(equalTo: khung.leadingAnchor, constant: 10),
+            ngan.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -10)
+        ])
+        return khung
+    }
+
+    private func taoKhungNangSuat3Muc(sk: DuLieuSucKhoeBoSungNV?) -> UIView {
+        let khung = UIView()
+        khung.backgroundColor = UIColor(red: 0.93, green: 0.98, blue: 0.96, alpha: 1)
+        khung.layer.cornerRadius = 12
+        khung.layer.borderWidth = 1
+        khung.layer.borderColor = UIColor(red: 0.78, green: 0.92, blue: 0.85, alpha: 1).cgColor
+
+        let hienThiNS = KhoDuLieu.dungChung.caiDat.hienThiNangSuatNhanVien
+
+        let erp = max(0, sk?.diemThuongERP ?? 0)
+        let tbErp = sk?.tbDiemThuongERP
+        let erpGC = max(0, sk?.diemThuongTrenGioCong ?? 0)
+        let tbErpGC = sk?.tbDiemThuongTrenGioCong
+        let dtGC = max(0, sk?.dtqdTrenGioCong ?? 0)
+        let tbDtGC = sk?.tbDtqdTrenGioCong
+
+        func trangThaiNS(_ giaTri: Double, _ tb: Double?) -> TheChiSoSucKhoeView.TrangThaiThe {
+            guard hienThiNS else { return .chuaCoSo }
+            if let tb = tb, tb > 0 {
+                return giaTri >= tb - 0.001 ? .dat : .chuaDat
+            }
+            return giaTri > 0 ? .dat : .chuaCoSo
+        }
+
+        let tt1 = trangThaiNS(erp, tbErp)
+        let tt2 = trangThaiNS(erpGC, tbErpGC)
+        let tt3 = trangThaiNS(dtGC, tbDtGC)
+        let soDat = [tt1, tt2, tt3].filter { $0 == .dat }.count
+
+        let lbTieuDe = UILabel()
+        lbTieuDe.text = "NĂNG SUẤT"
+        lbTieuDe.font = .systemFont(ofSize: 12.0, weight: .heavy)
+        lbTieuDe.textColor = UIColor(red: 0.05, green: 0.48, blue: 0.28, alpha: 1)
+
+        let lbDem = UILabel()
+        lbDem.text = hienThiNS ? " \(soDat)/3 " : " * "
+        lbDem.font = .monospacedDigitSystemFont(ofSize: 11.0, weight: .heavy)
+        lbDem.textColor = UIColor(red: 0.05, green: 0.48, blue: 0.28, alpha: 1)
+        lbDem.backgroundColor = UIColor.white
+        lbDem.layer.cornerRadius = 6
+        lbDem.clipsToBounds = true
+
+        let hangDau = UIStackView(arrangedSubviews: [lbTieuDe, lbDem, UIView()])
+        hangDau.axis = .horizontal
+        hangDau.spacing = 6
+        hangDau.alignment = .center
+
+        if !laCheDoXuatAnhRong {
+            let nutAnHien = UIButton(type: .system)
+            nutAnHien.setTitle(hienThiNS ? "☑️ Hiển thị Năng suất" : "⬜ Ẩn Năng suất (*)", for: .normal)
+            nutAnHien.titleLabel?.font = .systemFont(ofSize: 11.0, weight: .bold)
+            nutAnHien.setTitleColor(hienThiNS ? UIColor(red: 0.05, green: 0.48, blue: 0.28, alpha: 1) : UIColor(red: 0.45, green: 0.51, blue: 0.60, alpha: 1), for: .normal)
+            nutAnHien.backgroundColor = .white
+            nutAnHien.layer.cornerRadius = 7
+            nutAnHien.layer.borderWidth = 1
+            nutAnHien.layer.borderColor = UIColor(red: 0.72, green: 0.86, blue: 0.78, alpha: 1).cgColor
+            nutAnHien.contentEdgeInsets = UIEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
+            nutAnHien.addTarget(self, action: #selector(bamChuyenAnHienNangSuat), for: .touchUpInside)
+            hangDau.addArrangedSubview(nutAnHien)
+        }
+
+        let the1 = TheChiSoSucKhoeView(
+            tieuDe: "ĐIỂM THƯỞNG ERP",
+            giaTri: hienThiNS ? erp.chuoiSoNguyenVN : "*",
+            chuoiTB: hienThiNS ? (tbErp != nil ? "TB \(tbErp!.chuoiSoNguyenVN)" : "TB 0") : "TB *",
+            trangThai: tt1
+        )
+        let the2 = TheChiSoSucKhoeView(
+            tieuDe: "ĐIỂM THƯỞNG / GIỜ CÔNG",
+            giaTri: hienThiNS ? erpGC.chuoiSoNguyenVN : "*",
+            chuoiTB: hienThiNS ? (tbErpGC != nil ? "TB \(tbErpGC!.chuoiSoNguyenVN)" : "TB 0") : "TB *",
+            trangThai: tt2
+        )
+        let the3 = TheChiSoSucKhoeView(
+            tieuDe: "DTQĐ / GIỜ CÔNG",
+            giaTri: hienThiNS ? dtGC.chuoiSoVN : "*",
+            chuoiTB: hienThiNS ? (tbDtGC != nil ? "TB \(tbDtGC!.chuoiSoVN)" : "TB 0") : "TB *",
+            trangThai: tt3
+        )
+
+        let hangThe = UIStackView(arrangedSubviews: [the1, the2, the3])
+        hangThe.axis = .horizontal
+        hangThe.spacing = laCheDoXuatAnhRong ? 8 : 6
+        hangThe.distribution = .fillEqually
+
+        let ngan = UIStackView(arrangedSubviews: [hangDau, hangThe])
+        ngan.axis = .vertical
+        ngan.spacing = 8
+        ngan.translatesAutoresizingMaskIntoConstraints = false
+        khung.addSubview(ngan)
+
+        NSLayoutConstraint.activate([
+            ngan.topAnchor.constraint(equalTo: khung.topAnchor, constant: 10),
+            ngan.bottomAnchor.constraint(equalTo: khung.bottomAnchor, constant: -10),
+            ngan.leadingAnchor.constraint(equalTo: khung.leadingAnchor, constant: 10),
+            ngan.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -10)
+        ])
+        return khung
+    }
+
+    @objc private func bamChuyenAnHienNangSuat() {
+        var cd = KhoDuLieu.dungChung.caiDat
+        cd.hienThiNangSuatNhanVien.toggle()
+        KhoDuLieu.dungChung.luuCaiDat(cd)
+        dungGiaoDien()
+        khiYeuCauCapNhat?()
+    }
+
     private func moSuaMonThiDuaCaNhan(_ mon: MonThiDuaNhanVien) {
         guard let vc = timViewControllerCha() else { return }
         let hop = UIAlertController(
             title: "\(mon.tenNganhHang)",
-            message: "Target cá nhân: \(mon.targetCaNhan.chuoiSoVN) (\(mon.loaiChiTieu.maBang)). Nhập số Thực hiện mới cho \(tongHop.nhanVien.hoTen):",
+            message: "Target cá nhân: \(mon.targetCaNhan.chuoiSoVN) (\(mon.loaiChiTieu.maBang)). Nhập số Thực hiện mới (hoặc kèm dấu % nếu nhập % HT) cho \(tongHop.nhanVien.hoTen):",
             preferredStyle: .alert
         )
         hop.addTextField { tf in
-            tf.placeholder = "Thực hiện"
+            tf.placeholder = "Thực hiện (VD: 1.5 hoặc 88%)"
             tf.keyboardType = .decimalPad
             if mon.thucHien > 0 { tf.text = String(mon.thucHien) }
+            else if mon.phanTramHT > 0 { tf.text = "\(Int(round(mon.phanTramHT)))%" }
         }
         hop.addAction(UIAlertAction(title: "Lưu", style: .default) { [weak self] _ in
-            guard let self, let val = self.docSo(hop.textFields?.first?.text) else { return }
+            guard let self else { return }
+            let raw = (hop.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let val = self.docSo(raw) else { return }
             var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
             var bangNV = dl.thiDuaNhanVien(theo: self.cheDo)
-            bangNV[mon.khoaNganh, default: [:]][self.tongHop.nhanVien.maNV] = val
+            let ma = self.tongHop.nhanVien.maNV
+            let kLM = KhoDuLieu.chuanHoaKhoaLienMachThiDua(mon.tenNganhHang)
+
+            if raw.contains("%") {
+                var sk = dl.sucKhoeBoSungNhanVien[ma] ?? DuLieuSucKhoeBoSungNV()
+                var mapPT = sk.phanTramThiDuaCaNhan ?? [:]
+                if !kLM.isEmpty { mapPT[kLM] = val }
+                mapPT[mon.khoaNganh] = val
+                sk.phanTramThiDuaCaNhan = mapPT
+                dl.sucKhoeBoSungNhanVien[ma] = sk
+                if mon.targetCaNhan > 0.0001 {
+                    bangNV[mon.khoaNganh, default: [:]][ma] = ((mon.targetCaNhan * val / 100.0) * 100.0).rounded() / 100.0
+                } else {
+                    bangNV[mon.khoaNganh, default: [:]][ma] = 0
+                }
+            } else {
+                bangNV[mon.khoaNganh, default: [:]][ma] = val
+                if var sk = dl.sucKhoeBoSungNhanVien[ma], var mapPT = sk.phanTramThiDuaCaNhan {
+                    let ptMoi = mon.targetCaNhan > 0.0001 ? ((val / mon.targetCaNhan) * 100.0) : 0
+                    if !kLM.isEmpty { mapPT[kLM] = ptMoi }
+                    mapPT[mon.khoaNganh] = ptMoi
+                    sk.phanTramThiDuaCaNhan = mapPT
+                    dl.sucKhoeBoSungNhanVien[ma] = sk
+                }
+            }
             dl.ganThiDuaNhanVien(bangNV, theo: self.cheDo)
             KhoDuLieu.dungChung.luu(dl)
             if let capNhatTH = KhoDuLieu.dungChung.tongHopNhanVien(den: self.ngay, sapXep: .tenAZ, cheDo: self.cheDo)
@@ -2763,7 +3052,7 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
         bangView.overrideUserInterfaceStyle = .light
         bangView.translatesAutoresizingMaskIntoConstraints = false
 
-        let caoTamThoi = max(2400, bangView.chieuCaoBangMonHienTai + 320)
+        let caoTamThoi = max(2800, bangView.chieuCaoBangMonHienTai + 640)
         let khung = UIView(frame: CGRect(x: 0, y: 0, width: rongAnh, height: caoTamThoi))
         khung.backgroundColor = .white
         khung.overrideUserInterfaceStyle = .light
@@ -2784,10 +3073,10 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
             verticalFittingPriority: .fittingSizeLevel
         )
         let caoAnh = max(
-            320,
+            520,
             ceil(bangView.bounds.height),
             ceil(kichThuoc.height),
-            ceil(bangView.chieuCaoBangMonHienTai + 218)
+            ceil(bangView.chieuCaoBangMonHienTai + 510)
         )
         khung.frame = CGRect(x: 0, y: 0, width: rongAnh, height: caoAnh)
         khung.setNeedsLayout()
@@ -2798,7 +3087,7 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
 
 // MARK: - 4. Màn hình Chi tiết Sức khoẻ Cá nhân Nhân viên (Tích hợp Bảng Thông Số Sức Khỏe 27 điểm + Chuyển nhanh NV)
 
-final class ManHinhChiTietNhanVien: UIViewController {
+final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDelegate {
     private var tongHop: TongHopNhanVien
     private let ngay: Date
     private var cheDo: LoaiCheDoDoanhThu
@@ -2825,12 +3114,19 @@ final class ManHinhChiTietNhanVien: UIViewController {
         super.viewDidLoad()
         capNhatTieuDe()
         view.backgroundColor = BangMauBCTD.nenTrang
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
+        let nutChiaSe = UIBarButtonItem(
             image: UIImage(systemName: "square.and.arrow.up"),
             style: .plain,
             target: self,
             action: #selector(bamChiaSeAnhSucKhoe)
         )
+        let nutQuetAnh = UIBarButtonItem(
+            image: UIImage(systemName: "camera.viewfinder"),
+            style: .plain,
+            target: self,
+            action: #selector(bamQuetAnhSucKhoeNV)
+        )
+        navigationItem.rightBarButtonItems = [nutChiaSe, nutQuetAnh]
         taoGiaoDien()
     }
 
@@ -2989,10 +3285,96 @@ final class ManHinhChiTietNhanVien: UIViewController {
 
     // MARK: - Xuất / Chia sẻ ảnh Sức khoẻ chi tiết
 
+    @objc private func bamQuetAnhSucKhoeNV() {
+        var cauHinh = PHPickerConfiguration()
+        cauHinh.filter = .images
+        cauHinh.selectionLimit = 0
+        if #available(iOS 15.0, *) {
+            cauHinh.selection = .ordered
+        }
+        let picker = PHPickerViewController(configuration: cauHinh)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        guard !results.isEmpty else { return }
+
+        let nhom = DispatchGroup()
+        let khoaAnh = NSLock()
+        var danhSach = Array<UIImage?>(repeating: nil, count: results.count)
+        for (i, r) in results.enumerated() {
+            guard r.itemProvider.canLoadObject(ofClass: UIImage.self) else { continue }
+            nhom.enter()
+            r.itemProvider.loadObject(ofClass: UIImage.self) { obj, _ in
+                if let img = obj as? UIImage {
+                    khoaAnh.lock()
+                    danhSach[i] = img
+                    khoaAnh.unlock()
+                }
+                nhom.leave()
+            }
+        }
+        nhom.notify(queue: .main) { [weak self] in
+            guard let self else { return }
+            let cacAnh = danhSach.compactMap { $0 }
+            guard !cacAnh.isEmpty else { return }
+            var skQuetDuoc: [String: DuLieuSucKhoeBoSungNV] = [:]
+            DichVuDocAnh.dungChung.quetAnhThiDuaNhanVien(
+                danhSachAnh: cacAnh,
+                tenNganhGoiY: nil,
+                maNVGoiY: self.tongHop.nhanVien.maNV,
+                tienTrinh: nil,
+                hoanTatSucKhoe: { bangSK in
+                    skQuetDuoc = bangSK
+                },
+                hoanTat: { [weak self] cacKhoi in
+                    guard let self else { return }
+                    var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
+                    if !cacKhoi.isEmpty {
+                        let bangNVMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
+                            hienTai: dl.thiDuaNhanVien(theo: self.cheDo),
+                            mangKhoiNV: cacKhoi,
+                            ngay: self.ngay,
+                            cheDo: self.cheDo
+                        )
+                        dl.ganThiDuaNhanVien(bangNVMoi, theo: self.cheDo)
+                    }
+                    if !skQuetDuoc.isEmpty {
+                        KhoDuLieu.dungChung.apDungSucKhoeNhanVienQuetDuoc(
+                            skQuetDuoc,
+                            vao: &dl,
+                            ngay: self.ngay,
+                            cheDo: self.cheDo
+                        )
+                    }
+                    KhoDuLieu.dungChung.luu(dl)
+                    if let maDau = skQuetDuoc.keys.first,
+                       let nvMoi = self.danhSachNVHienTai().first(where: { $0.nhanVien.maNV == maDau }) {
+                        self.tongHop = nvMoi
+                    }
+                    self.napLaiDuLieuHienTai()
+                }
+            )
+        }
+    }
+
     @objc private func bamChiaSeAnhSucKhoe() {
         let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .tenAZ, cheDo: cheDo)
+        let hienNS = KhoDuLieu.dungChung.caiDat.hienThiNangSuatNhanVien
 
         var cacMuc: [MucChonDMX] = [
+            MucChonDMX(tieuDe: "📷 Quét ảnh Phiếu Sức khỏe / Thi đua cá nhân NV") { [weak self] in
+                self?.bamQuetAnhSucKhoeNV()
+            },
+            MucChonDMX(tieuDe: hienNS ? "☑️ Phần Năng suất: Đang hiển thị số (Chạm để ẩn thành dấu *)" : "⬜ Phần Năng suất: Đang để dấu * (Chạm để hiển thị số)", dangChon: hienNS) { [weak self] in
+                guard let self else { return }
+                var cd = KhoDuLieu.dungChung.caiDat
+                cd.hienThiNangSuatNhanVien.toggle()
+                KhoDuLieu.dungChung.luuCaiDat(cd)
+                self.napLaiDuLieuHienTai()
+            },
             MucChonDMX(tieuDe: "👤 Xuất 1 nhân viên này (\(tongHop.nhanVien.hoTen))") { [weak self] in
                 guard let self = self, let anh = self.taoAnhSucKhoeNhanVien() else { return }
                 self.hienChiaSe([anh])

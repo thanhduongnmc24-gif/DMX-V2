@@ -101,13 +101,24 @@ private struct PhanHoiMaGanNhom: Codable { var ok: Bool?; var ma: String; var so
 private struct PhanHoiDanhSachNhom: Codable { var nhom: [NhomLineDMX]; var lich: [LichGuiBaoCaoDMX] }
 private struct PhanHoiThaoTacNhom: Codable { var ok: Bool?; var lich: LichGuiBaoCaoDMX? }
 private struct YeuCauLuuAnhBaoCao: Codable {
+    var hanhDong: String?
     var loai: String
     var ngay: String
     var nhaCungCap: String
     var duLieuAnhBase64: String?
     var urlBenNgoai: String?
+    var duongDanLuuTru: String?
 }
-private struct PhanHoiLuuAnhBaoCao: Codable { var ok: Bool? }
+private struct PhanHoiLuuAnhBaoCao: Codable {
+    var ok: Bool?
+    var signedUrl: String?
+    var duongDanLuuTru: String?
+}
+
+struct PhienTaiAnhBaoCaoDMX {
+    var signedURL: URL
+    var duongDanLuuTru: String
+}
 
 private struct YeuCauNhomLine: Codable {
     var hanhDong: String
@@ -1541,16 +1552,74 @@ final class DichVuDongBo {
     ) {
         let laDrive = !(urlDrive?.isEmpty ?? true)
         let body = YeuCauLuuAnhBaoCao(
+            hanhDong: nil,
             loai: loai,
             ngay: ngay,
             nhaCungCap: laDrive ? "google_drive" : "supabase",
             duLieuAnhBase64: laDrive ? nil : duLieuJPEG?.base64EncodedString(),
-            urlBenNgoai: laDrive ? urlDrive : nil
+            urlBenNgoai: laDrive ? urlDrive : nil,
+            duongDanLuuTru: nil
         )
         guiWeb(path: "api/dmx/bot/anh-cache", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiLuuAnhBaoCao, Error>) in
             switch ketQua {
             case .success: hoanTat(.success(()))
             case .failure(let loi): hoanTat(.failure(loi))
+            }
+        }
+    }
+
+    func taoPhienTaiAnhBaoCaoTrucTiep(
+        loai: String,
+        ngay: String,
+        hoanTat: @escaping (Result<PhienTaiAnhBaoCaoDMX, Error>) -> Void
+    ) {
+        let body = YeuCauLuuAnhBaoCao(
+            hanhDong: "tao_url_tai_len",
+            loai: loai,
+            ngay: ngay,
+            nhaCungCap: "supabase",
+            duLieuAnhBase64: nil,
+            urlBenNgoai: nil,
+            duongDanLuuTru: nil
+        )
+        guiWeb(path: "api/dmx/bot/anh-cache", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiLuuAnhBaoCao, Error>) in
+            switch ketQua {
+            case .success(let phanHoi):
+                guard let chuoiURL = phanHoi.signedUrl,
+                      let url = URL(string: chuoiURL),
+                      let duongDan = phanHoi.duongDanLuuTru,
+                      !duongDan.isEmpty else {
+                    hoanTat(.failure(NSError.dmx("Máy chủ chưa cấp đường tải ảnh trực tiếp.")))
+                    return
+                }
+                hoanTat(.success(PhienTaiAnhBaoCaoDMX(signedURL: url, duongDanLuuTru: duongDan)))
+            case .failure(let loi):
+                hoanTat(.failure(loi))
+            }
+        }
+    }
+
+    func xacNhanTaiAnhBaoCaoTrucTiep(
+        loai: String,
+        ngay: String,
+        duongDanLuuTru: String,
+        hoanTat: @escaping (Result<Void, Error>) -> Void
+    ) {
+        let body = YeuCauLuuAnhBaoCao(
+            hanhDong: "xac_nhan_tai_len",
+            loai: loai,
+            ngay: ngay,
+            nhaCungCap: "supabase",
+            duLieuAnhBase64: nil,
+            urlBenNgoai: nil,
+            duongDanLuuTru: duongDanLuuTru
+        )
+        guiWeb(path: "api/dmx/bot/anh-cache", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiLuuAnhBaoCao, Error>) in
+            switch ketQua {
+            case .success:
+                hoanTat(.success(()))
+            case .failure(let loi):
+                hoanTat(.failure(loi))
             }
         }
     }
