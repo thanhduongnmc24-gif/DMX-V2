@@ -70,26 +70,23 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         "Số lượng tồn lô"                         // S (18)
     ]
 
+    /// Chỉ hiển thị và xuất ảnh 6 cột: A (0), C (2), D (3), G (6), H (7), I (8)
+    static let chiSoCotHienThi: [Int] = [
+        0, // A: Tên siêu thị
+        2, // C: Mã sản phẩm
+        3, // D: Tên sản phẩm
+        6, // G: Nhóm hàng
+        7, // H: Trạng thái sản phẩm
+        8  // I: Số lượng
+    ]
+
     static let doRongCacCot: [CGFloat] = [
-        175, // A: Tên siêu thị
-        115, // B: Mã Model
-        120, // C: Mã sản phẩm
-        230, // D: Tên sản phẩm
-        68,  // E: Đơn vị
-        130, // F: Ngành hàng
-        145, // G: Nhóm hàng
-        145, // H: Trạng thái sản phẩm
-        82,  // I: Số lượng
-        145, // J: Số lượng không bao gồm hàng đi đường
-        92,  // K: Số lượng đặt
-        120, // L: Số lượng được chia đến
-        125, // M: Số lượng đang  đi đường
-        120, // N: Số lượng được chia đi
-        100, // O: Số lượng đã đặt
-        115, // P: Số lượng có thể bán
-        115, // Q: SL tồn kho tối thiểu
-        78,  // R: Có in QR
-        105  // S: Số lượng tồn lô
+        180, // A: Tên siêu thị
+        125, // C: Mã sản phẩm
+        250, // D: Tên sản phẩm
+        150, // G: Nhóm hàng
+        150, // H: Trạng thái sản phẩm
+        90   // I: Số lượng
     ]
 
     var khiXuatAnh: ((UIImage) -> Void)?
@@ -282,7 +279,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         khungTrong.translatesAutoresizingMaskIntoConstraints = false
         theBang.addSubview(khungTrong)
 
-        nhanTrong.text = "📦 Hãy bấm “Quét Sheet” và chọn Nhóm hàng (Cột G) trên Combobox để hiển thị bảng dữ liệu tồn kho (19 cột từ A đến S)."
+        nhanTrong.text = "📦 Hãy bấm “Quét Sheet” và chọn Nhóm hàng (Cột G) trên Combobox để hiển thị bảng dữ liệu tồn kho (Cột A, C, D, G, H, I)."
         nhanTrong.font = .systemFont(ofSize: 13.5, weight: .semibold)
         nhanTrong.textColor = BangMauBCTD.chuPhu
         nhanTrong.textAlignment = .center
@@ -650,7 +647,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
             $0.removeFromSuperview()
         }
 
-        // Hàng đầu tiên: tên của 19 cột theo thứ tự từ A -> S
+        // Hàng đầu tiên: chỉ hiển thị 6 cột A, C, D, G, H, I
         let hangTieuDe = Self.taoHangBang(cacGiaTri: Self.tenCacCotChuan, laHeader: true, chiSoDong: -1)
         nganBang.addArrangedSubview(hangTieuDe)
 
@@ -676,9 +673,9 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         }
         hang.backgroundColor = mauNen
 
-        for i in 0..<tenCacCotChuan.count {
-            let giaTri = (i < cacGiaTri.count) ? cacGiaTri[i] : ""
-            let rong = doRongCacCot[i]
+        for (viTri, chiSoCot) in chiSoCotHienThi.enumerated() {
+            let giaTri = (chiSoCot < cacGiaTri.count) ? cacGiaTri[chiSoCot] : ""
+            let rong = doRongCacCot[viTri]
 
             let o = UIView()
             o.backgroundColor = mauNen
@@ -691,18 +688,18 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
             lb.text = giaTri
             lb.font = laHeader
                 ? .systemFont(ofSize: 11.5, weight: .heavy)
-                : .systemFont(ofSize: 11.5, weight: (i == 0 || i == 3 || i == 8 || i == 15) ? .bold : .medium)
+                : .systemFont(ofSize: 11.5, weight: (chiSoCot == 0 || chiSoCot == 3 || chiSoCot == 8) ? .bold : .medium)
             lb.textColor = laHeader
                 ? BangMauBCTD.vangSang
-                : (i == 8 || i == 15 ? BangMauBCTD.xanhChuDaoDam : BangMauBCTD.chuChinh)
-            lb.numberOfLines = laHeader ? 3 : 2
+                : (chiSoCot == 8 ? BangMauBCTD.xanhChuDaoDam : BangMauBCTD.chuChinh)
+            lb.numberOfLines = laHeader ? 2 : 0
             lb.lineBreakMode = .byWordWrapping
-            lb.textAlignment = (laHeader || i >= 8 || i == 4 || i == 17) ? .center : .left
+            lb.textAlignment = (laHeader || chiSoCot == 8) ? .center : .left
             lb.translatesAutoresizingMaskIntoConstraints = false
             o.addSubview(lb)
 
             NSLayoutConstraint.activate([
-                o.heightAnchor.constraint(greaterThanOrEqualToConstant: laHeader ? 42 : 34),
+                o.heightAnchor.constraint(greaterThanOrEqualToConstant: laHeader ? 40 : 34),
                 lb.topAnchor.constraint(equalTo: o.topAnchor, constant: 5),
                 lb.bottomAnchor.constraint(equalTo: o.bottomAnchor, constant: -5),
                 lb.leadingAnchor.constraint(equalTo: o.leadingAnchor, constant: 6),
@@ -726,74 +723,158 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
 
     func taoAnhBangTonKho() -> UIImage? {
         guard !cacDongDaLoc.isEmpty else { return nil }
-        let dsXuat = Array(cacDongDaLoc.prefix(250))
-        let tongRong = Self.doRongCacCot.reduce(0, +) + 24
+        let dsXuat = Array(cacDongDaLoc.prefix(300))
+        let le: CGFloat = 12
+        let rongBang = Self.doRongCacCot.reduce(0, +)
+        let tongRong = rongBang + le * 2
 
-        let khung = UIView()
-        khung.backgroundColor = .white
-        khung.translatesAutoresizingMaskIntoConstraints = false
-
-        let nganChinh = UIStackView()
-        nganChinh.axis = .vertical
-        nganChinh.spacing = 0
-        nganChinh.translatesAutoresizingMaskIntoConstraints = false
-        khung.addSubview(nganChinh)
-
-        // Thanh tiêu đề ảnh xuất
-        let dau = UIView()
-        dau.backgroundColor = BangMauBCTD.xanhChuDaoDam
-        let lbDau = UILabel()
         let maST = (oMaSieuThi.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let tenNhom = (nhomHangDangChon == nil || nhomHangDangChon == "__ALL__") ? "Tất cả nhóm hàng" : (nhomHangDangChon ?? "")
         let tenTT = (trangThaiDangChon == "__ALL__") ? "Tất cả trạng thái" : trangThaiDangChon
-        lbDau.text = "📦 BẢNG DỮ LIỆU TỒN KHO · SIÊU THỊ: \(maST.isEmpty ? "TẤT CẢ" : maST) · NHÓM HÀNG: \(tenNhom.uppercased()) · TRẠNG THÁI: \(tenTT.uppercased()) (\(dsXuat.count) SP)"
-        lbDau.font = .systemFont(ofSize: 14, weight: .heavy)
-        lbDau.textColor = BangMauBCTD.vangSang
-        lbDau.numberOfLines = 0
-        lbDau.translatesAutoresizingMaskIntoConstraints = false
-        dau.addSubview(lbDau)
-        NSLayoutConstraint.activate([
-            lbDau.topAnchor.constraint(equalTo: dau.topAnchor, constant: 10),
-            lbDau.bottomAnchor.constraint(equalTo: dau.bottomAnchor, constant: -10),
-            lbDau.leadingAnchor.constraint(equalTo: dau.leadingAnchor, constant: 12),
-            lbDau.trailingAnchor.constraint(equalTo: dau.trailingAnchor, constant: -12)
-        ])
-        nganChinh.addArrangedSubview(dau)
+        let chuoiTieuDe = "📦 BẢNG DỮ LIỆU TỒN KHO · SIÊU THỊ: \(maST.isEmpty ? "TẤT CẢ" : maST) · NHÓM HÀNG: \(tenNhom.uppercased()) · TRẠNG THÁI: \(tenTT.uppercased()) (\(dsXuat.count) SP)"
 
-        // Hàng đầu tiên: đúng 19 cột từ A đến S
-        let hangHeader = Self.taoHangBang(cacGiaTri: Self.tenCacCotChuan, laHeader: true, chiSoDong: -1)
-        nganChinh.addArrangedSubview(hangHeader)
+        let fontTieuDe = UIFont.systemFont(ofSize: 14.0, weight: .heavy)
+        let fontHeaderCot = UIFont.systemFont(ofSize: 11.5, weight: .heavy)
+        let fontThuong = UIFont.systemFont(ofSize: 11.5, weight: .medium)
+        let fontDam = UIFont.systemFont(ofSize: 11.5, weight: .bold)
 
-        for (i, dong) in dsXuat.enumerated() {
-            let hang = Self.taoHangBang(cacGiaTri: dong, laHeader: false, chiSoDong: i)
-            nganChinh.addArrangedSubview(hang)
+        let rectTieuDe = (chuoiTieuDe as NSString).boundingRect(
+            with: CGSize(width: rongBang - 24, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: fontTieuDe],
+            context: nil
+        )
+        let caoDau = max(42, ceil(rectTieuDe.height) + 20)
+        let caoHeaderCot: CGFloat = 40
+
+        let cacCaoDong: [CGFloat] = dsXuat.map { dong in
+            var caoMax: CGFloat = 34
+            for (viTri, chiSoCot) in Self.chiSoCotHienThi.enumerated() {
+                let giaTri = (chiSoCot < dong.count) ? dong[chiSoCot] : ""
+                guard !giaTri.isEmpty else { continue }
+                let rongO = Self.doRongCacCot[viTri] - 12
+                let fontO = (chiSoCot == 0 || chiSoCot == 3 || chiSoCot == 8) ? fontDam : fontThuong
+                let r = (giaTri as NSString).boundingRect(
+                    with: CGSize(width: max(20, rongO), height: CGFloat.greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    attributes: [.font: fontO],
+                    context: nil
+                )
+                caoMax = max(caoMax, ceil(r.height) + 12)
+            }
+            return caoMax
         }
 
-        NSLayoutConstraint.activate([
-            khung.widthAnchor.constraint(equalToConstant: tongRong),
-            nganChinh.topAnchor.constraint(equalTo: khung.topAnchor, constant: 12),
-            nganChinh.bottomAnchor.constraint(equalTo: khung.bottomAnchor, constant: -12),
-            nganChinh.leadingAnchor.constraint(equalTo: khung.leadingAnchor, constant: 12),
-            nganChinh.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -12)
-        ])
+        let tongCao = le * 2 + caoDau + caoHeaderCot + cacCaoDong.reduce(0, +)
 
-        khung.setNeedsLayout()
-        khung.layoutIfNeeded()
-        let kichThuoc = khung.systemLayoutSizeFitting(
-            CGSize(width: tongRong, height: UIView.layoutFittingCompressedSize.height),
-            withHorizontalFittingPriority: .required,
-            verticalFittingPriority: .fittingSizeLevel
-        )
-        guard kichThuoc.width > 10 && kichThuoc.height > 10 else { return nil }
-        khung.frame = CGRect(origin: .zero, size: kichThuoc)
-        khung.layoutIfNeeded()
+        let pLeft = NSMutableParagraphStyle()
+        pLeft.alignment = .left
+        pLeft.lineBreakMode = .byWordWrapping
 
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.scale = 2.0
+        let pCenter = NSMutableParagraphStyle()
+        pCenter.alignment = .center
+        pCenter.lineBreakMode = .byWordWrapping
+
+        let fmt = UIGraphicsImageRendererFormat.default()
+        fmt.scale = tongCao > 5000 ? 1.5 : 2.0
         fmt.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: kichThuoc, format: fmt)
-        return renderer.image { ctx in
-            khung.layer.render(in: ctx.cgContext)
+        if #available(iOS 12.0, *) {
+            fmt.preferredRange = .standard
+        }
+
+        return UIGraphicsImageRenderer(size: CGSize(width: tongRong, height: tongCao), format: fmt).image { rendererCtx in
+            let cg = rendererCtx.cgContext
+            UIColor.white.setFill()
+            cg.fill(CGRect(x: 0, y: 0, width: tongRong, height: tongCao))
+
+            var y: CGFloat = le
+
+            // 1. Thanh tiêu đề
+            let rDau = CGRect(x: le, y: y, width: rongBang, height: caoDau)
+            BangMauBCTD.xanhChuDaoDam.setFill()
+            cg.fill(rDau)
+            (chuoiTieuDe as NSString).draw(
+                in: CGRect(x: rDau.minX + 12, y: rDau.minY + (caoDau - ceil(rectTieuDe.height)) / 2.0, width: rongBang - 24, height: ceil(rectTieuDe.height) + 4),
+                withAttributes: [
+                    .font: fontTieuDe,
+                    .foregroundColor: BangMauBCTD.vangSang,
+                    .paragraphStyle: pLeft
+                ]
+            )
+            y += caoDau
+
+            // 2. Hàng Header 6 cột: A, C, D, G, H, I
+            let rHeader = CGRect(x: le, y: y, width: rongBang, height: caoHeaderCot)
+            BangMauBCTD.xanhChuDao.setFill()
+            cg.fill(rHeader)
+
+            var xCot: CGFloat = le
+            for (viTri, chiSoCot) in Self.chiSoCotHienThi.enumerated() {
+                let rong = Self.doRongCacCot[viTri]
+                let tenCot = Self.tenCacCotChuan[chiSoCot]
+                let rO = CGRect(x: xCot, y: y, width: rong, height: caoHeaderCot)
+                UIColor.white.withAlphaComponent(0.3).setStroke()
+                cg.setLineWidth(0.5)
+                cg.stroke(rO)
+
+                let rText = (tenCot as NSString).boundingRect(
+                    with: CGSize(width: rong - 12, height: caoHeaderCot),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    attributes: [.font: fontHeaderCot],
+                    context: nil
+                )
+                (tenCot as NSString).draw(
+                    in: CGRect(x: xCot + 6, y: y + (caoHeaderCot - ceil(rText.height)) / 2.0, width: rong - 12, height: ceil(rText.height) + 2),
+                    withAttributes: [
+                        .font: fontHeaderCot,
+                        .foregroundColor: BangMauBCTD.vangSang,
+                        .paragraphStyle: pCenter
+                    ]
+                )
+                xCot += rong
+            }
+            y += caoHeaderCot
+
+            // 3. Các dòng dữ liệu (6 cột A, C, D, G, H, I)
+            for (idx, dong) in dsXuat.enumerated() {
+                let caoDong = cacCaoDong[idx]
+                let rDong = CGRect(x: le, y: y, width: rongBang, height: caoDong)
+                let mauNen = (idx % 2 == 0) ? UIColor.white : BangMauBCTD.nenHeaderPhu
+                mauNen.setFill()
+                cg.fill(rDong)
+
+                var x: CGFloat = le
+                for (viTri, chiSoCot) in Self.chiSoCotHienThi.enumerated() {
+                    let rong = Self.doRongCacCot[viTri]
+                    let rO = CGRect(x: x, y: y, width: rong, height: caoDong)
+                    BangMauBCTD.vienThe.setStroke()
+                    cg.setLineWidth(0.5)
+                    cg.stroke(rO)
+
+                    let giaTri = (chiSoCot < dong.count) ? dong[chiSoCot] : ""
+                    if !giaTri.isEmpty {
+                        let fontO = (chiSoCot == 0 || chiSoCot == 3 || chiSoCot == 8) ? fontDam : fontThuong
+                        let mauChu = (chiSoCot == 8) ? BangMauBCTD.xanhChuDaoDam : BangMauBCTD.chuChinh
+                        let align = (chiSoCot == 8) ? pCenter : pLeft
+                        let rText = (giaTri as NSString).boundingRect(
+                            with: CGSize(width: rong - 12, height: caoDong),
+                            options: [.usesLineFragmentOrigin, .usesFontLeading],
+                            attributes: [.font: fontO],
+                            context: nil
+                        )
+                        (giaTri as NSString).draw(
+                            in: CGRect(x: x + 6, y: y + max(4, (caoDong - ceil(rText.height)) / 2.0), width: rong - 12, height: ceil(rText.height) + 2),
+                            withAttributes: [
+                                .font: fontO,
+                                .foregroundColor: mauChu,
+                                .paragraphStyle: align
+                            ]
+                        )
+                    }
+                    x += rong
+                }
+                y += caoDong
+            }
         }
     }
 
