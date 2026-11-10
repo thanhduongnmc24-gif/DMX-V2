@@ -3016,45 +3016,734 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
 
     static func taoAnhBaoCao(cho tongHop: TongHopNhanVien, ngay: Date, cheDo: LoaiCheDoDoanhThu) -> UIImage? {
         let rongAnh: CGFloat = 820
-        let bangView = BangThongSoSucKhoeNhanVienView(
-            tongHop: tongHop,
-            ngay: ngay,
-            cheDo: cheDo,
-            laCheDoXuatAnhRong: true
-        )
-        bangView.overrideUserInterfaceStyle = .light
-        bangView.translatesAutoresizingMaskIntoConstraints = false
+        let le: CGFloat = 12
+        let rongNoiDung: CGFloat = rongAnh - le * 2 // 796pt
+        let cacRong: [CGFloat] = [36, 232, 86, 86, 84, 78, 88, 106]
 
-        let caoTamThoi = max(2800, bangView.chieuCaoBangMonHienTai + 640)
-        let khung = UIView(frame: CGRect(x: 0, y: 0, width: rongAnh, height: caoTamThoi))
-        khung.backgroundColor = .white
-        khung.overrideUserInterfaceStyle = .light
-        khung.addSubview(bangView)
+        let kho = KhoDuLieu.dungChung
+        let dl = kho.duLieu(cho: ngay)
+        let dtST = (cheDo == .luyKe) ? dl.doanhThu : dl.doanhThuRealtime
+        let dsTatCaNV = kho.tongHopNhanVien(den: ngay, sapXep: .doanhThuQD, cheDo: cheDo)
+        let soNVQuanLy = max(1, dsTatCaNV.count)
+        let hangNV = (dsTatCaNV.firstIndex(where: { $0.nhanVien.maNV == tongHop.nhanVien.maNV }) ?? 0) + 1
 
-        NSLayoutConstraint.activate([
-            bangView.topAnchor.constraint(equalTo: khung.topAnchor),
-            bangView.leadingAnchor.constraint(equalTo: khung.leadingAnchor),
-            bangView.trailingAnchor.constraint(equalTo: khung.trailingAnchor),
-            bangView.widthAnchor.constraint(equalToConstant: rongAnh)
-        ])
+        let lich = TienIchNgay.lich
+        let soNgayQua = dtST.soNgayDaQua > 0 ? dtST.soNgayDaQua : max(1, lich.component(.day, from: ngay))
+        let tongNgayThang = dtST.tongSoNgay > 0 ? dtST.tongSoNgay : (lich.range(of: .day, in: .month, for: ngay)?.count ?? 30)
+        let ptTienDo = dtST.phanTramTienDoThang > 0
+            ? dtST.phanTramTienDoThang
+            : (Double(soNgayQua) / Double(max(1, tongNgayThang)) * 100.0)
 
-        khung.setNeedsLayout()
-        khung.layoutIfNeeded()
-        let kichThuoc = bangView.systemLayoutSizeFitting(
-            CGSize(width: rongAnh, height: UIView.layoutFittingCompressedSize.height),
-            withHorizontalFittingPriority: .required,
-            verticalFittingPriority: .fittingSizeLevel
-        )
-        let caoAnh = max(
-            520,
-            ceil(bangView.bounds.height),
-            ceil(kichThuoc.height),
-            ceil(bangView.chieuCaoBangMonHienTai + 510)
-        )
-        khung.frame = CGRect(x: 0, y: 0, width: rongAnh, height: caoAnh)
-        khung.setNeedsLayout()
-        khung.layoutIfNeeded()
-        return khung.ketXuatAnhChuanSang(scale: 3.0)
+        let donVi = dl.thongTinDonVi.isEmpty
+            ? (DichVuDongBo.dungChung.sieuThiDangChon.map { "ĐMX \($0.tenSieuThi.uppercased())" } ?? "ĐIỆN MÁY XANH")
+            : dl.thongTinDonVi.uppercased()
+        let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
+
+        let sk = dl.sucKhoeBoSungNhanVien[tongHop.nhanVien.maNV]
+            ?? kho.sucKhoeBoSungNhanVienThang(cho: ngay)[tongHop.nhanVien.maNV]
+        let hienThiNS = kho.caiDat.hienThiNangSuatNhanVien
+        let danhSachMon = tongHop.cacMonGiao
+
+        let fontTenMon = UIFont.systemFont(ofSize: 12.0, weight: .bold)
+        let caoHeaderBang: CGFloat = 38
+        let cacCaoDong: [CGFloat] = danhSachMon.isEmpty
+            ? [52]
+            : danhSachMon.map { m in
+                let chuoiTen = "\(m.tenNganhHang) (\(m.loaiChiTieu.maThe))"
+                let rectTen = (chuoiTen as NSString).boundingRect(
+                    with: CGSize(width: max(60, cacRong[1] - 12), height: CGFloat.greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    attributes: [.font: fontTenMon],
+                    context: nil
+                )
+                return max(44, ceil(rectTen.height) + 16)
+            }
+        let tongCaoBang = caoHeaderBang + cacCaoDong.reduce(0, +)
+
+        let caoHeader: CGFloat = 48
+        let caoTienDo: CGFloat = 46
+        let caoKhungDT: CGFloat = 196
+        let caoKhungNS: CGFloat = 120
+        let caoHangKPI: CGFloat = 76
+        let khoangCach: CGFloat = 10
+
+        let caoAnh = le + caoHeader + khoangCach + caoTienDo + khoangCach + caoKhungDT + khoangCach + caoKhungNS + khoangCach + caoHangKPI + khoangCach + tongCaoBang + le
+
+        let pLeft = NSMutableParagraphStyle()
+        pLeft.alignment = .left
+        pLeft.lineBreakMode = .byWordWrapping
+
+        let pRight = NSMutableParagraphStyle()
+        pRight.alignment = .right
+        pRight.lineBreakMode = .byTruncatingTail
+
+        let pCenter = NSMutableParagraphStyle()
+        pCenter.alignment = .center
+        pCenter.lineBreakMode = .byWordWrapping
+
+        func veTheChiSo(
+            in cg: CGContext,
+            rect: CGRect,
+            tieuDe: String,
+            giaTri: String,
+            chuoiTB: String,
+            chuoiPhu: String?,
+            trangThai: TheChiSoSucKhoeView.TrangThaiThe
+        ) {
+            cg.saveGState()
+            let path = UIBezierPath(roundedRect: rect, cornerRadius: 10)
+            UIColor.white.setFill()
+            path.fill()
+            UIColor(red: 0.90, green: 0.93, blue: 0.96, alpha: 1).setStroke()
+            path.lineWidth = 1
+            path.stroke()
+            path.addClip()
+
+            let mauVach: UIColor
+            let chuTB: String
+            let mauNenTB: UIColor
+            let mauChuTB: UIColor
+            switch trangThai {
+            case .dat:
+                mauVach = UIColor(red: 0.06, green: 0.65, blue: 0.38, alpha: 1)
+                chuTB = " ↑ \(chuoiTB) "
+                mauNenTB = UIColor(red: 0.84, green: 0.97, blue: 0.90, alpha: 1)
+                mauChuTB = UIColor(red: 0.05, green: 0.48, blue: 0.28, alpha: 1)
+            case .chuaDat:
+                mauVach = UIColor(red: 0.86, green: 0.16, blue: 0.16, alpha: 1)
+                chuTB = " ↓ \(chuoiTB) "
+                mauNenTB = UIColor(red: 0.99, green: 0.88, blue: 0.88, alpha: 1)
+                mauChuTB = UIColor(red: 0.74, green: 0.12, blue: 0.12, alpha: 1)
+            case .chuaCoSo:
+                mauVach = UIColor(red: 0.75, green: 0.80, blue: 0.86, alpha: 1)
+                chuTB = " \(chuoiTB) "
+                mauNenTB = UIColor(red: 0.94, green: 0.96, blue: 0.98, alpha: 1)
+                mauChuTB = UIColor(red: 0.42, green: 0.48, blue: 0.58, alpha: 1)
+            }
+
+            mauVach.setFill()
+            cg.fill(CGRect(x: rect.minX, y: rect.minY, width: 4, height: rect.height))
+
+            let fontTD = UIFont.systemFont(ofSize: 10.5, weight: .bold)
+            (tieuDe as NSString).draw(
+                in: CGRect(x: rect.minX + 12, y: rect.minY + 9, width: rect.width - 20, height: 24),
+                withAttributes: [
+                    .font: fontTD,
+                    .foregroundColor: UIColor(red: 0.35, green: 0.42, blue: 0.52, alpha: 1),
+                    .paragraphStyle: pLeft
+                ]
+            )
+
+            let fontTB = UIFont.systemFont(ofSize: 10.0, weight: .bold)
+            let sizeTB = (chuTB as NSString).size(withAttributes: [.font: fontTB])
+            let wTB = min(rect.width * 0.56, ceil(sizeTB.width) + 8)
+            let rTB = CGRect(x: rect.minX + 12, y: rect.maxY - 28, width: wTB, height: 20)
+            mauNenTB.setFill()
+            UIBezierPath(roundedRect: rTB, cornerRadius: 5).fill()
+            (chuTB as NSString).draw(
+                in: CGRect(x: rTB.minX, y: rTB.minY + 4, width: rTB.width, height: 14),
+                withAttributes: [
+                    .font: fontTB,
+                    .foregroundColor: mauChuTB,
+                    .paragraphStyle: pCenter
+                ]
+            )
+
+            if let phu = chuoiPhu, !phu.isEmpty {
+                let chuPhu = " \(phu) "
+                let fontPhu = UIFont.systemFont(ofSize: 9.5, weight: .semibold)
+                let sizePhu = (chuPhu as NSString).size(withAttributes: [.font: fontPhu])
+                let wPhu = ceil(sizePhu.width) + 6
+                let rPhu = CGRect(x: rTB.maxX + 4, y: rect.maxY - 28, width: wPhu, height: 20)
+                UIColor(red: 0.94, green: 0.96, blue: 0.98, alpha: 1).setFill()
+                UIBezierPath(roundedRect: rPhu, cornerRadius: 5).fill()
+                (chuPhu as NSString).draw(
+                    in: CGRect(x: rPhu.minX, y: rPhu.minY + 4, width: rPhu.width, height: 14),
+                    withAttributes: [
+                        .font: fontPhu,
+                        .foregroundColor: UIColor(red: 0.38, green: 0.44, blue: 0.54, alpha: 1),
+                        .paragraphStyle: pCenter
+                    ]
+                )
+            }
+
+            let fontGT = UIFont.monospacedDigitSystemFont(ofSize: 17.5, weight: .heavy)
+            let mauGT = trangThai == .chuaCoSo
+                ? UIColor(red: 0.45, green: 0.51, blue: 0.60, alpha: 1)
+                : UIColor(red: 0.06, green: 0.09, blue: 0.16, alpha: 1)
+            (giaTri as NSString).draw(
+                in: CGRect(x: rect.minX + 80, y: rect.maxY - 31, width: rect.width - 90, height: 24),
+                withAttributes: [
+                    .font: fontGT,
+                    .foregroundColor: mauGT,
+                    .paragraphStyle: pRight
+                ]
+            )
+            cg.restoreGState()
+        }
+
+        func veTheKPI(
+            in cg: CGContext,
+            rect: CGRect,
+            tieuDe: String,
+            giaTri: String,
+            phuDe: String,
+            mauBatDau: UIColor,
+            mauKetThuc: UIColor
+        ) {
+            cg.saveGState()
+            let path = UIBezierPath(roundedRect: rect, cornerRadius: 10)
+            path.addClip()
+            if let grad = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [mauBatDau.cgColor, mauKetThuc.cgColor] as CFArray,
+                locations: [0.0, 1.0]
+            ) {
+                cg.drawLinearGradient(
+                    grad,
+                    start: CGPoint(x: rect.minX, y: rect.minY),
+                    end: CGPoint(x: rect.maxX, y: rect.maxY),
+                    options: []
+                )
+            } else {
+                mauBatDau.setFill()
+                cg.fill(rect)
+            }
+
+            let yTieuDe: CGFloat = rect.minY + 4
+            let caoTieuDe = round(rect.height * 0.27)
+            let yGiaTri = yTieuDe + caoTieuDe
+            let caoGiaTri = round(rect.height * 0.38)
+            let yVach = yGiaTri + caoGiaTri + 1
+            let yPhu = yVach + 3
+
+            UIColor.white.withAlphaComponent(0.12).setFill()
+            cg.fill(CGRect(x: rect.minX + 3.5, y: rect.minY, width: rect.width - 3.5, height: caoTieuDe + 4))
+            UIColor.white.withAlphaComponent(0.72).setFill()
+            cg.fill(CGRect(x: rect.minX, y: rect.minY, width: 3.5, height: rect.height))
+            UIColor.white.withAlphaComponent(0.26).setFill()
+            cg.fill(CGRect(x: rect.minX + 6, y: yVach, width: rect.width - 12, height: 1))
+
+            (tieuDe as NSString).draw(
+                in: CGRect(x: rect.minX + 6, y: yTieuDe + 2, width: rect.width - 12, height: caoTieuDe),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 11.5, weight: .bold),
+                    .foregroundColor: UIColor.white.withAlphaComponent(0.96),
+                    .paragraphStyle: pCenter
+                ]
+            )
+            (giaTri as NSString).draw(
+                in: CGRect(x: rect.minX + 6, y: yGiaTri + 1, width: rect.width - 12, height: caoGiaTri),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 22.0, weight: .heavy),
+                    .foregroundColor: UIColor.white,
+                    .paragraphStyle: pCenter
+                ]
+            )
+            (phuDe as NSString).draw(
+                in: CGRect(x: rect.minX + 6, y: yPhu, width: rect.width - 12, height: max(14, rect.maxY - yPhu - 2)),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 10.5, weight: .bold),
+                    .foregroundColor: UIColor.white.withAlphaComponent(0.92),
+                    .paragraphStyle: pCenter
+                ]
+            )
+            cg.restoreGState()
+        }
+
+        let fmt = UIGraphicsImageRendererFormat.default()
+        fmt.scale = 2.0
+        fmt.opaque = true
+        if #available(iOS 12.0, *) {
+            fmt.preferredRange = .standard
+        }
+
+        return UIGraphicsImageRenderer(size: CGSize(width: rongAnh, height: caoAnh), format: fmt).image { rendererCtx in
+            let cg = rendererCtx.cgContext
+            UIColor.white.setFill()
+            cg.fill(CGRect(x: 0, y: 0, width: rongAnh, height: caoAnh))
+
+            var y: CGFloat = le
+
+            // ==================== 1. HEADER ====================
+            let chuPhuHeader = "\(donVi)  •  Mã NV: \(tongHop.nhanVien.maNV)  •  Ngày \(ngayStr)"
+            (chuPhuHeader as NSString).draw(
+                in: CGRect(x: le, y: y + 2, width: rongNoiDung - 210, height: 18),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 11.5, weight: .bold),
+                    .foregroundColor: UIColor(red: 0.40, green: 0.46, blue: 0.55, alpha: 1),
+                    .paragraphStyle: pLeft
+                ]
+            )
+
+            let chuHangBadge = " 🏆 Hạng \(hangNV)/\(soNVQuanLy) • \(cheDo.tieuDe) "
+            let fontHang = UIFont.systemFont(ofSize: 11.0, weight: .heavy)
+            let sizeHang = (chuHangBadge as NSString).size(withAttributes: [.font: fontHang])
+            let wHang = ceil(sizeHang.width) + 10
+            let rHang = CGRect(x: le + rongNoiDung - wHang, y: y, width: wHang, height: 22)
+            UIColor(red: 0.91, green: 0.95, blue: 1.0, alpha: 1).setFill()
+            UIBezierPath(roundedRect: rHang, cornerRadius: 6).fill()
+            (chuHangBadge as NSString).draw(
+                in: CGRect(x: rHang.minX, y: rHang.minY + 4, width: rHang.width, height: 16),
+                withAttributes: [
+                    .font: fontHang,
+                    .foregroundColor: BangMauBCTD.xanhChuDaoDam,
+                    .paragraphStyle: pCenter
+                ]
+            )
+
+            let chuTieuDeChinh = "SỨC KHỎE CHI TIẾT: \(tongHop.nhanVien.hoTen.uppercased())"
+            (chuTieuDeChinh as NSString).draw(
+                in: CGRect(x: le, y: y + 23, width: rongNoiDung, height: 25),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 19.0, weight: .heavy),
+                    .foregroundColor: UIColor(red: 0.06, green: 0.09, blue: 0.16, alpha: 1),
+                    .paragraphStyle: pLeft
+                ]
+            )
+            y += caoHeader + khoangCach
+
+            // ==================== 1A. THANH TIẾN ĐỘ THÁNG ====================
+            let rTienDo = CGRect(x: le, y: y, width: rongNoiDung, height: caoTienDo)
+            let pathTD = UIBezierPath(roundedRect: rTienDo, cornerRadius: 10)
+            UIColor.white.setFill()
+            pathTD.fill()
+            UIColor(red: 0.86, green: 0.89, blue: 0.94, alpha: 1).setStroke()
+            pathTD.lineWidth = 1
+            pathTD.stroke()
+
+            let attrTD = NSMutableAttributedString(
+                string: "Tiến độ tháng   ",
+                attributes: [
+                    .font: UIFont.systemFont(ofSize: 12.0, weight: .semibold),
+                    .foregroundColor: UIColor(red: 0.35, green: 0.42, blue: 0.52, alpha: 1)
+                ]
+            )
+            attrTD.append(NSAttributedString(
+                string: "Ngày \(soNgayQua) / \(tongNgayThang)",
+                attributes: [
+                    .font: UIFont.systemFont(ofSize: 12.0, weight: .heavy),
+                    .foregroundColor: UIColor(red: 0.08, green: 0.12, blue: 0.20, alpha: 1)
+                ]
+            ))
+            attrTD.draw(in: CGRect(x: rTienDo.minX + 12, y: rTienDo.minY + 8, width: 320, height: 18))
+
+            let chuPTTD = String(format: "%.1f%%", ptTienDo)
+            (chuPTTD as NSString).draw(
+                in: CGRect(x: rTienDo.maxX - 112, y: rTienDo.minY + 8, width: 100, height: 18),
+                withAttributes: [
+                    .font: UIFont.monospacedDigitSystemFont(ofSize: 12.0, weight: .heavy),
+                    .foregroundColor: UIColor(red: 0.08, green: 0.12, blue: 0.20, alpha: 1),
+                    .paragraphStyle: pRight
+                ]
+            )
+
+            let rTrackTD = CGRect(x: rTienDo.minX + 12, y: rTienDo.minY + 31, width: rTienDo.width - 24, height: 6)
+            UIColor(red: 0.91, green: 0.93, blue: 0.97, alpha: 1).setFill()
+            UIBezierPath(roundedRect: rTrackTD, cornerRadius: 3).fill()
+
+            let tyLeTD = CGFloat(min(1.0, max(0.02, ptTienDo / 100.0)))
+            let rFillTD = CGRect(x: rTrackTD.minX, y: rTrackTD.minY, width: rTrackTD.width * tyLeTD, height: 6)
+            UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1).setFill()
+            UIBezierPath(roundedRect: rFillTD, cornerRadius: 3).fill()
+
+            y += caoTienDo + khoangCach
+
+            // ==================== 1B. KHỐI DOANH THU 6 MỤC ====================
+            let rKhungDT = CGRect(x: le, y: y, width: rongNoiDung, height: caoKhungDT)
+            let pathDT = UIBezierPath(roundedRect: rKhungDT, cornerRadius: 12)
+            UIColor(red: 0.94, green: 0.97, blue: 1.0, alpha: 1).setFill()
+            pathDT.fill()
+            UIColor(red: 0.82, green: 0.89, blue: 0.98, alpha: 1).setStroke()
+            pathDT.lineWidth = 1
+            pathDT.stroke()
+
+            let dtQD = (sk?.doanhThuQDSucKhoe ?? 0) > 0 ? (sk?.doanhThuQDSucKhoe ?? 0) : max(0, tongHop.doanhThuQD)
+            let tbDTQD = sk?.tbDoanhThuQDSieuThi
+            let mtQD = (sk?.mucTieuTargetQD ?? 0) > 0 ? (sk?.mucTieuTargetQD ?? 0) : max(0, tongHop.doanhThuCaNhan?.target ?? 0)
+            let ptTarget: Double = {
+                if let v = sk?.phanTramTarget, v > 0 { return v }
+                if mtQD > 0 && dtQD > 0 { return (dtQD / mtQD) * 100.0 }
+                return max(0, tongHop.doanhThuCaNhan?.phanTramHT ?? 0)
+            }()
+            let tbTarget = sk?.tbPhanTramTarget
+            let soBill = (sk?.soLuotBillBanHang ?? 0) > 0 ? (sk?.soLuotBillBanHang ?? 0) : max(0, tongHop.soLuongDon)
+            let tbBill = sk?.tbSoLuotBillBanHang
+            let ptQuyDoi = (sk?.phanTramQuyDoi ?? 0) > 0 ? (sk?.phanTramQuyDoi ?? 0) : max(0, tongHop.phanTramTiTrong)
+            let tbQuyDoi = sk?.tbPhanTramQuyDoi
+            let ptTraCham = (sk?.phanTramTraCham ?? 0) > 0 ? (sk?.phanTramTraCham ?? 0) : max(0, tongHop.doanhThuCaNhan?.phanTramTraGop ?? 0)
+            let tbTraCham = sk?.tbPhanTramTraCham
+            let ptBanKem = max(0, sk?.phanTramBanKem ?? 0)
+            let tbBanKem = sk?.tbPhanTramBanKem
+
+            func trangThaiSoVoiTB(_ giaTri: Double, _ tb: Double?) -> TheChiSoSucKhoeView.TrangThaiThe {
+                if let tb = tb, tb > 0 {
+                    return giaTri >= tb - 0.001 ? .dat : .chuaDat
+                }
+                return giaTri > 0 ? .dat : .chuaCoSo
+            }
+
+            let ttDT1 = trangThaiSoVoiTB(dtQD, tbDTQD)
+            let ttDT2 = trangThaiSoVoiTB(ptTarget, tbTarget)
+            let ttDT3 = trangThaiSoVoiTB(soBill, tbBill)
+            let ttDT4 = trangThaiSoVoiTB(ptQuyDoi, tbQuyDoi)
+            let ttDT5 = trangThaiSoVoiTB(ptTraCham, tbTraCham)
+            let ttDT6 = trangThaiSoVoiTB(ptBanKem, tbBanKem)
+            let soMucDatDT = [ttDT1, ttDT2, ttDT3, ttDT4, ttDT5, ttDT6].filter { $0 == .dat }.count
+
+            ("DOANH THU" as NSString).draw(
+                in: CGRect(x: rKhungDT.minX + 10, y: rKhungDT.minY + 11, width: 82, height: 18),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 12.0, weight: .heavy),
+                    .foregroundColor: UIColor(red: 0.08, green: 0.32, blue: 0.78, alpha: 1),
+                    .paragraphStyle: pLeft
+                ]
+            )
+            let rDemDT = CGRect(x: rKhungDT.minX + 94, y: rKhungDT.minY + 10, width: 32, height: 18)
+            UIColor.white.setFill()
+            UIBezierPath(roundedRect: rDemDT, cornerRadius: 6).fill()
+            ("\(soMucDatDT)/6" as NSString).draw(
+                in: CGRect(x: rDemDT.minX, y: rDemDT.minY + 2, width: rDemDT.width, height: 15),
+                withAttributes: [
+                    .font: UIFont.monospacedDigitSystemFont(ofSize: 11.0, weight: .heavy),
+                    .foregroundColor: UIColor(red: 0.08, green: 0.32, blue: 0.78, alpha: 1),
+                    .paragraphStyle: pCenter
+                ]
+            )
+
+            let gapThe: CGFloat = 8
+            let rongThe3 = (rKhungDT.width - 20 - gapThe * 2) / 3.0
+            let caoTheChiSo: CGFloat = 68
+            let yHangDT1 = rKhungDT.minY + 34
+            let yHangDT2 = yHangDT1 + caoTheChiSo + 8
+
+            let dsTheDT: [(String, String, String, String?, TheChiSoSucKhoeView.TrangThaiThe)] = [
+                ("DOANH THU QĐ", "\(dtQD.chuoiSoMotLeVN) tr", tbDTQD != nil ? "TB \(tbDTQD!.chuoiSoMotLeVN) tr" : "TB 0 tr", nil, ttDT1),
+                ("% TARGET", "\(Int(round(ptTarget)))%", tbTarget != nil ? "TB \(Int(round(tbTarget!)))%" : "TB 0%", mtQD > 0 ? "MT \(mtQD.chuoiSoMotLeVN) tr" : nil, ttDT2),
+                ("SỐ LƯỢT BILL BÁN HÀNG", soBill.chuoiSoNguyenVN, tbBill != nil ? "TB \(tbBill!.chuoiSoNguyenVN)" : "TB 0", nil, ttDT3),
+                ("% QUY ĐỔI", "\(Int(round(ptQuyDoi)))%", tbQuyDoi != nil ? "TB \(Int(round(tbQuyDoi!)))%" : "TB 0%", nil, ttDT4),
+                ("% TRẢ CHẬM", "\(Int(round(ptTraCham)))%", tbTraCham != nil ? "TB \(Int(round(tbTraCham!)))%" : "TB 0%", nil, ttDT5),
+                ("% BÁN KÈM", "\(Int(round(ptBanKem)))%", tbBanKem != nil ? "TB \(Int(round(tbBanKem!)))%" : "TB 0%", nil, ttDT6)
+            ]
+
+            for (idx, item) in dsTheDT.enumerated() {
+                let cot = idx % 3
+                let hang = idx / 3
+                let xThe = rKhungDT.minX + 10 + CGFloat(cot) * (rongThe3 + gapThe)
+                let yThe = hang == 0 ? yHangDT1 : yHangDT2
+                veTheChiSo(
+                    in: cg,
+                    rect: CGRect(x: xThe, y: yThe, width: rongThe3, height: caoTheChiSo),
+                    tieuDe: item.0,
+                    giaTri: item.1,
+                    chuoiTB: item.2,
+                    chuoiPhu: item.3,
+                    trangThai: item.4
+                )
+            }
+
+            y += caoKhungDT + khoangCach
+
+            // ==================== 1C. KHỐI NĂNG SUẤT 3 MỤC ====================
+            let rKhungNS = CGRect(x: le, y: y, width: rongNoiDung, height: caoKhungNS)
+            let pathNS = UIBezierPath(roundedRect: rKhungNS, cornerRadius: 12)
+            UIColor(red: 0.93, green: 0.98, blue: 0.96, alpha: 1).setFill()
+            pathNS.fill()
+            UIColor(red: 0.78, green: 0.92, blue: 0.85, alpha: 1).setStroke()
+            pathNS.lineWidth = 1
+            pathNS.stroke()
+
+            let erp = max(0, sk?.diemThuongERP ?? 0)
+            let tbErp = sk?.tbDiemThuongERP
+            let erpGC = max(0, sk?.diemThuongTrenGioCong ?? 0)
+            let tbErpGC = sk?.tbDiemThuongTrenGioCong
+            let dtGC = max(0, sk?.dtqdTrenGioCong ?? 0)
+            let tbDtGC = sk?.tbDtqdTrenGioCong
+
+            func trangThaiNS(_ giaTri: Double, _ tb: Double?) -> TheChiSoSucKhoeView.TrangThaiThe {
+                guard hienThiNS else { return .chuaCoSo }
+                if let tb = tb, tb > 0 {
+                    return giaTri >= tb - 0.001 ? .dat : .chuaDat
+                }
+                return giaTri > 0 ? .dat : .chuaCoSo
+            }
+
+            let ttNS1 = trangThaiNS(erp, tbErp)
+            let ttNS2 = trangThaiNS(erpGC, tbErpGC)
+            let ttNS3 = trangThaiNS(dtGC, tbDtGC)
+            let soDatNS = [ttNS1, ttNS2, ttNS3].filter { $0 == .dat }.count
+
+            ("NĂNG SUẤT" as NSString).draw(
+                in: CGRect(x: rKhungNS.minX + 10, y: rKhungNS.minY + 11, width: 78, height: 18),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 12.0, weight: .heavy),
+                    .foregroundColor: UIColor(red: 0.05, green: 0.48, blue: 0.28, alpha: 1),
+                    .paragraphStyle: pLeft
+                ]
+            )
+            let rDemNS = CGRect(x: rKhungNS.minX + 90, y: rKhungNS.minY + 10, width: 32, height: 18)
+            UIColor.white.setFill()
+            UIBezierPath(roundedRect: rDemNS, cornerRadius: 6).fill()
+            ((hienThiNS ? "\(soDatNS)/3" : "*") as NSString).draw(
+                in: CGRect(x: rDemNS.minX, y: rDemNS.minY + 2, width: rDemNS.width, height: 15),
+                withAttributes: [
+                    .font: UIFont.monospacedDigitSystemFont(ofSize: 11.0, weight: .heavy),
+                    .foregroundColor: UIColor(red: 0.05, green: 0.48, blue: 0.28, alpha: 1),
+                    .paragraphStyle: pCenter
+                ]
+            )
+
+            let dsTheNS: [(String, String, String, TheChiSoSucKhoeView.TrangThaiThe)] = [
+                ("ĐIỂM THƯỞNG ERP", hienThiNS ? erp.chuoiSoNguyenVN : "*", hienThiNS ? (tbErp != nil ? "TB \(tbErp!.chuoiSoNguyenVN)" : "TB 0") : "TB *", ttNS1),
+                ("ĐIỂM THƯỞNG / GIỜ CÔNG", hienThiNS ? erpGC.chuoiSoNguyenVN : "*", hienThiNS ? (tbErpGC != nil ? "TB \(tbErpGC!.chuoiSoNguyenVN)" : "TB 0") : "TB *", ttNS2),
+                ("DTQĐ / GIỜ CÔNG", hienThiNS ? dtGC.chuoiSoVN : "*", hienThiNS ? (tbDtGC != nil ? "TB \(tbDtGC!.chuoiSoVN)" : "TB 0") : "TB *", ttNS3)
+            ]
+
+            let yHangNS = rKhungNS.minY + 36
+            for (idx, item) in dsTheNS.enumerated() {
+                let xThe = rKhungNS.minX + 10 + CGFloat(idx) * (rongThe3 + gapThe)
+                veTheChiSo(
+                    in: cg,
+                    rect: CGRect(x: xThe, y: yHangNS, width: rongThe3, height: caoTheChiSo),
+                    tieuDe: item.0,
+                    giaTri: item.1,
+                    chuoiTB: item.2,
+                    chuoiPhu: nil,
+                    trangThai: item.3
+                )
+            }
+
+            y += caoKhungNS + khoangCach
+
+            // ==================== 2. HAI THẺ KPI THI ĐUA ====================
+            let tongMon = tongHop.tongMonGiao
+            let soMonDat = tongHop.soMonDat
+            let soMonChua = max(0, tongMon - soMonDat)
+            let soMonGanDat = tongHop.cacMonGiao.filter { !$0.daDat && $0.phanTramHT >= 70.0 }.count
+            let tyLeMon = tongMon > 0 ? Int(round(Double(soMonDat) / Double(tongMon) * 100.0)) : 0
+
+            let rongKPI = (rongNoiDung - 8) / 2.0
+            veTheKPI(
+                in: cg,
+                rect: CGRect(x: le, y: y, width: rongKPI, height: caoHangKPI),
+                tieuDe: "🏆 MÔN THI ĐUA HOÀN THÀNH",
+                giaTri: "\(soMonDat)/\(tongMon)",
+                phuDe: "HOÀN THÀNH: \(tyLeMon)% SỐ MÔN",
+                mauBatDau: UIColor(red: 0.95, green: 0.56, blue: 0.05, alpha: 1),
+                mauKetThuc: UIColor(red: 0.86, green: 0.44, blue: 0.02, alpha: 1)
+            )
+            veTheKPI(
+                in: cg,
+                rect: CGRect(x: le + rongKPI + 8, y: y, width: rongKPI, height: caoHangKPI),
+                tieuDe: "📈 % HT THI ĐUA TRUNG BÌNH",
+                giaTri: tongHop.phanTramHTTB.chuoiPhanTramVN,
+                phuDe: "ĐẠT \(soMonDat) • GẦN ĐẠT \(soMonGanDat) • CHƯA \(soMonChua)",
+                mauBatDau: UIColor(red: 0.55, green: 0.31, blue: 0.95, alpha: 1),
+                mauKetThuc: UIColor(red: 0.45, green: 0.22, blue: 0.88, alpha: 1)
+            )
+
+            y += caoHangKPI + khoangCach
+
+            // ==================== 3. BẢNG CHI TIẾT CÁC MÔN THI ĐUA ====================
+            let rBang = CGRect(x: le, y: y, width: rongNoiDung, height: tongCaoBang)
+            cg.saveGState()
+            let pathBang = UIBezierPath(roundedRect: rBang, cornerRadius: 10)
+            UIColor.white.setFill()
+            pathBang.fill()
+            pathBang.addClip()
+
+            let rHeader = CGRect(x: rBang.minX, y: rBang.minY, width: rBang.width, height: caoHeaderBang)
+            UIColor(red: 0.94, green: 0.96, blue: 0.98, alpha: 1).setFill()
+            cg.fill(rHeader)
+
+            let tieuDeCot = ["#", "MÔN THI ĐUA", "THỰC HIỆN", "TARGET", "% HT", "% HT ST", "CÒN LẠI", "TIẾN ĐỘ"]
+            let fontHeaderCot = UIFont.systemFont(ofSize: 10.5, weight: .heavy)
+            let mauHeaderCot = UIColor(red: 0.25, green: 0.31, blue: 0.40, alpha: 1)
+            var xH: CGFloat = rBang.minX
+            for (i, chu) in tieuDeCot.enumerated() {
+                let w = cacRong[i]
+                let align: NSMutableParagraphStyle = (i == 1) ? pLeft : (i == 2 || i == 3 || i == 6 ? pRight : pCenter)
+                (chu as NSString).draw(
+                    in: CGRect(x: xH + 4, y: rHeader.minY + 11, width: w - 8, height: 18),
+                    withAttributes: [
+                        .font: fontHeaderCot,
+                        .foregroundColor: mauHeaderCot,
+                        .paragraphStyle: align
+                    ]
+                )
+                xH += w
+            }
+            UIColor(red: 0.84, green: 0.88, blue: 0.93, alpha: 1).setFill()
+            cg.fill(CGRect(x: rBang.minX, y: rHeader.maxY - 1, width: rBang.width, height: 1))
+
+            if danhSachMon.isEmpty {
+                ("Không có môn thi đua nào." as NSString).draw(
+                    in: CGRect(x: rBang.minX, y: rHeader.maxY + 16, width: rBang.width, height: 22),
+                    withAttributes: [
+                        .font: UIFont.systemFont(ofSize: 12.5, weight: .medium),
+                        .foregroundColor: UIColor(red: 0.45, green: 0.51, blue: 0.60, alpha: 1),
+                        .paragraphStyle: pCenter
+                    ]
+                )
+            } else {
+                let fontSo = UIFont.monospacedDigitSystemFont(ofSize: 12.0, weight: .bold)
+                var yDong: CGFloat = rHeader.maxY
+                for (idx, m) in danhSachMon.enumerated() {
+                    let caoDong = cacCaoDong[idx]
+                    let rDong = CGRect(x: rBang.minX, y: yDong, width: rBang.width, height: caoDong)
+
+                    let mauNenDong: UIColor
+                    if m.daDat {
+                        mauNenDong = UIColor(red: 0.93, green: 0.99, blue: 0.95, alpha: 1)
+                    } else if m.phanTramHT >= 70.0 {
+                        mauNenDong = UIColor(red: 1.0, green: 0.98, blue: 0.92, alpha: 1)
+                    } else {
+                        mauNenDong = (idx % 2 == 0)
+                            ? UIColor(red: 1.0, green: 0.96, blue: 0.96, alpha: 0.65)
+                            : UIColor(red: 1.0, green: 0.94, blue: 0.95, alpha: 0.85)
+                    }
+                    mauNenDong.setFill()
+                    cg.fill(rDong)
+
+                    var xCot: CGFloat = rBang.minX
+                    let ySo = yDong + (caoDong - 16) / 2.0
+
+                    for i in 0..<cacRong.count {
+                        let w = cacRong[i]
+                        switch i {
+                        case 0:
+                            ("\(idx + 1)" as NSString).draw(
+                                in: CGRect(x: xCot, y: ySo, width: w, height: 18),
+                                withAttributes: [
+                                    .font: fontSo,
+                                    .foregroundColor: UIColor(red: 0.42, green: 0.48, blue: 0.56, alpha: 1),
+                                    .paragraphStyle: pCenter
+                                ]
+                            )
+                        case 1:
+                            let chuTen = "\(m.tenNganhHang) (\(m.loaiChiTieu.maThe))" as NSString
+                            let rText = chuTen.boundingRect(
+                                with: CGSize(width: w - 12, height: caoDong),
+                                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                                attributes: [.font: fontTenMon],
+                                context: nil
+                            )
+                            let yTen = yDong + max(4, (caoDong - ceil(rText.height)) / 2.0)
+                            chuTen.draw(
+                                in: CGRect(x: xCot + 6, y: yTen, width: w - 12, height: ceil(rText.height) + 2),
+                                withAttributes: [
+                                    .font: fontTenMon,
+                                    .foregroundColor: UIColor(red: 0.08, green: 0.12, blue: 0.20, alpha: 1),
+                                    .paragraphStyle: pLeft
+                                ]
+                            )
+                        case 2:
+                            (m.thucHien.chuoiSoVN as NSString).draw(
+                                in: CGRect(x: xCot + 6, y: ySo, width: w - 12, height: 18),
+                                withAttributes: [
+                                    .font: fontSo,
+                                    .foregroundColor: UIColor(red: 0.08, green: 0.12, blue: 0.20, alpha: 1),
+                                    .paragraphStyle: pRight
+                                ]
+                            )
+                        case 3:
+                            (m.targetCaNhan.chuoiSoVN as NSString).draw(
+                                in: CGRect(x: xCot + 6, y: ySo, width: w - 12, height: 18),
+                                withAttributes: [
+                                    .font: fontSo,
+                                    .foregroundColor: UIColor(red: 0.40, green: 0.46, blue: 0.55, alpha: 1),
+                                    .paragraphStyle: pRight
+                                ]
+                            )
+                        case 4:
+                            let rPill = CGRect(x: xCot + 5, y: yDong + (caoDong - 24) / 2.0, width: w - 10, height: 24)
+                            let mauNenPill: UIColor
+                            let mauChuPill: UIColor
+                            if m.daDat {
+                                mauNenPill = UIColor(red: 0.82, green: 0.96, blue: 0.87, alpha: 1)
+                                mauChuPill = UIColor(red: 0.05, green: 0.48, blue: 0.24, alpha: 1)
+                            } else if m.phanTramHT >= 70.0 {
+                                mauNenPill = UIColor(red: 0.99, green: 0.92, blue: 0.76, alpha: 1)
+                                mauChuPill = UIColor(red: 0.72, green: 0.36, blue: 0.04, alpha: 1)
+                            } else {
+                                mauNenPill = UIColor(red: 0.98, green: 0.84, blue: 0.86, alpha: 1)
+                                mauChuPill = UIColor(red: 0.76, green: 0.12, blue: 0.16, alpha: 1)
+                            }
+                            mauNenPill.setFill()
+                            UIBezierPath(roundedRect: rPill, cornerRadius: 6).fill()
+                            (m.phanTramHT.chuoiPhanTramVN as NSString).draw(
+                                in: CGRect(x: rPill.minX, y: rPill.minY + 5, width: rPill.width, height: 16),
+                                withAttributes: [
+                                    .font: UIFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .heavy),
+                                    .foregroundColor: mauChuPill,
+                                    .paragraphStyle: pCenter
+                                ]
+                            )
+                        case 5:
+                            (m.phanTramSieuThi.chuoiPhanTramVN as NSString).draw(
+                                in: CGRect(x: xCot + 4, y: ySo, width: w - 8, height: 18),
+                                withAttributes: [
+                                    .font: fontSo,
+                                    .foregroundColor: UIColor(red: 0.42, green: 0.48, blue: 0.56, alpha: 1),
+                                    .paragraphStyle: pCenter
+                                ]
+                            )
+                        case 6:
+                            let chuConLai: String
+                            let mauConLai: UIColor
+                            if m.conLai <= 0.005 {
+                                let vuot = abs(m.conLai)
+                                chuConLai = vuot > 0.005 ? "+\(vuot.chuoiSoVN)" : "0,00"
+                                mauConLai = UIColor(red: 0.05, green: 0.50, blue: 0.24, alpha: 1)
+                            } else {
+                                chuConLai = m.conLai.chuoiSoVN
+                                mauConLai = UIColor(red: 0.78, green: 0.12, blue: 0.16, alpha: 1)
+                            }
+                            (chuConLai as NSString).draw(
+                                in: CGRect(x: xCot + 6, y: ySo, width: w - 12, height: 18),
+                                withAttributes: [
+                                    .font: fontSo,
+                                    .foregroundColor: mauConLai,
+                                    .paragraphStyle: pRight
+                                ]
+                            )
+                        case 7:
+                            let leThanh: CGFloat = 10
+                            let rongTrack = w - leThanh * 2
+                            let yTrack = yDong + (caoDong - 6) / 2.0
+                            let rTrack = CGRect(x: xCot + leThanh, y: yTrack, width: rongTrack, height: 6)
+                            UIColor(red: 0.89, green: 0.91, blue: 0.95, alpha: 1).setFill()
+                            UIBezierPath(roundedRect: rTrack, cornerRadius: 3).fill()
+
+                            let mauTienDo: UIColor = m.daDat
+                                ? UIColor(red: 0.08, green: 0.62, blue: 0.30, alpha: 1)
+                                : (m.phanTramHT >= 70.0
+                                    ? UIColor(red: 0.95, green: 0.56, blue: 0.05, alpha: 1)
+                                    : UIColor(red: 0.84, green: 0.16, blue: 0.20, alpha: 1))
+                            let pct = CGFloat(min(1.0, max(0.04, m.phanTramHT / 100.0)))
+                            let rFill = CGRect(x: rTrack.minX, y: rTrack.minY, width: rongTrack * pct, height: 6)
+                            mauTienDo.setFill()
+                            UIBezierPath(roundedRect: rFill, cornerRadius: 3).fill()
+
+                            let rCham = CGRect(x: xCot + leThanh - 2, y: yDong + (caoDong - 8) / 2.0, width: 8, height: 8)
+                            UIBezierPath(ovalIn: rCham).fill()
+                        default:
+                            break
+                        }
+                        xCot += w
+                    }
+
+                    UIColor(red: 0.88, green: 0.90, blue: 0.94, alpha: 1).setFill()
+                    cg.fill(CGRect(x: rBang.minX, y: yDong + caoDong - 0.5, width: rBang.width, height: 0.5))
+                    yDong += caoDong
+                }
+            }
+
+            cg.restoreGState()
+            UIColor(red: 0.85, green: 0.88, blue: 0.93, alpha: 1).setStroke()
+            pathBang.lineWidth = 1
+            pathBang.stroke()
+        }
     }
 }
 
@@ -3435,7 +4124,12 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
     private func hienChiaSe(_ muc: [Any]) {
         let vc = UIActivityViewController(activityItems: muc, applicationActivities: nil)
         if let pop = vc.popoverPresentationController {
-            pop.barButtonItem = navigationItem.rightBarButtonItem
+            if let barItem = navigationItem.rightBarButtonItems?.first ?? navigationItem.rightBarButtonItem {
+                pop.barButtonItem = barItem
+            } else {
+                pop.sourceView = view
+                pop.sourceRect = CGRect(x: view.bounds.midX, y: 80, width: 1, height: 1)
+            }
         }
         present(vc, animated: true)
     }
@@ -3454,19 +4148,35 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
         guard !cacAnh.isEmpty else { return nil }
         if cacAnh.count == 1 { return cacAnh[0] }
 
-        let khoangCach: CGFloat = 18
-        let rong = cacAnh.map { $0.size.width }.max() ?? 820
-        let tongCao = cacAnh.reduce(CGFloat(0)) { $0 + $1.size.height } + CGFloat(cacAnh.count - 1) * khoangCach
+        let soCot = cacAnh.count >= 4 ? 2 : 1
+        let khoangCach: CGFloat = 16
+        let rongMoiAnh = cacAnh.map { $0.size.width }.max() ?? 820
+        let rong = CGFloat(soCot) * rongMoiAnh + CGFloat(soCot - 1) * khoangCach
 
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.scale = 2.0
+        var cacHang: [[UIImage]] = []
+        var idx = 0
+        while idx < cacAnh.count {
+            let cuoi = min(idx + soCot, cacAnh.count)
+            cacHang.append(Array(cacAnh[idx..<cuoi]))
+            idx = cuoi
+        }
+
+        let caoCacHang = cacHang.map { hang in hang.map { $0.size.height }.max() ?? 0 }
+        let tongCao = caoCacHang.reduce(0, +) + CGFloat(max(0, cacHang.count - 1)) * khoangCach
+
+        let fmt = UIGraphicsImageRendererFormat.default()
+        fmt.scale = tongCao > 6000 ? 1.0 : 1.5
+        fmt.opaque = true
         return UIGraphicsImageRenderer(size: CGSize(width: rong, height: tongCao), format: fmt).image { ctx in
             UIColor(red: 0.94, green: 0.95, blue: 0.97, alpha: 1).setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: rong, height: tongCao))
             var y: CGFloat = 0
-            for anh in cacAnh {
-                anh.draw(in: CGRect(x: (rong - anh.size.width) / 2, y: y, width: anh.size.width, height: anh.size.height))
-                y += anh.size.height + khoangCach
+            for (hIdx, hang) in cacHang.enumerated() {
+                for (cIdx, anh) in hang.enumerated() {
+                    let x = CGFloat(cIdx) * (rongMoiAnh + khoangCach)
+                    anh.draw(in: CGRect(x: x, y: y, width: anh.size.width, height: anh.size.height))
+                }
+                y += caoCacHang[hIdx] + khoangCach
             }
         }
     }

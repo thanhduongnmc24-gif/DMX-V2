@@ -46,50 +46,50 @@ extension UIView {
         return nil
     }
 
-    func buocBoCucToanBo() {
+    private func apDungKieuSangDeQuy(scale: CGFloat) {
         overrideUserInterfaceStyle = .light
-        setNeedsLayout()
-        layoutIfNeeded()
-        if let stack = self as? UIStackView {
-            for v in stack.arrangedSubviews {
-                v.buocBoCucToanBo()
-            }
-        }
-        for sub in subviews {
-            sub.buocBoCucToanBo()
-        }
         if bounds.width > 0 && bounds.height > 0 {
-            layer.contentsScale = 3.0
+            layer.contentsScale = scale
             if self is VeBieuDoCotRealtimeView || self is VeBieuDoSucKhoeNhanVienView {
                 layer.setNeedsDisplay()
                 layer.displayIfNeeded()
             }
         }
+        for sub in subviews {
+            sub.apDungKieuSangDeQuy(scale: scale)
+        }
     }
 
-    func ketXuatAnhChuanSang(scale: CGFloat = 3.0) -> UIImage? {
+    func buocBoCucToanBo() {
+        overrideUserInterfaceStyle = .light
+        setNeedsLayout()
+        layoutIfNeeded()
+        apDungKieuSangDeQuy(scale: 2.0)
+    }
+
+    func ketXuatAnhChuanSang(scale: CGFloat = 2.0) -> UIImage? {
+        guard bounds.width > 1, bounds.height > 1 else { return nil }
         let traitSang = UITraitCollection(userInterfaceStyle: .light)
         var ketQua: UIImage?
+        let maxCanh = max(bounds.width, bounds.height)
+        let scaleAnToan: CGFloat = maxCanh > 2200 ? min(scale, 2.0) : min(scale, 2.5)
         traitSang.performAsCurrent {
-            self.buocBoCucToanBo()
-            self.buocBoCucToanBo()
+            self.overrideUserInterfaceStyle = .light
+            self.setNeedsLayout()
+            self.layoutIfNeeded()
+            self.apDungKieuSangDeQuy(scale: scaleAnToan)
             CATransaction.flush()
 
             let fmt = UIGraphicsImageRendererFormat.default()
-            fmt.scale = scale
+            fmt.scale = scaleAnToan
             fmt.opaque = true
             if #available(iOS 12.0, *) {
                 fmt.preferredRange = .standard
             }
-            let anhTho = UIGraphicsImageRenderer(size: self.bounds.size, format: fmt).image { ctx in
+            ketQua = UIGraphicsImageRenderer(size: self.bounds.size, format: fmt).image { ctx in
                 (self.backgroundColor ?? .white).setFill()
                 ctx.fill(self.bounds)
                 self.layer.render(in: ctx.cgContext)
-            }
-            if let png = anhTho.pngData(), let anhPNG = UIImage(data: png, scale: scale) {
-                ketQua = anhPNG
-            } else {
-                ketQua = anhTho
             }
         }
         return ketQua

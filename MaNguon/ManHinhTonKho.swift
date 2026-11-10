@@ -3,9 +3,49 @@ import UIKit
 // MARK: - Khung Lọc Dữ Liệu Tồn Kho Từ Google Sheet (19 Cột A -> S)
 
 final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
-    static let linkSheetMacDinh = "https://docs.google.com/spreadsheets/d/1QiOlw6Rz_9uWrlqiD_VX5-beX_PBDjdo/edit?gid=1060398274#gid=1060398274"
-    private static let khoaLuuLinkSheet = "dmx_ton_kho_google_sheet_url_v1"
-    private static let khoaLuuMaSieuThi = "dmx_ton_kho_ma_sieu_thi_v1"
+        private static let khoaLuuLinkSheet = "dmx_ton_kho_google_sheet_url_v2"
+    private static let khoaLuuMaSieuThi = "dmx_ton_kho_ma_sieu_thi_v2"
+
+    /// Chuẩn hoá chuỗi ô Sheet về Unicode dựng sẵn (NFC) và xoá khoảng trắng thừa / ký tự ẩn
+    private static func chuanHoaChuoiO(_ raw: String) -> String {
+        raw.replacingOccurrences(of: "\u{00A0}", with: " ")
+           .replacingOccurrences(of: "\u{200B}", with: "")
+           .replacingOccurrences(of: "\u{FEFF}", with: "")
+           .trimmingCharacters(in: .whitespacesAndNewlines)
+           .precomposedStringWithCanonicalMapping
+    }
+
+    /// Kiểm tra chính xác Cột A bắt đầu bằng cụm ký tự người dùng nhập vào
+    private static func khopCotABatDauVoi(_ cotA: String, cumKyTu: String) -> Bool {
+        let mau = chuanHoaChuoiO(cumKyTu)
+        guard !mau.isEmpty else { return true }
+        let giaTriCotA = chuanHoaChuoiO(cotA)
+        return giaTriCotA.lowercased().hasPrefix(mau.lowercased())
+    }
+
+    /// Kiểm tra khớp Trạng thái sản phẩm ở Cột H (hỗ trợ đầy đủ trạng thái Mới, Trưng bày và mọi trạng thái trong Sheet)
+    private static func khopTrangThaiCotH(_ cotH: String, trangThaiChon: String, coChuoiMoiTrongSheet: Bool) -> Bool {
+        let h = chuanHoaChuoiO(cotH)
+        let chon = chuanHoaChuoiO(trangThaiChon)
+        guard !chon.isEmpty && chon != "__ALL__" else { return true }
+        if h.caseInsensitiveCompare(chon) == .orderedSame { return true }
+
+        let hLow = h.lowercased()
+        let chonLow = chon.lowercased()
+        if chonLow == "mới" || chonLow == "trạng thái mới" || chonLow == "hàng mới" {
+            if hLow == "mới" || hLow == "trạng thái mới" || hLow == "hàng mới" || hLow.hasPrefix("mới ") || hLow.hasSuffix(" mới") {
+                return true
+            }
+            if !coChuoiMoiTrongSheet && hLow.isEmpty {
+                return true
+            }
+            return false
+        }
+        if chonLow == "trưng bày" || chonLow == "trạng thái trưng bày" || chonLow == "hàng trưng bày" {
+            return hLow.contains("trưng bày")
+        }
+        return false
+    }
 
     /// 19 cột chuẩn theo thứ tự từ A đến S
     static let tenCacCotChuan: [String] = [
@@ -71,7 +111,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
 
     private var tatCaDong: [[String]] = []
     private var dsNhomHang: [String] = []
-    private var dsTrangThai: [String] = []
+    private var dsTrangThai: [String] = ["Mới", "Trưng bày"]
     private var nhomHangDangChon: String? = nil   // nil = chưa chọn; "__ALL__" = tất cả
     private var trangThaiDangChon: String = "__ALL__"
     private var cacDongDaLoc: [[String]] = []
@@ -88,7 +128,8 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
     }
 
     func kichHoatNeuCan() {
-        if !daTuDongTaiLanDau && tatCaDong.isEmpty && !dangTaiSheet {
+        let link = (oLinkSheet.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !daTuDongTaiLanDau && !link.isEmpty && tatCaDong.isEmpty && !dangTaiSheet {
             daTuDongTaiLanDau = true
             bamTaiSheet()
         }
@@ -110,8 +151,8 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         lbLink.font = .systemFont(ofSize: 11.5, weight: .heavy)
         lbLink.textColor = BangMauBCTD.xanhChuDaoDam
 
-        let linkLuu = UserDefaults.standard.string(forKey: Self.khoaLuuLinkSheet) ?? Self.linkSheetMacDinh
-        oLinkSheet.text = linkLuu.isEmpty ? Self.linkSheetMacDinh : linkLuu
+        let linkLuu = UserDefaults.standard.string(forKey: Self.khoaLuuLinkSheet) ?? ""
+        oLinkSheet.text = linkLuu
         oLinkSheet.placeholder = "Dán link Google Sheet tồn kho..."
         oLinkSheet.font = .systemFont(ofSize: 12.5, weight: .medium)
         oLinkSheet.textColor = BangMauBCTD.chuChinh
@@ -151,9 +192,9 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         lbSieuThi.textColor = BangMauBCTD.chuChinh
         lbSieuThi.setContentHuggingPriority(.required, for: .horizontal)
 
-        let maLuu = UserDefaults.standard.string(forKey: Self.khoaLuuMaSieuThi) ?? "76"
+        let maLuu = UserDefaults.standard.string(forKey: Self.khoaLuuMaSieuThi) ?? ""
         oMaSieuThi.text = maLuu
-        oMaSieuThi.placeholder = "VD: 76"
+        oMaSieuThi.placeholder = "VD: 76 (Bắt đầu ở cột A)"
         oMaSieuThi.font = .systemFont(ofSize: 13.5, weight: .bold)
         oMaSieuThi.textColor = BangMauBCTD.xanhChuDaoDam
         oMaSieuThi.backgroundColor = BangMauBCTD.vangNhatNen
@@ -331,10 +372,15 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
 
     @objc private func bamTaiSheet() {
         endEditing(true)
-        let rawLink = (oLinkSheet.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let link = rawLink.isEmpty ? Self.linkSheetMacDinh : rawLink
+        let link = (oLinkSheet.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         oLinkSheet.text = link
         UserDefaults.standard.set(link, forKey: Self.khoaLuuLinkSheet)
+
+        guard !link.isEmpty else {
+            nhanTrangThai.text = "⚠️ Vui lòng dán link Google Sheet tồn kho vào ô phía trên rồi bấm “Quét Sheet”."
+            nhanTrangThai.textColor = BangMauBCTD.doYeuChu
+            return
+        }
 
         guard let (sheetId, gid) = Self.tachSheetIdVaGid(tu: link) else {
             nhanTrangThai.text = "⚠️ Link Google Sheet không hợp lệ. Hãy dán link dạng https://docs.google.com/spreadsheets/d/.../edit?gid=..."
@@ -343,14 +389,17 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         }
 
         var cacURL: [URL] = []
-        if let u1 = URL(string: "https://docs.google.com/spreadsheets/d/\(sheetId)/export?format=tsv&gid=\(gid)") {
+        if let u1 = URL(string: "https://docs.google.com/spreadsheets/d/\(sheetId)/export?format=csv&gid=\(gid)") {
             cacURL.append(u1)
         }
-        if let u2 = URL(string: "https://docs.google.com/spreadsheets/d/\(sheetId)/export?format=csv&gid=\(gid)") {
+        if let u2 = URL(string: "https://docs.google.com/spreadsheets/d/\(sheetId)/export?format=tsv&gid=\(gid)") {
             cacURL.append(u2)
         }
-        if let u3 = URL(string: "https://docs.google.com/spreadsheets/d/\(sheetId)/gviz/tq?tqx=out:csv&gid=\(gid)") {
+        if let u3 = URL(string: "https://docs.google.com/spreadsheets/d/\(sheetId)/gviz/tq?tqx=out:csv&headers=0&gid=\(gid)") {
             cacURL.append(u3)
+        }
+        if let u4 = URL(string: "https://docs.google.com/spreadsheets/d/\(sheetId)/gviz/tq?tqx=out:csv&headers=1&gid=\(gid)") {
+            cacURL.append(u4)
         }
 
         dangTaiSheet = true
@@ -387,7 +436,8 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
                   let data = data,
                   let text = String(data: data, encoding: .utf8),
                   !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  !text.lowercased().contains("<!doctype html") else {
+                  !text.lowercased().contains("<!doctype html"),
+                  !text.lowercased().contains("<html") else {
                 self.taiTuDanhSachURL(cacURL, chiSo: chiSo + 1)
                 return
             }
@@ -418,7 +468,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         } else {
             let loc = tatCaDong.filter { dong in
                 guard !dong.isEmpty else { return false }
-                return dong[0].localizedCaseInsensitiveContains(maST)
+                return Self.khopCotABatDauVoi(dong[0], cumKyTu: maST)
             }
             dongTheoSieuThi = loc.isEmpty ? tatCaDong : loc
         }
@@ -427,21 +477,41 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         var tapTrangThai = Set<String>()
         for dong in dongTheoSieuThi {
             if dong.count > 6 {
-                let nhom = dong[6].trimmingCharacters(in: .whitespacesAndNewlines)
+                let nhom = Self.chuanHoaChuoiO(dong[6])
                 if !nhom.isEmpty && nhom.lowercased() != "nhóm hàng" {
                     tapNhom.insert(nhom)
                 }
             }
             if dong.count > 7 {
-                let tt = dong[7].trimmingCharacters(in: .whitespacesAndNewlines)
+                let tt = Self.chuanHoaChuoiO(dong[7])
                 if !tt.isEmpty && tt.lowercased() != "trạng thái sản phẩm" {
                     tapTrangThai.insert(tt)
                 }
             }
         }
+        // Quét thêm toàn bộ cột H trên toàn Sheet để không bao giờ bị sót trạng thái (như Mới, Trưng bày...)
+        for dong in tatCaDong where dong.count > 7 {
+            let tt = Self.chuanHoaChuoiO(dong[7])
+            if !tt.isEmpty && tt.lowercased() != "trạng thái sản phẩm" {
+                tapTrangThai.insert(tt)
+            }
+        }
+        // Đảm bảo 2 trạng thái chuẩn "Mới" và "Trưng bày" luôn có mặt trong Combobox Trạng thái (Cột H)
+        if !tapTrangThai.contains(where: { $0.caseInsensitiveCompare("Mới") == .orderedSame || $0.caseInsensitiveCompare("Trạng thái mới") == .orderedSame }) {
+            tapTrangThai.insert("Mới")
+        }
+        if !tapTrangThai.contains(where: { $0.caseInsensitiveCompare("Trưng bày") == .orderedSame || $0.caseInsensitiveCompare("Trạng thái trưng bày") == .orderedSame }) {
+            tapTrangThai.insert("Trưng bày")
+        }
 
         dsNhomHang = tapNhom.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
-        dsTrangThai = tapTrangThai.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        let uuTienTrangThai = ["mới": 0, "trạng thái mới": 0, "hàng mới": 0, "trưng bày": 1, "trạng thái trưng bày": 1, "hàng trưng bày": 1]
+        dsTrangThai = tapTrangThai.sorted { a, b in
+            let pa = uuTienTrangThai[a.lowercased()] ?? 99
+            let pb = uuTienTrangThai[b.lowercased()] ?? 99
+            if pa != pb { return pa < pb }
+            return a.localizedStandardCompare(b) == .orderedAscending
+        }
 
         if let dangChon = nhomHangDangChon, dangChon != "__ALL__", !dsNhomHang.contains(dangChon) {
             nhomHangDangChon = nil
@@ -533,18 +603,23 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
             return
         }
 
+        let coChuoiMoiTrongSheet = tatCaDong.contains { dong in
+            guard dong.count > 7 else { return false }
+            return Self.chuanHoaChuoiO(dong[7]).lowercased().contains("mới")
+        }
+
         let ketQua = tatCaDong.filter { dong in
             let cotA = dong.count > 0 ? dong[0] : ""
-            let cotG = dong.count > 6 ? dong[6].trimmingCharacters(in: .whitespacesAndNewlines) : ""
-            let cotH = dong.count > 7 ? dong[7].trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            let cotG = dong.count > 6 ? Self.chuanHoaChuoiO(dong[6]) : ""
+            let cotH = dong.count > 7 ? Self.chuanHoaChuoiO(dong[7]) : ""
 
-            if !maST.isEmpty && !cotA.localizedCaseInsensitiveContains(maST) {
+            if !maST.isEmpty && !Self.khopCotABatDauVoi(cotA, cumKyTu: maST) {
                 return false
             }
-            if nhomChon != "__ALL__" && cotG.caseInsensitiveCompare(nhomChon) != .orderedSame {
+            if nhomChon != "__ALL__" && cotG.caseInsensitiveCompare(Self.chuanHoaChuoiO(nhomChon)) != .orderedSame {
                 return false
             }
-            if trangThaiDangChon != "__ALL__" && cotH.caseInsensitiveCompare(trangThaiDangChon) != .orderedSame {
+            if trangThaiDangChon != "__ALL__" && !Self.khopTrangThaiCotH(cotH, trangThaiChon: trangThaiDangChon, coChuoiMoiTrongSheet: coChuoiMoiTrongSheet) {
                 return false
             }
             return true
@@ -554,7 +629,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
 
         if ketQua.isEmpty {
             khungTrong.isHidden = false
-            nhanTrong.text = "Không có sản phẩm nào khớp điều kiện:\n• Siêu thị (Cột A) chứa: \"\(maST.isEmpty ? "Tất cả" : maST)\"\n• Nhóm hàng (Cột G): \"\(nhomChon == "__ALL__" ? "Tất cả" : nhomChon)\"\n• Trạng thái (Cột H): \"\(trangThaiDangChon == "__ALL__" ? "Tất cả" : trangThaiDangChon)\""
+            nhanTrong.text = "Không có sản phẩm nào khớp điều kiện:\n• Siêu thị (Cột A) bắt đầu bằng: \"\(maST.isEmpty ? "Tất cả" : maST)\"\n• Nhóm hàng (Cột G): \"\(nhomChon == "__ALL__" ? "Tất cả" : nhomChon)\"\n• Trạng thái (Cột H): \"\(trangThaiDangChon == "__ALL__" ? "Tất cả" : trangThaiDangChon)\""
             nhanTrangThai.text = "0 dòng khớp bộ lọc (Tổng Sheet: \(tatCaDong.count) dòng)"
             nhanTrangThai.textColor = BangMauBCTD.vangKhaChu
             return
@@ -744,14 +819,14 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         let bang = laTSV ? phanTichTSV(noiDung) : phanTichCSV(noiDung)
         var ketQua: [[String]] = []
 
-        for (chiSo, dongGoc) in bang.enumerated() {
-            var dong = dongGoc.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        for dongGoc in bang {
+            var dong = dongGoc.map { chuanHoaChuoiO($0) }
             if dong.allSatisfy({ $0.isEmpty }) { continue }
 
-            // Bỏ qua dòng tiêu đề gốc của Sheet nếu trùng với hàng tiêu đề A-S
+            // Chỉ bỏ qua dòng tiêu đề gốc của Sheet khi cột A là "Tên siêu thị" và cột B là "Mã Model"
             let cot0 = dong.first?.lowercased() ?? ""
             let cot1 = (dong.count > 1 ? dong[1] : "").lowercased()
-            if chiSo == 0 && (cot0.contains("tên siêu thị") || cot0.contains("ten sieu thi") || cot1.contains("mã model") || cot1.contains("ma model")) {
+            if (cot0 == "tên siêu thị" || cot0 == "ten sieu thi") || (cot1 == "mã model" || cot1 == "ma model") {
                 continue
             }
             while dong.count < tenCacCotChuan.count {
@@ -775,7 +850,9 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         var dongHienTai: [String] = []
         var oHienTai = ""
         var trongNhay = false
-        let chars = Array(text)
+        // Chuẩn hoá \r\n thành \n trước khi chuyển sang Array(Character) vì trong Swift "\r\n" là 1 Character gộp!
+        let chuan = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+        let chars = Array(chuan)
         var i = 0
 
         while i < chars.count {
