@@ -601,12 +601,12 @@ final class DichVuQuetAnhGemini {
                     soLuong: bill,
                     doanhThuThuc: 0,
                     doanhThuQD: dtQD,
+                    target: mtQD,
                     dtQDKhoanVay: 0,
                     dtTraThangQD: ptQD,
+                    phanTramHT: ptTG,
                     phanTramQuyDoi: ptQD,
-                    phanTramTraGop: ptTC,
-                    target: mtQD,
-                    phanTramHT: ptTG
+                    phanTramTraGop: ptTC
                 ))
                 kq.soAnhDoanhThuNV += 1
 

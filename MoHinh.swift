@@ -4292,6 +4292,11 @@ extension Double {
         Double.boDinhDangNguyenVN.string(from: NSNumber(value: self.rounded())) ?? String(format: "%.0f", self)
     }
 
+    var chuoiSoMotLeVN: String {
+        if abs(self) < 0.005 { return "0" }
+        return String(format: "%.1f", self).replacingOccurrences(of: ".", with: ",")
+    }
+
     var chuoiSoGonVN: String {
         if abs(self.rounded() - self) < 0.005 {
             return chuoiSoNguyenVN

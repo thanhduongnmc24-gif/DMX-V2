@@ -490,12 +490,12 @@ final class DichVuDocAnh {
             soLuong: sk.soLuotBillBanHang ?? 0,
             doanhThuThuc: 0,
             doanhThuQD: sk.doanhThuQDSucKhoe ?? 0,
+            target: sk.mucTieuTargetQD ?? 0,
             dtQDKhoanVay: 0,
             dtTraThangQD: sk.phanTramQuyDoi ?? 0,
+            phanTramHT: sk.phanTramTarget ?? 0,
             phanTramQuyDoi: sk.phanTramQuyDoi ?? 0,
-            phanTramTraGop: sk.phanTramTraCham ?? 0,
-            target: sk.mucTieuTargetQD ?? 0,
-            phanTramHT: sk.phanTramTarget ?? 0
+            phanTramTraGop: sk.phanTramTraCham ?? 0
         )
 
         var cacKhoi: [KetQuaThiDuaNhanVienKhoi] = []
