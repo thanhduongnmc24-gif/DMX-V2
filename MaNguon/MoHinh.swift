@@ -2850,15 +2850,16 @@ final class KhoDuLieu {
                     soMonDat: 0,
                     tongMonGiao: 0,
                     phanTramHTTB: 0,
-                    cacMonGiao: [],
-                    doanhThuCaNhan: dtCaNhan,
                     doanhThuQD: dtQDCuoi,
                     soLuongDon: soDonCuoi,
+                    dtQDKhoanVay: dtCaNhan?.dtQDKhoanVay ?? 0,
+                    dtTraThangQD: (dtCaNhan?.dtTraThangQD ?? 0) > 0 ? (dtCaNhan?.dtTraThangQD ?? 0) : (dtCaNhan?.doanhThuThuc ?? 0),
                     phanTramTiTrong: tiTrongCuoi,
-                    dtQDKhoanVay: dtCaNhan?.dtTraGopQD ?? 0
+                    cacMonGiao: [],
+                    doanhThuCaNhan: dtCaNhan
                 )
             }
-            let sapXepAnToan: KieuSapXepNhanVien = (sapXep == .soMonDat || sapXep == .phanTramTB) ? .doanhThuQD : sapXep
+            let sapXepAnToan: KieuSapXepNhanVien = (sapXep == .soMonHoanThanh || sapXep == .phanTramTB) ? .doanhThuQD : sapXep
             let ketQua = Self.sapXepDanhSachTongHopNV(ketQuaRealtime, theo: sapXepAnToan)
             boNhoDemTongHopNV[khoaDem] = ketQua
             return ketQua
