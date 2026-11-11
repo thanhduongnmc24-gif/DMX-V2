@@ -377,21 +377,24 @@ final class DichVuQuetAnhGemini {
         {"capNhatLuc":"","thongTinDonVi":"","doanhThu":{"doanhThuThuc":0,"targetThuc":0,"duKienThuc":0,"phanTramHTThuc":0,"doanhThuQuyDoi":0,"targetQuyDoi":0,"duKienQuyDoi":0,"phanTramHTQuyDoi":0},"nganhHang":[{"ten":"","loai":"DT hoặc SL","thucHien":0,"target":0,"phanTramHT":0,"duKien":0,"phanTramDuKien":0}],"nhanVien":[{"maNV":"","hoTen":"","soLuong":0,"doanhThuQD":0,"dtKhoanVay":0,"phanTramTiTrong":0}],"thiDuaNhanVien":[{"tenNganhHang":"","danhSach":[{"maNV":"","hoTen":"","thucHien":0,"target":0}]}]}
 
         Quy tắc bắt buộc khi đọc Bảng Thi Đua (mảng "nganhHang"):
-        1. Phân biệt rõ 2 loại bảng Thi Đua có dấu (+) ở đầu dòng:
-           - BẢNG THI ĐUA THEO NGÀY / REALTIME (5 CỘT): Gồm 5 cột: [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET NGÀY | % HT NGÀY | HẠNG VÙNG].
-             + Cột 1 (CHƯƠNG TRÌNH): Tên môn thi đua kèm huy hiệu "DT" hoặc "SL" ở cuối (bỏ dấu "+" và ngôi sao vàng ⭐ ở đầu; tách "DT" hoặc "SL" vào trường "loai"; phần tên môn sạch đưa vào "ten").
+        1. Hỗ trợ đầy đủ cả 3 dạng bố cục ảnh thi đua sau:
+           - DẠNG BẢNG (Bảng ma trận ngang): Mỗi môn thi đua là 1 cột dọc (tiêu đề gồm Tên môn và nhãn (DT) hoặc (SL)). Bên dưới mỗi môn có 2 cột con THỰC HIỆN và TARGET. Đọc các con số ở dòng Siêu thị hoặc dòng TỔNG:
+             + Tên môn: Bỏ ngoặc đơn (DT)/(SL), bỏ nhãn.
+             + Đơn vị loai: "SL" nếu tiêu đề có (SL), ngược lại là "DT".
+             + thucHien: Số ở cột con THỰC HIỆN.
+             + target: Số ở cột con TARGET.
+             + phanTramHT: Tính (thucHien / target) * 100 nếu target > 0.
+           - DẠNG THẺ (Lưới thẻ thi đua nhiều cột): Mỗi thẻ hình chữ nhật gồm tiêu đề môn (kèm nhãn DT/SL và tiền tố T11 - hoặc ⭐), số % lớn ở DỰ KIẾN HOÀN THÀNH, thanh tiến độ, các ô THỰC HIỆN, TARGET, % HT THÁNG, DT/SL DỰ KIẾN:
+             + Tách huy hiệu "DT"/"SL" vào "loai", tên môn sạch bỏ T11 và ⭐ đưa vào "ten".
+             + thucHien: Số ở ô THỰC HIỆN.
+             + target: Số ở ô TARGET.
+             + phanTramHT: Số ở ô % HT THÁNG.
+             + phanTramDuKien: Số % lớn ở mục DỰ KIẾN HOÀN THÀNH.
+           - DẠNG LƯỚI (Bảng danh sách hàng dọc có thanh tiến độ %): Gồm các cột [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET | % DỰ KIẾN HOÀN THÀNH (hoặc % HT NGÀY) | HẠNG VÙNG]:
+             + Cột 1 (CHƯƠNG TRÌNH): Tách huy hiệu "DT"/"SL" vào "loai", tên môn sạch (bỏ dấu "+", ngôi sao ⭐, T11) đưa vào "ten".
              + Cột 2 (THỰC HIỆN): Đưa vào "thucHien".
-             + Cột 3 (TARGET NGÀY): Đưa vào "target".
-             + Cột 4 (% HT NGÀY): Đưa vào "phanTramHT". Đặt "phanTramDuKien": 0 và "duKien": 0.
-             + Cột 5 (HẠNG VÙNG): Bỏ qua.
-           - BẢNG THI ĐUA LŨY KẾ (6 CỘT): Gồm 6 cột: [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET | % HT | % HT DỰ KIẾN | HẠNG VÙNG].
-             + Cột 1 (CHƯƠNG TRÌNH): Tách huy hiệu "DT"/"SL" vào "loai", tên môn sạch (bỏ dấu "+", ngôi sao ⭐) vào "ten".
-             + Cột 2 (THỰC HIỆN): Đưa vào "thucHien".
-             + Cột 3 (TARGET): Đưa vào "target" (lưu ý dấu phẩy hàng nghìn như 1,502.38 = 1502.38).
-             + Cột 4 (% HT): Đưa vào "phanTramHT".
-             + Cột 5 (% HT DỰ KIẾN): Đưa vào "phanTramDuKien".
-             + Cột 6 (HẠNG VÙNG): Bỏ qua.
-           - Ngoài ra nếu ảnh là Lưới thẻ thi đua 2 cột hoặc Bảng 4 cột có tiền tố T11: đọc đầy đủ tên môn, đơn vị DT/SL, Thực hiện, Target, % HT và % Dự kiến / DT Dự kiến.
+             + Cột 3 (TARGET): Đưa vào "target".
+             + Cột 4 (% DỰ KIẾN HOÀN THÀNH / % HT NGÀY): Số % lớn bên phải thanh tiến độ đưa vào "phanTramDuKien" (nếu có), số nhỏ trên thanh tiến độ đưa vào "phanTramHT". Nếu là ảnh Realtime theo ngày thì đưa % HT vào "phanTramHT".
         2. Đọc ĐẦY ĐỦ TẤT CẢ các dòng môn thi đua từ trên xuống dưới, kể cả các dòng tên dài xuống 2-3 hàng chữ như "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO" (loai: "SL") hoặc "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT" và kể cả dòng có Thực hiện = 0, Target = 0. Không đưa nhãn DT, SL, CE, ICT, DV hay dấu + vào trong "ten".
         3. Với bảng doanh thu nhân viên 5 cột (NHÂN VIÊN / NGÀNH HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG), trích đúng "maNV" (bỏ tiền tố id:) và "hoTen" vào mảng "nhanVien".
         4. Với bảng chi tiết môn thi đua của nhân viên (bảng mở rộng 1 môn thi đua có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % đóng góp của nhân viên như 24%, 14%, 8%...): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien" (bỏ qua dòng tên chương trình và dòng tên siêu thị ĐML_...), đặt "laPhanTram": true, "thucHien" là con số phần trăm (ví dụ 24% -> 24), đặt "thucHienNganhGoiY" là số THỰC HIỆN của môn đó ở dòng đầu bảng, và đặt "targetNganhGoiY" là số TARGET của môn đó ở dòng đầu bảng.

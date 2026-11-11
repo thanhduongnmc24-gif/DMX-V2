@@ -1163,18 +1163,30 @@ struct DongThiDua: Codable, Hashable, Identifiable {
 }
 
 enum PhuongPhapQuetThiDua: Int, Codable, CaseIterable {
-    case phuongPhap1 = 0 // Phương pháp 1 (Mặc định: Thẻ tiến độ / Bảng 4 cột T11)
-    case phuongPhap2 = 1 // Phương pháp 2 (Lũy kế: Bảng 6 cột | Realtime theo ngày: Bảng 5 cột)
-    case phuongPhap3 = 2 // Phương pháp 3 (Quét ảnh với Gemini Flash AI)
+    case phuongPhap1 = 0 // Phương pháp 1: Dạng Bảng (Bảng ma trận ngang)
+    case phuongPhap2 = 1 // Phương pháp 2: Dạng Thẻ (Lưới thẻ thi đua 39 chương trình)
+    case phuongPhap3 = 2 // Phương pháp 3: Dạng Lưới (Bảng danh sách hàng dọc)
+    case phuongPhap4 = 3 // Phương pháp 4: Gemini Flash AI (Quét tự động bằng AI Gemini Flash)
 
     var tieuDe: String {
         switch self {
         case .phuongPhap1:
-            return "Phương pháp 1 (Thẻ / Bảng T11)"
+            return "Phương pháp 1 (Dạng Bảng)"
         case .phuongPhap2:
-            return "Phương pháp 2 (Bảng 5-6 cột)"
+            return "Phương pháp 2 (Dạng Thẻ)"
         case .phuongPhap3:
-            return "Phương pháp 3 (Gemini Flash)"
+            return "Phương pháp 3 (Dạng Lưới)"
+        case .phuongPhap4:
+            return "Phương pháp 4 (Gemini Flash)"
+        }
+    }
+
+    var tieuDeNgan: String {
+        switch self {
+        case .phuongPhap1: return "PP 1 (Bảng)"
+        case .phuongPhap2: return "PP 2 (Thẻ)"
+        case .phuongPhap3: return "PP 3 (Lưới)"
+        case .phuongPhap4: return "PP 4 (Gemini)"
         }
     }
 }
@@ -1317,7 +1329,7 @@ struct CaiDatDMX: Codable {
         }
         let rawModel = (try? c.decode(String.self, forKey: .geminiModel))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         geminiModel = rawModel.isEmpty ? Self.geminiModelMacDinh : rawModel
-        dungGeminiQuetAnh = (try? c.decode(Bool.self, forKey: .dungGeminiQuetAnh)) ?? (phuongPhapQuetThiDua == .phuongPhap3)
+        dungGeminiQuetAnh = (try? c.decode(Bool.self, forKey: .dungGeminiQuetAnh)) ?? (phuongPhapQuetThiDua == .phuongPhap4)
         if let hienNS = try? c.decode(Bool.self, forKey: .hienThiNangSuatNhanVien) {
             hienThiNangSuatNhanVien = hienNS
         } else if UserDefaults.standard.object(forKey: "dmx.caiDat.hienThiNangSuatNhanVien") != nil {

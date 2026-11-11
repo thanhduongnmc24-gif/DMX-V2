@@ -7,9 +7,10 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     private let nutDongBoNgay = UIButton(type: .system)
 
     private let chonPhuongPhapQuetThiDua = UISegmentedControl(items: [
-        "PP 1 (Thẻ/T11)",
-        "PP 2 (Bảng 5-6 cột)",
-        "PP 3 (Gemini Flash)"
+        "PP 1 (Bảng)",
+        "PP 2 (Thẻ)",
+        "PP 3 (Lưới)",
+        "PP 4 (Gemini)"
     ])
     private let chonKieuHienThi = UISegmentedControl(items: ["Bảng 8 cột (Chi tiết)", "Thẻ tiến độ (Gọn)"])
     private let chonSoCotXuat = UISegmentedControl(items: ["1 cột", "2 cột", "3 cột", "4 cột"])
@@ -153,7 +154,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         khiThayDoiCaiDat?()
         hienThongBao(
             tieuDe: "✅ Đã chuyển về Key có sẵn",
-            noiDung: "Phương pháp 3 (Gemini Flash) đang sử dụng API Key tích hợp sẵn trong ứng dụng."
+            noiDung: "Phương pháp 4 (Gemini Flash) đang sử dụng API Key tích hợp sẵn trong ứng dụng."
         )
     }
 
@@ -214,7 +215,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         moi.danhSachCumTuLocBo = danhSachCumTu
         moi.soCotXuatAnh = soCot
         moi.geminiApiKey = keyNhap.isEmpty ? CaiDatDMX.geminiKeyMacDinh : keyNhap
-        moi.dungGeminiQuetAnh = (phuongPhap == .phuongPhap3)
+        moi.dungGeminiQuetAnh = (phuongPhap == .phuongPhap4)
         KhoDuLieu.dungChung.luuCaiDat(moi)
     }
 
@@ -287,7 +288,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nhanMoTaPhuongPhapQuet.adjustsFontSizeToFitWidth = false
 
         let nhanGhiChuPhuongPhapQuet = UILabel()
-        nhanGhiChuPhuongPhapQuet.text = "• Phương pháp 1: Ảnh lưới thẻ 2 cột hoặc bảng 4 cột có tiền tố T11.\n• Phương pháp 2: Ảnh Lũy kế quét theo bảng 6 cột (Chương trình | Thực hiện | Target | % HT | % HT Dự kiến | Hạng vùng); Ảnh Realtime theo ngày quét theo bảng 5 cột (Chương trình | Thực hiện | Target ngày | % HT ngày | Hạng vùng).\n• Phương pháp 3: Quét ảnh bằng AI Gemini Flash với API Key có sẵn trong app hoặc nhập Key mới bên dưới."
+        nhanGhiChuPhuongPhapQuet.text = "• Phương pháp 1 (Dạng Bảng): Quét ảnh bảng ma trận ngang các môn thi đua (mỗi môn gồm 2 cột con Thực hiện & Target, có hàng Tổng / Siêu thị).\n• Phương pháp 2 (Dạng Thẻ): Quét ảnh lưới thẻ thi đua 39 chương trình (mỗi thẻ có huy hiệu DT/SL, thanh tiến độ % hoàn thành, ô Thực hiện & Target).\n• Phương pháp 3 (Dạng Lưới): Quét ảnh bảng danh sách hàng dọc (Chương trình | Thực hiện | Target | % Dự kiến hoàn thành / % HT ngày | Hạng vùng).\n• Phương pháp 4 (Gemini Flash): Quét ảnh tự động bằng AI Google Gemini Flash với API Key có sẵn trong app hoặc nhập Key mới bên dưới."
         nhanGhiChuPhuongPhapQuet.font = .systemFont(ofSize: 11.5)
         nhanGhiChuPhuongPhapQuet.textColor = BangMauBCTD.chuPhu
         nhanGhiChuPhuongPhapQuet.numberOfLines = 0
@@ -302,7 +303,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         khungGemini.layer.borderColor = BangMauBCTD.vienThe.cgColor
 
         let nhanTieuDeGemini = UILabel()
-        nhanTieuDeGemini.text = "🤖 Cài đặt API Key cho Phương pháp 3 (Gemini Flash):"
+        nhanTieuDeGemini.text = "🤖 Cài đặt API Key cho Phương pháp 4 (Gemini Flash):"
         nhanTieuDeGemini.font = .systemFont(ofSize: 12.5, weight: .bold)
         nhanTieuDeGemini.textColor = BangMauBCTD.chuChinh
         nhanTieuDeGemini.numberOfLines = 0

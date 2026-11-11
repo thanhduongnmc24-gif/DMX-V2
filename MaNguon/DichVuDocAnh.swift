@@ -851,7 +851,7 @@ final class DichVuDocAnh {
         hoanTat: @escaping (KetQuaQuetTatCaAnh) -> Void
     ) {
         let phuongPhapChon = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
-        if phuongPhapChon == .phuongPhap3 {
+        if phuongPhapChon == .phuongPhap4 {
             DichVuQuetAnhGemini.dungChung.quet(
                 danhSachAnh: danhSachAnh,
                 cheDo: cheDoDangChon,
@@ -970,61 +970,74 @@ final class DichVuDocAnh {
                     continue
                 }
 
-                let phuongPhapThiDua = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
+                let pp = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
+                if pp == .phuongPhap1 {
+                    let dsBangNgang = self.phanTichThiDuaBangNgangMaTran(phanTu: phanTu, watermark: wm)
+                    if !dsBangNgang.isEmpty {
+                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBangNgang)
+                        kq.soAnhThiDua += 1
+                        continue
+                    }
+                } else if pp == .phuongPhap2 {
+                    let dsThe = self.phanTichThiDuaLuoiTheDaCot(phanTu: phanTu, watermark: wm)
+                    if !dsThe.isEmpty {
+                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsThe)
+                        kq.soAnhThiDua += 1
+                        continue
+                    }
+                } else if pp == .phuongPhap3 {
+                    if laRealtime {
+                        let dsBang5 = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: phanTu, anh: anh, watermark: wm)
+                        if !dsBang5.isEmpty {
+                            kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang5)
+                            kq.soAnhThiDua += 1
+                            continue
+                        }
+                    } else {
+                        let dsBang6 = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: wm)
+                        if !dsBang6.isEmpty {
+                            kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang6)
+                            kq.soAnhThiDua += 1
+                            continue
+                        }
+                    }
+                }
 
-                // ƯU TIÊN 4: Quét môn Thi Đua theo Phương pháp 2 (Lũy kế: Bảng 6 cột | Realtime theo ngày: Bảng 5 cột)
+                // Tự động nhận diện và quét các phương pháp còn lại (dự phòng thông minh)
+                if self.laAnhBangNgangMaTran(phanTu: phanTu) {
+                    let ds = self.phanTichThiDuaBangNgangMaTran(phanTu: phanTu, watermark: wm)
+                    if !ds.isEmpty {
+                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: ds)
+                        kq.soAnhThiDua += 1
+                        continue
+                    }
+                }
+                if self.laAnhLuoiTheThiDua(phanTu: phanTu) {
+                    let ds = self.phanTichThiDuaLuoiTheDaCot(phanTu: phanTu, watermark: wm)
+                    if !ds.isEmpty {
+                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: ds)
+                        kq.soAnhThiDua += 1
+                        continue
+                    }
+                }
                 if laRealtime {
-                    if phuongPhapThiDua == .phuongPhap2 || self.laAnhBangThiDua5CotRealtime(phanTu: phanTu) {
-                        var dsBang = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: phanTu, anh: anh, watermark: wm)
-                        if dsBang.isEmpty && self.laAnhBangThiDua6Cot(phanTu: phanTu) {
-                            dsBang = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: wm)
-                        }
-                        if !dsBang.isEmpty {
-                            kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang)
-                            kq.soAnhThiDua += 1
-                            continue
-                        }
-                    } else if self.laAnhBangThiDua6Cot(phanTu: phanTu) {
-                        let dsBang6Cot = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: wm)
-                        if !dsBang6Cot.isEmpty {
-                            kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang6Cot)
-                            kq.soAnhThiDua += 1
-                            continue
-                        }
+                    let dsBang5 = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: phanTu, anh: anh, watermark: wm)
+                    if !dsBang5.isEmpty {
+                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang5)
+                        kq.soAnhThiDua += 1
+                        continue
                     }
                 } else {
-                    if phuongPhapThiDua == .phuongPhap2 || self.laAnhBangThiDua6Cot(phanTu: phanTu) {
-                        var dsBang6Cot = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: wm)
-                        if dsBang6Cot.isEmpty && self.laAnhBangThiDua5CotRealtime(phanTu: phanTu) {
-                            dsBang6Cot = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: phanTu, anh: anh, watermark: wm)
-                        }
-                        if !dsBang6Cot.isEmpty {
-                            kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang6Cot)
-                            kq.soAnhThiDua += 1
-                            continue
-                        }
-                    } else if self.laAnhBangThiDua5CotRealtime(phanTu: phanTu) {
-                        let dsBang5Cot = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: phanTu, anh: anh, watermark: wm)
-                        if !dsBang5Cot.isEmpty {
-                            kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang5Cot)
-                            kq.soAnhThiDua += 1
-                            continue
-                        }
+                    let dsBang6 = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: wm)
+                    if !dsBang6.isEmpty {
+                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang6)
+                        kq.soAnhThiDua += 1
+                        continue
                     }
                 }
-
-                // ƯU TIÊN 4A: Kiểm tra ảnh Bảng Thi Đua 4 Cột (CHƯƠNG TRÌNH | THỰC HIỆN | TARGET NGÀY/THÁNG | % HT)
-                let dsBang4Cot = self.phanTichBangThiDua4Cot(phanTu: phanTu, watermark: wm)
-                if !dsBang4Cot.isEmpty {
-                    kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang4Cot)
-                    kq.soAnhThiDua += 1
-                    continue
-                }
-
-                // ƯU TIÊN 4B: Kiểm tra ảnh Lưới Thẻ Thi Đua 2 Cột
-                let dsLuoiThe = self.phanTichThiDuaLuoiThe2Cot(phanTu: phanTu, watermark: wm)
-                if !dsLuoiThe.isEmpty {
-                    kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsLuoiThe)
+                let dsBang4 = self.phanTichBangThiDua4Cot(phanTu: phanTu, watermark: wm)
+                if !dsBang4.isEmpty {
+                    kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang4)
                     kq.soAnhThiDua += 1
                     continue
                 }
@@ -1099,7 +1112,7 @@ final class DichVuDocAnh {
         hoanTat: @escaping (KetQuaQuetThiDua) -> Void
     ) {
         let phuongPhapChon = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
-        if phuongPhapChon == .phuongPhap3 {
+        if phuongPhapChon == .phuongPhap4 {
             let cheDo: LoaiCheDoDoanhThu = laRealtime ? .realtime : .luyKe
             DichVuQuetAnhGemini.dungChung.quet(
                 danhSachAnh: danhSachAnh,
@@ -1223,41 +1236,53 @@ final class DichVuDocAnh {
 
             var cacPhanTuBang2Cot: [([PhanTuVanBan], String?)] = []
             for (pt, wm, anhQuet) in cacPhanTuThiDua {
-                if laRealtime {
-                    if phuongPhapThiDua == .phuongPhap2 || self.laAnhBangThiDua5CotRealtime(phanTu: pt) {
-                        var dsBang5Cot = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: pt, anh: anhQuet, watermark: wm)
-                        if dsBang5Cot.isEmpty && self.laAnhBangThiDua6Cot(phanTu: pt) {
-                            dsBang5Cot = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: pt, anh: anhQuet, watermark: wm)
-                        }
-                        if !dsBang5Cot.isEmpty {
-                            dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang5Cot)
-                            continue
-                        }
-                    } else if self.laAnhBangThiDua6Cot(phanTu: pt) {
-                        let dsBang6Cot = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: pt, anh: anhQuet, watermark: wm)
-                        if !dsBang6Cot.isEmpty {
-                            dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang6Cot)
-                            continue
-                        }
+                let pp = phuongPhapThiDua
+                if pp == .phuongPhap1 {
+                    let dsBangNgang = self.phanTichThiDuaBangNgangMaTran(phanTu: pt, watermark: wm)
+                    if !dsBangNgang.isEmpty {
+                        dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBangNgang)
+                        continue
                     }
-                } else {
-                    if phuongPhapThiDua == .phuongPhap2 || self.laAnhBangThiDua6Cot(phanTu: pt) {
-                        var dsBang6Cot = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: pt, anh: anhQuet, watermark: wm)
-                        if dsBang6Cot.isEmpty && self.laAnhBangThiDua5CotRealtime(phanTu: pt) {
-                            dsBang6Cot = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: pt, anh: anhQuet, watermark: wm)
-                        }
-                        if !dsBang6Cot.isEmpty {
-                            dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang6Cot)
+                } else if pp == .phuongPhap2 {
+                    let dsThe = self.phanTichThiDuaLuoiTheDaCot(phanTu: pt, watermark: wm)
+                    if !dsThe.isEmpty {
+                        dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsThe)
+                        continue
+                    }
+                } else if pp == .phuongPhap3 {
+                    if laRealtime {
+                        let dsBang5 = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: pt, anh: anhQuet, watermark: wm)
+                        if !dsBang5.isEmpty {
+                            dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang5)
                             continue
                         }
-                    } else if self.laAnhBangThiDua5CotRealtime(phanTu: pt) {
-                        let dsBang5Cot = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: pt, anh: anhQuet, watermark: wm)
-                        if !dsBang5Cot.isEmpty {
-                            dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang5Cot)
+                    } else {
+                        let dsBang6 = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: pt, anh: anhQuet, watermark: wm)
+                        if !dsBang6.isEmpty {
+                            dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang6)
                             continue
                         }
                     }
                 }
+
+                // Tự động nhận diện và quét các phương pháp còn lại (dự phòng thông minh)
+                if self.laAnhBangNgangMaTran(phanTu: pt) {
+                    let ds = self.phanTichThiDuaBangNgangMaTran(phanTu: pt, watermark: wm)
+                    if !ds.isEmpty { dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: ds); continue }
+                }
+                if self.laAnhLuoiTheThiDua(phanTu: pt) {
+                    let ds = self.phanTichThiDuaLuoiTheDaCot(phanTu: pt, watermark: wm)
+                    if !ds.isEmpty { dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: ds); continue }
+                }
+                if laRealtime {
+                    let dsBang5 = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: pt, anh: anhQuet, watermark: wm)
+                    if !dsBang5.isEmpty { dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang5); continue }
+                } else {
+                    let dsBang6 = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: pt, anh: anhQuet, watermark: wm)
+                    if !dsBang6.isEmpty { dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang6); continue }
+                }
+                let dsBang4 = self.phanTichBangThiDua4Cot(phanTu: pt, watermark: wm)
+                if !dsBang4.isEmpty { dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang4); continue }
                 let dsBang4Cot = self.phanTichBangThiDua4Cot(phanTu: pt, watermark: wm)
                 if !dsBang4Cot.isEmpty {
                     dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang4Cot)
@@ -4270,7 +4295,233 @@ final class DichVuDocAnh {
         return danhSachKetQua
     }
 
-    // MARK: - Bước 2A.1: Bộ phân tích Lưới Thẻ Thi Đua 2 Cột (Hỗ trợ 1–8+ môn/ảnh, lọc sạch CE/ICT/DV, đối chiếu toán học & lọc trùng 100%)
+    // MARK: - Bước 2A.00: Bộ phân tích Bảng Thi Đua Ngang Ma Trận - Phương pháp 1 (Dạng Bảng)
+
+    /// Nhận diện ảnh chụp Bảng ngang ma trận thi đua (gồm các cột môn thi đua xếp ngang, mỗi môn có cột Thực hiện & Target, có dòng Khu vực/Siêu thị hoặc Tổng)
+    private func laAnhBangNgangMaTran(phanTu: [PhanTuVanBan]) -> Bool {
+        if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) {
+            return false
+        }
+        var coHeaderKhuVuc = false
+        var coHeaderThuHang = false
+        var coBangThang = false
+        var soMonNgang = 0
+
+        for pt in phanTu {
+            let u = boDau(pt.chu)
+            if u.contains("KHU VUC") || u.contains("SIEU THI") { coHeaderKhuVuc = true }
+            if u.contains("THU HANG") || u.contains("THU'") || (u.contains("HANG") && pt.x < 0.15) { coHeaderThuHang = true }
+            if u.contains("BC THI DUA") && (u.contains("BANG") || u.contains("LUY KE")) { coBangThang = true }
+            if KhoDuLieu.laTenMonThiDuaChuanDMX(pt.chu) || u.contains("(DT)") || u.contains("(SL)") {
+                soMonNgang += 1
+            }
+        }
+        if soMonNgang >= 4 { return true }
+        if (coHeaderKhuVuc || coHeaderThuHang || coBangThang) && soMonNgang >= 2 { return true }
+        return false
+    }
+
+    /// Phân tích Bảng Thi Đua Dạng Bảng (Bảng ma trận ngang - Phương pháp 1):
+    /// Trích xuất danh sách các môn thi đua theo từng cột ngang kèm Thực hiện và Target của Siêu thị / Tổng
+    private func phanTichThiDuaBangNgangMaTran(
+        phanTu: [PhanTuVanBan],
+        watermark: String? = nil
+    ) -> [DongThiDua] {
+        if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) {
+            return []
+        }
+
+        var phanTuGocDonDong: [PhanTuVanBan] = []
+        for pt in phanTu {
+            let cacDong = pt.chu.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if cacDong.count > 1 {
+                let caoM = pt.cao / CGFloat(cacDong.count)
+                for (i, d) in cacDong.enumerated() {
+                    phanTuGocDonDong.append(PhanTuVanBan(chu: d, x: pt.x, y: pt.y + CGFloat(i) * caoM, rong: pt.rong, cao: caoM))
+                }
+            } else {
+                phanTuGocDonDong.append(pt)
+            }
+        }
+
+        func lamSachWM(_ s: String) -> String {
+            var kq = s
+            if let wm = watermark, !wm.isEmpty {
+                kq = kq.replacingOccurrences(of: wm, with: " ")
+            }
+            kq = kq.replacingOccurrences(of: "\\b54453\\b", with: " ", options: .regularExpression)
+            kq = kq.replacingOccurrences(of: "(?i)dũng\\s*nguyễn(\\s*thanh)?", with: " ", options: .regularExpression)
+            kq = kq.replacingOccurrences(of: "(?i)dung\\s*nguyen(\\s*thanh)?", with: " ", options: .regularExpression)
+            return kq.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        // Tìm dòng dữ liệu Siêu thị (ĐML_...) hoặc dòng TỔNG
+        let ptSieuThi = phanTuGocDonDong.first { pt in
+            let u = boDau(pt.chu)
+            return pt.x < 0.20 && (u.contains("DML_") || u.contains("DMX_") || u.contains("TGDD_") || u.contains("QUANG TRUNG"))
+        }
+        let ptTong = phanTuGocDonDong.first { pt in
+            let u = boDau(pt.chu)
+            return pt.x < 0.16 && (u == "TONG" || u.contains("TONG CONG") || u.hasPrefix("TONG"))
+        }
+
+        let yDongSoLieu: CGFloat
+        if let ptST = ptSieuThi {
+            yDongSoLieu = ptST.y + ptST.cao / 2.0
+        } else if let ptT = ptTong {
+            yDongSoLieu = ptT.y + ptT.cao / 2.0
+        } else {
+            let cacYSo = phanTuGocDonDong.compactMap { pt -> CGFloat? in
+                guard pt.y > 0.08, pt.x > 0.10 else { return nil }
+                let s = lamSachWM(pt.chu)
+                return trichCacSoTheThiDua(trong: s).first != nil ? (pt.y + pt.cao / 2.0) : nil
+            }.sorted()
+            yDongSoLieu = cacYSo.first ?? 0.50
+        }
+
+        struct CotMonNgang {
+            var tenSach: String
+            var loai: LoaiChiTieuThiDua
+            var xTam: CGFloat
+            var xMin: CGFloat
+            var xMax: CGFloat
+        }
+
+        var cacCotMon: [CotMonNgang] = []
+        let ptTieuDe = phanTuGocDonDong.filter { $0.y < yDongSoLieu - 0.006 && $0.x >= 0.05 }.sorted { $0.x < $1.x }
+
+        for pt in ptTieuDe {
+            let chuSach = lamSachWM(pt.chu)
+            guard !chuSach.isEmpty else { continue }
+            let u = boDau(chuSach)
+            if u.contains("KHU VUC") || u.contains("THU HANG") || u.contains("THUC HIEN") || u.contains("TARGET") {
+                continue
+            }
+            let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(chuSach)
+            if KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) || u.contains("(DT)") || u.contains("(SL)") || tenSach.count >= 3 {
+                let loai: LoaiChiTieuThiDua = (u.contains("SL") || u.contains("(SL)")) ? .soLuong : .doanhThu
+                let xTam = pt.x + pt.rong / 2.0
+                let xMin = pt.x - 0.012
+                let xMax = pt.x + pt.rong + 0.012
+                cacCotMon.append(CotMonNgang(tenSach: tenSach, loai: loai, xTam: xTam, xMin: xMin, xMax: xMax))
+            }
+        }
+
+        var danhSachKetQua: [DongThiDua] = []
+        for (idx, cot) in cacCotMon.enumerated() {
+            let x0 = cot.xMin
+            let x1 = (idx + 1 < cacCotMon.count) ? ((cot.xTam + cacCotMon[idx + 1].xTam) / 2.0) : (cot.xMax + 0.04)
+            let cacSoTrongCot = phanTuGocDonDong.filter { pt in
+                let yTam = pt.y + pt.cao / 2.0
+                let xTam = pt.x + pt.rong / 2.0
+                return abs(yTam - yDongSoLieu) < 0.035 && xTam >= x0 && xTam < x1
+            }.sorted { $0.x < $1.x }
+
+            var th: Double?
+            var tg: Double?
+            for pt in cacSoTrongCot {
+                let cacSo = trichCacSoTheThiDua(trong: lamSachWM(pt.chu))
+                for v in cacSo where v >= 0 && v < 100000 {
+                    if th == nil { th = v }
+                    else if tg == nil { tg = v; break }
+                }
+                if th != nil && tg != nil { break }
+            }
+
+            let soTH = th ?? 0.0
+            let soTG = tg ?? 0.0
+            let phanTramHT = soTG > 0 ? (((soTH / soTG) * 1000.0).rounded() / 10.0) : 0.0
+            let uocDK = soTH * TienIchNgay.heSoDuBaoThang()
+            let duKien = soTG > 0 ? (cot.loai == .soLuong ? uocDK.rounded() : ((uocDK * 100).rounded() / 100)) : nil
+
+            let dong = DongThiDua(
+                tenNganhHangGoc: cot.tenSach,
+                tenNganhHang: KhoDuLieu.apDungLocTuCaiDat(cot.tenSach),
+                loaiChiTieu: cot.loai,
+                thucHien: soTH,
+                target: soTG,
+                phanTramHTGoc: phanTramHT,
+                phanTramDuBaoGoc: phanTramHT,
+                duKienGoc: duKien
+            )
+            danhSachKetQua = KhoDuLieu.gopDanhSachThiDua(cu: danhSachKetQua, moi: [dong])
+        }
+
+        return danhSachKetQua
+    }
+
+    // MARK: - Bước 2A.1: Bộ phân tích Lưới Thẻ Thi Đua Đa Cột - Phương pháp 2 (Dạng Thẻ)
+    // Hỗ trợ linh hoạt từ 1, 2, 3, 4, đến 6 cột thẻ trên cùng một trang ảnh
+
+    private func phanTichThiDuaLuoiTheDaCot(phanTu: [PhanTuVanBan], watermark: String?) -> [DongThiDua] {
+        if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) {
+            return []
+        }
+        guard laAnhLuoiTheThiDua(phanTu: phanTu) else {
+            return []
+        }
+
+        let cacYHeader = phanTu.compactMap { pt -> CGFloat? in
+            guard pt.y < 0.15 else { return nil }
+            let u = boDau(pt.chu)
+            if u.contains("DOANH THU HOP") || u.contains("HOP NHAT") || u.contains("CAP NHAT") ||
+               u.contains("DUNG NGUYEN") || (watermark != nil && u.contains(watermark!)) {
+                return pt.y + pt.cao
+            }
+            return nil
+        }
+        let yBatDauTrang: CGFloat = (cacYHeader.max() ?? -0.01) + 0.008
+
+        // Thu thập các mốc X của tiêu đề thẻ, huy hiệu hoặc % lớn để xác định số cột thẻ (1, 2, 3, 4, 6)
+        let ungVienMocX = phanTu.compactMap { pt -> CGFloat? in
+            guard pt.y > max(0.02, yBatDauTrang) && pt.y < 0.98 else { return nil }
+            let u = boDau(pt.chu).trimmingCharacters(in: .whitespacesAndNewlines)
+            if laDauTieuDeMonThiDua(u) || KhoDuLieu.laTenMonThiDuaChuanDMX(pt.chu) ||
+               (pt.chu.contains("%") && (u.contains("DU KIEN") || u.contains("HOAN THANH") || pt.rong >= 0.08)) {
+                return pt.x
+            }
+            return nil
+        }
+
+        let soCot: Int
+        let coCotTren080 = ungVienMocX.contains { $0 >= 0.79 }
+        let coCot065 = ungVienMocX.contains { $0 >= 0.63 && $0 < 0.79 }
+        let coCot048 = ungVienMocX.contains { $0 >= 0.46 && $0 < 0.63 }
+        let coCot030 = ungVienMocX.contains { $0 >= 0.29 && $0 < 0.46 }
+        let coCot015 = ungVienMocX.contains { $0 >= 0.14 && $0 < 0.29 }
+
+        if coCotTren080 && coCot065 && coCot048 && coCot030 && coCot015 {
+            soCot = 6
+        } else if coCotTren080 && coCot048 {
+            soCot = 3
+        } else if coCot048 || coCot065 {
+            soCot = 2
+        } else {
+            soCot = 1
+        }
+
+        var ketQua: [DongThiDua] = []
+        for colIdx in 0..<soCot {
+            let x0 = CGFloat(colIdx) / CGFloat(soCot)
+            let x1 = CGFloat(colIdx + 1) / CGFloat(soCot)
+            let theCot = phanTichCotTheThiDua(
+                phanTu: phanTu,
+                xMin: x0,
+                xMax: x1,
+                yBatDauTrang: max(0.002, yBatDauTrang),
+                watermark: watermark
+            )
+            ketQua = KhoDuLieu.gopDanhSachThiDua(cu: ketQua, moi: theCot)
+        }
+        return ketQua
+    }
+
+    private func phanTichThiDuaLuoiThe2Cot(phanTu: [PhanTuVanBan], watermark: String?) -> [DongThiDua] {
+        phanTichThiDuaLuoiTheDaCot(phanTu: phanTu, watermark: watermark)
+    }
+ (Hỗ trợ 1–8+ môn/ảnh, lọc sạch CE/ICT/DV, đối chiếu toán học & lọc trùng 100%)
 
     private func phanTichThiDuaLuoiThe2Cot(phanTu: [PhanTuVanBan], watermark: String?) -> [DongThiDua] {
         if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) {

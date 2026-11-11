@@ -1,3 +1,4 @@
+import UniformTypeIdentifiers
 import UIKit
 import PhotosUI
 
@@ -310,7 +311,7 @@ final class MenuDieuHuongBenTraiView: UIView {
 
 // MARK: - Màn Hình Chính Điều Phối Toàn Bộ Ứng Dụng
 
-final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITextViewDelegate {
+final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDocumentPickerDelegate, UITextViewDelegate {
     private enum DinhDangFileBaoCao: String, CaseIterable {
         case excel = "Excel"
         case powerPoint = "PowerPoint"
@@ -4020,6 +4021,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                     self?.thayTheBangThiDuaKhiQuet = false
                     self?.moChonAnh(cheDo: .thiDua(cheDoMucTieu), gioiHan: 0)
                 },
+                MucChonDMX(tieuDe: "📁 Chọn ảnh Thi đua từ Tệp (Files)") { [weak self] in
+                    self?.thayTheBangThiDuaKhiQuet = false
+                    self?.moChonAnhTuTep(cheDo: .thiDua(cheDoMucTieu), gioiHan: 0)
+                },
                 MucChonDMX(tieuDe: "🔄 Quét mới Thi đua \(tenCheDo) (Thay thế bảng \(tenCheDo))", kieu: .nguyHiem) { [weak self] in
                     self?.thayTheBangThiDuaKhiQuet = true
                     self?.moChonAnh(cheDo: .thiDua(cheDoMucTieu), gioiHan: 0)
@@ -4219,8 +4224,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
                 MucChonDMX(tieuDe: "🎚️ Target hiển thị: \(Int(ptTarget))%") { [weak self] in
                     self?.moDieuChinhPhanTramTarget()
                 },
-                MucChonDMX(tieuDe: "📥 Nhập tất cả ảnh \(tenCheDo)") { [weak self] in
-                    self?.moChonAnh(cheDo: .tatCaAnhTheoTab(cheDo), gioiHan: 0)
+                MucChonDMX(tieuDe: "📥 Nhập tất cả ảnh \(tenCheDo) (Thư viện)") { [weak self] in
+                    self?.moChonAnhThuVien(cheDo: .tatCaAnhTheoTab(cheDo), gioiHan: 0)
+                },
+                MucChonDMX(tieuDe: "📁 Nhập tất cả ảnh \(tenCheDo) (Từ Tệp/Files)") { [weak self] in
+                    self?.moChonAnhTuTep(cheDo: .tatCaAnhTheoTab(cheDo), gioiHan: 0)
                 },
                 MucChonDMX(tieuDe: "📷 Ảnh doanh thu (Thực / Quy đổi)") { [weak self] in
                     self?.moChonAnh(cheDo: .doanhThu(cheDo), gioiHan: 2)
@@ -4372,6 +4380,28 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
 
     private func moChonAnh(cheDo: CheDoQuetAnh, gioiHan: Int) {
         cheDoQuet = cheDo
+        let hop = UIAlertController(
+            title: "Chọn nguồn ảnh",
+            message: "Bạn muốn chọn ảnh từ Thư viện ảnh hay mở tệp từ Files?",
+            preferredStyle: .actionSheet
+        )
+        hop.addAction(UIAlertAction(title: "🖼️ Chọn từ Thư viện ảnh", style: .default) { [weak self] _ in
+            self?.moChonAnhThuVien(cheDo: cheDo, gioiHan: gioiHan)
+        })
+        hop.addAction(UIAlertAction(title: "📁 Chọn ảnh từ Tệp (Files)", style: .default) { [weak self] _ in
+            self?.moChonAnhTuTep(cheDo: cheDo, gioiHan: gioiHan)
+        })
+        hop.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+        if let pop = hop.popoverPresentationController {
+            pop.sourceView = view
+            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
+            pop.permittedArrowDirections = []
+        }
+        present(hop, animated: true)
+    }
+
+    private func moChonAnhThuVien(cheDo: CheDoQuetAnh, gioiHan: Int) {
+        cheDoQuet = cheDo
         var cauHinh = PHPickerConfiguration()
         cauHinh.filter = .images
         cauHinh.selectionLimit = gioiHan
@@ -4381,6 +4411,33 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
         let picker = PHPickerViewController(configuration: cauHinh)
         picker.delegate = self
         present(picker, animated: true)
+    }
+
+    private func moChonAnhTuTep(cheDo: CheDoQuetAnh, gioiHan: Int) {
+        cheDoQuet = cheDo
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.image], asCopy: true)
+        picker.delegate = self
+        picker.allowsMultipleSelection = (gioiHan == 0 || gioiHan > 1)
+        present(picker, animated: true)
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        var danhSach: [UIImage] = []
+        for url in urls {
+            let access = url.startAccessingSecurityScopedResource()
+            if let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
+                danhSach.append(img)
+            }
+            if access {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        guard !danhSach.isEmpty else { return }
+        xuLyDanhSachAnhSauKhiChon(danhSach, cheDo: cheDoQuet)
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        controller.dismiss(animated: true)
     }
 
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
@@ -4409,19 +4466,22 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UITe
             guard let self = self else { return }
             let cacAnh = danhSach.compactMap { $0 }
             guard !cacAnh.isEmpty else { return }
+            self.xuLyDanhSachAnhSauKhiChon(cacAnh, cheDo: cheDo)
+        }
+    }
 
-            switch cheDo {
-            case .doanhThu(let loaiDT):
-                self.xuLyQuetDoanhThu(cacAnh, loai: loaiDT)
-            case .thiDua(let loaiTD):
-                self.xuLyQuetThiDua(cacAnh, loai: loaiTD)
-            case .thiDuaNhanVien(let loaiTDNV):
-                self.xuLyQuetThiDuaNhanVien(cacAnh, loai: loaiTDNV)
-            case .doanhThuNhanVien(let loaiNV):
-                self.xuLyQuetDoanhThuNhanVien(cacAnh, loai: loaiNV)
-            case .tatCaAnhTheoTab(let cheDoTab):
-                self.xuLyQuetTatCaAnhTheoTab(cacAnh, cheDoTab: cheDoTab)
-            }
+    private func xuLyDanhSachAnhSauKhiChon(_ cacAnh: [UIImage], cheDo: CheDoQuetAnh) {
+        switch cheDo {
+        case .doanhThu(let loaiDT):
+            self.xuLyQuetDoanhThu(cacAnh, loai: loaiDT)
+        case .thiDua(let loaiTD):
+            self.xuLyQuetThiDua(cacAnh, loai: loaiTD)
+        case .thiDuaNhanVien(let loaiTDNV):
+            self.xuLyQuetThiDuaNhanVien(cacAnh, loai: loaiTDNV)
+        case .doanhThuNhanVien(let loaiNV):
+            self.xuLyQuetDoanhThuNhanVien(cacAnh, loai: loaiNV)
+        case .tatCaAnhTheoTab(let cheDoTab):
+            self.xuLyQuetTatCaAnhTheoTab(cacAnh, cheDoTab: cheDoTab)
         }
     }
 
