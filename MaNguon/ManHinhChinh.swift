@@ -1307,7 +1307,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
             cacNut: [
                 ("📷 Quét 2 ảnh Doanh thu Lũy kế (Thực + QĐ)", #selector(bamQuetDoanhThuLK)),
                 ("✏️ Nhập / Sửa tay số liệu Doanh thu Lũy kế", #selector(bamSuaTayDoanhThuLK)),
-                ("📋 Quét ảnh Thi đua Lũy kế (4 PP: Bảng ngang · Bảng dọc · Lưới · Gemini)", #selector(bamQuetThiDuaLK)),
+                ("📋 Quét ảnh Bảng Thi đua Ngành hàng Lũy kế", #selector(bamQuetThiDuaLK)),
                 ("📁 Nhập ảnh Thi đua Lũy kế từ Tệp (Files)", #selector(bamNhapTepThiDuaLK)),
                 ("🪪 Quét ảnh Sức khỏe Nhân viên Lũy kế (Doanh thu & Thi đua)", #selector(bamQuetThiDuaNVLK))
             ]
@@ -4019,67 +4019,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         let cheDoKhac: LoaiCheDoDoanhThu = (cheDoMucTieu == .luyKe) ? .realtime : .luyKe
         let bieuTuongKhac = (cheDoKhac == .luyKe) ? "📊" : "⚡"
 
-        if cheDoMucTieu == .luyKe {
-            let ppHienTai = KhoDuLieu.dungChung.caiDat.phuongPhapQuetThiDua
-            var cacMuc: [MucChonDMX] = [
-                MucChonDMX(tieuDe: "🖼️ Chọn ảnh từ Thư viện Ảnh (PP: \(ppHienTai.tieuDe))") { [weak self] in
-                    self?.thayTheBangThiDuaKhiQuet = false
-                    self?.moThuVienAnh(cheDo: .thiDua(.luyKe), gioiHan: 0)
-                },
-                MucChonDMX(tieuDe: "📁 Nhập ảnh từ Tệp / Files (PP: \(ppHienTai.tieuDe))") { [weak self] in
-                    self?.thayTheBangThiDuaKhiQuet = false
-                    self?.moChonTepAnh(cheDo: .thiDua(.luyKe), gioiHan: 0)
-                }
-            ]
-
-            for pp in PhuongPhapQuetThiDua.allCases {
-                cacMuc.append(
-                    MucChonDMX(
-                        tieuDe: "\(pp.bieuTuong) \(pp.tieuDeDayDu)",
-                        dangChon: pp == ppHienTai
-                    ) { [weak self] in
-                        guard let self else { return }
-                        var cd = KhoDuLieu.dungChung.caiDat
-                        cd.phuongPhapQuetThiDua = pp
-                        cd.dungGeminiQuetAnh = (pp == .gemini)
-                        KhoDuLieu.dungChung.luuCaiDat(cd)
-                        self.manHinhCaiDatNhung.capNhatNgay(self.ngayHienTai)
-                        self.thayTheBangThiDuaKhiQuet = false
-                        self.moChonAnh(cheDo: .thiDua(.luyKe), gioiHan: 0)
-                    }
-                )
-            }
-
-            if !dsHienTai.isEmpty {
-                cacMuc.append(
-                    MucChonDMX(tieuDe: "🔄 Quét mới từ Thư viện Ảnh (Thay thế bảng Lũy kế)", kieu: .nguyHiem) { [weak self] in
-                        self?.thayTheBangThiDuaKhiQuet = true
-                        self?.moThuVienAnh(cheDo: .thiDua(.luyKe), gioiHan: 0)
-                    }
-                )
-                cacMuc.append(
-                    MucChonDMX(tieuDe: "🔄 Nhập mới từ Tệp / Files (Thay thế bảng Lũy kế)", kieu: .nguyHiem) { [weak self] in
-                        self?.thayTheBangThiDuaKhiQuet = true
-                        self?.moChonTepAnh(cheDo: .thiDua(.luyKe), gioiHan: 0)
-                    }
-                )
-            }
-
-            cacMuc.append(
-                MucChonDMX(tieuDe: "\(bieuTuongKhac) Chuyển sang nhập Thi đua \(cheDoKhac.tieuDe)") { [weak self] in
-                    self?.moHuongDanQuetAnhThiDua(cheDo: cheDoKhac)
-                }
-            )
-            cacMuc.append(MucChonDMX(tieuDe: "Huỷ", kieu: .huy))
-
-            hienMenuChon(
-                tieuDe: "Quét ảnh Thi đua Lũy kế (4 Phương pháp)",
-                thongDiep: "Đang chọn: \(ppHienTai.tieuDeDayDu) • Chạm vào phương pháp bên dưới để đổi nhanh và chọn ảnh từ Thư viện hoặc Tệp (Files):",
-                cacMuc: cacMuc
-            )
-            return
-        }
-
         if dsHienTai.isEmpty {
             thayTheBangThiDuaKhiQuet = false
             moChonAnh(cheDo: .thiDua(cheDoMucTieu), gioiHan: 0)
@@ -4089,11 +4028,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         hienMenuChon(
             tieuDe: "Nhập ảnh Thi đua (\(tenCheDo))",
             cacMuc: [
-                MucChonDMX(tieuDe: "🖼️ Quét thêm từ Thư viện Ảnh (Gộp nối tiếp)") { [weak self] in
+                MucChonDMX(tieuDe: "🖼️ Chọn ảnh từ Thư viện Ảnh") { [weak self] in
                     self?.thayTheBangThiDuaKhiQuet = false
                     self?.moThuVienAnh(cheDo: .thiDua(cheDoMucTieu), gioiHan: 0)
                 },
-                MucChonDMX(tieuDe: "📁 Nhập thêm ảnh từ Tệp / Files (Gộp nối tiếp)") { [weak self] in
+                MucChonDMX(tieuDe: "📁 Nhập ảnh từ Tệp (Files)") { [weak self] in
                     self?.thayTheBangThiDuaKhiQuet = false
                     self?.moChonTepAnh(cheDo: .thiDua(cheDoMucTieu), gioiHan: 0)
                 },
@@ -4632,7 +4571,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 }
 
                 if !kq.danhSachThiDua.isEmpty {
-                    let cu = dl.danhSachThiDua(theo: cheDoTab)
+                    let cu = (kq.danhSachThiDua.count >= 25) ? [] : dl.danhSachThiDua(theo: cheDoTab)
                     let gop = KhoDuLieu.gopDanhSachThiDua(cu: cu, moi: kq.danhSachThiDua)
                     dl.ganDanhSachThiDua(gop, theo: cheDoTab)
                     var cd = KhoDuLieu.dungChung.caiDat
@@ -4748,7 +4687,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                     }
                 }
                 if !kq.danhSach.isEmpty {
-                    let cu = self.thayTheBangThiDuaKhiQuet ? [] : dl.danhSachThiDua(theo: loai)
+                    let cu = (self.thayTheBangThiDuaKhiQuet || kq.danhSach.count >= 25) ? [] : dl.danhSachThiDua(theo: loai)
                     let gop = KhoDuLieu.gopDanhSachThiDua(cu: cu, moi: kq.danhSach)
                     dl.ganDanhSachThiDua(gop, theo: loai)
                     var cd = KhoDuLieu.dungChung.caiDat

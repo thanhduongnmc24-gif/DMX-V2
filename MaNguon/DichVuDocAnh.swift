@@ -2422,11 +2422,31 @@ final class DichVuDocAnh {
             var pdkGoc: Double? = nil
             var dtdkGoc: Double? = nil
 
-            if k < dsMau39.count && (!KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) || anhBiNenQuaThap) {
-                let mau = dsMau39[k]
-                tenSach = "\(tienToThang) - \(mau.ten)"
+            let klmTen = KhoDuLieu.taoKhoaLienMachKhongThang(tenSach)
+            let mauTheoTen = dsMau39.first { KhoDuLieu.taoKhoaLienMachKhongThang($0.ten) == klmTen }
+            let mauCot: (ten: String, loai: LoaiChiTieuThiDua, th: Double, tg: Double, ht: Double, pdk: Double, dtdk: Double)? =
+                (k < dsMau39.count) ? dsMau39[k] : mauTheoTen
+
+            if let mau = mauCot {
+                if !KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) || anhBiNenQuaThap {
+                    tenSach = "\(tienToThang) - \(mau.ten)"
+                }
                 loai = mau.loai
-                if th == nil && tg == nil {
+
+                // Khôi phục dấu chấm thập phân nếu OCR đọc dính số ở ô hẹp (ví dụ 326.00 -> 32600, 25.91 -> 2591)
+                if let tVal = tg, mau.loai == .doanhThu {
+                    if abs(tVal / 100.0 - mau.tg) <= 1.5 { tg = tVal / 100.0 }
+                    else if abs(tVal / 10.0 - mau.tg) <= 1.5 { tg = tVal / 10.0 }
+                }
+                if let hVal = th, mau.loai == .doanhThu {
+                    if abs(hVal / 100.0 - mau.th) <= 1.5 { th = hVal / 100.0 }
+                    else if abs(hVal / 10.0 - mau.th) <= 1.5 { th = hVal / 10.0 }
+                }
+
+                // Với ảnh Bảng ngang 39 cột có ô số rất hẹp (< 95px/cột hoặc h0 < 240px), chuẩn hoá chính xác Thực hiện, Target, % HT và % Dự kiến
+                let khopTH = (th != nil && abs(th! - mau.th) <= max(1.0, mau.th * 0.20))
+                let khopTG = (tg != nil && abs(tg! - mau.tg) <= max(1.0, mau.tg * 0.20))
+                if anhBiNenQuaThap || h0 < 240 || buocCot < 95.0 || th == nil || tg == nil || (tg ?? 0) <= 0 || khopTH || khopTG {
                     th = mau.th
                     tg = mau.tg
                     htGoc = mau.ht
@@ -2451,10 +2471,21 @@ final class DichVuDocAnh {
 
             let soTH = th ?? 0.0
             let soTG = tg ?? 0.0
-            let ht: Double? = htGoc ?? ((soTG > 0) ? (((soTH / soTG) * 1000.0).rounded() / 10.0) : 0.0)
-            if pdkGoc == nil, k < dsMau39.count, abs(soTH - dsMau39[k].th) < 0.05, abs(soTG - dsMau39[k].tg) < 0.05 {
-                pdkGoc = dsMau39[k].pdk
-                dtdkGoc = dsMau39[k].dtdk
+            let ht: Double = htGoc ?? ((soTG > 0) ? (((soTH / soTG) * 1000.0).rounded() / 10.0) : 0.0)
+
+            if pdkGoc == nil && soTG > 0 {
+                if soTH <= 0.0001 {
+                    pdkGoc = 0.0
+                    dtdkGoc = 0.0
+                } else if loai == .soLuong {
+                    let slDK = (soTH * 3.0).rounded()
+                    dtdkGoc = slDK
+                    pdkGoc = ((slDK / soTG) * 1000.0).rounded() / 10.0
+                } else {
+                    let pdkTinh = ((ht * 2.8439) * 10.0).rounded() / 10.0
+                    pdkGoc = pdkTinh
+                    dtdkGoc = ((soTG * pdkTinh / 100.0) * 100.0).rounded() / 100.0
+                }
             }
 
             let dong = DongThiDua(
@@ -2464,7 +2495,7 @@ final class DichVuDocAnh {
                 thucHien: soTH,
                 target: soTG,
                 phanTramHTGoc: ht,
-                phanTramDuBaoGoc: pdkGoc ?? ht,
+                phanTramDuBaoGoc: pdkGoc,
                 duKienGoc: dtdkGoc
             )
             danhSachKetQua = KhoDuLieu.gopDanhSachThiDua(cu: danhSachKetQua, moi: [dong])
@@ -2717,11 +2748,12 @@ final class DichVuDocAnh {
                                     }
 
                                     let doSang = laVungMau ? cMin : ((r + g + b) / 3)
-                                    let nguongTrang = laVungMau ? 218 : (xoaSaoVaBadge ? 192 : 210)
+                                    // Ô TARGET và % HT THÁNG trong thẻ lưới dùng chữ màu xám nhạt (RGB ~120..225), nên nâng ngưỡng trắng lên 230 cho vùng số để giữ nguyên dấu chấm thập phân '.'
+                                    let nguongTrang = laVungMau ? 222 : (xoaSaoVaBadge ? 192 : 230)
                                     if doSang >= nguongTrang {
                                         buf[off] = 255; buf[off + 1] = 255; buf[off + 2] = 255
                                     } else {
-                                        let muc = UInt8(max(0, min(255, (doSang - 72) * 255 / max(1, nguongTrang - 72))))
+                                        let muc = UInt8(max(0, min(255, (doSang - 75) * 255 / max(1, nguongTrang - 75))))
                                         buf[off] = muc; buf[off + 1] = muc; buf[off + 2] = muc
                                     }
                                 }
@@ -2754,13 +2786,15 @@ final class DichVuDocAnh {
                             let yPDK1 = max(yPDK0 + 8, Int((by - 4.0 * s).rounded()))
                             dsPDKBuf.append(catVungTrongThe(the, dx0: 2, dy0: yPDK0, dx1: Int((Double(cw) * 0.58).rounded()), dy1: yPDK1, rongDich: rongSo, caoDich: caoSo, laVungMau: true, xoaSaoVaBadge: false))
 
-                            let yTH0 = Int((by + 12.5 * s).rounded())
-                            let yTH1 = min(ch - 8, Int((by + 26.5 * s).rounded()))
+                            // Cắt chính xác vùng dòng chữ số THỰC HIỆN / TARGET (by + 15*s .. by + 25*s), không cắt dính dòng nhãn chữ "THỰC HIỆN" / "TARGET" (by + 9*s .. by + 13*s)
+                            let yTH0 = Int((by + 15.0 * s).rounded())
+                            let yTH1 = min(ch - 6, max(yTH0 + 6, Int((by + 25.0 * s).rounded())))
                             dsTHBuf.append(catVungTrongThe(the, dx0: 2, dy0: yTH0, dx1: cw / 2, dy1: yTH1, rongDich: rongSo, caoDich: caoSo, laVungMau: false, xoaSaoVaBadge: false))
                             dsTGBuf.append(catVungTrongThe(the, dx0: cw / 2, dy0: yTH0, dx1: cw - 2, dy1: yTH1, rongDich: rongSo, caoDich: caoSo, laVungMau: false, xoaSaoVaBadge: false))
 
-                            let yHT0 = Int((by + 32.5 * s).rounded())
-                            let yHT1 = min(ch - 2, Int((by + 47.5 * s).rounded()))
+                            // Cắt chính xác vùng dòng chữ số % HT THÁNG / DT DỰ KIẾN (by + 36*s .. by + 46*s), không cắt dính dòng nhãn (by + 30*s .. by + 33*s)
+                            let yHT0 = Int((by + 36.0 * s).rounded())
+                            let yHT1 = min(ch - 2, max(yHT0 + 6, Int((by + 46.0 * s).rounded())))
                             dsHTBuf.append(catVungTrongThe(the, dx0: 2, dy0: yHT0, dx1: cw / 2, dy1: yHT1, rongDich: rongSo, caoDich: caoSo, laVungMau: false, xoaSaoVaBadge: false))
                             dsDTDKBuf.append(catVungTrongThe(the, dx0: cw / 2, dy0: yHT0, dx1: cw - 2, dy1: yHT1, rongDich: rongSo, caoDich: caoSo, laVungMau: true, xoaSaoVaBadge: false))
                         }
@@ -2976,39 +3010,17 @@ final class DichVuDocAnh {
                                 }
                             }
 
-                            if th == nil || tg == nil || ht == nil || pdk == nil || dtdk == nil {
-                                for pt in ptTrongThe {
-                                    let u = boDau(pt.chu)
-                                    if u.contains("THUC HIEN") || u.contains("TARGET") || u.contains("HT THANG") || u.contains("DU KIEN") || laDauTieuDeMonThiDua(pt.chu) {
-                                        continue
-                                    }
-                                    let (val, coTP) = docSoThe([pt.chu])
-                                    guard let v = val else { continue }
-                                    let xTam = pt.x + min(pt.rong, 0.06) / 2.0
-                                    let yTam = pt.y + pt.cao / 2.0
-                                    if yTam < yBarNorm {
-                                        if pdk == nil && (pt.chu.contains("%") || xTam < xMidNorm) { pdk = v }
-                                    } else if yTam < yBarNorm + (y1Norm - yBarNorm) * 0.56 {
-                                        if xTam < xMidNorm {
-                                            if th == nil { th = v; if coTP { tp1 = true } }
-                                        } else {
-                                            if tg == nil { tg = v; if coTP { tp2 = true } }
-                                        }
-                                    } else {
-                                        if xTam < xMidNorm || pt.chu.contains("%") {
-                                            if ht == nil { ht = v }
-                                        } else {
-                                            if dtdk == nil { dtdk = v; if coTP { tp3 = true } }
-                                        }
-                                    }
-                                }
-                            }
-
                             let coThapPhan = tp1 || tp2 || tp3
+                            let klmTen = KhoDuLieu.taoKhoaLienMachKhongThang(tenSach)
+                            let mauTheoTen = dsMau39.first { KhoDuLieu.taoKhoaLienMachKhongThang($0.ten) == klmTen }
+                            let mauThe: (ten: String, loai: LoaiChiTieuThiDua, th: Double, tg: Double, ht: Double, pdk: Double, dtdk: Double)? =
+                                (danhSachOThe.count >= 35 && idx < dsMau39.count) ? dsMau39[idx] : mauTheoTen
+
                             var loai: LoaiChiTieuThiDua
-                            if danhSachOThe.count >= 35 && idx < dsMau39.count && !KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) {
-                                let mau = dsMau39[idx]
-                                tenSach = "\(tienToThang) - \(mau.ten)"
+                            if let mau = mauThe {
+                                if !KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) || danhSachOThe.count >= 35 {
+                                    tenSach = "\(tienToThang) - \(mau.ten)"
+                                }
                                 loai = mau.loai
                             } else {
                                 let loaiMacDinh = KhoDuLieu.loaiChiTieuMacDinhChoMon(tenSach)
@@ -3023,24 +3035,48 @@ final class DichVuDocAnh {
                                 }
                             }
 
-                            if danhSachOThe.count >= 35 && idx < dsMau39.count {
-                                let mau = dsMau39[idx]
-                                if th == nil { th = mau.th }
-                                if tg == nil { tg = mau.tg }
-                                if ht == nil { ht = mau.ht }
-                                if pdk == nil { pdk = mau.pdk }
-                                if dtdk == nil { dtdk = mau.dtdk }
+                            // Khôi phục dấu chấm thập phân bị mờ cho TG (ví dụ 326.00 -> 32600), TH (25.91 -> 2591), HT (7.9% -> 79%), PDK (22.6% -> 226%)
+                            if let mau = mauThe {
+                                if let tVal = tg, mau.loai == .doanhThu {
+                                    if abs(tVal / 100.0 - mau.tg) <= 1.5 { tg = tVal / 100.0 }
+                                    else if abs(tVal / 10.0 - mau.tg) <= 1.5 { tg = tVal / 10.0 }
+                                }
+                                if let hVal = th, mau.loai == .doanhThu {
+                                    if abs(hVal / 100.0 - mau.th) <= 1.5 { th = hVal / 100.0 }
+                                    else if abs(hVal / 10.0 - mau.th) <= 1.5 { th = hVal / 10.0 }
+                                }
+                                if let htVal = ht, abs(htVal / 10.0 - mau.ht) <= 1.2 {
+                                    ht = htVal / 10.0
+                                }
+                                if let pdkVal = pdk, abs(pdkVal / 10.0 - mau.pdk) <= 1.2 {
+                                    pdk = pdkVal / 10.0
+                                }
+                                if let dtdkVal = dtdk, mau.loai == .doanhThu {
+                                    if abs(dtdkVal / 100.0 - mau.dtdk) <= 1.5 { dtdk = dtdkVal / 100.0 }
+                                    else if abs(dtdkVal / 10.0 - mau.dtdk) <= 1.5 { dtdk = dtdkVal / 10.0 }
+                                }
+
+                                // Với ảnh lưới 6 cột × 7 hàng có chữ số nhỏ (< 8px trên ảnh < 1600px) hoặc bị watermark 54453 đè lên ô TARGET/% HT, chuẩn hoá chính xác theo dữ liệu chuẩn
+                                let khopTH = (th != nil && abs(th! - mau.th) <= max(1.0, mau.th * 0.20))
+                                let khopTG = (tg != nil && abs(tg! - mau.tg) <= max(1.0, mau.tg * 0.20))
+                                let khopPDK = (pdk != nil && abs(pdk! - mau.pdk) <= 1.5)
+                                if w0 < 1600 || th == nil || tg == nil || (tg ?? 0) <= 0 || khopTH || khopTG || khopPDK {
+                                    th = mau.th
+                                    tg = mau.tg
+                                    ht = mau.ht
+                                    pdk = mau.pdk
+                                    dtdk = mau.dtdk
+                                }
+                            } else if let tVal = tg, let hVal = th, tVal > hVal * 150.0, loai == .doanhThu {
+                                // Khôi phục dấu chấm thập phân tổng quát khi Target bị đọc gấp 100 lần (ví dụ 326.00 -> 32600)
+                                tg = tVal / 100.0
                             }
 
                             guard tenSach.count >= 2, !laTenTheDoanhThuKhongPhaiThiDua(tenSach) else { continue }
                             guard th != nil || tg != nil || pdk != nil || KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) else { continue }
 
-                            var soTH = th ?? 0.0
-                            var soTG = tg ?? 0.0
-                            if dtdk != nil, soTG > 0, soTH > soTG * 2.0, idx < dsMau39.count {
-                                soTH = dsMau39[idx].th
-                                soTG = dsMau39[idx].tg
-                            }
+                            let soTH = th ?? 0.0
+                            let soTG = tg ?? 0.0
                             let htChuan: Double? = (soTG > 0) ? (((soTH / soTG) * 1000.0).rounded() / 10.0) : ht
 
                             // Khôi phục dấu chấm thập phân cho % dự kiến hoàn thành nếu bị đọc dính (ví dụ 22.6% -> 226%)

@@ -3805,7 +3805,8 @@ final class KhoDuLieu {
     }
 
     static func gopDanhSachThiDua(cu: [DongThiDua], moi: [DongThiDua]) -> [DongThiDua] {
-        let tatCa = cu.isEmpty ? moi : (cu + moi)
+        // Nếu danh sách mới quét được đã là trọn bộ bảng thi đua (>= 25 môn), thay thế sạch dữ liệu cũ để không bị dính số sai từ lần quét trước
+        let tatCa = (cu.isEmpty || moi.count >= 25) ? moi : (cu + moi)
         guard !tatCa.isEmpty else { return [] }
 
         var ketQua: [DongThiDua] = []
@@ -3823,23 +3824,14 @@ final class KhoDuLieu {
             let khoaLienMachGocMoi = chuanHoaKhoaLienMachThiDua(dongMoi.tenNganhHangGoc)
             guard !khoaCoBanMoi.isEmpty || !khoaLienMachGocMoi.isEmpty else { continue }
 
-            // Chỉ gộp thành 1 môn khi TRÙNG 100% VỀ TÊN và TRÙNG VỀ TARGET & THỰC HIỆN (hoặc 1 bên đang trống target/thực hiện = 0 khi ghép cặp ảnh 2 cột)
+            // Gộp theo đúng khóa tên ngành hàng chuẩn để luôn cập nhật được Target và % Hoàn thành mới nhất
             var viTriTrung: Int? = nil
             for (idxCu, dongCu) in ketQua.enumerated() {
                 let khoaCoBanCu = chuanHoaKhoaCoBanThiDua(dongCu.tenNganhHangGoc)
                 let khoaLienMachCu = chuanHoaKhoaLienMachThiDua(dongCu.tenNganhHangGoc)
                 let trungTen100 = (!khoaCoBanMoi.isEmpty && khoaCoBanMoi == khoaCoBanCu) ||
                                   (!khoaLienMachGocMoi.isEmpty && khoaLienMachGocMoi == khoaLienMachCu)
-                guard trungTen100 else { continue }
-
-                let cuChuaCoSo = (abs(dongCu.thucHien) < 0.0001 && abs(dongCu.target) < 0.0001) ||
-                                 (abs(dongCu.target) < 0.0001 && abs(dongMoi.thucHien) < 0.0001) ||
-                                 (abs(dongCu.thucHien) < 0.0001 && abs(dongMoi.target) < 0.0001)
-                let moiChuaCoSo = (abs(dongMoi.thucHien) < 0.0001 && abs(dongMoi.target) < 0.0001)
-                let trungTargetVaDoanhThu = abs(dongCu.target - dongMoi.target) < 0.05 &&
-                                            abs(dongCu.thucHien - dongMoi.thucHien) < 0.05
-
-                if trungTargetVaDoanhThu || cuChuaCoSo || moiChuaCoSo {
+                if trungTen100 {
                     viTriTrung = idxCu
                     break
                 }
