@@ -6990,6 +6990,7 @@ final class DichVuDocAnh {
             var maNV: String
             var hoTen: String
             var phanTram: Double?
+            var target: Double? = nil
             var yTrenNorm: CGFloat
             var yDuoiNorm: CGFloat
         }
@@ -7111,6 +7112,7 @@ final class DichVuDocAnh {
 
                         let bangCot1 = ocrDaiCot(0.040, 0.340, ngonNgu: true)
                         let bangCot2 = ocrDaiCot(0.342, 0.495, ngonNgu: false)
+                        let bangCot3 = ocrDaiCot(0.495, 0.680, ngonNgu: false)
 
                         for (rIdx, kh) in cacKhoangHang.enumerated() {
                             let cacTextCot1 = (bangCot1[rIdx] ?? []).sorted { $0.y < $1.y }.map(\.chu)
@@ -7130,6 +7132,15 @@ final class DichVuDocAnh {
                                         for t in cacSoCot2Dau where !t.contains("%") {
                                             if let v = chuyenChuoiThanhSoDoanhThu(t), v > 0, v != 54453 {
                                                 thucHienMonTuAnh = v
+                                                break
+                                            }
+                                        }
+                                    }
+                                    if targetMonTuAnh <= 0 {
+                                        let cacSoCot3Dau = (bangCot3[rIdx] ?? []).map(\.chu)
+                                        for t in cacSoCot3Dau where !t.contains("%") {
+                                            if let v = chuyenChuoiThanhSoDoanhThu(t), v > 0, v != 54453 {
+                                                targetMonTuAnh = v
                                                 break
                                             }
                                         }
@@ -7170,6 +7181,15 @@ final class DichVuDocAnh {
                                 }
                             }
 
+                            var targetQuet: Double? = nil
+                            let cacTextCot3 = (bangCot3[rIdx] ?? []).map(\.chu)
+                            for t in cacTextCot3 where !t.contains("%") {
+                                if let v = chuyenChuoiThanhSoDoanhThu(t), v > 0, v != 54453 {
+                                    targetQuet = v
+                                    break
+                                }
+                            }
+
                             let y0Norm = CGFloat(kh.y0) / CGFloat(h)
                             let y1Norm = CGFloat(kh.y1) / CGFloat(h)
                             cacHangNV.append(
@@ -7177,6 +7197,7 @@ final class DichVuDocAnh {
                                     maNV: maNVQuet,
                                     hoTen: hoTenQuet,
                                     phanTram: phanTramQuet,
+                                    target: targetQuet,
                                     yTrenNorm: y0Norm,
                                     yDuoiNorm: y1Norm
                                 )
@@ -7280,7 +7301,7 @@ final class DichVuDocAnh {
                             maNV: nvKhop.maNV,
                             hoTen: nvKhop.hoTen,
                             thucHien: pt,
-                            target: 0,
+                            target: hang.target ?? 0,
                             laPhanTram: true
                         )
                     )
@@ -7295,7 +7316,7 @@ final class DichVuDocAnh {
                     maNV: maChuan,
                     hoTen: hang.hoTen,
                     thucHien: pt,
-                    target: 0,
+                    target: hang.target ?? 0,
                     laPhanTram: true
                 )
             )
@@ -7384,37 +7405,44 @@ final class DichVuDocAnh {
                 pt.x >= 0.28 && pt.x < 0.72 && abs(pt.y - dong.y) < 0.03
             }.sorted { $0.x < $1.x }
 
-            var thucHien: Double?
-            var target: Double = 0
-
+            var cacSoCungHang: [Double] = []
             for pt in cungHang {
                 if pt.chu.contains("/") {
                     let parts = pt.chu.components(separatedBy: "/")
-                    if let v1 = chuyenChuoiThanhSoDoanhThu(parts[0]) {
-                        thucHien = v1
-                        if parts.count > 1, let v2 = chuyenChuoiThanhSoDoanhThu(parts[1]) {
-                            target = v2
+                    for p in parts {
+                        if let v = chuyenChuoiThanhSoDoanhThu(p) {
+                            cacSoCungHang.append(v)
                         }
-                        break
                     }
+                } else if let val = chuyenChuoiThanhSo(pt.chu, watermark: watermark) {
+                    cacSoCungHang.append(val)
                 }
-                if let val = chuyenChuoiThanhSo(pt.chu, watermark: watermark) {
-                    thucHien = val
-                    break
-                }
+            }
+
+            var thucHien: Double?
+            var target: Double = 0
+
+            if cacSoCungHang.count >= 2 {
+                thucHien = cacSoCungHang[0]
+                target = cacSoCungHang[1]
+            } else if let soDuyNhat = cacSoCungHang.first {
+                thucHien = soDuyNhat
             }
 
             if let th = thucHien {
                 let dsQL = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
-                if !dsQL.isEmpty {
-                    guard let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: maNV, tenQuet: hoTen, dsQuanLy: dsQL) else { continue }
-                    guard !daXetMa.contains(nvKhop.maNV) else { continue }
-                    daXetMa.insert(nvKhop.maNV)
-                    danhSach.append(DongThiDuaNhanVienQuet(maNV: nvKhop.maNV, hoTen: nvKhop.hoTen, thucHien: th, target: target))
+                let maFinal: String
+                let tenFinal: String
+                if !dsQL.isEmpty, let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: maNV, tenQuet: hoTen, dsQuanLy: dsQL) {
+                    maFinal = nvKhop.maNV
+                    tenFinal = nvKhop.hoTen
                 } else {
-                    daXetMa.insert(maNV)
-                    danhSach.append(DongThiDuaNhanVienQuet(maNV: maNV, hoTen: hoTen, thucHien: th, target: target))
+                    maFinal = KhoDuLieu.chuanHoaMaNV(maNV)
+                    tenFinal = hoTen
                 }
+                guard !maFinal.isEmpty, !daXetMa.contains(maFinal) else { continue }
+                daXetMa.insert(maFinal)
+                danhSach.append(DongThiDuaNhanVienQuet(maNV: maFinal, hoTen: tenFinal, thucHien: th, target: target))
             }
         }
 

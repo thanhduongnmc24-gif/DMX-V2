@@ -3138,12 +3138,12 @@ final class KhoDuLieu {
             }
             for item in khoi.danhSach {
                 let maLuu: String
-                if !caiDat.danhSachNhanVien.isEmpty {
-                    guard let nvKhop = Self.khopNhanVienQuetVoiQuanLy(
-                        maQuet: item.maNV,
-                        tenQuet: item.hoTen,
-                        dsQuanLy: caiDat.danhSachNhanVien
-                    ) else { continue }
+                if !caiDat.danhSachNhanVien.isEmpty,
+                   let nvKhop = Self.khopNhanVienQuetVoiQuanLy(
+                       maQuet: item.maNV,
+                       tenQuet: item.hoTen,
+                       dsQuanLy: caiDat.danhSachNhanVien
+                   ) {
                     maLuu = nvKhop.maNV
                 } else {
                     maLuu = Self.chuanHoaMaNV(item.maNV)
@@ -3151,7 +3151,9 @@ final class KhoDuLieu {
                 guard !maLuu.isEmpty else { continue }
                 if item.target > 0 {
                     bangCu["__target_\(maLuu)__"] = item.target
-                    bangCu["__target_ca_nhan__"] = item.target
+                    if (bangCu["__target_ca_nhan__"] ?? 0) <= 0 {
+                        bangCu["__target_ca_nhan__"] = item.target
+                    }
                 }
                 if item.laPhanTramTargetCaNhan {
                     if item.thucHien >= 0 {
@@ -3174,7 +3176,17 @@ final class KhoDuLieu {
                             let lamTron = ((soLuongNV * 10000.0).rounded()) / 10000.0
                             bangCu[maLuu] = lamTron
                         } else {
-                            bangCu[maLuu] = 0
+                            let targetMon = (dongMon?.target ?? 0) > 0 ? (dongMon?.target ?? 0) : khoi.targetNganhGoiY
+                            let soNVChia = max(1, dongMon.map { danhSachMaNVChiaTarget(cho: $0).count } ?? max(1, caiDat.danhSachNhanVien.count))
+                            let targetCaNhan = (bangCu["__target_\(maLuu)__"] ?? bangCu["__target_ca_nhan__"] ?? 0) > 0
+                                ? (bangCu["__target_\(maLuu)__"] ?? bangCu["__target_ca_nhan__"] ?? 0)
+                                : (targetMon / Double(soNVChia))
+                            if targetCaNhan > 0 && item.thucHien > 0 {
+                                let soLuongNV = (targetCaNhan * item.thucHien) / 100.0
+                                bangCu[maLuu] = ((soLuongNV * 100.0).rounded()) / 100.0
+                            } else {
+                                bangCu[maLuu] = 0
+                            }
                         }
                     }
                 } else {

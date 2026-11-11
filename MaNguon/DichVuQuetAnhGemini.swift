@@ -624,11 +624,18 @@ final class DichVuQuetAnhGemini {
                     let ten = nvKhop?.hoTen ?? tenTho
                     guard !ma.isEmpty || !ten.isEmpty else { return nil }
                     let laPT = (nv["laPhanTram"] as? Bool) ?? ((nv["thucHien"] as? String)?.contains("%") ?? false)
+                    var thVal = so(nv, "thucHien")
+                    var tgVal = so(nv, "target")
+                    if let sTh = nv["thucHien"] as? String, sTh.contains("/") {
+                        let parts = sTh.components(separatedBy: "/")
+                        if let v1 = KhoDuLieu.chuyenChuoiThanhSo(parts[0]) { thVal = v1 }
+                        if tgVal <= 0, parts.count > 1, let v2 = KhoDuLieu.chuyenChuoiThanhSo(parts[1]) { tgVal = v2 }
+                    }
                     return DongThiDuaNhanVienQuet(
                         maNV: ma,
                         hoTen: ten,
-                        thucHien: so(nv, "thucHien"),
-                        target: so(nv, "target"),
+                        thucHien: thVal,
+                        target: tgVal,
                         laPhanTram: laPT
                     )
                 }
