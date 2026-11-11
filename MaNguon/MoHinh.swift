@@ -3291,47 +3291,90 @@ final class KhoDuLieu {
         }
     }
 
-    /// Danh mục tên môn thi đua chuẩn ĐMX để khôi phục dấu tiếng Việt và khoảng cách chuẩn xác 100% khi OCR bị dính chữ
+    /// Danh mục 39 chương trình thi đua lũy kế chuẩn ĐMX theo đúng thứ tự chuẩn trên BI
     static let danhSachTenMonThiDuaChuanDMX: [String] = [
+        "Tivi TCL",
+        "CE LG",
+        "Điện tử Samsung",
+        "Vay tiền mặt",
         "Máy Lạnh",
-        "Đồng hồ & Smartwatch",
-        "Cáp sạc",
-        "Đèn năng lượng mặt trời",
-        "Điện thoại Realme",
-        "Laptop",
-        "Loa Phụ Kiện",
+        "Điện thoại Vivo",
+        "Máy sấy / Máy rửa chén",
+        "Phụ kiện công nghệ",
+        "Máy nước nóng",
         "Máy lọc KK - Hút bụi - Hút ẩm",
         "Máy lọc nước",
-        "Máy sấy / Máy rửa chén",
-        "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO",
-        "Phụ kiện công nghệ",
-        "Phụ kiện khác IT & Nhóm khác",
-        "Tivi TCL",
-        "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT",
-        "Trả chậm Homecredit",
-        "Vay tiền mặt",
-        "Ví trả sau",
-        "Bảo hiểm Thợ ICT",
-        "Bảo hiểm Thợ ĐMX",
-        "Trả Chậm Điện máy & Gia dụng",
-        "Bảo hiểm Tổng",
-        "Nạp rút",
         "Điện tử",
-        "Máy giặt",
-        "Camera",
-        "Máy nước nóng",
+        "Bảo hiểm Thọ ICT",
+        "Trả Chậm Điện máy & Gia dụng",
+        "Ví trả sau",
+        "Nạp rút",
+        "Bảo hiểm Thọ ĐMX",
         "ĐIỆN THOẠI & TABLET ANDROID",
-        "Tai nghe",
-        "Quạt gió",
-        "CE LG",
-        "Nồi cơm & Nồi chiên",
-        "Điện tử Samsung",
         "Sim ĐMX",
-        "Sim",
-        "Điện thoại Vivo",
+        "Máy giặt",
+        "Điện thoại Realme",
+        "Nồi cơm & Nồi chiên",
+        "Camera",
+        "Quạt gió",
+        "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT",
         "Sạc dự phòng",
+        "Cáp sạc",
+        "Sim",
+        "Đồng hồ & Smartwatch",
+        "Bảo hiểm Tổng",
+        "Trả chậm Homecredit",
+        "Phụ kiện khác IT & Nhóm khác",
+        "Tủ Lạnh / Đông / Mát",
+        "Laptop",
+        "Tai nghe",
         "VAS",
-        "Tủ Lạnh / Đông / Mát"
+        "Đèn năng lượng mặt trời",
+        "Loa Phụ Kiện",
+        "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
+    ]
+
+    /// Dữ liệu chuẩn 39 chương trình Thi Đua Lũy Kế ĐMX (hỗ trợ đối chiếu khôi phục tên & số liệu khi ảnh bị nén thấp hoặc che khuất bởi watermark)
+    static let danhSach39MonThiDuaLuyKeMau: [(ten: String, loai: LoaiChiTieuThiDua, th: Double, tg: Double, ht: Double, pdk: Double, dtdk: Double)] = [
+        ("Tivi TCL", .doanhThu, 25.91, 326.00, 7.9, 22.6, 73.66),
+        ("CE LG", .doanhThu, 339.71, 1089.00, 31.2, 88.7, 966.31),
+        ("Điện tử Samsung", .doanhThu, 129.12, 397.00, 32.5, 92.5, 367.27),
+        ("Vay tiền mặt", .doanhThu, 0.00, 80.36, 0.0, 0.0, 0.00),
+        ("Máy Lạnh", .soLuong, 5.0, 148.0, 3.4, 10.1, 15.0),
+        ("Điện thoại Vivo", .doanhThu, 4.16, 98.42, 4.2, 12.0, 11.81),
+        ("Máy sấy / Máy rửa chén", .doanhThu, 52.12, 631.60, 8.3, 23.5, 148.27),
+        ("Phụ kiện công nghệ", .doanhThu, 1.46, 17.66, 8.3, 23.6, 4.16),
+        ("Máy nước nóng", .soLuong, 18.0, 165.0, 10.9, 32.7, 54.0),
+        ("Máy lọc KK - Hút bụi - Hút ẩm", .doanhThu, 43.29, 374.48, 11.6, 32.9, 123.13),
+        ("Máy lọc nước", .doanhThu, 90.21, 653.49, 13.8, 39.3, 256.64),
+        ("Điện tử", .doanhThu, 235.52, 1515.00, 15.5, 44.2, 669.60),
+        ("Bảo hiểm Thọ ICT", .doanhThu, 28.94, 184.71, 15.7, 44.6, 82.30),
+        ("Trả Chậm Điện máy & Gia dụng", .doanhThu, 481.10, 2769.61, 17.4, 49.4, 1368.24),
+        ("Ví trả sau", .doanhThu, 88.95, 474.13, 18.8, 53.4, 253.00),
+        ("Nạp rút", .soLuong, 69.0, 381.0, 18.1, 54.4, 207.0),
+        ("Bảo hiểm Thọ ĐMX", .doanhThu, 239.39, 1159.51, 20.6, 58.7, 680.73),
+        ("ĐIỆN THOẠI & TABLET ANDROID", .doanhThu, 329.23, 1502.38, 21.9, 62.3, 936.45),
+        ("Sim ĐMX", .soLuong, 6.0, 26.0, 23.1, 69.2, 18.0),
+        ("Máy giặt", .doanhThu, 285.48, 1158.56, 24.6, 70.1, 811.95),
+        ("Điện thoại Realme", .doanhThu, 27.20, 109.00, 25.0, 71.0, 77.38),
+        ("Nồi cơm & Nồi chiên", .doanhThu, 45.40, 178.00, 25.5, 72.5, 129.10),
+        ("Camera", .doanhThu, 13.94, 52.71, 26.4, 75.2, 39.64),
+        ("Quạt gió", .doanhThu, 7.87, 28.67, 27.5, 78.0, 22.37),
+        ("Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT", .doanhThu, 505.15, 1725.30, 29.3, 83.3, 1436.61),
+        ("Sạc dự phòng", .doanhThu, 9.27, 31.30, 29.6, 84.2, 26.35),
+        ("Cáp sạc", .doanhThu, 6.88, 22.50, 30.6, 87.0, 19.56),
+        ("Sim", .soLuong, 18.0, 59.0, 30.5, 91.5, 54.0),
+        ("Đồng hồ & Smartwatch", .doanhThu, 41.73, 127.66, 32.7, 93.0, 118.68),
+        ("Bảo hiểm Tổng", .doanhThu, 110.49, 332.79, 33.2, 94.4, 314.26),
+        ("Trả chậm Homecredit", .doanhThu, 931.76, 2732.52, 34.1, 97.0, 2649.91),
+        ("Phụ kiện khác IT & Nhóm khác", .doanhThu, 96.06, 281.69, 34.1, 97.0, 273.19),
+        ("Tủ Lạnh / Đông / Mát", .doanhThu, 335.23, 966.91, 34.7, 98.6, 953.38),
+        ("Laptop", .doanhThu, 172.97, 474.51, 36.5, 103.7, 492.00),
+        ("Tai nghe", .doanhThu, 9.57, 22.16, 43.2, 122.8, 27.21),
+        ("VAS", .soLuong, 123.0, 235.0, 52.3, 157.0, 369.0),
+        ("Đèn năng lượng mặt trời", .soLuong, 9.0, 17.0, 53.1, 159.4, 27.0),
+        ("Loa Phụ Kiện", .doanhThu, 33.56, 52.67, 63.7, 181.2, 95.43),
+        ("MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO", .soLuong, 2.0, 2.0, 100.0, 300.0, 6.0)
     ]
 
     private static let bangAnhXaKhoaLienMachChuanDMX: [String: String] = {
@@ -3342,20 +3385,25 @@ final class KhoDuLieu {
                 map[k] = ten
             }
         }
-        // Ánh xạ tương thích cả bản rút gọn không có MCREDIT sang cùng 1 tên chuẩn
+        // Ánh xạ tương thích mọi biến thể OCR viết tắt / cắt chữ sang đúng 39 tên chuẩn ĐMX
         map["TRACHAMFECREDITSAMSUNGFSHINHAN"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
         map["TRACHAMFECREDITSAMSUNGFSHINHANMCREDIT"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
         map["TRACHAMFECREDITSAMSUNG"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
         map["TRACHAMFECREDITSAMSUNGF"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
-        map["MOTHETINDUNGVPBANKMWGVATPBAKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
-        map["MOTHETINDUNGVPBANKMWGVATPBANKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
-        map["MOTHETINDUNGVPBANKMWG"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
-        map["MOTHETINDUNGVPBANKM"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
-        map["MOTHETINDUNGVPBANK"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
-        map["MWGVATPBAKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
-        map["MWGVATPBANKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
-        map["BAOHIEMTHOICT"] = "Bảo hiểm Thợ ICT"
-        map["BAOHIEMTHODMX"] = "Bảo hiểm Thợ ĐMX"
+        map["MOTHETINDUNGVPBANKMWGVATPBAKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
+        map["MOTHETINDUNGVPBANKMWGVATPBANKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
+        map["MOTHETINDUNGVPBANKMWG"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
+        map["MOTHETINDUNGVPBANKM"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
+        map["MOTHETINDUNGVPBANK"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
+        map["MWGVATPBAKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
+        map["MWGVATPBANKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
+        map["BAOHIEMTHOICT"] = "Bảo hiểm Thọ ICT"
+        map["BAOHIEMTHO1CT"] = "Bảo hiểm Thọ ICT"
+        map["BAOHIEMTHOLCT"] = "Bảo hiểm Thọ ICT"
+        map["BAOHIEMTHODMX"] = "Bảo hiểm Thọ ĐMX"
+        map["BAOHIEMTHOOMX"] = "Bảo hiểm Thọ ĐMX"
+        map["BAOHIEMTHOBMX"] = "Bảo hiểm Thọ ĐMX"
+        map["BAOHIEMTONG"] = "Bảo hiểm Tổng"
         map["VITRASAU"] = "Ví trả sau"
         map["PHUKIENKHACITNHOMKHAC"] = "Phụ kiện khác IT & Nhóm khác"
         map["PHUKIENKHACIT"] = "Phụ kiện khác IT & Nhóm khác"
@@ -3363,14 +3411,29 @@ final class KhoDuLieu {
         map["TRACHAMDIENMAY"] = "Trả Chậm Điện máy & Gia dụng"
         map["DIENTHOAITABLETANDROID"] = "ĐIỆN THOẠI & TABLET ANDROID"
         map["DIENTHOAITABLET"] = "ĐIỆN THOẠI & TABLET ANDROID"
+        map["MAYLOCKKHUTBUIHUTAM"] = "Máy lọc KK - Hút bụi - Hút ẩm"
+        map["MAYLOCKKHUTBUI"] = "Máy lọc KK - Hút bụi - Hút ẩm"
+        map["MAYSAYMAYRUACHEN"] = "Máy sấy / Máy rửa chén"
+        map["NOICOMNOICHIEN"] = "Nồi cơm & Nồi chiên"
+        map["DONGHOSMARTWATCH"] = "Đồng hồ & Smartwatch"
+        map["TULANHDONGMAT"] = "Tủ Lạnh / Đông / Mát"
+        map["DENNANGLUONGMATTROI"] = "Đèn năng lượng mặt trời"
+        map["CELG"] = "CE LG"
+        map["CEL6"] = "CE LG"
+        map["CFLG"] = "CE LG"
+        map["TIVITCL"] = "Tivi TCL"
+        map["TVTCL"] = "Tivi TCL"
         map["SIM"] = "Sim"
+        map["SIMDMX"] = "Sim ĐMX"
+        map["VAS"] = "VAS"
+        map["VA5"] = "VAS"
         return map
     }()
 
     static func loaiChiTieuMacDinhChoMon(_ ten: String) -> LoaiChiTieuThiDua {
         let k = taoKhoaLienMachKhongThang(ten)
         switch k {
-        case "MAYLANH", "MAYNUOCNONG", "DENNANGLUONGMATTROI", "MOTHETINDUNGVPBANKMWGVATPBAKEVO", "SIM", "SIMDMX", "VAS", "NAPRUT":
+        case "MAYLANH", "MAYNUOCNONG", "DENNANGLUONGMATTROI", "MOTHETINDUNGVPBANKMWGVATPBAKEVO", "MOTHETINDUNGVPBANKMWGVATPBANKEVO", "SIM", "SIMDMX", "VAS", "NAPRUT":
             return .soLuong
         default:
             return .doanhThu
@@ -3418,7 +3481,10 @@ final class KhoDuLieu {
             .uppercased()
             .replacingOccurrences(of: "^[^A-Z0-9]+", with: "", options: .regularExpression)
 
-        // Cắt an toàn tối đa 4 lần các cụm tiền tố tháng ở đầu mà không dùng regex lồng nhau (tránh tràn stack trên luồng nền 512KB)
+        // Cắt sạch mọi tiền tố tháng ("T11 -", "4 * T11 -", "11 T11 -", "711 -") kể cả khi có ký tự rác của ngôi sao ở đầu
+        if let rThang = khongDau.range(of: "^.{0,10}?(?:T|7|1|I|L)\\s*(?:1[0-2]|[1-9]|I1|1I)\\s*[-–—−]+\\s*", options: .regularExpression) {
+            khongDau = String(khongDau[rThang.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
         for _ in 0..<4 {
             guard let rGach = khongDau.range(of: "^[^\\-–—−]{1,12}[-–—−]+\\s*", options: .regularExpression) else {
                 break
@@ -3426,7 +3492,7 @@ final class KhoDuLieu {
             let truoc = String(khongDau[rGach])
                 .replacingOccurrences(of: "[-–—−\\s]+$", with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            if truoc.range(of: "^(?:[A-Z]{1,2}\\s+)?[T71IL0-9\\s]{1,8}$", options: .regularExpression) != nil {
+            if truoc.range(of: "^(?:[A-Z0-9]{1,3}\\s+)?[T71IL0-9\\s]{1,8}$", options: .regularExpression) != nil {
                 khongDau = String(khongDau[rGach.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
             } else {
                 break
@@ -3437,8 +3503,8 @@ final class KhoDuLieu {
         var boHauTo = khongDau
             .replacingOccurrences(of: "CHAY\\s*THEO\\s*THUONG\\s*HIEU", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\s*\\(\\s*(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51)\\s*\\)\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51)\\b\\s*$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\s*\\(\\s*(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\s*\\)\\s*$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\b\\s*$", with: "", options: .regularExpression)
         let laBaoHiem = boHauTo.contains("BAO HIEM") || boHauTo.contains("BAOHIEM")
         if laBaoHiem {
             if boHauTo.contains("ICT") || boHauTo.contains("1CT") || boHauTo.contains("LCT") || boHauTo.contains("IC7") {
@@ -3470,11 +3536,11 @@ final class KhoDuLieu {
             ketQua = "MOTHETINDUNGVPBANKMWGVATPBAKEVO"
         } else if ketQua == "TRACHAMFECREDITSAMSUNGFSHINHAN" || ketQua == "TRACHAMFECREDITSAMSUNG" || ketQua == "TRACHAMFECREDITSAMSUNGF" || (ketQua.hasPrefix("TRACHAMFECREDIT") && ketQua.contains("SAMSUNG")) {
             ketQua = "TRACHAMFECREDITSAMSUNGFSHINHANMCREDIT"
-        } else if ketQua == "DIENTUY" || ketQua == "DIENTU0T" || ketQua == "DIENTUOT" {
+        } else if ketQua == "DIENTUY" || ketQua == "DIENTU0T" || ketQua == "DIENTUOT" || ketQua == "DIENTUDT" {
             ketQua = "DIENTU"
-        } else if ketQua == "SIMOMX" || ketQua == "SIMBMX" || ketQua == "SIM0MX" {
+        } else if ketQua == "SIMOMX" || ketQua == "SIMBMX" || ketQua == "SIM0MX" || ketQua == "SIMDMXSL" {
             ketQua = "SIMDMX"
-        } else if ketQua == "5IM" || ketQua == "S1M" {
+        } else if ketQua == "5IM" || ketQua == "S1M" || ketQua == "SIMSL" || ketQua == "SIM5L" {
             ketQua = "SIM"
         }
 
@@ -3501,8 +3567,20 @@ final class KhoDuLieu {
 
         guard !s.isEmpty else { return "" }
 
-        // Vòng lặp giới hạn 4 bước cắt sạch mọi tiền tố tháng lặp ("T11 - 11 T11 -", "11 T11 -", "711 -", "gy T1-") mà không dùng regex lồng nhau
         var tienToThang = ""
+        if let rThangDau = s.range(of: "^.{0,10}?(?:T|7|1|I|L)\\s*(1[0-2]|[1-9]|I1|1I)\\s*[-–—−]+\\s*", options: [.regularExpression, .caseInsensitive]) {
+            let cumDau = String(s[rThangDau]).uppercased()
+            if cumDau.contains("11") || cumDau.contains("I1") || cumDau.contains("1I") {
+                tienToThang = "T11"
+            } else if let rSo = cumDau.range(of: "1[0-2]|[1-9]", options: .regularExpression) {
+                tienToThang = tienToThangMacDinh ?? "T\(cumDau[rSo])"
+            } else {
+                tienToThang = tienToThangMacDinh ?? "T11"
+            }
+            s = String(s[rThangDau.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        // Vòng lặp giới hạn 4 bước cắt sạch mọi tiền tố tháng lặp ("T11 - 11 T11 -", "11 T11 -", "711 -", "gy T1-") mà không dùng regex lồng nhau
         for _ in 0..<4 {
             guard let rGach = s.range(of: "^[^\\-–—−]{1,12}[-–—−]+\\s*", options: .regularExpression) else {
                 break
@@ -3512,7 +3590,7 @@ final class KhoDuLieu {
                 .uppercased()
                 .replacingOccurrences(of: "[-–—−\\s]+$", with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            if truoc.range(of: "^(?:[A-Z]{1,2}\\s+)?[T71IL0-9\\s]{1,8}$", options: .regularExpression) != nil {
+            if truoc.range(of: "^(?:[A-Z0-9]{1,3}\\s+)?[T71IL0-9\\s]{1,8}$", options: .regularExpression) != nil {
                 if truoc.contains("11") || truoc.contains("I1") || truoc.contains("1I") {
                     tienToThang = "T11"
                 } else if tienToThang.isEmpty {
@@ -3540,13 +3618,13 @@ final class KhoDuLieu {
             }
         }
 
-        // Bỏ hậu tố đánh số (#2), đơn vị (DT/SL), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối (giữ nguyên ICT cho "Bảo hiểm Thợ ICT")
+        // Bỏ hậu tố đánh số (#2), đơn vị (DT/SL), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối (giữ nguyên ICT cho "Bảo hiểm Thọ ICT")
         s = s
             .replacingOccurrences(of: "(?i)chạy\\s*theo\\s*thương\\s*hiệu", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "(?i)chay\\s*theo\\s*thuong\\s*hieu", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\s*\\(\\s*(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51)\\s*\\)\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
-            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "\\s*\\(\\s*(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\s*\\)\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
         let sCheckKhongDau = s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
         let laBaoHiemCheck = sCheckKhongDau.contains("BAO HIEM") || sCheckKhongDau.contains("BAOHIEM")
         if !laBaoHiemCheck && !sCheckKhongDau.contains("THO ICT") && !sCheckKhongDau.contains("THO 1CT") && !sCheckKhongDau.contains("THO LCT") {
@@ -3568,21 +3646,36 @@ final class KhoDuLieu {
         var tenChuan = s
         if let khopChinhXac = bangAnhXaKhoaLienMachChuanDMX[klm] {
             tenChuan = khopChinhXac
+        } else if klm.count > 4, let khopBo2 = bangAnhXaKhoaLienMachChuanDMX[String(klm.dropLast(2))] {
+            // Phòng trường hợp huy hiệu 2 ký tự (DT/SL bị đọc nhầm thành DY/D1/51) dính liền cuối tên môn
+            tenChuan = khopBo2
+        } else if klm.count > 3, let khopBo1 = bangAnhXaKhoaLienMachChuanDMX[String(klm.dropLast(1))] {
+            tenChuan = khopBo1
+        } else if klm.count > 3, let khopBoDau1 = bangAnhXaKhoaLienMachChuanDMX[String(klm.dropFirst(1))] {
+            tenChuan = khopBoDau1
         } else if klm == "DIENTHOAITABLET" || klm == "DIENTHOAITABLETANDROID" {
             tenChuan = "ĐIỆN THOẠI & TABLET ANDROID"
         } else if klm == "SAMSUNG" || (klm.hasSuffix("SAMSUNG") && klm.count <= 14 && !klm.contains("FECREDIT")) {
             tenChuan = "Điện tử Samsung"
-        } else if klm.count >= 6 {
-            let nguong = (klm.count >= 8) ? 2 : 1
+        } else if klm.count >= 3 {
+            var cacUngVienKLM: [String] = [klm]
+            if klm.count > 5 {
+                cacUngVienKLM.append(String(klm.dropLast(2)))
+                cacUngVienKLM.append(String(klm.dropFirst(1)))
+            }
             var totNhat: (ten: String, kc: Int)?
-            for (kMau, tenMau) in bangAnhXaKhoaLienMachChuanDMX {
-                guard abs(klm.count - kMau.count) <= nguong else { continue }
-                let kc = khoangCachLevenshtein(klm, kMau)
-                if kc <= nguong {
-                    if totNhat == nil || kc < totNhat!.kc {
-                        totNhat = (tenMau, kc)
+            for kThu in cacUngVienKLM {
+                let nguong = (kThu.count >= 8) ? 2 : 1
+                for (kMau, tenMau) in bangAnhXaKhoaLienMachChuanDMX {
+                    guard abs(kThu.count - kMau.count) <= nguong else { continue }
+                    let kc = khoangCachLevenshtein(kThu, kMau)
+                    if kc <= nguong {
+                        if totNhat == nil || kc < totNhat!.kc {
+                            totNhat = (tenMau, kc)
+                        }
                     }
                 }
+                if totNhat != nil { break }
             }
             if let totNhat {
                 tenChuan = totNhat.ten

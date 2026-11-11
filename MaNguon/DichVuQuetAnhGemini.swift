@@ -443,7 +443,7 @@ final class DichVuQuetAnhGemini {
              + Đọc lần lượt tất cả 39 thẻ từ trái sang phải, từ trên xuống dưới.
              + Trong mỗi thẻ: góc trên trái là tên môn ("T11 - ..."), góc trên phải là huy hiệu "DT" hoặc "SL", con số % lớn ở giữa bên trái là "phanTramDuKien" (DỰ KIẾN HOÀN THÀNH), và 4 ô số ở nửa dưới thẻ gồm: "THỰC HIỆN" -> "thucHien", "TARGET" -> "target", "% HT THÁNG" -> "phanTramHT", "DT DỰ KIẾN" / "SL DỰ KIẾN" -> "duKien".
            - ĐỊNH DẠNG D — BẢNG THI ĐUA THEO NGÀY / REALTIME (5 CỘT): [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET NGÀY | % HT NGÀY | HẠNG VÙNG] -> đặt "phanTramDuKien": 0 và "duKien": 0.
-        2. Đọc ĐẦY ĐỦ TẤT CẢ các dòng môn thi đua từ trên xuống dưới, kể cả các dòng tên dài xuống 2-3 hàng chữ như "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO" (loai: "SL") hoặc "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT" và kể cả dòng có Thực hiện = 0, Target = 0. Không đưa nhãn DT, SL, CE, ICT, DV hay dấu + vào trong "ten".
+        2. Đọc ĐẦY ĐỦ TẤT CẢ các dòng môn thi đua từ trên xuống dưới, kể cả các dòng tên dài xuống 2-3 hàng chữ như "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO" (loai: "SL") hoặc "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT" và kể cả dòng có Thực hiện = 0, Target = 0. Không đưa nhãn DT, SL, CE, ICT, DV hay dấu + vào trong "ten".
         3. Với bảng doanh thu nhân viên 5 cột (NHÂN VIÊN / NGÀNH HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG), trích đúng "maNV" (bỏ tiền tố id:) và "hoTen" vào mảng "nhanVien".
         4. Với bảng chi tiết môn thi đua của nhân viên (bảng mở rộng 1 môn thi đua có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % đóng góp của nhân viên như 24%, 14%, 8%...): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien" (bỏ qua dòng tên chương trình và dòng tên siêu thị ĐML_...), đặt "laPhanTram": true, "thucHien" là con số phần trăm (ví dụ 24% -> 24), đặt "thucHienNganhGoiY" là số THỰC HIỆN của môn đó ở dòng đầu bảng, và đặt "targetNganhGoiY" là số TARGET của môn đó ở dòng đầu bảng.
         5. Nếu ảnh là PHIẾU SỨC KHỎE & THI ĐUA CÁ NHÂN NHÂN VIÊN 27 ĐIỂM (có tên nhân viên, mã NV 6 số, khối DOANH THU 6 mục, khối NĂNG SUẤT 3 mục, khối THI ĐUA gồm lưới thẻ % các môn): hãy trả thêm trường "sucKhoeNhanVien": [{"maNV":"293044","hoTen":"Võ Ngọc Vĩ","doanhThuQD":97.1,"tbDoanhThuQD":228.7,"phanTramTarget":46,"tbPhanTramTarget":108,"mucTieuTargetQD":703.7,"soLuotBill":33,"tbSoLuotBill":35,"phanTramQuyDoi":64,"tbPhanTramQuyDoi":43,"phanTramTraCham":45,"tbPhanTramTraCham":53,"phanTramBanKem":100,"tbPhanTramBanKem":61,"diemThuongERP":1254937,"tbDiemThuongERP":1496937,"diemThuongGioCong":17317,"tbDiemThuongGioCong":20855,"dtqdGioCong":1.34,"tbDtqdGioCong":3.20,"thiDua":[{"ten":"Phụ kiện công nghệ","phanTram":107}]}] (các môn nằm ở phần "Chưa có số liệu" đặt phanTram: 0).
@@ -494,7 +494,7 @@ final class DichVuQuetAnhGemini {
                 let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(tenTho, tienToThangMacDinh: "T11")
                 guard !tenSach.isEmpty else { return nil }
                 let loaiStr = ((item["loai"] as? String) ?? "DT").uppercased()
-                let laTheTinDung = (tenSach == "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO")
+                let laTheTinDung = (tenSach == "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO")
                 let loai: LoaiChiTieuThiDua = (loaiStr.contains("SL") || laTheTinDung) ? .soLuong : .doanhThu
                 let th = so(item, "thucHien")
                 let tg = so(item, "target")
