@@ -1163,30 +1163,48 @@ struct DongThiDua: Codable, Hashable, Identifiable {
 }
 
 enum PhuongPhapQuetThiDua: Int, Codable, CaseIterable {
-    case phuongPhap1 = 0 // Phương pháp 1: Dạng Bảng (Bảng ma trận ngang)
-    case phuongPhap2 = 1 // Phương pháp 2: Dạng Thẻ (Lưới thẻ thi đua 39 chương trình)
-    case phuongPhap3 = 2 // Phương pháp 3: Dạng Lưới (Bảng danh sách hàng dọc)
-    case phuongPhap4 = 3 // Phương pháp 4: Gemini Flash AI (Quét tự động bằng AI Gemini Flash)
+    case bangNgang = 0 // Phương pháp 1: Bảng ngang (ĐƠN VỊ | SỐ CT ĐẠT | 39 cột chương trình ngang THỰC HIỆN | TARGET)
+    case bangDoc = 1   // Phương pháp 2: Bảng dọc (CHƯƠNG TRÌNH | THỰC HIỆN | TARGET | % DỰ KIẾN HOÀN THÀNH | HẠNG VÙNG)
+    case luoi = 2      // Phương pháp 3: Lưới thẻ (Lưới 6 cột × 7 hàng hoặc lưới 2 cột thẻ thi đua)
+    case gemini = 3    // Phương pháp 4: Quét ảnh với AI Gemini Flash
+
+    // Giữ bí danh tương thích ngược
+    static var phuongPhap1: PhuongPhapQuetThiDua { .bangNgang }
+    static var phuongPhap2: PhuongPhapQuetThiDua { .bangDoc }
+    static var phuongPhap3: PhuongPhapQuetThiDua { .gemini }
 
     var tieuDe: String {
         switch self {
-        case .phuongPhap1:
-            return "Phương pháp 1 (Dạng Bảng)"
-        case .phuongPhap2:
-            return "Phương pháp 2 (Dạng Thẻ)"
-        case .phuongPhap3:
-            return "Phương pháp 3 (Dạng Lưới)"
-        case .phuongPhap4:
-            return "Phương pháp 4 (Gemini Flash)"
+        case .bangNgang:
+            return "Bảng ngang"
+        case .bangDoc:
+            return "Bảng dọc"
+        case .luoi:
+            return "Lưới"
+        case .gemini:
+            return "Gemini"
         }
     }
 
-    var tieuDeNgan: String {
+    var tieuDeDayDu: String {
         switch self {
-        case .phuongPhap1: return "PP 1 (Bảng)"
-        case .phuongPhap2: return "PP 2 (Thẻ)"
-        case .phuongPhap3: return "PP 3 (Lưới)"
-        case .phuongPhap4: return "PP 4 (Gemini)"
+        case .bangNgang:
+            return "1. Bảng ngang (Dữ liệu theo Siêu thị)"
+        case .bangDoc:
+            return "2. Bảng dọc (Bảng 5-6 cột có thanh tiến độ)"
+        case .luoi:
+            return "3. Lưới (Thẻ 6 cột / 2 cột)"
+        case .gemini:
+            return "4. Gemini (AI Gemini Flash)"
+        }
+    }
+
+    var bieuTuong: String {
+        switch self {
+        case .bangNgang: return "📊"
+        case .bangDoc: return "📋"
+        case .luoi: return "🎴"
+        case .gemini: return "✨"
         }
     }
 }
@@ -1197,7 +1215,7 @@ struct CaiDatDMX: Codable {
     static let geminiModelMacDinh = "gemini-2.5-flash"
 
     var kieuHienThi: KieuHienThiBaoCao = .bangChiTiet
-    var phuongPhapQuetThiDua: PhuongPhapQuetThiDua = .phuongPhap1
+    var phuongPhapQuetThiDua: PhuongPhapQuetThiDua = .bangDoc
     var danhSachCumTuLocBo: [String] = []
     var soCotXuatAnh: Int = 3
     var danhSachNhanVien: [NhanVienQuanLy] = CaiDatDMX.nhanVienMau
@@ -1253,7 +1271,7 @@ struct CaiDatDMX: Codable {
 
     init(
         kieuHienThi: KieuHienThiBaoCao = .bangChiTiet,
-        phuongPhapQuetThiDua: PhuongPhapQuetThiDua = .phuongPhap1,
+        phuongPhapQuetThiDua: PhuongPhapQuetThiDua = .bangDoc,
         danhSachCumTuLocBo: [String] = [],
         soCotXuatAnh: Int = 3,
         danhSachNhanVien: [NhanVienQuanLy] = CaiDatDMX.nhanVienMau,
@@ -1297,13 +1315,13 @@ struct CaiDatDMX: Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         kieuHienThi = (try? c.decode(KieuHienThiBaoCao.self, forKey: .kieuHienThi)) ?? .bangChiTiet
-        if let pp = try? c.decode(PhuongPhapQuetThiDua.self, forKey: .phuongPhapQuetThiDua) {
-            phuongPhapQuetThiDua = pp
-        } else if UserDefaults.standard.object(forKey: "dmx.caiDat.phuongPhapQuetThiDua") != nil,
-                  let luuPP = PhuongPhapQuetThiDua(rawValue: UserDefaults.standard.integer(forKey: "dmx.caiDat.phuongPhapQuetThiDua")) {
+        if UserDefaults.standard.object(forKey: "dmx.caiDat.phuongPhapQuetThiDua.v2") != nil,
+           let luuPP = PhuongPhapQuetThiDua(rawValue: UserDefaults.standard.integer(forKey: "dmx.caiDat.phuongPhapQuetThiDua.v2")) {
             phuongPhapQuetThiDua = luuPP
+        } else if let pp = try? c.decode(PhuongPhapQuetThiDua.self, forKey: .phuongPhapQuetThiDua) {
+            phuongPhapQuetThiDua = pp
         } else {
-            phuongPhapQuetThiDua = .phuongPhap1
+            phuongPhapQuetThiDua = .bangDoc
         }
         danhSachCumTuLocBo = (try? c.decode([String].self, forKey: .danhSachCumTuLocBo)) ?? []
         let cot = (try? c.decode(Int.self, forKey: .soCotXuatAnh)) ?? 3
@@ -1329,7 +1347,7 @@ struct CaiDatDMX: Codable {
         }
         let rawModel = (try? c.decode(String.self, forKey: .geminiModel))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         geminiModel = rawModel.isEmpty ? Self.geminiModelMacDinh : rawModel
-        dungGeminiQuetAnh = (try? c.decode(Bool.self, forKey: .dungGeminiQuetAnh)) ?? (phuongPhapQuetThiDua == .phuongPhap4)
+        dungGeminiQuetAnh = (try? c.decode(Bool.self, forKey: .dungGeminiQuetAnh)) ?? (phuongPhapQuetThiDua == .gemini)
         if let hienNS = try? c.decode(Bool.self, forKey: .hienThiNangSuatNhanVien) {
             hienThiNangSuatNhanVien = hienNS
         } else if UserDefaults.standard.object(forKey: "dmx.caiDat.hienThiNangSuatNhanVien") != nil {
@@ -2455,6 +2473,7 @@ final class KhoDuLieu {
         var moi = moi
         moi.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(moi.danhSachNhanVien)
         let doiCumTu = (caiDat.danhSachCumTuLocBo != moi.danhSachCumTuLocBo)
+        UserDefaults.standard.set(moi.phuongPhapQuetThiDua.rawValue, forKey: "dmx.caiDat.phuongPhapQuetThiDua.v2")
         UserDefaults.standard.set(moi.phuongPhapQuetThiDua.rawValue, forKey: "dmx.caiDat.phuongPhapQuetThiDua")
         UserDefaults.standard.set(moi.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "dmx.caiDat.geminiApiKey")
         UserDefaults.standard.set(moi.hienThiNangSuatNhanVien, forKey: "dmx.caiDat.hienThiNangSuatNhanVien")
@@ -2494,8 +2513,8 @@ final class KhoDuLieu {
         khoaTruyCap.lock()
         if var moi {
             moi.danhSachNhanVien = NhanVienQuanLy.sapXepAZ(moi.danhSachNhanVien)
-            if UserDefaults.standard.object(forKey: "dmx.caiDat.phuongPhapQuetThiDua") != nil,
-               let luuPP = PhuongPhapQuetThiDua(rawValue: UserDefaults.standard.integer(forKey: "dmx.caiDat.phuongPhapQuetThiDua")) {
+            if UserDefaults.standard.object(forKey: "dmx.caiDat.phuongPhapQuetThiDua.v2") != nil,
+               let luuPP = PhuongPhapQuetThiDua(rawValue: UserDefaults.standard.integer(forKey: "dmx.caiDat.phuongPhapQuetThiDua.v2")) {
                 moi.phuongPhapQuetThiDua = luuPP
             }
             if let luuKey = UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey")?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -3326,9 +3345,12 @@ final class KhoDuLieu {
         // Ánh xạ tương thích cả bản rút gọn không có MCREDIT sang cùng 1 tên chuẩn
         map["TRACHAMFECREDITSAMSUNGFSHINHAN"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
         map["TRACHAMFECREDITSAMSUNGFSHINHANMCREDIT"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
+        map["TRACHAMFECREDITSAMSUNG"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
+        map["TRACHAMFECREDITSAMSUNGF"] = "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT"
         map["MOTHETINDUNGVPBANKMWGVATPBAKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
         map["MOTHETINDUNGVPBANKMWGVATPBANKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
         map["MOTHETINDUNGVPBANKMWG"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
+        map["MOTHETINDUNGVPBANKM"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
         map["MOTHETINDUNGVPBANK"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
         map["MWGVATPBAKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
         map["MWGVATPBANKEVO"] = "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO"
@@ -3348,7 +3370,7 @@ final class KhoDuLieu {
     static func loaiChiTieuMacDinhChoMon(_ ten: String) -> LoaiChiTieuThiDua {
         let k = taoKhoaLienMachKhongThang(ten)
         switch k {
-        case "MAYLANH", "MAYNUOCNONG", "DENNANGLUONGMATTROI", "MOTHETINDUNGVPBANKMWGVATPBAKEVO", "SIM", "SIMDMX", "VITRASAU", "NAPRUT":
+        case "MAYLANH", "MAYNUOCNONG", "DENNANGLUONGMATTROI", "MOTHETINDUNGVPBANKMWGVATPBAKEVO", "SIM", "SIMDMX", "VAS", "NAPRUT":
             return .soLuong
         default:
             return .doanhThu
@@ -3413,7 +3435,9 @@ final class KhoDuLieu {
         khongDau = khongDau.replacingOccurrences(of: "^(?:T\\d{1,2}|711|111|I11|1I1|11)\\s+", with: "", options: .regularExpression)
 
         var boHauTo = khongDau
+            .replacingOccurrences(of: "CHAY\\s*THEO\\s*THUONG\\s*HIEU", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\s*\\(\\s*(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51)\\s*\\)\\s*$", with: "", options: .regularExpression)
             .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51)\\b\\s*$", with: "", options: .regularExpression)
         let laBaoHiem = boHauTo.contains("BAO HIEM") || boHauTo.contains("BAOHIEM")
         if laBaoHiem {
@@ -3444,7 +3468,7 @@ final class KhoDuLieu {
             ketQua = "MOTHETINDUNGVPBANKMWGVATPBAKEVO"
         } else if ketQua == "MOTHETINDUNGVPBANKMWGVATPBANKEVO" {
             ketQua = "MOTHETINDUNGVPBANKMWGVATPBAKEVO"
-        } else if ketQua == "TRACHAMFECREDITSAMSUNGFSHINHAN" {
+        } else if ketQua == "TRACHAMFECREDITSAMSUNGFSHINHAN" || ketQua == "TRACHAMFECREDITSAMSUNG" || ketQua == "TRACHAMFECREDITSAMSUNGF" || (ketQua.hasPrefix("TRACHAMFECREDIT") && ketQua.contains("SAMSUNG")) {
             ketQua = "TRACHAMFECREDITSAMSUNGFSHINHANMCREDIT"
         } else if ketQua == "DIENTUY" || ketQua == "DIENTU0T" || ketQua == "DIENTUOT" {
             ketQua = "DIENTU"
@@ -3518,7 +3542,10 @@ final class KhoDuLieu {
 
         // Bỏ hậu tố đánh số (#2), đơn vị (DT/SL), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối (giữ nguyên ICT cho "Bảo hiểm Thợ ICT")
         s = s
+            .replacingOccurrences(of: "(?i)chạy\\s*theo\\s*thương\\s*hiệu", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "(?i)chay\\s*theo\\s*thuong\\s*hieu", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\s*\\(\\s*(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51)\\s*\\)\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
             .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
         let sCheckKhongDau = s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
         let laBaoHiemCheck = sCheckKhongDau.contains("BAO HIEM") || sCheckKhongDau.contains("BAOHIEM")

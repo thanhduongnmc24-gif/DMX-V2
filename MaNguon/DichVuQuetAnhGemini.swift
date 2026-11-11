@@ -190,13 +190,63 @@ final class DichVuQuetAnhGemini {
         }
     }
 
-    /// Nén ảnh vừa đủ sắc nét (cạnh dài tối đa 1360px, JPEG 0.76) để tải lên Gemini Flash chỉ mất ~0.3s và phản hồi trong 2-4s.
+    /// Nén ảnh sắc nét (hỗ trợ cắt xếp dọc cho ảnh Bảng ngang siêu rộng để không bị mờ chữ 39 cột, và giữ độ nét 2048px cho Bảng dọc / Lưới 6 cột).
     private func duLieuAnhGon(_ anh: UIImage) -> Data? {
-        let gioiHan: CGFloat = 1360
-        let canhLon = max(anh.size.width, anh.size.height)
-        guard canhLon > gioiHan else { return anh.jpegData(compressionQuality: 0.76) }
+        let w = anh.size.width
+        let h = anh.size.height
+        guard w > 10, h > 10 else { return anh.jpegData(compressionQuality: 0.84) }
+
+        // Nếu là ảnh Bảng ngang siêu rộng (width > height * 3.0): cắt thành 4 dải ngang có chồng lấp 3% và xếp dọc trên 1 khung ảnh rộng 2200px
+        if w > h * 3.0, let cg = anh.cgImage {
+            let cw = CGFloat(cg.width)
+            let ch = CGFloat(cg.height)
+            let cacDai: [(CGFloat, CGFloat)] = [
+                (0.00, 0.27),
+                (0.24, 0.52),
+                (0.49, 0.77),
+                (0.74, 1.00)
+            ]
+            let rongDich: CGFloat = min(2200, max(1600, cw * 0.28))
+            let demDoc: CGFloat = 20
+            var cacAnhDai: [(img: CGImage, caoVe: CGFloat)] = []
+            for (x0, x1) in cacDai {
+                let rect = CGRect(
+                    x: (cw * x0).rounded(),
+                    y: 0,
+                    width: max(1, (cw * (x1 - x0)).rounded()),
+                    height: ch
+                )
+                if let sub = cg.cropping(to: rect) {
+                    let tyLe = rongDich / CGFloat(sub.width)
+                    let caoVe = max(80, (CGFloat(sub.height) * tyLe).rounded())
+                    cacAnhDai.append((sub, caoVe))
+                }
+            }
+            if !cacAnhDai.isEmpty {
+                let tongCao = cacAnhDai.reduce(CGFloat(0)) { $0 + $1.caoVe } + CGFloat(cacAnhDai.count + 1) * demDoc
+                let dinhDang = UIGraphicsImageRendererFormat.default()
+                dinhDang.scale = 1.0
+                dinhDang.opaque = true
+                let boVe = UIGraphicsImageRenderer(size: CGSize(width: rongDich, height: tongCao), format: dinhDang)
+                let anhGhep = boVe.image { ctx in
+                    UIColor.white.setFill()
+                    ctx.fill(CGRect(x: 0, y: 0, width: rongDich, height: tongCao))
+                    var yHienTai = demDoc
+                    for item in cacAnhDai {
+                        UIImage(cgImage: item.img, scale: 1.0, orientation: anh.imageOrientation)
+                            .draw(in: CGRect(x: 0, y: yHienTai, width: rongDich, height: item.caoVe))
+                        yHienTai += item.caoVe + demDoc
+                    }
+                }
+                return anhGhep.jpegData(compressionQuality: 0.85)
+            }
+        }
+
+        let gioiHan: CGFloat = 2048
+        let canhLon = max(w, h)
+        guard canhLon > gioiHan else { return anh.jpegData(compressionQuality: 0.84) }
         let tiLe = gioiHan / canhLon
-        let kichThuoc = CGSize(width: (anh.size.width * tiLe).rounded(), height: (anh.size.height * tiLe).rounded())
+        let kichThuoc = CGSize(width: (w * tiLe).rounded(), height: (h * tiLe).rounded())
         let dinhDang = UIGraphicsImageRendererFormat.default()
         dinhDang.scale = 1.0
         dinhDang.opaque = true
@@ -204,7 +254,7 @@ final class DichVuQuetAnhGemini {
         let anhGon = boVe.image { _ in
             anh.draw(in: CGRect(origin: .zero, size: kichThuoc))
         }
-        return anhGon.jpegData(compressionQuality: 0.76)
+        return anhGon.jpegData(compressionQuality: 0.84)
     }
 
     private func taoBodyData(imageData: Data, cheDo: LoaiCheDoDoanhThu, tatThinking: Bool) -> Data? {
@@ -214,7 +264,7 @@ final class DichVuQuetAnhGemini {
         ]
         var genConfig: [String: Any] = [
             "temperature": 0.0,
-            "maxOutputTokens": 4096,
+            "maxOutputTokens": 8192,
             "responseMimeType": "application/json"
         ]
         if tatThinking {
@@ -377,24 +427,22 @@ final class DichVuQuetAnhGemini {
         {"capNhatLuc":"","thongTinDonVi":"","doanhThu":{"doanhThuThuc":0,"targetThuc":0,"duKienThuc":0,"phanTramHTThuc":0,"doanhThuQuyDoi":0,"targetQuyDoi":0,"duKienQuyDoi":0,"phanTramHTQuyDoi":0},"nganhHang":[{"ten":"","loai":"DT hoặc SL","thucHien":0,"target":0,"phanTramHT":0,"duKien":0,"phanTramDuKien":0}],"nhanVien":[{"maNV":"","hoTen":"","soLuong":0,"doanhThuQD":0,"dtKhoanVay":0,"phanTramTiTrong":0}],"thiDuaNhanVien":[{"tenNganhHang":"","danhSach":[{"maNV":"","hoTen":"","thucHien":0,"target":0}]}]}
 
         Quy tắc bắt buộc khi đọc Bảng Thi Đua (mảng "nganhHang"):
-        1. Hỗ trợ đầy đủ cả 3 dạng bố cục ảnh thi đua sau:
-           - DẠNG BẢNG (Bảng ma trận ngang): Mỗi môn thi đua là 1 cột dọc (tiêu đề gồm Tên môn và nhãn (DT) hoặc (SL)). Bên dưới mỗi môn có 2 cột con THỰC HIỆN và TARGET. Đọc các con số ở dòng Siêu thị hoặc dòng TỔNG:
-             + Tên môn: Bỏ ngoặc đơn (DT)/(SL), bỏ nhãn.
-             + Đơn vị loai: "SL" nếu tiêu đề có (SL), ngược lại là "DT".
-             + thucHien: Số ở cột con THỰC HIỆN.
-             + target: Số ở cột con TARGET.
-             + phanTramHT: Tính (thucHien / target) * 100 nếu target > 0.
-           - DẠNG THẺ (Lưới thẻ thi đua nhiều cột): Mỗi thẻ hình chữ nhật gồm tiêu đề môn (kèm nhãn DT/SL và tiền tố T11 - hoặc ⭐), số % lớn ở DỰ KIẾN HOÀN THÀNH, thanh tiến độ, các ô THỰC HIỆN, TARGET, % HT THÁNG, DT/SL DỰ KIẾN:
-             + Tách huy hiệu "DT"/"SL" vào "loai", tên môn sạch bỏ T11 và ⭐ đưa vào "ten".
-             + thucHien: Số ở ô THỰC HIỆN.
-             + target: Số ở ô TARGET.
-             + phanTramHT: Số ở ô % HT THÁNG.
-             + phanTramDuKien: Số % lớn ở mục DỰ KIẾN HOÀN THÀNH.
-           - DẠNG LƯỚI (Bảng danh sách hàng dọc có thanh tiến độ %): Gồm các cột [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET | % DỰ KIẾN HOÀN THÀNH (hoặc % HT NGÀY) | HẠNG VÙNG]:
-             + Cột 1 (CHƯƠNG TRÌNH): Tách huy hiệu "DT"/"SL" vào "loai", tên môn sạch (bỏ dấu "+", ngôi sao ⭐, T11) đưa vào "ten".
+        1. Hỗ trợ đầy đủ 3 định dạng ảnh Thi Đua Lũy kế (Bảng ngang, Bảng dọc, Lưới thẻ) và Bảng Realtime:
+           - ĐỊNH DẠNG A — BẢNG NGANG LŨY KẾ (Dữ liệu theo Siêu thị · 39 chương trình xếp ngang):
+             + Hai cột đầu bên trái là [ĐƠN VỊ | SỐ CT ĐẠT], tiếp theo là 39 cột chương trình ngang (nếu ảnh rộng được cắt thành 4 dải xếp dọc thì đọc lần lượt hết các cột từ dải trên xuống dải dưới, bỏ qua cột bị lặp ở mép nối).
+             + Hàng tiêu đề trên của mỗi chương trình có dạng "<Tên môn> (DT)" hoặc "<Tên môn> (SL)" -> tách "DT"/"SL" vào "loai", tên môn vào "ten".
+             + Hàng tiêu đề con bên dưới chia làm 2 cột: [THỰC HIỆN | TARGET]. Đọc con số ở dòng siêu thị (hoặc dòng TỔNG) đưa vào "thucHien" và "target", tính "phanTramHT" = (thucHien / target) * 100.
+           - ĐỊNH DẠNG B — BẢNG DỌC LŨY KẾ (5 CỘT CÓ THANH TIẾN ĐỘ hoặc 6 CỘT):
+             + Gồm [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET | % DỰ KIẾN HOÀN THÀNH | HẠNG VÙNG].
+             + Cột 1 (CHƯƠNG TRÌNH): Tách huy hiệu "DT"/"SL" vào "loai", tên môn sạch (bỏ dấu "+", ngôi sao ⭐) vào "ten".
              + Cột 2 (THỰC HIỆN): Đưa vào "thucHien".
-             + Cột 3 (TARGET): Đưa vào "target".
-             + Cột 4 (% DỰ KIẾN HOÀN THÀNH / % HT NGÀY): Số % lớn bên phải thanh tiến độ đưa vào "phanTramDuKien" (nếu có), số nhỏ trên thanh tiến độ đưa vào "phanTramHT". Nếu là ảnh Realtime theo ngày thì đưa % HT vào "phanTramHT".
+             + Cột 3 (TARGET): Đưa vào "target" (lưu ý dấu phẩy hàng nghìn như 1,089.00 = 1089.00, 2,769.61 = 2769.61).
+             + Cột 4 (% DỰ KIẾN HOÀN THÀNH): Con số % nhỏ nằm bên trái phía trên thanh tiến độ là "phanTramHT" (ví dụ 7.9%, 31.2%); con số % lớn in đậm màu đỏ/cam/xanh nằm bên phải thanh tiến độ là "phanTramDuKien" (ví dụ 22.6%, 88.7%, 300%).
+             + Cột cuối (HẠNG VÙNG): Bỏ qua.
+           - ĐỊNH DẠNG C — LƯỚI THẺ LŨY KẾ (Lưới 6 cột × 7 hàng = 39 thẻ hoặc Lưới 2 cột thẻ):
+             + Đọc lần lượt tất cả 39 thẻ từ trái sang phải, từ trên xuống dưới.
+             + Trong mỗi thẻ: góc trên trái là tên môn ("T11 - ..."), góc trên phải là huy hiệu "DT" hoặc "SL", con số % lớn ở giữa bên trái là "phanTramDuKien" (DỰ KIẾN HOÀN THÀNH), và 4 ô số ở nửa dưới thẻ gồm: "THỰC HIỆN" -> "thucHien", "TARGET" -> "target", "% HT THÁNG" -> "phanTramHT", "DT DỰ KIẾN" / "SL DỰ KIẾN" -> "duKien".
+           - ĐỊNH DẠNG D — BẢNG THI ĐUA THEO NGÀY / REALTIME (5 CỘT): [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET NGÀY | % HT NGÀY | HẠNG VÙNG] -> đặt "phanTramDuKien": 0 và "duKien": 0.
         2. Đọc ĐẦY ĐỦ TẤT CẢ các dòng môn thi đua từ trên xuống dưới, kể cả các dòng tên dài xuống 2-3 hàng chữ như "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO" (loai: "SL") hoặc "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT" và kể cả dòng có Thực hiện = 0, Target = 0. Không đưa nhãn DT, SL, CE, ICT, DV hay dấu + vào trong "ten".
         3. Với bảng doanh thu nhân viên 5 cột (NHÂN VIÊN / NGÀNH HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG), trích đúng "maNV" (bỏ tiền tố id:) và "hoTen" vào mảng "nhanVien".
         4. Với bảng chi tiết môn thi đua của nhân viên (bảng mở rộng 1 môn thi đua có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % đóng góp của nhân viên như 24%, 14%, 8%...): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien" (bỏ qua dòng tên chương trình và dòng tên siêu thị ĐML_...), đặt "laPhanTram": true, "thucHien" là con số phần trăm (ví dụ 24% -> 24), đặt "thucHienNganhGoiY" là số THỰC HIỆN của môn đó ở dòng đầu bảng, và đặt "targetNganhGoiY" là số TARGET của môn đó ở dòng đầu bảng.
@@ -443,7 +491,7 @@ final class DichVuQuetAnhGemini {
         if let arr = json["nganhHang"] as? [[String: Any]] {
             let dsQuet = arr.compactMap { item -> DongThiDua? in
                 guard let tenTho = item["ten"] as? String else { return nil }
-                let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(tenTho)
+                let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(tenTho, tienToThangMacDinh: "T11")
                 guard !tenSach.isEmpty else { return nil }
                 let loaiStr = ((item["loai"] as? String) ?? "DT").uppercased()
                 let laTheTinDung = (tenSach == "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO")

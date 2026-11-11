@@ -1,6 +1,6 @@
-import UniformTypeIdentifiers
 import UIKit
 import PhotosUI
+import UniformTypeIdentifiers
 
 // MARK: - 1. Màn hình Chi tiết Ngành hàng -> Xếp hạng nhân viên, Nhập ảnh thực hiện NV, Chia Target & Xuất ảnh
 
@@ -329,62 +329,53 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
     }
 
     @objc private func bamQuetAnhNV() {
-        let hop = UIAlertController(
-            title: "Nhập ảnh Thực hiện NV",
-            message: "Bạn muốn chọn ảnh từ Thư viện ảnh hay mở tệp từ Files?",
-            preferredStyle: .actionSheet
+        hienMenuChon(
+            tieuDe: "Nhập ảnh Thực hiện Nhân viên",
+            thongDiep: "Chọn ảnh từ Thư viện Ảnh hoặc nhập tệp ảnh từ ứng dụng Tệp (Files):",
+            cacMuc: [
+                MucChonDMX(tieuDe: "🖼️ Chọn ảnh từ Thư viện Ảnh") { [weak self] in
+                    guard let self else { return }
+                    var cauHinh = PHPickerConfiguration()
+                    cauHinh.filter = .images
+                    cauHinh.selectionLimit = 0
+                    if #available(iOS 15.0, *) {
+                        cauHinh.selection = .ordered
+                    }
+                    let picker = PHPickerViewController(configuration: cauHinh)
+                    picker.delegate = self
+                    self.present(picker, animated: true)
+                },
+                MucChonDMX(tieuDe: "📁 Nhập ảnh từ Tệp (Files)") { [weak self] in
+                    guard let self else { return }
+                    let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.image], asCopy: true)
+                    picker.delegate = self
+                    picker.allowsMultipleSelection = true
+                    self.present(picker, animated: true)
+                },
+                MucChonDMX(tieuDe: "Huỷ", kieu: .huy)
+            ]
         )
-        hop.addAction(UIAlertAction(title: "🖼️ Chọn từ Thư viện ảnh", style: .default) { [weak self] _ in
-            self?.moChonAnhNVThuVien()
-        })
-        hop.addAction(UIAlertAction(title: "📁 Chọn ảnh từ Tệp (Files)", style: .default) { [weak self] _ in
-            self?.moChonAnhNVTuTep()
-        })
-        hop.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
-        if let pop = hop.popoverPresentationController {
-            pop.sourceView = view
-            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            pop.permittedArrowDirections = []
-        }
-        present(hop, animated: true)
-    }
-
-    private func moChonAnhNVThuVien() {
-        var cauHinh = PHPickerConfiguration()
-        cauHinh.filter = .images
-        cauHinh.selectionLimit = 0
-        if #available(iOS 15.0, *) {
-            cauHinh.selection = .ordered
-        }
-        let picker = PHPickerViewController(configuration: cauHinh)
-        picker.delegate = self
-        present(picker, animated: true)
-    }
-
-    private func moChonAnhNVTuTep() {
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.image], asCopy: true)
-        picker.delegate = self
-        picker.allowsMultipleSelection = true
-        present(picker, animated: true)
     }
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        var danhSach: [UIImage] = []
-        for url in urls {
-            let access = url.startAccessingSecurityScopedResource()
-            if let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
-                danhSach.append(img)
+        controller.dismiss(animated: true)
+        guard !urls.isEmpty else { return }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            var cacAnh: [UIImage] = []
+            for url in urls {
+                let ok = url.startAccessingSecurityScopedResource()
+                defer { if ok { url.stopAccessingSecurityScopedResource() } }
+                if let d = try? Data(contentsOf: url), let img = UIImage(data: d) {
+                    cacAnh.append(img)
+                } else if let img = UIImage(contentsOfFile: url.path) {
+                    cacAnh.append(img)
+                }
             }
-            if access {
-                url.stopAccessingSecurityScopedResource()
+            DispatchQueue.main.async {
+                guard let self = self, !cacAnh.isEmpty else { return }
+                self.xuLyQuetAnhNV(cacAnh)
             }
         }
-        guard !danhSach.isEmpty else { return }
-        xuLyDocAnhThucHienNV(danhSach)
-    }
-
-    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-        controller.dismiss(animated: true)
     }
 
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
@@ -410,73 +401,75 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         nhom.notify(queue: .main) { [weak self] in
             guard let self = self else { return }
             let cacAnh = danhSach.compactMap { $0 }
-            guard !cacAnh.isEmpty else { return }
-            self.xuLyDocAnhThucHienNV(cacAnh)
+            self.xuLyQuetAnhNV(cacAnh)
         }
     }
 
-    private func xuLyDocAnhThucHienNV(_ cacAnh: [UIImage]) {
-        self.nhanTienTrinh.text = "Đang đọc \(cacAnh.count) ảnh Thực hiện NV (\(self.cheDo.tieuDe))..."
-        self.lopPhuTai.isHidden = false
-        self.vongQuay.startAnimating()
+    private func xuLyQuetAnhNV(_ cacAnh: [UIImage]) {
+        guard !cacAnh.isEmpty else { return }
+        if true {
+            self.nhanTienTrinh.text = "Đang đọc \(cacAnh.count) ảnh Thực hiện NV (\(self.cheDo.tieuDe))..."
+            self.lopPhuTai.isHidden = false
+            self.vongQuay.startAnimating()
 
-        let khoaMacDinh = KhoDuLieu.chuanHoaKhoaSoSanh(self.dong.tenNganhHang)
-        DichVuDocAnh.dungChung.quetAnhThiDuaNhanVien(
-            danhSachAnh: cacAnh,
-            tenNganhGoiY: self.dong.tenNganhHang,
-            tienTrinh: { [weak self] tt in
-                self?.nhanTienTrinh.text = tt
-            },
-            hoanTat: { [weak self] cacKhoi in
-                guard let self = self else { return }
-                self.vongQuay.stopAnimating()
-                self.lopPhuTai.isHidden = true
+            let khoaMacDinh = KhoDuLieu.chuanHoaKhoaSoSanh(self.dong.tenNganhHang)
+            DichVuDocAnh.dungChung.quetAnhThiDuaNhanVien(
+                danhSachAnh: cacAnh,
+                tenNganhGoiY: self.dong.tenNganhHang,
+                tienTrinh: { [weak self] tt in
+                    self?.nhanTienTrinh.text = tt
+                },
+                hoanTat: { [weak self] cacKhoi in
+                    guard let self = self else { return }
+                    self.vongQuay.stopAnimating()
+                    self.lopPhuTai.isHidden = true
 
-                if cacKhoi.isEmpty {
-                    let tb = UIAlertController(
-                        title: "Chưa đọc được dòng nhân viên",
-                        message: "Hãy chụp rõ cột mã - tên nhân viên và cột số thực hiện rồi thử lại.",
-                        preferredStyle: .alert
-                    )
-                    tb.addAction(UIAlertAction(title: "Đóng", style: .default))
-                    self.present(tb, animated: true)
-                    return
-                }
-
-                var cacKhoiCapNhat = cacKhoi
-                for i in cacKhoiCapNhat.indices {
-                    if self.dong.thucHien > 0 && cacKhoiCapNhat[i].thucHienNganhGoiY <= 0 {
-                        cacKhoiCapNhat[i].thucHienNganhGoiY = self.dong.thucHien
-                    } else if self.dong.thucHien <= 0 && cacKhoiCapNhat[i].thucHienNganhGoiY > 0 {
-                        self.dong.thucHien = cacKhoiCapNhat[i].thucHienNganhGoiY
-                    }
-                    if self.dong.target > 0 && cacKhoiCapNhat[i].targetNganhGoiY <= 0 {
-                        cacKhoiCapNhat[i].targetNganhGoiY = self.dong.target
-                    } else if self.dong.target <= 0 && cacKhoiCapNhat[i].targetNganhGoiY > 0 {
-                        self.dong.target = cacKhoiCapNhat[i].targetNganhGoiY
-                        KhoDuLieu.dungChung.capNhatTargetNganhHang(
-                            dongGoc: self.dong,
-                            targetMoi: cacKhoiCapNhat[i].targetNganhGoiY,
-                            cho: self.ngay,
-                            cheDo: self.cheDo
+                    if cacKhoi.isEmpty {
+                        let tb = UIAlertController(
+                            title: "Chưa đọc được dòng nhân viên",
+                            message: "Hãy chụp rõ cột mã - tên nhân viên và cột số thực hiện rồi thử lại.",
+                            preferredStyle: .alert
                         )
+                        tb.addAction(UIAlertAction(title: "Đóng", style: .default))
+                        self.present(tb, animated: true)
+                        return
                     }
-                }
 
-                var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
-                let bangMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
-                    hienTai: dl.thiDuaNhanVien(theo: self.cheDo),
-                    mangKhoiNV: cacKhoiCapNhat,
-                    ngay: self.ngay,
-                    cheDo: self.cheDo,
-                    khoaNganhMacDinh: khoaMacDinh
-                )
-                dl.ganThiDuaNhanVien(bangMoi, theo: self.cheDo)
-                KhoDuLieu.dungChung.luu(dl)
-                self.napDuLieu()
-                self.khiCapNhatDuLieu?()
-            }
-        )
+                    var cacKhoiCapNhat = cacKhoi
+                    for i in cacKhoiCapNhat.indices {
+                        if self.dong.thucHien > 0 && cacKhoiCapNhat[i].thucHienNganhGoiY <= 0 {
+                            cacKhoiCapNhat[i].thucHienNganhGoiY = self.dong.thucHien
+                        } else if self.dong.thucHien <= 0 && cacKhoiCapNhat[i].thucHienNganhGoiY > 0 {
+                            self.dong.thucHien = cacKhoiCapNhat[i].thucHienNganhGoiY
+                        }
+                        if self.dong.target > 0 && cacKhoiCapNhat[i].targetNganhGoiY <= 0 {
+                            cacKhoiCapNhat[i].targetNganhGoiY = self.dong.target
+                        } else if self.dong.target <= 0 && cacKhoiCapNhat[i].targetNganhGoiY > 0 {
+                            self.dong.target = cacKhoiCapNhat[i].targetNganhGoiY
+                            KhoDuLieu.dungChung.capNhatTargetNganhHang(
+                                dongGoc: self.dong,
+                                targetMoi: cacKhoiCapNhat[i].targetNganhGoiY,
+                                cho: self.ngay,
+                                cheDo: self.cheDo
+                            )
+                        }
+                    }
+
+                    var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
+                    let bangMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
+                        hienTai: dl.thiDuaNhanVien(theo: self.cheDo),
+                        mangKhoiNV: cacKhoiCapNhat,
+                        ngay: self.ngay,
+                        cheDo: self.cheDo,
+                        khoaNganhMacDinh: khoaMacDinh
+                    )
+                    dl.ganThiDuaNhanVien(bangMoi, theo: self.cheDo)
+                    KhoDuLieu.dungChung.luu(dl)
+                    self.napDuLieu()
+                    self.khiCapNhatDuLieu?()
+                }
+            )
+        }
     }
 
     @objc private func bamXoaDuLieuThiDuaMon() {
@@ -4161,62 +4154,53 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
     }
 
     @objc private func bamQuetAnhSucKhoeNV() {
-        let hop = UIAlertController(
-            title: "Nhập ảnh Sức khỏe NV",
-            message: "Bạn muốn chọn ảnh từ Thư viện ảnh hay mở tệp từ Files?",
-            preferredStyle: .actionSheet
+        hienMenuChon(
+            tieuDe: "Nhập ảnh Sức khỏe & Thi đua NV",
+            thongDiep: "Chọn ảnh từ Thư viện Ảnh hoặc nhập tệp ảnh từ ứng dụng Tệp (Files):",
+            cacMuc: [
+                MucChonDMX(tieuDe: "🖼️ Chọn ảnh từ Thư viện Ảnh") { [weak self] in
+                    guard let self else { return }
+                    var cauHinh = PHPickerConfiguration()
+                    cauHinh.filter = .images
+                    cauHinh.selectionLimit = 0
+                    if #available(iOS 15.0, *) {
+                        cauHinh.selection = .ordered
+                    }
+                    let picker = PHPickerViewController(configuration: cauHinh)
+                    picker.delegate = self
+                    self.present(picker, animated: true)
+                },
+                MucChonDMX(tieuDe: "📁 Nhập ảnh từ Tệp (Files)") { [weak self] in
+                    guard let self else { return }
+                    let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.image], asCopy: true)
+                    picker.delegate = self
+                    picker.allowsMultipleSelection = true
+                    self.present(picker, animated: true)
+                },
+                MucChonDMX(tieuDe: "Huỷ", kieu: .huy)
+            ]
         )
-        hop.addAction(UIAlertAction(title: "🖼️ Chọn từ Thư viện ảnh", style: .default) { [weak self] _ in
-            self?.moChonAnhSKThuVien()
-        })
-        hop.addAction(UIAlertAction(title: "📁 Chọn ảnh từ Tệp (Files)", style: .default) { [weak self] _ in
-            self?.moChonAnhSKTuTep()
-        })
-        hop.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
-        if let pop = hop.popoverPresentationController {
-            pop.sourceView = view
-            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            pop.permittedArrowDirections = []
-        }
-        present(hop, animated: true)
-    }
-
-    private func moChonAnhSKThuVien() {
-        var cauHinh = PHPickerConfiguration()
-        cauHinh.filter = .images
-        cauHinh.selectionLimit = 0
-        if #available(iOS 15.0, *) {
-            cauHinh.selection = .ordered
-        }
-        let picker = PHPickerViewController(configuration: cauHinh)
-        picker.delegate = self
-        present(picker, animated: true)
-    }
-
-    private func moChonAnhSKTuTep() {
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.image], asCopy: true)
-        picker.delegate = self
-        picker.allowsMultipleSelection = true
-        present(picker, animated: true)
     }
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        var danhSach: [UIImage] = []
-        for url in urls {
-            let access = url.startAccessingSecurityScopedResource()
-            if let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
-                danhSach.append(img)
+        controller.dismiss(animated: true)
+        guard !urls.isEmpty else { return }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            var cacAnh: [UIImage] = []
+            for url in urls {
+                let ok = url.startAccessingSecurityScopedResource()
+                defer { if ok { url.stopAccessingSecurityScopedResource() } }
+                if let d = try? Data(contentsOf: url), let img = UIImage(data: d) {
+                    cacAnh.append(img)
+                } else if let img = UIImage(contentsOfFile: url.path) {
+                    cacAnh.append(img)
+                }
             }
-            if access {
-                url.stopAccessingSecurityScopedResource()
+            DispatchQueue.main.async {
+                guard let self = self, !cacAnh.isEmpty else { return }
+                self.thucHienQuetAnhSucKhoe(cacAnh)
             }
         }
-        guard !danhSach.isEmpty else { return }
-        xuLyDocAnhSKNV(danhSach)
-    }
-
-    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-        controller.dismiss(animated: true)
     }
 
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
@@ -4239,51 +4223,53 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
             }
         }
         nhom.notify(queue: .main) { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
             let cacAnh = danhSach.compactMap { $0 }
-            guard !cacAnh.isEmpty else { return }
-            self.xuLyDocAnhSKNV(cacAnh)
+            self.thucHienQuetAnhSucKhoe(cacAnh)
         }
     }
 
-    private func xuLyDocAnhSKNV(_ cacAnh: [UIImage]) {
-        var skQuetDuoc: [String: DuLieuSucKhoeBoSungNV] = [:]
-        DichVuDocAnh.dungChung.quetAnhThiDuaNhanVien(
-            danhSachAnh: cacAnh,
-            tenNganhGoiY: nil,
-            maNVGoiY: self.tongHop.nhanVien.maNV,
-            tienTrinh: nil,
-            hoanTatSucKhoe: { bangSK in
-                skQuetDuoc = bangSK
-            },
-            hoanTat: { [weak self] cacKhoi in
-                guard let self else { return }
-                var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
-                if !cacKhoi.isEmpty {
-                    let bangNVMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
-                        hienTai: dl.thiDuaNhanVien(theo: self.cheDo),
-                        mangKhoiNV: cacKhoi,
-                        ngay: self.ngay,
-                        cheDo: self.cheDo
-                    )
-                    dl.ganThiDuaNhanVien(bangNVMoi, theo: self.cheDo)
-                }
-                if !skQuetDuoc.isEmpty {
-                    let maDangXem = self.tongHop.nhanVien.maNV
-                    if cacAnh.count == 1, skQuetDuoc[maDangXem] == nil, let skDau = skQuetDuoc.values.first {
-                        skQuetDuoc[maDangXem] = skDau
+    private func thucHienQuetAnhSucKhoe(_ cacAnh: [UIImage]) {
+        guard !cacAnh.isEmpty else { return }
+        if true {
+            var skQuetDuoc: [String: DuLieuSucKhoeBoSungNV] = [:]
+            DichVuDocAnh.dungChung.quetAnhThiDuaNhanVien(
+                danhSachAnh: cacAnh,
+                tenNganhGoiY: nil,
+                maNVGoiY: self.tongHop.nhanVien.maNV,
+                tienTrinh: nil,
+                hoanTatSucKhoe: { bangSK in
+                    skQuetDuoc = bangSK
+                },
+                hoanTat: { [weak self] cacKhoi in
+                    guard let self else { return }
+                    var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
+                    if !cacKhoi.isEmpty {
+                        let bangNVMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
+                            hienTai: dl.thiDuaNhanVien(theo: self.cheDo),
+                            mangKhoiNV: cacKhoi,
+                            ngay: self.ngay,
+                            cheDo: self.cheDo
+                        )
+                        dl.ganThiDuaNhanVien(bangNVMoi, theo: self.cheDo)
                     }
-                    KhoDuLieu.dungChung.apDungSucKhoeNhanVienQuetDuoc(
-                        skQuetDuoc,
-                        vao: &dl,
-                        ngay: self.ngay,
-                        cheDo: self.cheDo
-                    )
+                    if !skQuetDuoc.isEmpty {
+                        let maDangXem = self.tongHop.nhanVien.maNV
+                        if cacAnh.count == 1, skQuetDuoc[maDangXem] == nil, let skDau = skQuetDuoc.values.first {
+                            skQuetDuoc[maDangXem] = skDau
+                        }
+                        KhoDuLieu.dungChung.apDungSucKhoeNhanVienQuetDuoc(
+                            skQuetDuoc,
+                            vao: &dl,
+                            ngay: self.ngay,
+                            cheDo: self.cheDo
+                        )
+                    }
+                    KhoDuLieu.dungChung.luu(dl)
+                    self.napLaiDuLieuHienTai()
                 }
-                KhoDuLieu.dungChung.luu(dl)
-                self.napLaiDuLieuHienTai()
-            }
-        )
+            )
+        }
     }
 
     @objc private func bamChiaSeAnhSucKhoe() {

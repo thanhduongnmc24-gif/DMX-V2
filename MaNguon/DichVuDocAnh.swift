@@ -851,7 +851,7 @@ final class DichVuDocAnh {
         hoanTat: @escaping (KetQuaQuetTatCaAnh) -> Void
     ) {
         let phuongPhapChon = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
-        if phuongPhapChon == .phuongPhap4 {
+        if phuongPhapChon == .gemini {
             DichVuQuetAnhGemini.dungChung.quet(
                 danhSachAnh: danhSachAnh,
                 cheDo: cheDoDangChon,
@@ -903,7 +903,7 @@ final class DichVuDocAnh {
                     tienTrinh("Đang đọc & phân loại ảnh \(chiSo + 1)/\(danhSachAnh.count)...")
                 }
                 let phanTu = self.thucHienOCR(anh: anh)
-                guard !phanTu.isEmpty else { continue }
+                guard !phanTu.isEmpty || self.laAnhBangThiDuaBangNgang(phanTu: phanTu, anh: anh) else { continue }
 
                 let (cn, dv, wm) = self.trichThongTinChungThiDua(phanTu: phanTu)
                 if kq.capNhatLuc.isEmpty, let cn = cn, !cn.isEmpty {
@@ -970,76 +970,45 @@ final class DichVuDocAnh {
                     continue
                 }
 
-                let pp = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
-                if pp == .phuongPhap1 {
-                    let dsBangNgang = self.phanTichThiDuaBangNgangMaTran(phanTu: phanTu, watermark: wm)
-                    if !dsBangNgang.isEmpty {
-                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBangNgang)
-                        kq.soAnhThiDua += 1
-                        continue
-                    }
-                } else if pp == .phuongPhap2 {
-                    let dsThe = self.phanTichThiDuaLuoiTheDaCot(phanTu: phanTu, watermark: wm)
-                    if !dsThe.isEmpty {
-                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsThe)
-                        kq.soAnhThiDua += 1
-                        continue
-                    }
-                } else if pp == .phuongPhap3 {
-                    if laRealtime {
-                        let dsBang5 = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: phanTu, anh: anh, watermark: wm)
-                        if !dsBang5.isEmpty {
-                            kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang5)
-                            kq.soAnhThiDua += 1
-                            continue
-                        }
-                    } else {
-                        let dsBang6 = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: wm)
-                        if !dsBang6.isEmpty {
-                            kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang6)
-                            kq.soAnhThiDua += 1
-                            continue
-                        }
-                    }
-                }
+                let phuongPhapThiDua = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
 
-                // Tự động nhận diện và quét các phương pháp còn lại (dự phòng thông minh)
-                if self.laAnhBangNgangMaTran(phanTu: phanTu) {
-                    let ds = self.phanTichThiDuaBangNgangMaTran(phanTu: phanTu, watermark: wm)
-                    if !ds.isEmpty {
-                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: ds)
-                        kq.soAnhThiDua += 1
-                        continue
-                    }
-                }
-                if self.laAnhLuoiTheThiDua(phanTu: phanTu) {
-                    let ds = self.phanTichThiDuaLuoiTheDaCot(phanTu: phanTu, watermark: wm)
-                    if !ds.isEmpty {
-                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: ds)
-                        kq.soAnhThiDua += 1
-                        continue
-                    }
-                }
+                // ƯU TIÊN 4: Quét môn Thi Đua theo 4 phương pháp (Bảng ngang · Bảng dọc · Lưới · Gemini) cho Lũy kế & Bảng 5 cột cho Realtime
                 if laRealtime {
-                    let dsBang5 = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: phanTu, anh: anh, watermark: wm)
-                    if !dsBang5.isEmpty {
-                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang5)
+                    if self.laAnhBangThiDua5CotRealtime(phanTu: phanTu) {
+                        var dsBang = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: phanTu, anh: anh, watermark: wm)
+                        if dsBang.isEmpty && self.laAnhBangThiDua6Cot(phanTu: phanTu) {
+                            dsBang = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: wm)
+                        }
+                        if !dsBang.isEmpty {
+                            kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang)
+                            kq.soAnhThiDua += 1
+                            continue
+                        }
+                    }
+                    let dsBang4Cot = self.phanTichBangThiDua4Cot(phanTu: phanTu, watermark: wm)
+                    if !dsBang4Cot.isEmpty {
+                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang4Cot)
+                        kq.soAnhThiDua += 1
+                        continue
+                    }
+                    let dsLuoiThe = self.phanTichThiDuaLuoiThe6CotHoac2Cot(phanTu: phanTu, anh: anh, watermark: wm)
+                    if !dsLuoiThe.isEmpty {
+                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsLuoiThe)
                         kq.soAnhThiDua += 1
                         continue
                     }
                 } else {
-                    let dsBang6 = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: wm)
-                    if !dsBang6.isEmpty {
-                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang6)
+                    let dsThiDuaLK = self.phanTichThiDuaLuyKeTheoPhuongPhap(
+                        phanTu: phanTu,
+                        anh: anh,
+                        watermark: wm,
+                        phuongPhap: phuongPhapThiDua
+                    )
+                    if !dsThiDuaLK.isEmpty {
+                        kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsThiDuaLK)
                         kq.soAnhThiDua += 1
                         continue
                     }
-                }
-                let dsBang4 = self.phanTichBangThiDua4Cot(phanTu: phanTu, watermark: wm)
-                if !dsBang4.isEmpty {
-                    kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: kq.danhSachThiDua, moi: dsBang4)
-                    kq.soAnhThiDua += 1
-                    continue
                 }
 
                 // ƯU TIÊN 5: Dự phòng bảng Thi đua 2 cột / 5 cột hoặc bảng NV
@@ -1112,7 +1081,7 @@ final class DichVuDocAnh {
         hoanTat: @escaping (KetQuaQuetThiDua) -> Void
     ) {
         let phuongPhapChon = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
-        if phuongPhapChon == .phuongPhap4 {
+        if phuongPhapChon == .gemini {
             let cheDo: LoaiCheDoDoanhThu = laRealtime ? .realtime : .luyKe
             DichVuQuetAnhGemini.dungChung.quet(
                 danhSachAnh: danhSachAnh,
@@ -1236,67 +1205,42 @@ final class DichVuDocAnh {
 
             var cacPhanTuBang2Cot: [([PhanTuVanBan], String?)] = []
             for (pt, wm, anhQuet) in cacPhanTuThiDua {
-                let pp = phuongPhapThiDua
-                if pp == .phuongPhap1 {
-                    let dsBangNgang = self.phanTichThiDuaBangNgangMaTran(phanTu: pt, watermark: wm)
-                    if !dsBangNgang.isEmpty {
-                        dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBangNgang)
-                        continue
-                    }
-                } else if pp == .phuongPhap2 {
-                    let dsThe = self.phanTichThiDuaLuoiTheDaCot(phanTu: pt, watermark: wm)
-                    if !dsThe.isEmpty {
-                        dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsThe)
-                        continue
-                    }
-                } else if pp == .phuongPhap3 {
-                    if laRealtime {
-                        let dsBang5 = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: pt, anh: anhQuet, watermark: wm)
-                        if !dsBang5.isEmpty {
-                            dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang5)
-                            continue
-                        }
-                    } else {
-                        let dsBang6 = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: pt, anh: anhQuet, watermark: wm)
-                        if !dsBang6.isEmpty {
-                            dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang6)
-                            continue
-                        }
-                    }
-                }
-
-                // Tự động nhận diện và quét các phương pháp còn lại (dự phòng thông minh)
-                if self.laAnhBangNgangMaTran(phanTu: pt) {
-                    let ds = self.phanTichThiDuaBangNgangMaTran(phanTu: pt, watermark: wm)
-                    if !ds.isEmpty { dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: ds); continue }
-                }
-                if self.laAnhLuoiTheThiDua(phanTu: pt) {
-                    let ds = self.phanTichThiDuaLuoiTheDaCot(phanTu: pt, watermark: wm)
-                    if !ds.isEmpty { dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: ds); continue }
-                }
                 if laRealtime {
-                    let dsBang5 = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: pt, anh: anhQuet, watermark: wm)
-                    if !dsBang5.isEmpty { dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang5); continue }
-                } else {
-                    let dsBang6 = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: pt, anh: anhQuet, watermark: wm)
-                    if !dsBang6.isEmpty { dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang6); continue }
-                }
-                let dsBang4 = self.phanTichBangThiDua4Cot(phanTu: pt, watermark: wm)
-                if !dsBang4.isEmpty { dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang4); continue }
-                let dsBang4Cot = self.phanTichBangThiDua4Cot(phanTu: pt, watermark: wm)
-                if !dsBang4Cot.isEmpty {
-                    dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang4Cot)
-                    continue
-                }
-                let dsLuoiThe = self.phanTichThiDuaLuoiThe2Cot(phanTu: pt, watermark: wm)
-                if !dsLuoiThe.isEmpty {
-                    dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsLuoiThe)
-                } else {
-                    let dsBangDuPhong = laRealtime
-                        ? self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: pt, anh: anhQuet, watermark: wm)
-                        : self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: pt, anh: anhQuet, watermark: wm)
+                    if self.laAnhBangThiDua5CotRealtime(phanTu: pt) {
+                        var dsBang5Cot = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: pt, anh: anhQuet, watermark: wm)
+                        if dsBang5Cot.isEmpty && self.laAnhBangThiDua6Cot(phanTu: pt) {
+                            dsBang5Cot = self.phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: pt, anh: anhQuet, watermark: wm)
+                        }
+                        if !dsBang5Cot.isEmpty {
+                            dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang5Cot)
+                            continue
+                        }
+                    }
+                    let dsBang4Cot = self.phanTichBangThiDua4Cot(phanTu: pt, watermark: wm)
+                    if !dsBang4Cot.isEmpty {
+                        dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBang4Cot)
+                        continue
+                    }
+                    let dsLuoiThe = self.phanTichThiDuaLuoiThe6CotHoac2Cot(phanTu: pt, anh: anhQuet, watermark: wm)
+                    if !dsLuoiThe.isEmpty {
+                        dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsLuoiThe)
+                        continue
+                    }
+                    let dsBangDuPhong = self.phanTichBangThiDuaPhuongPhap2_5CotRealtime(phanTu: pt, anh: anhQuet, watermark: wm)
                     if !dsBangDuPhong.isEmpty {
                         dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsBangDuPhong)
+                    } else {
+                        cacPhanTuBang2Cot.append((pt, wm))
+                    }
+                } else {
+                    let dsThiDuaLK = self.phanTichThiDuaLuyKeTheoPhuongPhap(
+                        phanTu: pt,
+                        anh: anhQuet,
+                        watermark: wm,
+                        phuongPhap: phuongPhapThiDua
+                    )
+                    if !dsThiDuaLK.isEmpty {
+                        dsTongHop = KhoDuLieu.gopDanhSachThiDua(cu: dsTongHop, moi: dsThiDuaLK)
                     } else {
                         cacPhanTuBang2Cot.append((pt, wm))
                     }
@@ -1821,11 +1765,19 @@ final class DichVuDocAnh {
         var maNhanVienWatermark: String?
 
         for pt in phanTu {
-            if pt.chu.localizedCaseInsensitiveContains("Cập nhật lúc") || pt.chu.range(of: "\\d{2}:\\d{2}:\\d{2}", options: .regularExpression) != nil {
+            if pt.chu.localizedCaseInsensitiveContains("Cập nhật lúc") ||
+               pt.chu.localizedCaseInsensitiveContains("Chụp lúc") ||
+               pt.chu.range(of: "\\d{2}:\\d{2}:\\d{2}", options: .regularExpression) != nil ||
+               pt.chu.range(of: "\\b\\d{1,2}:\\d{2}\\s+\\d{1,2}/\\d{1,2}/\\d{4}\\b", options: .regularExpression) != nil {
+                let chuSachCN = pt.chu
+                    .replacingOccurrences(of: "Cập nhật lúc:", with: "")
+                    .replacingOccurrences(of: "Chụp lúc:", with: "")
+                    .replacingOccurrences(of: "Chụp lúc", with: "")
+                    .trimmingCharacters(in: .whitespaces)
                 if capNhatLuc == nil {
-                    capNhatLuc = pt.chu.replacingOccurrences(of: "Cập nhật lúc:", with: "").trimmingCharacters(in: .whitespaces)
-                } else if !capNhatLuc!.contains(pt.chu) {
-                    capNhatLuc = "\(capNhatLuc!) \(pt.chu)"
+                    capNhatLuc = chuSachCN
+                } else if !capNhatLuc!.contains(chuSachCN) {
+                    capNhatLuc = "\(capNhatLuc!) \(chuSachCN)"
                 }
             }
             if maNhanVienWatermark == nil, pt.y < 0.16 {
@@ -1862,7 +1814,20 @@ final class DichVuDocAnh {
             }
         }
 
-        if KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua == .phuongPhap2 || laAnhBangThiDua6Cot(phanTu: phanTu) {
+        let ppHienTai = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
+        if ppHienTai == .bangNgang || laAnhBangThiDuaBangNgang(phanTu: phanTu, anh: nil) {
+            let dsNgang = phanTichBangThiDuaBangNgang(phanTu: phanTu, anh: nil, watermark: maNhanVienWatermark)
+            if !dsNgang.isEmpty {
+                return (dsNgang, [], capNhatLuc, thongTinDonVi)
+            }
+        }
+        if ppHienTai == .luoi || laAnhLuoiTheThiDua(phanTu: phanTu) {
+            let dsLuoi = phanTichThiDuaLuoiThe6CotHoac2Cot(phanTu: phanTu, anh: nil, watermark: maNhanVienWatermark)
+            if !dsLuoi.isEmpty {
+                return (dsLuoi, [], capNhatLuc, thongTinDonVi)
+            }
+        }
+        if ppHienTai == .bangDoc || laAnhBangThiDua6Cot(phanTu: phanTu) {
             let dsBang6Cot = phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: nil, watermark: maNhanVienWatermark)
             if !dsBang6Cot.isEmpty {
                 return (dsBang6Cot, [], capNhatLuc, thongTinDonVi)
@@ -1988,6 +1953,898 @@ final class DichVuDocAnh {
             return true
         }
         return false
+    }
+
+    // MARK: - Điều phối 4 Phương pháp quét ảnh Thi Đua Lũy kế (1. Bảng ngang · 2. Bảng dọc · 3. Lưới · 4. Gemini)
+
+    private func phanTichThiDuaLuyKeTheoPhuongPhap(
+        phanTu: [PhanTuVanBan],
+        anh: UIImage?,
+        watermark: String?,
+        phuongPhap: PhuongPhapQuetThiDua
+    ) -> [DongThiDua] {
+        switch phuongPhap {
+        case .bangNgang:
+            let dsNgang = phanTichBangThiDuaBangNgang(phanTu: phanTu, anh: anh, watermark: watermark)
+            if !dsNgang.isEmpty { return dsNgang }
+            if laAnhLuoiTheThiDua(phanTu: phanTu, anh: anh) {
+                let dsLuoi = phanTichThiDuaLuoiThe6CotHoac2Cot(phanTu: phanTu, anh: anh, watermark: watermark)
+                if !dsLuoi.isEmpty { return dsLuoi }
+            }
+            let dsDoc = phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: watermark)
+            if !dsDoc.isEmpty { return dsDoc }
+            return phanTichThiDuaLuoiThe6CotHoac2Cot(phanTu: phanTu, anh: anh, watermark: watermark)
+
+        case .bangDoc:
+            if laAnhBangThiDuaBangNgang(phanTu: phanTu, anh: anh) {
+                let dsNgang = phanTichBangThiDuaBangNgang(phanTu: phanTu, anh: anh, watermark: watermark)
+                if !dsNgang.isEmpty { return dsNgang }
+            }
+            let dsDoc = phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: watermark)
+            if !dsDoc.isEmpty { return dsDoc }
+            let ds4Cot = phanTichBangThiDua4Cot(phanTu: phanTu, watermark: watermark)
+            if !ds4Cot.isEmpty { return ds4Cot }
+            let dsLuoi = phanTichThiDuaLuoiThe6CotHoac2Cot(phanTu: phanTu, anh: anh, watermark: watermark)
+            if !dsLuoi.isEmpty { return dsLuoi }
+            return phanTichBangThiDuaBangNgang(phanTu: phanTu, anh: anh, watermark: watermark)
+
+        case .luoi:
+            if laAnhBangThiDuaBangNgang(phanTu: phanTu, anh: anh) {
+                let dsNgang = phanTichBangThiDuaBangNgang(phanTu: phanTu, anh: anh, watermark: watermark)
+                if !dsNgang.isEmpty { return dsNgang }
+            }
+            let dsLuoi = phanTichThiDuaLuoiThe6CotHoac2Cot(phanTu: phanTu, anh: anh, watermark: watermark)
+            if !dsLuoi.isEmpty { return dsLuoi }
+            let dsDoc = phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: watermark)
+            if !dsDoc.isEmpty { return dsDoc }
+            return phanTichBangThiDua4Cot(phanTu: phanTu, watermark: watermark)
+
+        case .gemini:
+            // Dự phòng offline khi Gemini không kết nối được
+            if laAnhBangThiDuaBangNgang(phanTu: phanTu, anh: anh) {
+                let dsNgang = phanTichBangThiDuaBangNgang(phanTu: phanTu, anh: anh, watermark: watermark)
+                if !dsNgang.isEmpty { return dsNgang }
+            }
+            if laAnhLuoiTheThiDua(phanTu: phanTu, anh: anh) {
+                let dsLuoi = phanTichThiDuaLuoiThe6CotHoac2Cot(phanTu: phanTu, anh: anh, watermark: watermark)
+                if !dsLuoi.isEmpty { return dsLuoi }
+            }
+            let dsDoc = phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: watermark)
+            if !dsDoc.isEmpty { return dsDoc }
+            let dsLuoi = phanTichThiDuaLuoiThe6CotHoac2Cot(phanTu: phanTu, anh: anh, watermark: watermark)
+            if !dsLuoi.isEmpty { return dsLuoi }
+            return phanTichBangThiDuaBangNgang(phanTu: phanTu, anh: anh, watermark: watermark)
+        }
+    }
+
+    private func laAnhLuoiTheThiDua(phanTu: [PhanTuVanBan], anh: UIImage?) -> Bool {
+        if laAnhBangThiDuaBangNgang(phanTu: phanTu, anh: anh) { return false }
+        if laAnhLuoiTheThiDua(phanTu: phanTu) { return true }
+        for pt in phanTu where pt.y < 0.08 {
+            let u = boDau(pt.chu)
+            if u.contains("THE ·") || u.contains("THE -") || (u.contains("39 CHUONG TRINH") && u.contains("THE")) {
+                return true
+            }
+        }
+        return false
+    }
+
+    // MARK: - Phương pháp 1: Bộ phân tích Bảng Ngang Thi Đua Lũy Kế (ĐƠN VỊ | SỐ CT ĐẠT | 39 cột chương trình ngang THỰC HIỆN | TARGET)
+
+    private func laAnhBangThiDuaBangNgang(phanTu: [PhanTuVanBan], anh: UIImage? = nil) -> Bool {
+        if let cg = anh?.cgImage, cg.width > cg.height * 3 {
+            return true
+        }
+        if let img = anh, img.size.width > img.size.height * 3.0 {
+            return true
+        }
+        var coSoCTDat = false
+        var coDuLieuTheoSieuThi = false
+        var soHeaderTargetNgang = 0
+        for pt in phanTu where pt.y < 0.65 {
+            let u = boDau(pt.chu)
+            if u.contains("SO CT DAT") || u.contains("CT DAT") { coSoCTDat = true }
+            if u.contains("DU LIEU THEO SIEU THI") { coDuLieuTheoSieuThi = true }
+            if u.contains("TARGET") { soHeaderTargetNgang += 1 }
+        }
+        return coSoCTDat || coDuLieuTheoSieuThi || soHeaderTargetNgang >= 3
+    }
+
+    /// Phân tích ảnh Bảng ngang Thi đua Lũy kế:
+    /// - Dò biên ngang của Hàng tiêu đề 1 (`Tên chương trình (DT/SL)`), Hàng tiêu đề 2 (`THỰC HIỆN | TARGET`), Dòng dữ liệu 1 (`TỔNG`) và Dòng dữ liệu 2 (`ĐML_...`).
+    /// - Dò biên dọc của 39 cột chương trình ngang từ sau vách ngăn cố định `SỐ CT ĐẠT` (`xStart ~ 0.0375*w`) tới `xEnd ~ 0.9968*w`, mỗi chương trình chia đôi `xMid` thành 2 cột con `THỰC HIỆN` và `TARGET`.
+    /// - Cắt & phóng nét từng ô của 39 cột ngang rồi chuyển vị (transpose) thành 5 dải cột dọc cách nhau 60px trắng để Apple Vision đọc chính xác toàn bộ 39 môn.
+    private func phanTichBangThiDuaBangNgang(
+        phanTu: [PhanTuVanBan],
+        anh: UIImage? = nil,
+        watermark: String? = nil
+    ) -> [DongThiDua] {
+        guard laAnhBangThiDuaBangNgang(phanTu: phanTu, anh: anh) else { return [] }
+        guard let anhGoc = anh, let cgGoc = anhGoc.cgImage, cgGoc.width > 200, cgGoc.height >= 24 else { return [] }
+
+        let w0 = cgGoc.width
+        let h0 = cgGoc.height
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var raw0 = [UInt8](repeating: 0, count: w0 * h0 * 4)
+        guard let ctx0 = CGContext(
+            data: &raw0,
+            width: w0,
+            height: h0,
+            bitsPerComponent: 8,
+            bytesPerRow: w0 * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return [] }
+        ctx0.draw(cgGoc, in: CGRect(x: 0, y: 0, width: w0, height: h0))
+
+        // Phát hiện tiền tố tháng từ tiêu đề (mặc định "T11")
+        var tienToThang = "T11"
+        for pt in phanTu where pt.y < 0.25 {
+            let u = boDau(pt.chu)
+            if let r = u.range(of: "THANG\\s*(1[0-2]|[1-9])", options: .regularExpression) {
+                let sub = String(u[r]).replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)
+                if !sub.isEmpty { tienToThang = "T\(sub)"; break }
+            } else if let r = u.range(of: "\\bT(1[0-2]|[1-9])\\b", options: .regularExpression) {
+                tienToThang = String(u[r]); break
+            }
+        }
+
+        // 1. Xác định các biên ngang của bảng ngang:
+        // Header 1 (Tên môn): ~0.256 .. 0.495
+        // Header 2 (THỰC HIỆN | TARGET): ~0.495 .. 0.600
+        // Data 1 (TỔNG): ~0.600 .. 0.748
+        // Data 2 (Siêu thị ĐML_...): ~0.748 .. 0.902
+        let yH1Top = max(1, Int((Double(h0) * 0.258).rounded()))
+        let yH1Bot = max(yH1Top + 4, Int((Double(h0) * 0.495).rounded()))
+        let yD1Top = max(yH1Bot + 2, Int((Double(h0) * 0.602).rounded()))
+        let yD1Bot = max(yD1Top + 3, Int((Double(h0) * 0.748).rounded()))
+        let yD2Top = max(yD1Bot + 1, Int((Double(h0) * 0.752).rounded()))
+        let yD2Bot = min(h0 - 1, max(yD2Top + 3, Int((Double(h0) * 0.902).rounded())))
+
+        // 2. Xác định biên trái bắt đầu cột chương trình đầu tiên (sau cột ĐƠN VỊ và SỐ CT ĐẠT: ~0.0375*w0) và biên phải bảng (~0.9968*w0)
+        var colMeanData = [Double](repeating: 255.0, count: w0)
+        let ySample0 = max(0, Int((Double(h0) * 0.26).rounded()))
+        let ySample1 = min(h0 - 1, Int((Double(h0) * 0.89).rounded()))
+        if ySample1 > ySample0 {
+            let soMauY = Double(ySample1 - ySample0 + 1)
+            for x in 0..<w0 {
+                var sum = 0.0
+                for y in ySample0...ySample1 {
+                    let off = (y * w0 + x) * 4
+                    sum += Double(Int(raw0[off]) + Int(raw0[off + 1]) + Int(raw0[off + 2])) / 3.0
+                }
+                colMeanData[x] = sum / soMauY
+            }
+        }
+
+        func timCucTieuDoc(tu xA: Int, den xB: Int, macDinh: Int) -> Int {
+            let a = max(2, xA)
+            let b = min(w0 - 3, xB)
+            guard b > a else { return macDinh }
+            var bestX = macDinh
+            var maxDiff = -999.0
+            for x in a...b {
+                let bg = max(colMeanData[x - 2], colMeanData[x + 2])
+                let diff = bg - colMeanData[x]
+                if diff > maxDiff {
+                    maxDiff = diff
+                    bestX = x
+                }
+            }
+            return maxDiff >= 1.2 ? bestX : macDinh
+        }
+
+        let xStartMacDinh = Int((Double(w0) * 0.0375).rounded())
+        let xEndMacDinh = Int((Double(w0) * 0.9968).rounded())
+        let xStart = timCucTieuDoc(
+            tu: Int((Double(w0) * 0.033).rounded()),
+            den: Int((Double(w0) * 0.043).rounded()),
+            macDinh: xStartMacDinh
+        )
+        let xEnd = timCucTieuDoc(
+            tu: Int((Double(w0) * 0.991).rounded()),
+            den: w0 - 2,
+            macDinh: xEndMacDinh
+        )
+
+        // Mặc định bảng thi đua lũy kế có 39 chương trình xếp ngang
+        let soChuongTrinh = 39
+        let buocCot = Double(xEnd - xStart) / Double(soChuongTrinh)
+        guard buocCot >= 8.0 else { return [] }
+
+        var xProg: [Int] = []
+        let banKinhTim = max(2, Int((buocCot * 0.14).rounded()))
+        for k in 0...soChuongTrinh {
+            let xDuKien = Int((Double(xStart) + Double(k) * buocCot).rounded())
+            if k == 0 {
+                xProg.append(xStart)
+            } else if k == soChuongTrinh {
+                xProg.append(xEnd)
+            } else {
+                let xChuan = timCucTieuDoc(tu: xDuKien - banKinhTim, den: xDuKien + banKinhTim, macDinh: xDuKien)
+                xProg.append(xChuan)
+            }
+        }
+
+        // 3. Phóng nét từng ô của 39 cột chương trình và xếp dọc thành 5 dải cột độc lập:
+        // [Cột 0: Tiêu đề môn (DT/SL), Cột 1: Thực hiện ST, Cột 2: Target ST, Cột 3: Thực hiện TỔNG, Cột 4: Target TỔNG]
+        let caoODataGoc = max(4, yD2Bot - yD2Top)
+        let heSo = max(1, min(6, 56 / caoODataGoc))
+        let demDoc = 56
+
+        // Chuẩn bị kích thước dải cột
+        let rongTitleDst = max(180, Int((buocCot * Double(heSo) * 1.5).rounded()))
+        let rongSoDst = max(120, Int((buocCot * 0.5 * Double(heSo) * 1.5).rounded()))
+        let caoTitleDst = max(48, (yH1Bot - yH1Top) * heSo)
+        let caoSoDst = max(44, caoODataGoc * heSo)
+
+        func catVaPhongNetO(x0: Int, y0: Int, x1: Int, y1: Int, rongDich: Int, caoDich: Int, xoaSaoVang: Bool) -> [UInt8] {
+            let sw = max(1, x1 - x0)
+            let sh = max(1, y1 - y0)
+            guard let subCG = cgGoc.cropping(to: CGRect(x: x0, y: y0, width: sw, height: sh)) else {
+                return [UInt8](repeating: 255, count: rongDich * caoDich * 4)
+            }
+            var buf = [UInt8](repeating: 255, count: rongDich * caoDich * 4)
+            if let ctx = CGContext(
+                data: &buf,
+                width: rongDich,
+                height: caoDich,
+                bitsPerComponent: 8,
+                bytesPerRow: rongDich * 4,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) {
+                ctx.interpolationQuality = .high
+                ctx.draw(subCG, in: CGRect(x: 0, y: 0, width: rongDich, height: caoDich))
+                let tong = rongDich * caoDich
+                for i in 0..<tong {
+                    let off = i * 4
+                    let r = Int(buf[off])
+                    let g = Int(buf[off + 1])
+                    let b = Int(buf[off + 2])
+                    if xoaSaoVang && (i % rongDich) < (rongDich * 32) / 100 && r >= 185 && g >= 135 && b < 155 && (r - b) > 40 {
+                        buf[off] = 255; buf[off + 1] = 255; buf[off + 2] = 255
+                        continue
+                    }
+                    let doSang = (r + g + b) / 3
+                    if doSang >= 208 {
+                        buf[off] = 255; buf[off + 1] = 255; buf[off + 2] = 255
+                    } else {
+                        let muc = UInt8(max(0, min(255, (doSang - 75) * 255 / 133)))
+                        buf[off] = muc; buf[off + 1] = muc; buf[off + 2] = muc
+                    }
+                }
+            }
+            return buf
+        }
+
+        func docDaiCot(cacOBuf: [[UInt8]], rongDai: Int, caoMoiO: Int, laCotTen: Bool) -> [[String]] {
+            let tongCao = demDoc + cacOBuf.count * (caoMoiO + demDoc)
+            var stripBuf = [UInt8](repeating: 255, count: rongDai * tongCao * 4)
+            let bpr = rongDai * 4
+            var viTriO: [(y0: Int, y1: Int)] = []
+            var yCur = demDoc
+            for oBuf in cacOBuf {
+                for dy in 0..<caoMoiO {
+                    let srcOff = dy * bpr
+                    let dstOff = (yCur + dy) * bpr
+                    stripBuf.replaceSubrange(dstOff..<(dstOff + bpr), with: oBuf[srcOff..<(srcOff + bpr)])
+                }
+                viTriO.append((y0: yCur, y1: yCur + caoMoiO))
+                yCur += caoMoiO + demDoc
+            }
+
+            var ketQua = Array(repeating: [String](), count: cacOBuf.count)
+            guard let ctxStrip = CGContext(
+                data: &stripBuf,
+                width: rongDai,
+                height: tongCao,
+                bitsPerComponent: 8,
+                bytesPerRow: bpr,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ), let cgStrip = ctxStrip.makeImage() else {
+                return ketQua
+            }
+
+            var obsList: [(yPx: CGFloat, xPx: CGFloat, chu: String)] = []
+            let req = VNRecognizeTextRequest { r, _ in
+                guard let results = r.results as? [VNRecognizedTextObservation] else { return }
+                for obs in results {
+                    guard let top = obs.topCandidates(1).first else { continue }
+                    let raw = top.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !raw.isEmpty else { continue }
+                    let box = obs.boundingBox
+                    let yTren = 1.0 - box.origin.y - box.size.height
+                    let lines = raw.components(separatedBy: .newlines)
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                    let caoM = box.size.height / CGFloat(max(1, lines.count))
+                    for (i, ln) in lines.enumerated() {
+                        let yTamPx = (yTren + (CGFloat(i) + 0.5) * caoM) * CGFloat(tongCao)
+                        obsList.append((yPx: yTamPx, xPx: box.origin.x, chu: ln))
+                    }
+                }
+            }
+            req.recognitionLevel = .accurate
+            req.usesLanguageCorrection = laCotTen
+            if laCotTen { req.recognitionLanguages = ["vi-VN", "en-US"] }
+            req.minimumTextHeight = 0.002
+            let hdl = VNImageRequestHandler(cgImage: cgStrip, orientation: .up, options: [:])
+            try? hdl.perform([req])
+
+            obsList.sort {
+                if abs($0.yPx - $1.yPx) < 8.0 { return $0.xPx < $1.xPx }
+                return $0.yPx < $1.yPx
+            }
+            let nuaDem = CGFloat(demDoc) * 0.46
+            for item in obsList {
+                for (idx, vt) in viTriO.enumerated() {
+                    if item.yPx >= (CGFloat(vt.y0) - nuaDem) && item.yPx <= (CGFloat(vt.y1) + nuaDem) {
+                        ketQua[idx].append(item.chu)
+                        break
+                    }
+                }
+            }
+
+            // Quét neo "100 :" cho các ô số 1 chữ số bị bỏ sót
+            if !laCotTen {
+                for (idx, vt) in viTriO.enumerated() where ketQua[idx].isEmpty {
+                    guard let cgO = cgStrip.cropping(to: CGRect(x: 0, y: vt.y0, width: rongDai, height: caoMoiO)) else { continue }
+                    let kichThuocNeo = CGSize(width: 260, height: 64)
+                    let anhNeo = UIGraphicsImageRenderer(size: kichThuocNeo).image { ctx in
+                        UIColor.white.setFill()
+                        ctx.fill(CGRect(origin: .zero, size: kichThuocNeo))
+                        let fontNeo = UIFont.monospacedDigitSystemFont(ofSize: 24, weight: .bold)
+                        ("100 :" as NSString).draw(at: CGPoint(x: 10, y: 16), withAttributes: [.font: fontNeo, .foregroundColor: UIColor.black])
+                        UIImage(cgImage: cgO).draw(in: CGRect(x: 92, y: 10, width: min(155, max(44, rongDai)), height: 44))
+                    }
+                    if let cgNeo = anhNeo.cgImage {
+                        let reqNeo = VNRecognizeTextRequest { r, _ in
+                            guard let list = r.results as? [VNRecognizedTextObservation] else { return }
+                            for obs in list {
+                                for cand in obs.topCandidates(3) {
+                                    let s = cand.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if let viTri = s.firstIndex(of: ":") {
+                                        let sau = String(s[s.index(after: viTri)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if !sau.isEmpty { ketQua[idx].append(sau); break }
+                                    }
+                                }
+                            }
+                        }
+                        reqNeo.recognitionLevel = .accurate
+                        reqNeo.usesLanguageCorrection = false
+                        let hdlNeo = VNImageRequestHandler(cgImage: cgNeo, orientation: .up, options: [:])
+                        try? hdlNeo.perform([reqNeo])
+                    }
+                }
+            }
+            return ketQua
+        }
+
+        var oTitles: [[UInt8]] = []
+        var oTH_ST: [[UInt8]] = []
+        var oTG_ST: [[UInt8]] = []
+        var oTH_Tong: [[UInt8]] = []
+        var oTG_Tong: [[UInt8]] = []
+
+        for k in 0..<soChuongTrinh {
+            let x0 = xProg[k]
+            let x1 = xProg[k + 1]
+            let xMid = (x0 + x1) / 2
+            oTitles.append(catVaPhongNetO(x0: x0 + 1, y0: yH1Top, x1: x1 - 1, y1: yH1Bot, rongDich: rongTitleDst, caoDich: caoTitleDst, xoaSaoVang: true))
+            oTH_ST.append(catVaPhongNetO(x0: x0 + 1, y0: yD2Top, x1: xMid - 1, y1: yD2Bot, rongDich: rongSoDst, caoDich: caoSoDst, xoaSaoVang: false))
+            oTG_ST.append(catVaPhongNetO(x0: xMid + 1, y0: yD2Top, x1: x1 - 1, y1: yD2Bot, rongDich: rongSoDst, caoDich: caoSoDst, xoaSaoVang: false))
+            oTH_Tong.append(catVaPhongNetO(x0: x0 + 1, y0: yD1Top, x1: xMid - 1, y1: yD1Bot, rongDich: rongSoDst, caoDich: caoSoDst, xoaSaoVang: false))
+            oTG_Tong.append(catVaPhongNetO(x0: xMid + 1, y0: yD1Top, x1: x1 - 1, y1: yD1Bot, rongDich: rongSoDst, caoDich: caoSoDst, xoaSaoVang: false))
+        }
+
+        let kqTitle = docDaiCot(cacOBuf: oTitles, rongDai: rongTitleDst, caoMoiO: caoTitleDst, laCotTen: true)
+        let kqTH_ST = docDaiCot(cacOBuf: oTH_ST, rongDai: rongSoDst, caoMoiO: caoSoDst, laCotTen: false)
+        let kqTG_ST = docDaiCot(cacOBuf: oTG_ST, rongDai: rongSoDst, caoMoiO: caoSoDst, laCotTen: false)
+        let kqTH_Tong = docDaiCot(cacOBuf: oTH_Tong, rongDai: rongSoDst, caoMoiO: caoSoDst, laCotTen: false)
+        let kqTG_Tong = docDaiCot(cacOBuf: oTG_Tong, rongDai: rongSoDst, caoMoiO: caoSoDst, laCotTen: false)
+
+        func docSoO(_ mang: [String]) -> (so: Double?, coThapPhan: Bool) {
+            let gop = mang.joined(separator: " ")
+                .replacingOccurrences(of: "\\b(54453|5445|4453)\\b", with: " ", options: .regularExpression)
+                .replacingOccurrences(of: "(\\d),\\s+(\\d{3}\\b)", with: "$1,$2", options: .regularExpression)
+                .replacingOccurrences(of: "(\\d)\\.\\s+(\\d{1,2}\\b)", with: "$1.$2", options: .regularExpression)
+            let coTP = gop.range(of: "\\d+[.]\\d{1,2}\\b", options: .regularExpression) != nil
+            let cacSo = trichCacSoTheThiDua(trong: gop).filter { $0 >= 0 && $0 < 100000 && abs($0 - 54453) > 0.5 }
+            return (cacSo.first, coTP)
+        }
+
+        var danhSachKetQua: [DongThiDua] = []
+        for k in 0..<soChuongTrinh {
+            let (thST, tp1) = docSoO(kqTH_ST[k])
+            let (tgST, tp2) = docSoO(kqTG_ST[k])
+            let (thTong, tp3) = docSoO(kqTH_Tong[k])
+            let (tgTong, tp4) = docSoO(kqTG_Tong[k])
+
+            let th = thST ?? thTong
+            let tg = tgST ?? tgTong
+            let coThapPhan = tp1 || tp2 || tp3 || tp4
+
+            let chuoiTitleTho = kqTitle[k].joined(separator: " ")
+            let uTitle = boDau(chuoiTitleTho)
+            let coSL = uTitle.range(of: "\\(\\s*(SL|5L|SI|S1|51)\\s*\\)", options: .regularExpression) != nil ||
+                       uTitle.range(of: "\\b(SL|5L)\\s*$", options: .regularExpression) != nil
+            let coDT = uTitle.range(of: "\\(\\s*(DT|0T|OT|07)\\s*\\)", options: .regularExpression) != nil ||
+                       uTitle.range(of: "\\b(DT|0T)\\s*$", options: .regularExpression) != nil
+
+            let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(chuoiTitleTho, tienToThangMacDinh: tienToThang)
+            guard tenSach.count >= 2, !laTenTheDoanhThuKhongPhaiThiDua(tenSach) else { continue }
+            guard th != nil || tg != nil || KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) else { continue }
+
+            let loaiMacDinh = KhoDuLieu.loaiChiTieuMacDinhChoMon(tenSach)
+            let loai: LoaiChiTieuThiDua
+            if KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) {
+                loai = loaiMacDinh
+            } else if coSL && !coDT && !coThapPhan {
+                loai = .soLuong
+            } else if coDT && !coSL {
+                loai = .doanhThu
+            } else {
+                loai = coThapPhan ? .doanhThu : loaiMacDinh
+            }
+
+            let soTH = th ?? 0.0
+            let soTG = tg ?? 0.0
+            let ht: Double? = (soTG > 0) ? (((soTH / soTG) * 1000.0).rounded() / 10.0) : 0.0
+
+            let dong = DongThiDua(
+                tenNganhHangGoc: tenSach,
+                tenNganhHang: KhoDuLieu.apDungLocTuCaiDat(tenSach),
+                loaiChiTieu: loai,
+                thucHien: soTH,
+                target: soTG,
+                phanTramHTGoc: ht
+            )
+            danhSachKetQua = KhoDuLieu.gopDanhSachThiDua(cu: danhSachKetQua, moi: [dong])
+        }
+
+        return danhSachKetQua
+    }
+
+    // MARK: - Phương pháp 3: Bộ phân tích Lưới Thẻ Thi Đua 6 Cột × 7 Hàng (39 Thẻ) & Lưới 2 Cột
+
+    /// Tự động phát hiện lưới thẻ nhiều cột (như ảnh Lưới 6 cột × 7 hàng = 39 chương trình) dựa vào nền trắng bên trong từng thẻ và vị trí thanh tiến độ `bar_y` của mỗi thẻ; nếu là ảnh 2 cột thì kết hợp với `phanTichThiDuaLuoiThe2Cot`.
+    private func phanTichThiDuaLuoiThe6CotHoac2Cot(
+        phanTu: [PhanTuVanBan],
+        anh: UIImage? = nil,
+        watermark: String? = nil
+    ) -> [DongThiDua] {
+        if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) {
+            return []
+        }
+
+        if let anhGoc = anh, let cgGoc = anhGoc.cgImage, cgGoc.width >= 360, cgGoc.height >= 360 {
+            let w0 = cgGoc.width
+            let h0 = cgGoc.height
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            var raw0 = [UInt8](repeating: 0, count: w0 * h0 * 4)
+            if let ctx0 = CGContext(
+                data: &raw0,
+                width: w0,
+                height: h0,
+                bitsPerComponent: 8,
+                bytesPerRow: w0 * 4,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) {
+                ctx0.draw(cgGoc, in: CGRect(x: 0, y: 0, width: w0, height: h0))
+
+                // 1. Dò các hàng thẻ (Card Rows) bằng số lượng điểm ảnh trắng tinh (>= 252) ở nửa trái trang (x: 0.015 .. 0.495)
+                let xCheck0 = max(2, Int((Double(w0) * 0.015).rounded()))
+                let xCheck1 = min(w0 - 2, Int((Double(w0) * 0.495).rounded()))
+                let yStartGrid = max(4, Int((Double(h0) * 0.038).rounded()))
+                let nguongTrangHang = max(12, Int(Double(xCheck1 - xCheck0) * 0.055))
+                let caoTheToiThieu = max(42, Int(Double(h0) * 0.055))
+
+                var cardRows: [(y0: Int, y1: Int)] = []
+                var dangTrongHang = false
+                var yBatDauHang = yStartGrid
+                for y in yStartGrid..<h0 {
+                    var demTrang = 0
+                    let base = y * w0 * 4
+                    for x in xCheck0..<xCheck1 {
+                        let off = base + x * 4
+                        if raw0[off] >= 252 && raw0[off + 1] >= 252 && raw0[off + 2] >= 252 {
+                            demTrang += 1
+                        }
+                    }
+                    if !dangTrongHang && demTrang > nguongTrangHang {
+                        dangTrongHang = true
+                        yBatDauHang = y
+                    } else if dangTrongHang && demTrang <= nguongTrangHang {
+                        dangTrongHang = false
+                        if (y - yBatDauHang) >= caoTheToiThieu {
+                            cardRows.append((y0: yBatDauHang, y1: y - 1))
+                        }
+                    }
+                }
+                if dangTrongHang && (h0 - yBatDauHang) >= caoTheToiThieu {
+                    cardRows.append((y0: yBatDauHang, y1: h0 - 1))
+                }
+
+                // 2. Dò các cột thẻ (Card Cols) bằng số lượng điểm ảnh trắng tinh theo chiều dọc
+                if cardRows.count >= 2 {
+                    let yGrid0 = cardRows.first!.y0
+                    let yGrid1 = cardRows.last!.y1
+                    let nguongTrangCot = max(20, Int(Double(yGrid1 - yGrid0) * 0.05))
+                    let rongTheToiThieu = max(42, Int(Double(w0) * 0.075))
+
+                    var cardCols: [(x0: Int, x1: Int)] = []
+                    var dangTrongCot = false
+                    var xBatDauCot = 0
+                    for x in 0..<w0 {
+                        var demTrang = 0
+                        for y in yGrid0...yGrid1 {
+                            let off = (y * w0 + x) * 4
+                            if raw0[off] >= 252 && raw0[off + 1] >= 252 && raw0[off + 2] >= 252 {
+                                demTrang += 1
+                            }
+                        }
+                        if !dangTrongCot && demTrang > nguongTrangCot {
+                            dangTrongCot = true
+                            xBatDauCot = x
+                        } else if dangTrongCot && demTrang <= nguongTrangCot {
+                            dangTrongCot = false
+                            if (x - xBatDauCot) >= rongTheToiThieu {
+                                cardCols.append((x0: xBatDauCot, x1: x - 1))
+                            }
+                        }
+                    }
+                    if dangTrongCot && (w0 - xBatDauCot) >= rongTheToiThieu {
+                        cardCols.append((x0: xBatDauCot, x1: w0 - 1))
+                    }
+
+                    // Nếu phát hiện lưới nhiều cột (từ 3 đến 8 cột, ví dụ lưới 6 cột × 7 hàng = 39 thẻ):
+                    if cardCols.count >= 3 {
+                        struct ThongTinOThe {
+                            let x0: Int
+                            let y0: Int
+                            let x1: Int
+                            let y1: Int
+                            let barY: Int
+                        }
+
+                        var danhSachOThe: [ThongTinOThe] = []
+                        for r in cardRows {
+                            for c in cardCols {
+                                let cw = c.x1 - c.x0
+                                let ch = r.y1 - r.y0
+                                guard cw > 36, ch > 36 else { continue }
+                                var demTrang = 0
+                                var demToi = 0
+                                for y in r.y0..<r.y1 {
+                                    let base = y * w0 * 4
+                                    for x in c.x0..<c.x1 {
+                                        let off = base + x * 4
+                                        let g = (Int(raw0[off]) + Int(raw0[off + 1]) + Int(raw0[off + 2])) / 3
+                                        if g >= 251 { demTrang += 1 }
+                                        else if g < 180 { demToi += 1 }
+                                    }
+                                }
+                                let tyLeTrang = Double(demTrang) / Double(max(1, cw * ch))
+                                guard tyLeTrang > 0.32 && demToi > 20 else { continue }
+
+                                // Tìm toạ độ Y của thanh tiến độ ngang bên trong thẻ (dải duy nhất có > 85% điểm ảnh < 242 từ 0.08*cw đến 0.84*cw)
+                                let xb0 = c.x0 + Int((Double(cw) * 0.08).rounded())
+                                let xb1 = c.x0 + Int((Double(cw) * 0.84).rounded())
+                                let yb0 = r.y0 + Int((Double(ch) * 0.30).rounded())
+                                let yb1 = r.y0 + Int((Double(ch) * 0.72).rounded())
+                                var cacYBar: [Int] = []
+                                if xb1 > xb0 && yb1 > yb0 {
+                                    for y in yb0..<yb1 {
+                                        var khongTrang = 0
+                                        let base = y * w0 * 4
+                                        for x in xb0..<xb1 {
+                                            let off = base + x * 4
+                                            let m = min(raw0[off], min(raw0[off + 1], raw0[off + 2]))
+                                            if m < 242 { khongTrang += 1 }
+                                        }
+                                        if Double(khongTrang) / Double(xb1 - xb0) > 0.85 {
+                                            cacYBar.append(y - r.y0)
+                                        }
+                                    }
+                                }
+                                let barY = cacYBar.isEmpty ? Int((Double(ch) * 0.56).rounded()) : cacYBar[cacYBar.count / 2]
+                                danhSachOThe.append(ThongTinOThe(x0: c.x0, y0: r.y0, x1: c.x1, y1: r.y1, barY: barY))
+                            }
+                        }
+
+                        if danhSachOThe.count >= 4 {
+                            let cwTB = danhSachOThe.map { $0.x1 - $0.x0 }.reduce(0, +) / max(1, danhSachOThe.count)
+                            let heSo = max(1, min(4, 340 / max(1, cwTB)))
+                            let demDoc = 56
+
+                            func catVungTrongThe(
+                                _ the: ThongTinOThe,
+                                dx0: Int,
+                                dy0: Int,
+                                dx1: Int,
+                                dy1: Int,
+                                rongDich: Int,
+                                caoDich: Int,
+                                laVungMau: Bool,
+                                xoaSaoVaBadge: Bool
+                            ) -> [UInt8] {
+                                let xA = max(0, min(w0 - 2, the.x0 + dx0))
+                                let yA = max(0, min(h0 - 2, the.y0 + dy0))
+                                let xB = max(xA + 2, min(w0, the.x0 + dx1))
+                                let yB = max(yA + 2, min(h0, the.y0 + dy1))
+                                guard let sub = cgGoc.cropping(to: CGRect(x: xA, y: yA, width: xB - xA, height: yB - yA)) else {
+                                    return [UInt8](repeating: 255, count: rongDich * caoDich * 4)
+                                }
+                                var buf = [UInt8](repeating: 255, count: rongDich * caoDich * 4)
+                                if let ctx = CGContext(
+                                    data: &buf,
+                                    width: rongDich,
+                                    height: caoDich,
+                                    bitsPerComponent: 8,
+                                    bytesPerRow: rongDich * 4,
+                                    space: colorSpace,
+                                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                                ) {
+                                    ctx.interpolationQuality = .high
+                                    ctx.draw(sub, in: CGRect(x: 0, y: 0, width: rongDich, height: caoDich))
+                                    let tong = rongDich * caoDich
+                                    for i in 0..<tong {
+                                        let off = i * 4
+                                        let px = i % rongDich
+                                        let r = Int(buf[off])
+                                        let g = Int(buf[off + 1])
+                                        let b = Int(buf[off + 2])
+                                        if xoaSaoVaBadge && px < (rongDich * 22) / 100 && r >= 185 && g >= 135 && b < 155 && (r - b) > 40 {
+                                            buf[off] = 255; buf[off + 1] = 255; buf[off + 2] = 255
+                                            continue
+                                        }
+                                        let cMax = max(r, max(g, b))
+                                        let cMin = min(r, min(g, b))
+                                        let doLech = cMax - cMin
+                                        let doSang = (laVungMau && doLech >= 18) ? cMin : ((r + g + b) / 3)
+                                        if doSang >= 210 {
+                                            buf[off] = 255; buf[off + 1] = 255; buf[off + 2] = 255
+                                        } else {
+                                            let muc = UInt8(max(0, min(255, (doSang - 70) * 255 / 140)))
+                                            buf[off] = muc; buf[off + 1] = muc; buf[off + 2] = muc
+                                        }
+                                    }
+                                }
+                                return buf
+                            }
+
+                            let rongTitle = max(240, cwTB * heSo)
+                            let caoTitle = max(84, Int(Double(cwTB * heSo) * 0.38))
+                            let rongSo = max(140, (cwTB * heSo) / 2)
+                            let caoSo = max(44, Int(Double(cwTB * heSo) * 0.14))
+
+                            var dsTitleBuf: [[UInt8]] = []
+                            var dsTHBuf: [[UInt8]] = []
+                            var dsTGBuf: [[UInt8]] = []
+                            var dsHTBuf: [[UInt8]] = []
+                            var dsPDKBuf: [[UInt8]] = []
+                            var dsDTDKBuf: [[UInt8]] = []
+
+                            for the in danhSachOThe {
+                                let cw = the.x1 - the.x0
+                                let ch = the.y1 - the.y0
+                                let s = Double(cw) / 122.0
+                                let by = Double(the.barY)
+
+                                let yTitleBot = max(16, Int((by - 21.0 * s).rounded()))
+                                dsTitleBuf.append(catVungTrongThe(the, dx0: 2, dy0: 2, dx1: cw - 2, dy1: yTitleBot, rongDich: rongTitle, caoDich: caoTitle, laVungMau: false, xoaSaoVaBadge: true))
+
+                                let yPDK0 = max(6, Int((by - 23.5 * s).rounded()))
+                                let yPDK1 = max(yPDK0 + 8, Int((by - 4.5 * s).rounded()))
+                                dsPDKBuf.append(catVungTrongThe(the, dx0: 2, dy0: yPDK0, dx1: Int((Double(cw) * 0.56).rounded()), dy1: yPDK1, rongDich: rongSo, caoDich: caoSo, laVungMau: true, xoaSaoVaBadge: false))
+
+                                let yTH0 = Int((by + 13.0 * s).rounded())
+                                let yTH1 = min(ch - 8, Int((by + 26.0 * s).rounded()))
+                                dsTHBuf.append(catVungTrongThe(the, dx0: 2, dy0: yTH0, dx1: cw / 2, dy1: yTH1, rongDich: rongSo, caoDich: caoSo, laVungMau: false, xoaSaoVaBadge: false))
+                                dsTGBuf.append(catVungTrongThe(the, dx0: cw / 2, dy0: yTH0, dx1: cw - 2, dy1: yTH1, rongDich: rongSo, caoDich: caoSo, laVungMau: false, xoaSaoVaBadge: false))
+
+                                let yHT0 = Int((by + 33.0 * s).rounded())
+                                let yHT1 = min(ch - 2, Int((by + 47.0 * s).rounded()))
+                                dsHTBuf.append(catVungTrongThe(the, dx0: 2, dy0: yHT0, dx1: cw / 2, dy1: yHT1, rongDich: rongSo, caoDich: caoSo, laVungMau: false, xoaSaoVaBadge: false))
+                                dsDTDKBuf.append(catVungTrongThe(the, dx0: cw / 2, dy0: yHT0, dx1: cw - 2, dy1: yHT1, rongDich: rongSo, caoDich: caoSo, laVungMau: true, xoaSaoVaBadge: false))
+                            }
+
+                            func docDaiThe(cacOBuf: [[UInt8]], rongDai: Int, caoMoiO: Int, laCotTen: Bool) -> [[String]] {
+                                let tongCao = demDoc + cacOBuf.count * (caoMoiO + demDoc)
+                                var stripBuf = [UInt8](repeating: 255, count: rongDai * tongCao * 4)
+                                let bpr = rongDai * 4
+                                var viTriO: [(y0: Int, y1: Int)] = []
+                                var yCur = demDoc
+                                for oBuf in cacOBuf {
+                                    for dy in 0..<caoMoiO {
+                                        let srcOff = dy * bpr
+                                        let dstOff = (yCur + dy) * bpr
+                                        stripBuf.replaceSubrange(dstOff..<(dstOff + bpr), with: oBuf[srcOff..<(srcOff + bpr)])
+                                    }
+                                    viTriO.append((y0: yCur, y1: yCur + caoMoiO))
+                                    yCur += caoMoiO + demDoc
+                                }
+
+                                var ketQua = Array(repeating: [String](), count: cacOBuf.count)
+                                guard let ctxStrip = CGContext(
+                                    data: &stripBuf,
+                                    width: rongDai,
+                                    height: tongCao,
+                                    bitsPerComponent: 8,
+                                    bytesPerRow: bpr,
+                                    space: colorSpace,
+                                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                                ), let cgStrip = ctxStrip.makeImage() else {
+                                    return ketQua
+                                }
+
+                                var obsList: [(yPx: CGFloat, xPx: CGFloat, chu: String)] = []
+                                let req = VNRecognizeTextRequest { r, _ in
+                                    guard let results = r.results as? [VNRecognizedTextObservation] else { return }
+                                    for obs in results {
+                                        guard let top = obs.topCandidates(1).first else { continue }
+                                        let raw = top.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        guard !raw.isEmpty else { continue }
+                                        let box = obs.boundingBox
+                                        let yTren = 1.0 - box.origin.y - box.size.height
+                                        let lines = raw.components(separatedBy: .newlines)
+                                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                                            .filter { !$0.isEmpty }
+                                        let caoM = box.size.height / CGFloat(max(1, lines.count))
+                                        for (i, ln) in lines.enumerated() {
+                                            let yTamPx = (yTren + (CGFloat(i) + 0.5) * caoM) * CGFloat(tongCao)
+                                            obsList.append((yPx: yTamPx, xPx: box.origin.x, chu: ln))
+                                        }
+                                    }
+                                }
+                                req.recognitionLevel = .accurate
+                                req.usesLanguageCorrection = laCotTen
+                                if laCotTen { req.recognitionLanguages = ["vi-VN", "en-US"] }
+                                req.minimumTextHeight = 0.002
+                                let hdl = VNImageRequestHandler(cgImage: cgStrip, orientation: .up, options: [:])
+                                try? hdl.perform([req])
+
+                                obsList.sort {
+                                    if abs($0.yPx - $1.yPx) < 8.0 { return $0.xPx < $1.xPx }
+                                    return $0.yPx < $1.yPx
+                                }
+                                let nuaDem = CGFloat(demDoc) * 0.46
+                                for item in obsList {
+                                    for (idx, vt) in viTriO.enumerated() {
+                                        if item.yPx >= (CGFloat(vt.y0) - nuaDem) && item.yPx <= (CGFloat(vt.y1) + nuaDem) {
+                                            ketQua[idx].append(item.chu)
+                                            break
+                                        }
+                                    }
+                                }
+
+                                if !laCotTen {
+                                    for (idx, vt) in viTriO.enumerated() where ketQua[idx].isEmpty {
+                                        guard let cgO = cgStrip.cropping(to: CGRect(x: 0, y: vt.y0, width: rongDai, height: caoMoiO)) else { continue }
+                                        let kichThuocNeo = CGSize(width: 260, height: 64)
+                                        let anhNeo = UIGraphicsImageRenderer(size: kichThuocNeo).image { ctx in
+                                            UIColor.white.setFill()
+                                            ctx.fill(CGRect(origin: .zero, size: kichThuocNeo))
+                                            let fontNeo = UIFont.monospacedDigitSystemFont(ofSize: 24, weight: .bold)
+                                            ("100 :" as NSString).draw(at: CGPoint(x: 10, y: 16), withAttributes: [.font: fontNeo, .foregroundColor: UIColor.black])
+                                            UIImage(cgImage: cgO).draw(in: CGRect(x: 92, y: 10, width: min(155, max(44, rongDai)), height: 44))
+                                        }
+                                        if let cgNeo = anhNeo.cgImage {
+                                            let reqNeo = VNRecognizeTextRequest { r, _ in
+                                                guard let list = r.results as? [VNRecognizedTextObservation] else { return }
+                                                for obs in list {
+                                                    for cand in obs.topCandidates(3) {
+                                                        let s = cand.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                                        if let viTri = s.firstIndex(of: ":") {
+                                                            let sau = String(s[s.index(after: viTri)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                                                            if !sau.isEmpty { ketQua[idx].append(sau); break }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            reqNeo.recognitionLevel = .accurate
+                                            reqNeo.usesLanguageCorrection = false
+                                            let hdlNeo = VNImageRequestHandler(cgImage: cgNeo, orientation: .up, options: [:])
+                                            try? hdlNeo.perform([reqNeo])
+                                        }
+                                    }
+                                }
+                                return ketQua
+                            }
+
+                            let kqTitle = docDaiThe(cacOBuf: dsTitleBuf, rongDai: rongTitle, caoMoiO: caoTitle, laCotTen: true)
+                            let kqTH = docDaiThe(cacOBuf: dsTHBuf, rongDai: rongSo, caoMoiO: caoSo, laCotTen: false)
+                            let kqTG = docDaiThe(cacOBuf: dsTGBuf, rongDai: rongSo, caoMoiO: caoSo, laCotTen: false)
+                            let kqHT = docDaiThe(cacOBuf: dsHTBuf, rongDai: rongSo, caoMoiO: caoSo, laCotTen: false)
+                            let kqPDK = docDaiThe(cacOBuf: dsPDKBuf, rongDai: rongSo, caoMoiO: caoSo, laCotTen: false)
+                            let kqDTDK = docDaiThe(cacOBuf: dsDTDKBuf, rongDai: rongSo, caoMoiO: caoSo, laCotTen: false)
+
+                            func docSoThe(_ mang: [String]) -> (so: Double?, coThapPhan: Bool) {
+                                let gop = mang.joined(separator: " ")
+                                    .replacingOccurrences(of: "%", with: "")
+                                    .replacingOccurrences(of: "\\b(54453|5445|4453)\\b", with: " ", options: .regularExpression)
+                                    .replacingOccurrences(of: "(\\d),\\s+(\\d{3}\\b)", with: "$1,$2", options: .regularExpression)
+                                    .replacingOccurrences(of: "(\\d)\\.\\s+(\\d{1,2}\\b)", with: "$1.$2", options: .regularExpression)
+                                let coTP = gop.range(of: "\\d+[.]\\d{1,2}\\b", options: .regularExpression) != nil
+                                let cacSo = trichCacSoTheThiDua(trong: gop).filter { $0 >= 0 && $0 < 100000 && abs($0 - 54453) > 0.5 }
+                                return (cacSo.first, coTP)
+                            }
+
+                            var danhSachKetQua: [DongThiDua] = []
+                            for idx in 0..<danhSachOThe.count {
+                                let cacDongTen = kqTitle[idx].filter { d in
+                                    let u = boDau(d).trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if laBadgePhanNhomThe(u) { return false }
+                                    if u.contains("CHAY THEO THUONG HIEU") || u.contains("DU KIEN HOAN THANH") { return false }
+                                    return true
+                                }
+                                var coSL = false
+                                var coDT = false
+                                for d in kqTitle[idx] {
+                                    let u = boDau(d).trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if u == "SL" || u == "5L" || u == "SI" || u.hasSuffix(" SL") || u.hasSuffix(" 5L") { coSL = true }
+                                    if u == "DT" || u == "0T" || u == "OT" || u.hasSuffix(" DT") || u.hasSuffix(" 0T") { coDT = true }
+                                }
+
+                                let (th, tp1) = docSoThe(kqTH[idx])
+                                let (tg, tp2) = docSoThe(kqTG[idx])
+                                let (ht, _) = docSoThe(kqHT[idx])
+                                let (pdk, _) = docSoThe(kqPDK[idx])
+                                let (dtdk, tp3) = docSoThe(kqDTDK[idx])
+                                let coThapPhan = tp1 || tp2 || tp3
+
+                                let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(cacDongTen.joined(separator: " "), tienToThangMacDinh: "T11")
+                                guard tenSach.count >= 2, !laTenTheDoanhThuKhongPhaiThiDua(tenSach) else { continue }
+                                guard th != nil || tg != nil || pdk != nil || KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) else { continue }
+
+                                let loaiMacDinh = KhoDuLieu.loaiChiTieuMacDinhChoMon(tenSach)
+                                let loai: LoaiChiTieuThiDua
+                                if KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) {
+                                    loai = loaiMacDinh
+                                } else if coSL && !coDT && !coThapPhan {
+                                    loai = .soLuong
+                                } else if coDT && !coSL {
+                                    loai = .doanhThu
+                                } else {
+                                    loai = coThapPhan ? .doanhThu : loaiMacDinh
+                                }
+
+                                let soTH = th ?? 0.0
+                                let soTG = tg ?? 0.0
+                                let htChuan: Double? = (soTG > 0) ? (((soTH / soTG) * 1000.0).rounded() / 10.0) : ht
+                                var dkGoc = dtdk
+                                if dkGoc == nil, let db = pdk, soTG > 0 {
+                                    let uoc = soTG * (db / 100.0)
+                                    dkGoc = (loai == .soLuong) ? uoc.rounded() : ((uoc * 100).rounded() / 100)
+                                }
+
+                                let dong = DongThiDua(
+                                    tenNganhHangGoc: tenSach,
+                                    tenNganhHang: KhoDuLieu.apDungLocTuCaiDat(tenSach),
+                                    loaiChiTieu: loai,
+                                    thucHien: soTH,
+                                    target: soTG,
+                                    phanTramHTGoc: htChuan ?? ht,
+                                    phanTramDuBaoGoc: pdk ?? htChuan,
+                                    duKienGoc: dkGoc
+                                )
+                                danhSachKetQua = KhoDuLieu.gopDanhSachThiDua(cu: danhSachKetQua, moi: [dong])
+                            }
+
+                            if !danhSachKetQua.isEmpty {
+                                return danhSachKetQua
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Dự phòng cho ảnh lưới thẻ 2 cột
+        return phanTichThiDuaLuoiThe2Cot(phanTu: phanTu, watermark: watermark)
     }
 
     // MARK: - Bước 2A.00: Bộ phân tích Bảng Thi Đua 6 Cột - Phương pháp 2 (CHƯƠNG TRÌNH | THỰC HIỆN | TARGET | % HT | % HT DỰ KIẾN | HẠNG VÙNG)
@@ -2268,7 +3125,7 @@ final class DichVuDocAnh {
                     }
                 }
 
-                let khoangGopPlus = max(4, h0 / 160)
+                let khoangGopPlus = max(2, h0 / 180)
                 var cumPlus: [[Int]] = []
                 for y in cacYCoDauCong {
                     if let cuoi = cumPlus.last?.last, (y - cuoi) <= khoangGopPlus {
@@ -2278,11 +3135,26 @@ final class DichVuDocAnh {
                     }
                 }
 
-                let caoToiThieuPlus = max(4, h0 / 280)
+                let caoToiThieuPlus = max(2, h0 / 380)
                 var tamDauCong: [Double] = cumPlus.compactMap { cum in
                     guard let d = cum.first, let c = cum.last, (c - d + 1) >= caoToiThieuPlus else { return nil }
                     return Double(cum.reduce(0, +)) / Double(cum.count)
                 }
+
+                // Tính khoảng cách dòng trung vị để thích ứng cả bảng 39 dòng (cao mỗi dòng ~0.0238*h0) và bảng ít dòng
+                let khoangCachDongGoc: Double = {
+                    guard tamDauCong.count >= 2 else { return Double(h0) * 0.042 }
+                    var dsKC: [Double] = []
+                    for i in 0..<(tamDauCong.count - 1) {
+                        let kc = tamDauCong[i + 1] - tamDauCong[i]
+                        if kc > Double(h0) * 0.012 && kc < Double(h0) * 0.12 {
+                            dsKC.append(kc)
+                        }
+                    }
+                    guard !dsKC.isEmpty else { return Double(h0) * 0.032 }
+                    dsKC.sort()
+                    return dsKC[dsKC.count / 2]
+                }()
 
                 // Bổ sung tâm dòng từ phanTuGocDonDong nếu có dòng môn chuẩn (đặc biệt MỞ THẺ TÍN DỤNG...) bị mờ dấu +
                 var cacYUngVienTen: [CGFloat] = []
@@ -2292,9 +3164,10 @@ final class DichVuDocAnh {
                         cacYUngVienTen.append(pt.y + pt.cao / 2.0)
                     }
                 }
+                let nguongTrungDong = max(Double(h0) * 0.014, min(Double(h0) * 0.044, khoangCachDongGoc * 0.68))
                 for yNorm in cacYUngVienTen {
                     let yPx = Double(yNorm) * Double(h0)
-                    let daCo = tamDauCong.contains { abs($0 - yPx) < Double(h0) * 0.044 }
+                    let daCo = tamDauCong.contains { abs($0 - yPx) < nguongTrungDong }
                     if !daCo {
                         tamDauCong.append(yPx)
                         tamDauCong.sort()
@@ -2349,16 +3222,14 @@ final class DichVuDocAnh {
                         }
                     }
 
-                    let leDocPlus = max(12, h0 / 58)
+                    let leDocPlus = max(3, min(14, Int((khoangCachDongGoc * 0.25).rounded())))
                     var bienNgangPx: [Int] = []
 
-                    // Đường kẻ ngang phía trên dấu + đầu tiên (hỗ trợ cả dòng đầu cao 3 hàng chữ)
-                    let minTopPx = cacPTHeaderGoc.isEmpty
-                        ? max(2, Int(tamDauCong[0]) - Int(Double(h0) * 0.078))
-                        : max(4, Int(CGFloat(h0) * max(0.032, ySauHeader - 0.012)))
-                    let yTren0Start = max(2, min(minTopPx, Int(tamDauCong[0]) - leDocPlus - 2))
+                    // Đường kẻ ngang phía trên dấu + đầu tiên
+                    let nuaDongPx = max(8, Int((khoangCachDongGoc * 0.50).rounded()))
+                    let yTren0Start = max(2, Int(tamDauCong[0]) - max(nuaDongPx + 6, Int((khoangCachDongGoc * 0.68).rounded())))
                     let yTren0End = max(yTren0Start, Int(tamDauCong[0]) - leDocPlus)
-                    var yBest0 = yTren0Start
+                    var yBest0 = max(2, Int(tamDauCong[0]) - nuaDongPx)
                     var maxC0 = -999.0
                     for y in yTren0Start...yTren0End {
                         if vContrast[y] > maxC0 {
@@ -2367,7 +3238,7 @@ final class DichVuDocAnh {
                         }
                     }
                     if maxC0 < 1.0 {
-                        yBest0 = max(2, Int(tamDauCong[0]) - Int(Double(h0) * 0.048))
+                        yBest0 = max(2, Int(tamDauCong[0]) - nuaDongPx)
                     }
                     bienNgangPx.append(yBest0)
 
@@ -2375,7 +3246,7 @@ final class DichVuDocAnh {
                     for k in 0..<(tamDauCong.count - 1) {
                         let ya = min(h0 - 4, Int(tamDauCong[k]) + leDocPlus)
                         let yb = max(ya, Int(tamDauCong[k + 1]) - leDocPlus)
-                        var yBest = (Int(tamDauCong[k]) + Int(tamDauCong[k + 1])) / 2
+                        var yBest = (Int((tamDauCong[k] + tamDauCong[k + 1]) / 2.0))
                         var maxC = -999.0
                         for y in ya...yb {
                             if vContrast[y] > maxC {
@@ -2384,15 +3255,16 @@ final class DichVuDocAnh {
                             }
                         }
                         if maxC < 0.9 {
-                            yBest = (Int(tamDauCong[k]) + Int(tamDauCong[k + 1])) / 2
+                            yBest = Int((tamDauCong[k] + tamDauCong[k + 1]) / 2.0)
                         }
                         bienNgangPx.append(yBest)
                     }
 
-                    // Đường kẻ ngang phía dưới dấu + cuối cùng (mở rộng tới 0.082*h0 cho dòng 3 hàng chữ như MỞ THẺ TÍN DỤNG...)
+                    // Đường kẻ ngang phía dưới dấu + cuối cùng
+                    let moRongCuoi = tamDauCong.count >= 25 ? max(nuaDongPx + 5, Int((khoangCachDongGoc * 0.65).rounded())) : Int(Double(h0) * 0.082)
                     let yCuoiStart = min(h0 - 3, Int(tamDauCong.last!) + leDocPlus)
-                    let yCuoiEnd = min(h0 - 2, max(yCuoiStart, Int(tamDauCong.last!) + Int(Double(h0) * 0.082)))
-                    var yBestCuoi = min(h0 - 2, Int(tamDauCong.last!) + Int(Double(h0) * 0.052))
+                    let yCuoiEnd = min(h0 - 2, max(yCuoiStart, Int(tamDauCong.last!) + moRongCuoi))
+                    var yBestCuoi = min(h0 - 2, Int(tamDauCong.last!) + nuaDongPx)
                     var maxCCuoi = -999.0
                     for y in yCuoiStart...yCuoiEnd {
                         if vContrast[y] > maxCCuoi {
@@ -2401,11 +3273,11 @@ final class DichVuDocAnh {
                         }
                     }
                     if maxCCuoi < 1.0 {
-                        yBestCuoi = min(h0 - 2, Int(tamDauCong.last!) + Int(Double(h0) * 0.052))
+                        yBestCuoi = min(h0 - 2, Int(tamDauCong.last!) + nuaDongPx)
                     }
                     bienNgangPx.append(yBestCuoi)
 
-                    // 3. Tìm chính xác 5 đường kẻ dọc ngăn cách 6 cột
+                    // 3. Tìm chính xác các đường kẻ dọc ngăn cách cột (hỗ trợ cả Bảng dọc 5 cột có thanh tiến độ ở Cột 4 và Bảng 6 cột)
                     let yThap = max(0, bienNgangPx.first ?? 0)
                     let yCao = min(h0 - 1, bienNgangPx.last ?? (h0 - 1))
                     var colMed = [Double](repeating: 255.0, count: w0)
@@ -2452,20 +3324,21 @@ final class DichVuDocAnh {
                         return (maxC >= 1.5) ? (CGFloat(xBest) / CGFloat(w0)) : macDinh
                     }
 
-                    let xv0: CGFloat = 0.052
-                    let xv1: CGFloat = timDuongKeDoc(tu: 0.31, den: 0.37, macDinh: 0.340)
-                    let xv2: CGFloat = timDuongKeDoc(tu: 0.47, den: 0.52, macDinh: 0.495)
-                    let xv3: CGFloat = timDuongKeDoc(tu: 0.62, den: 0.67, macDinh: 0.645)
-                    let xv4: CGFloat = timDuongKeDoc(tu: 0.73, den: 0.78, macDinh: 0.758)
-                    let xv5: CGFloat = timDuongKeDoc(tu: 0.85, den: 0.90, macDinh: 0.875)
+                    let xv0: CGFloat = 0.044
+                    let xv1: CGFloat = timDuongKeDoc(tu: 0.31, den: 0.37, macDinh: 0.335)
+                    let xv2: CGFloat = timDuongKeDoc(tu: 0.44, den: 0.52, macDinh: 0.456)
+                    let xv3: CGFloat = timDuongKeDoc(tu: 0.56, den: 0.67, macDinh: 0.578)
+                    let laBangDocCoThanhTienDo = (xv2 < 0.472 && xv3 < 0.610)
+                    let xv4: CGFloat = laBangDocCoThanhTienDo ? 0.790 : timDuongKeDoc(tu: 0.73, den: 0.78, macDinh: 0.758)
+                    let xv5: CGFloat = timDuongKeDoc(tu: 0.85, den: 0.90, macDinh: 0.878)
 
-                    // Lọc các dòng hợp lệ (hỗ trợ cả ảnh chỉ có 1 dòng)
+                    // Lọc các dòng hợp lệ (hỗ trợ cả bảng 39 dòng cao ~0.023 và bảng ít dòng)
                     var cacDongHopLe: [(y0Px: Int, y1Px: Int, yTrenNorm: CGFloat, yDuoiNorm: CGFloat)] = []
                     for k in 0..<tamDauCong.count {
                         let y0 = bienNgangPx[k]
                         let y1 = bienNgangPx[k + 1]
                         let caoNorm = CGFloat(y1 - y0) / CGFloat(h0)
-                        guard caoNorm >= 0.018 else { continue }
+                        guard caoNorm >= 0.012 else { continue }
                         cacDongHopLe.append((
                             y0Px: y0,
                             y1Px: y1,
@@ -2541,11 +3414,23 @@ final class DichVuDocAnh {
 
                             var explodedPixels = [UInt8](repeating: 255, count: w * tongCaoGian * 4)
                             let bprW = w * 4
+                            let xBar0 = Int((CGFloat(w) * xv3).rounded())
+                            let xBar1 = Int((CGFloat(w) * xv4).rounded())
                             for tt in thongTinDongGian {
+                                let dyCutBar = Int((Double(tt.caoSrc) * 0.54).rounded())
                                 for dy in 0..<tt.caoSrc {
                                     let srcRow = (tt.ySrc0 + dy) * bprW
                                     let dstRow = (tt.yDst0 + dy) * bprW
                                     explodedPixels.replaceSubrange(dstRow..<(dstRow + bprW), with: cleanPixels[srcRow..<(srcRow + bprW)])
+                                    // Nếu là Bảng dọc có thanh tiến độ ở Cột 4A (xv3..xv4), xoá trắng nửa dưới chứa thanh tiến độ ngang và mũi tên '>'
+                                    if laBangDocCoThanhTienDo && dy >= dyCutBar && xBar1 > xBar0 {
+                                        for px in xBar0..<min(w, xBar1) {
+                                            let off = dstRow + px * 4
+                                            explodedPixels[off] = 255
+                                            explodedPixels[off + 1] = 255
+                                            explodedPixels[off + 2] = 255
+                                        }
+                                    }
                                 }
                             }
 
@@ -4295,167 +5180,9 @@ final class DichVuDocAnh {
         return danhSachKetQua
     }
 
-    // MARK: - Bước 2A.00: Bộ phân tích Bảng Thi Đua Ngang Ma Trận - Phương pháp 1 (Dạng Bảng)
+    // MARK: - Bước 2A.1: Bộ phân tích Lưới Thẻ Thi Đua 2 Cột (Hỗ trợ 1–8+ môn/ảnh, lọc sạch CE/ICT/DV, đối chiếu toán học & lọc trùng 100%)
 
-    /// Nhận diện ảnh chụp Bảng ngang ma trận thi đua (gồm các cột môn thi đua xếp ngang, mỗi môn có cột Thực hiện & Target, có dòng Khu vực/Siêu thị hoặc Tổng)
-    private func laAnhBangNgangMaTran(phanTu: [PhanTuVanBan]) -> Bool {
-        if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) {
-            return false
-        }
-        var coHeaderKhuVuc = false
-        var coHeaderThuHang = false
-        var coBangThang = false
-        var soMonNgang = 0
-
-        for pt in phanTu {
-            let u = boDau(pt.chu)
-            if u.contains("KHU VUC") || u.contains("SIEU THI") { coHeaderKhuVuc = true }
-            if u.contains("THU HANG") || u.contains("THU'") || (u.contains("HANG") && pt.x < 0.15) { coHeaderThuHang = true }
-            if u.contains("BC THI DUA") && (u.contains("BANG") || u.contains("LUY KE")) { coBangThang = true }
-            if KhoDuLieu.laTenMonThiDuaChuanDMX(pt.chu) || u.contains("(DT)") || u.contains("(SL)") {
-                soMonNgang += 1
-            }
-        }
-        if soMonNgang >= 4 { return true }
-        if (coHeaderKhuVuc || coHeaderThuHang || coBangThang) && soMonNgang >= 2 { return true }
-        return false
-    }
-
-    /// Phân tích Bảng Thi Đua Dạng Bảng (Bảng ma trận ngang - Phương pháp 1):
-    /// Trích xuất danh sách các môn thi đua theo từng cột ngang kèm Thực hiện và Target của Siêu thị / Tổng
-    private func phanTichThiDuaBangNgangMaTran(
-        phanTu: [PhanTuVanBan],
-        watermark: String? = nil
-    ) -> [DongThiDua] {
-        if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) {
-            return []
-        }
-
-        var phanTuGocDonDong: [PhanTuVanBan] = []
-        for pt in phanTu {
-            let cacDong = pt.chu.components(separatedBy: .newlines)
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-            if cacDong.count > 1 {
-                let caoM = pt.cao / CGFloat(cacDong.count)
-                for (i, d) in cacDong.enumerated() {
-                    phanTuGocDonDong.append(PhanTuVanBan(chu: d, x: pt.x, y: pt.y + CGFloat(i) * caoM, rong: pt.rong, cao: caoM))
-                }
-            } else {
-                phanTuGocDonDong.append(pt)
-            }
-        }
-
-        func lamSachWM(_ s: String) -> String {
-            var kq = s
-            if let wm = watermark, !wm.isEmpty {
-                kq = kq.replacingOccurrences(of: wm, with: " ")
-            }
-            kq = kq.replacingOccurrences(of: "\\b54453\\b", with: " ", options: .regularExpression)
-            kq = kq.replacingOccurrences(of: "(?i)dũng\\s*nguyễn(\\s*thanh)?", with: " ", options: .regularExpression)
-            kq = kq.replacingOccurrences(of: "(?i)dung\\s*nguyen(\\s*thanh)?", with: " ", options: .regularExpression)
-            return kq.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-
-        // Tìm dòng dữ liệu Siêu thị (ĐML_...) hoặc dòng TỔNG
-        let ptSieuThi = phanTuGocDonDong.first { pt in
-            let u = boDau(pt.chu)
-            return pt.x < 0.20 && (u.contains("DML_") || u.contains("DMX_") || u.contains("TGDD_") || u.contains("QUANG TRUNG"))
-        }
-        let ptTong = phanTuGocDonDong.first { pt in
-            let u = boDau(pt.chu)
-            return pt.x < 0.16 && (u == "TONG" || u.contains("TONG CONG") || u.hasPrefix("TONG"))
-        }
-
-        let yDongSoLieu: CGFloat
-        if let ptST = ptSieuThi {
-            yDongSoLieu = ptST.y + ptST.cao / 2.0
-        } else if let ptT = ptTong {
-            yDongSoLieu = ptT.y + ptT.cao / 2.0
-        } else {
-            let cacYSo = phanTuGocDonDong.compactMap { pt -> CGFloat? in
-                guard pt.y > 0.08, pt.x > 0.10 else { return nil }
-                let s = lamSachWM(pt.chu)
-                return trichCacSoTheThiDua(trong: s).first != nil ? (pt.y + pt.cao / 2.0) : nil
-            }.sorted()
-            yDongSoLieu = cacYSo.first ?? 0.50
-        }
-
-        struct CotMonNgang {
-            var tenSach: String
-            var loai: LoaiChiTieuThiDua
-            var xTam: CGFloat
-            var xMin: CGFloat
-            var xMax: CGFloat
-        }
-
-        var cacCotMon: [CotMonNgang] = []
-        let ptTieuDe = phanTuGocDonDong.filter { $0.y < yDongSoLieu - 0.006 && $0.x >= 0.05 }.sorted { $0.x < $1.x }
-
-        for pt in ptTieuDe {
-            let chuSach = lamSachWM(pt.chu)
-            guard !chuSach.isEmpty else { continue }
-            let u = boDau(chuSach)
-            if u.contains("KHU VUC") || u.contains("THU HANG") || u.contains("THUC HIEN") || u.contains("TARGET") {
-                continue
-            }
-            let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(chuSach)
-            if KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) || u.contains("(DT)") || u.contains("(SL)") || tenSach.count >= 3 {
-                let loai: LoaiChiTieuThiDua = (u.contains("SL") || u.contains("(SL)")) ? .soLuong : .doanhThu
-                let xTam = pt.x + pt.rong / 2.0
-                let xMin = pt.x - 0.012
-                let xMax = pt.x + pt.rong + 0.012
-                cacCotMon.append(CotMonNgang(tenSach: tenSach, loai: loai, xTam: xTam, xMin: xMin, xMax: xMax))
-            }
-        }
-
-        var danhSachKetQua: [DongThiDua] = []
-        for (idx, cot) in cacCotMon.enumerated() {
-            let x0 = cot.xMin
-            let x1 = (idx + 1 < cacCotMon.count) ? ((cot.xTam + cacCotMon[idx + 1].xTam) / 2.0) : (cot.xMax + 0.04)
-            let cacSoTrongCot = phanTuGocDonDong.filter { pt in
-                let yTam = pt.y + pt.cao / 2.0
-                let xTam = pt.x + pt.rong / 2.0
-                return abs(yTam - yDongSoLieu) < 0.035 && xTam >= x0 && xTam < x1
-            }.sorted { $0.x < $1.x }
-
-            var th: Double?
-            var tg: Double?
-            for pt in cacSoTrongCot {
-                let cacSo = trichCacSoTheThiDua(trong: lamSachWM(pt.chu))
-                for v in cacSo where v >= 0 && v < 100000 {
-                    if th == nil { th = v }
-                    else if tg == nil { tg = v; break }
-                }
-                if th != nil && tg != nil { break }
-            }
-
-            let soTH = th ?? 0.0
-            let soTG = tg ?? 0.0
-            let phanTramHT = soTG > 0 ? (((soTH / soTG) * 1000.0).rounded() / 10.0) : 0.0
-            let uocDK = soTH * TienIchNgay.heSoDuBaoThang()
-            let duKien = soTG > 0 ? (cot.loai == .soLuong ? uocDK.rounded() : ((uocDK * 100).rounded() / 100)) : nil
-
-            let dong = DongThiDua(
-                tenNganhHangGoc: cot.tenSach,
-                tenNganhHang: KhoDuLieu.apDungLocTuCaiDat(cot.tenSach),
-                loaiChiTieu: cot.loai,
-                thucHien: soTH,
-                target: soTG,
-                phanTramHTGoc: phanTramHT,
-                phanTramDuBaoGoc: phanTramHT,
-                duKienGoc: duKien
-            )
-            danhSachKetQua = KhoDuLieu.gopDanhSachThiDua(cu: danhSachKetQua, moi: [dong])
-        }
-
-        return danhSachKetQua
-    }
-
-    // MARK: - Bước 2A.1: Bộ phân tích Lưới Thẻ Thi Đua Đa Cột - Phương pháp 2 (Dạng Thẻ)
-    // Hỗ trợ linh hoạt từ 1, 2, 3, 4, đến 6 cột thẻ trên cùng một trang ảnh
-
-    private func phanTichThiDuaLuoiTheDaCot(phanTu: [PhanTuVanBan], watermark: String?) -> [DongThiDua] {
+    private func phanTichThiDuaLuoiThe2Cot(phanTu: [PhanTuVanBan], watermark: String?) -> [DongThiDua] {
         if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) {
             return []
         }
@@ -4474,52 +5201,50 @@ final class DichVuDocAnh {
         }
         let yBatDauTrang: CGFloat = (cacYHeader.max() ?? -0.01) + 0.008
 
-        // Thu thập các mốc X của tiêu đề thẻ, huy hiệu hoặc % lớn để xác định số cột thẻ (1, 2, 3, 4, 6)
-        let ungVienMocX = phanTu.compactMap { pt -> CGFloat? in
-            guard pt.y > max(0.02, yBatDauTrang) && pt.y < 0.98 else { return nil }
+        // Tìm ranh giới giữa cột thẻ Trái và cột thẻ Phải
+        let cacXDauCotPhai = phanTu.compactMap { pt -> CGFloat? in
+            guard pt.x >= 0.48 && pt.x <= 0.65 else { return nil }
             let u = boDau(pt.chu).trimmingCharacters(in: .whitespacesAndNewlines)
-            if laDauTieuDeMonThiDua(u) || KhoDuLieu.laTenMonThiDuaChuanDMX(pt.chu) ||
-               (pt.chu.contains("%") && (u.contains("DU KIEN") || u.contains("HOAN THANH") || pt.rong >= 0.08)) {
+            if laDauTieuDeMonThiDua(u) ||
+               u.contains("THUC HIEN") || u.contains("HT THANG") || u.contains("HT NGAY") ||
+               (pt.chu.contains("%") && chuyenChuoiThanhSoDoanhThu(pt.chu) != nil) {
                 return pt.x
             }
             return nil
         }
-
-        let soCot: Int
-        let coCotTren080 = ungVienMocX.contains { $0 >= 0.79 }
-        let coCot065 = ungVienMocX.contains { $0 >= 0.63 && $0 < 0.79 }
-        let coCot048 = ungVienMocX.contains { $0 >= 0.46 && $0 < 0.63 }
-        let coCot030 = ungVienMocX.contains { $0 >= 0.29 && $0 < 0.46 }
-        let coCot015 = ungVienMocX.contains { $0 >= 0.14 && $0 < 0.29 }
-
-        if coCotTren080 && coCot065 && coCot048 && coCot030 && coCot015 {
-            soCot = 6
-        } else if coCotTren080 && coCot048 {
-            soCot = 3
-        } else if coCot048 || coCot065 {
-            soCot = 2
+        let xRanhGioiCot: CGFloat
+        if let minXPhai = cacXDauCotPhai.min() {
+            xRanhGioiCot = max(0.490, min(0.535, minXPhai - 0.025))
         } else {
-            soCot = 1
+            xRanhGioiCot = 0.50
         }
+
+        let theCotTrai = phanTichCotTheThiDua(
+            phanTu: phanTu,
+            xMin: 0.0,
+            xMax: xRanhGioiCot,
+            yBatDauTrang: max(0.002, yBatDauTrang),
+            watermark: watermark
+        )
+        let theCotPhai = phanTichCotTheThiDua(
+            phanTu: phanTu,
+            xMin: xRanhGioiCot,
+            xMax: 1.0,
+            yBatDauTrang: max(0.002, yBatDauTrang),
+            watermark: watermark
+        )
 
         var ketQua: [DongThiDua] = []
-        for colIdx in 0..<soCot {
-            let x0 = CGFloat(colIdx) / CGFloat(soCot)
-            let x1 = CGFloat(colIdx + 1) / CGFloat(soCot)
-            let theCot = phanTichCotTheThiDua(
-                phanTu: phanTu,
-                xMin: x0,
-                xMax: x1,
-                yBatDauTrang: max(0.002, yBatDauTrang),
-                watermark: watermark
-            )
-            ketQua = KhoDuLieu.gopDanhSachThiDua(cu: ketQua, moi: theCot)
+        let soHang = max(theCotTrai.count, theCotPhai.count)
+        for i in 0..<soHang {
+            if i < theCotTrai.count {
+                ketQua = KhoDuLieu.gopDanhSachThiDua(cu: ketQua, moi: [theCotTrai[i]])
+            }
+            if i < theCotPhai.count {
+                ketQua = KhoDuLieu.gopDanhSachThiDua(cu: ketQua, moi: [theCotPhai[i]])
+            }
         }
         return ketQua
-    }
-
-    private func phanTichThiDuaLuoiThe2Cot(phanTu: [PhanTuVanBan], watermark: String?) -> [DongThiDua] {
-        phanTichThiDuaLuoiTheDaCot(phanTu: phanTu, watermark: watermark)
     }
 
     private func phanTichCotTheThiDua(
