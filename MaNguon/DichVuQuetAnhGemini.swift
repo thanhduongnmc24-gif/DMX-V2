@@ -196,8 +196,63 @@ final class DichVuQuetAnhGemini {
         let h = anh.size.height
         guard w > 10, h > 10 else { return anh.jpegData(compressionQuality: 0.84) }
 
-        // Nếu là ảnh Bảng ngang siêu rộng (width > height * 3.0): cắt thành 4 dải ngang có chồng lấp 3% và xếp dọc trên 1 khung ảnh rộng 2200px
-        if w > h * 3.0, let cg = anh.cgImage {
+        // Nếu là ảnh Ma trận Thi đua Nhân viên (3.0 < width/height <= 11.5): cắt thành 4 dải cột nhân viên nhưng luôn ghép kèm cột Tên chương trình + TỔNG (x: 0..0.11) ở bên trái mỗi dải
+        if w > h * 3.0 && w <= h * 11.5, let cg = anh.cgImage {
+            let cw = CGFloat(cg.width)
+            let ch = CGFloat(cg.height)
+            let wTrai = max(1, (cw * 0.112).rounded())
+            let rectTrai = CGRect(x: 0, y: 0, width: wTrai, height: ch)
+            let cacDaiPhai: [(CGFloat, CGFloat)] = [
+                (0.108, 0.340),
+                (0.328, 0.560),
+                (0.548, 0.780),
+                (0.768, 1.000)
+            ]
+            let rongDich: CGFloat = 2200
+            let demDoc: CGFloat = 24
+            if let cgTrai = cg.cropping(to: rectTrai) {
+                var cacDaiGhep: [(trai: CGImage, phai: CGImage, caoVe: CGFloat, tyLeTrai: CGFloat)] = []
+                for (x0, x1) in cacDaiPhai {
+                    let rectP = CGRect(
+                        x: (cw * x0).rounded(),
+                        y: 0,
+                        width: max(1, (cw * (x1 - x0)).rounded()),
+                        height: ch
+                    )
+                    if let cgPhai = cg.cropping(to: rectP) {
+                        let tongRongGoc = CGFloat(cgTrai.width + cgPhai.width)
+                        let tyLe = rongDich / tongRongGoc
+                        let caoVe = max(160, (ch * tyLe).rounded())
+                        let tyLeTrai = CGFloat(cgTrai.width) / tongRongGoc
+                        cacDaiGhep.append((cgTrai, cgPhai, caoVe, tyLeTrai))
+                    }
+                }
+                if !cacDaiGhep.isEmpty {
+                    let tongCao = cacDaiGhep.reduce(CGFloat(0)) { $0 + $1.caoVe } + CGFloat(cacDaiGhep.count + 1) * demDoc
+                    let dinhDang = UIGraphicsImageRendererFormat.default()
+                    dinhDang.scale = 1.0
+                    dinhDang.opaque = true
+                    let boVe = UIGraphicsImageRenderer(size: CGSize(width: rongDich, height: tongCao), format: dinhDang)
+                    let anhGhep = boVe.image { ctx in
+                        UIColor.white.setFill()
+                        ctx.fill(CGRect(x: 0, y: 0, width: rongDich, height: tongCao))
+                        var yHienTai = demDoc
+                        for item in cacDaiGhep {
+                            let wVeTrai = (rongDich * item.tyLeTrai).rounded()
+                            UIImage(cgImage: item.trai, scale: 1.0, orientation: anh.imageOrientation)
+                                .draw(in: CGRect(x: 0, y: yHienTai, width: wVeTrai, height: item.caoVe))
+                            UIImage(cgImage: item.phai, scale: 1.0, orientation: anh.imageOrientation)
+                                .draw(in: CGRect(x: wVeTrai, y: yHienTai, width: rongDich - wVeTrai, height: item.caoVe))
+                            yHienTai += item.caoVe + demDoc
+                        }
+                    }
+                    return anhGhep.jpegData(compressionQuality: 0.86)
+                }
+            }
+        }
+
+        // Nếu là ảnh Bảng ngang siêu rộng của Siêu thị (width > height * 11.5): cắt thành 4 dải ngang có chồng lấp 3% và xếp dọc trên 1 khung ảnh rộng 2200px
+        if w > h * 11.5, let cg = anh.cgImage {
             let cw = CGFloat(cg.width)
             let ch = CGFloat(cg.height)
             let cacDai: [(CGFloat, CGFloat)] = [
@@ -445,7 +500,11 @@ final class DichVuQuetAnhGemini {
            - ĐỊNH DẠNG D — BẢNG THI ĐUA THEO NGÀY / REALTIME (5 CỘT): [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET NGÀY | % HT NGÀY | HẠNG VÙNG] -> đặt "phanTramDuKien": 0 và "duKien": 0.
         2. Đọc ĐẦY ĐỦ TẤT CẢ các dòng môn thi đua từ trên xuống dưới, kể cả các dòng tên dài xuống 2-3 hàng chữ như "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO" (loai: "SL") hoặc "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT" và kể cả dòng có Thực hiện = 0, Target = 0. Không đưa nhãn DT, SL, CE, ICT, DV hay dấu + vào trong "ten".
         3. Với bảng doanh thu nhân viên 5 cột (NHÂN VIÊN / NGÀNH HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG), trích đúng "maNV" (bỏ tiền tố id:) và "hoTen" vào mảng "nhanVien".
-        4. Với bảng chi tiết môn thi đua của nhân viên (bảng mở rộng 1 môn thi đua có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % đóng góp của nhân viên như 24%, 14%, 8%...): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien" (bỏ qua dòng tên chương trình và dòng tên siêu thị ĐML_...), đặt "laPhanTram": true, "thucHien" là con số phần trăm (ví dụ 24% -> 24), đặt "thucHienNganhGoiY" là số THỰC HIỆN của môn đó ở dòng đầu bảng, và đặt "targetNganhGoiY" là số TARGET của môn đó ở dòng đầu bảng.
+        4. Với bảng Thi đua Nhân viên (mảng "thiDuaNhanVien"), hỗ trợ cả 2 mẫu:
+           - MẪU 1 — MA TRẬN THEO NHÂN VIÊN ("Ma trận theo Nhân viên · 13 chương trình"):
+             + Các hàng là danh sách chương trình thi đua (cột "CHƯƠNG TRÌNH THI ĐUA"), cột "TỔNG" có [THỰC HIỆN | TARGET] (đặt vào "thucHienNganhGoiY" và "targetNganhGoiY"), tiếp theo là 20 cột nhân viên (Lê Tuấn, Nguyễn Thị Kim Loan, Trần Nam Tùng, Đỗ Thị Mỹ Linh, Nguyễn Thị Thu Thảo, Võ Ngọc Vĩ, Đỗ Thị Chanh, Nguyễn Hữu Kha, Phan Thương Vĩnh, Hồ Ngọc Châu Ánh, Lê Thị Kim Phượng, Nguyễn Hoàn Điện, Đinh Thị Quỳnh Nga, Huỳnh Tấn Thành, Huỳnh Thành Đạt, Phan Hoàng Sơn, Lê Xuân Tài, Nguyễn Ngọc Đẩu, Nguyễn Minh Đạt, Ngô Thanh Trúc), mỗi cột nhân viên chia làm 2 cột con [THỰC HIỆN | TARGET].
+             + Với mỗi hàng chương trình, tạo 1 phần tử trong "thiDuaNhanVien" với "tenNganhHang", "thucHienNganhGoiY", "targetNganhGoiY", và "danhSach" gồm các nhân viên kèm "hoTen", "thucHien" (nếu ô là dấu "—" thì đặt thucHien = 0), "target" (lấy giá trị cột TARGET cá nhân của hàng đó), "laPhanTram": false.
+           - MẪU 2 — BẢNG MỞ RỘNG 1 MÔN THI ĐUA (có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % đóng góp): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien", đặt "laPhanTram": true, "thucHien" là con số phần trăm, kèm "thucHienNganhGoiY" và "targetNganhGoiY".
         5. Nếu ảnh là PHIẾU SỨC KHỎE & THI ĐUA CÁ NHÂN NHÂN VIÊN 27 ĐIỂM (có tên nhân viên, mã NV 6 số, khối DOANH THU 6 mục, khối NĂNG SUẤT 3 mục, khối THI ĐUA gồm lưới thẻ % các môn): hãy trả thêm trường "sucKhoeNhanVien": [{"maNV":"293044","hoTen":"Võ Ngọc Vĩ","doanhThuQD":97.1,"tbDoanhThuQD":228.7,"phanTramTarget":46,"tbPhanTramTarget":108,"mucTieuTargetQD":703.7,"soLuotBill":33,"tbSoLuotBill":35,"phanTramQuyDoi":64,"tbPhanTramQuyDoi":43,"phanTramTraCham":45,"tbPhanTramTraCham":53,"phanTramBanKem":100,"tbPhanTramBanKem":61,"diemThuongERP":1254937,"tbDiemThuongERP":1496937,"diemThuongGioCong":17317,"tbDiemThuongGioCong":20855,"dtqdGioCong":1.34,"tbDtqdGioCong":3.20,"thiDua":[{"ten":"Phụ kiện công nghệ","phanTram":107}]}] (các môn nằm ở phần "Chưa có số liệu" đặt phanTram: 0).
         """
     }
@@ -556,10 +615,14 @@ final class DichVuQuetAnhGemini {
                 let nganh = KhoDuLieu.chuanHoaTenMonThiDuaChuan((khoi["tenNganhHang"] as? String) ?? "")
                 let thucHienGoiY = so(khoi, "thucHienNganhGoiY")
                 let targetGoiY = so(khoi, "targetNganhGoiY")
+                let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
                 let ds = (khoi["danhSach"] as? [[String: Any]] ?? []).compactMap { nv -> DongThiDuaNhanVienQuet? in
-                    let ma = KhoDuLieu.chuanHoaMaNV((nv["maNV"] as? String) ?? "")
-                    let ten = ((nv["hoTen"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !ma.isEmpty, !ten.isEmpty else { return nil }
+                    let maTho = (nv["maNV"] as? String) ?? ""
+                    let tenTho = ((nv["hoTen"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: maTho, tenQuet: tenTho, dsQuanLy: dsQuanLy)
+                    let ma = nvKhop?.maNV ?? KhoDuLieu.chuanHoaMaNV(maTho)
+                    let ten = nvKhop?.hoTen ?? tenTho
+                    guard !ma.isEmpty || !ten.isEmpty else { return nil }
                     let laPT = (nv["laPhanTram"] as? Bool) ?? ((nv["thucHien"] as? String)?.contains("%") ?? false)
                     return DongThiDuaNhanVienQuet(
                         maNV: ma,

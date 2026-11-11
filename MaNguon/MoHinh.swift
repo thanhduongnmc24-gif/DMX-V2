@@ -2730,13 +2730,18 @@ final class KhoDuLieu {
         let soNV = dsMaDuocChon.count
         guard soNV > 0 else { return [] }
 
-        let targetCaNhan = dong.target / Double(soNV)
         let bangTH = thucHienNhanVienTheoMatHangThang(den: ngay, cheDo: cheDo)[khoaNganh] ?? [:]
+        let targetCaNhanChung = (bangTH["__target_ca_nhan__"] ?? 0) > 0.0001
+            ? (bangTH["__target_ca_nhan__"] ?? 0)
+            : (dong.target / Double(soNV))
         let bangSK = sucKhoeBoSungNhanVienThang(cho: ngay)
         let khoaLM = Self.chuanHoaKhoaLienMachThiDua(dong.tenNganhHangGoc)
 
         return dsMaDuocChon.map { maNV in
             let nv = caiDat.danhSachNhanVien.first(where: { $0.maNV == maNV }) ?? NhanVienQuanLy(maNV: maNV, hoTen: "NV \(maNV)")
+            let targetCaNhan = (bangTH["__target_\(maNV)__"] ?? 0) > 0.0001
+                ? (bangTH["__target_\(maNV)__"] ?? 0)
+                : targetCaNhanChung
             let thTuBang = bangTH[maNV]
             let ptTuSK = bangSK[maNV]?.phanTramThiDuaCaNhan?[khoaLM] ?? bangSK[maNV]?.phanTramThiDuaCaNhan?[khoaNganh]
             let thucHien: Double
@@ -2918,14 +2923,19 @@ final class KhoDuLieu {
                 tapMa = tatCaMaSet
             }
             let soNguoi = max(1, tapMa.count)
+            let bangTHNganh = thucHienTheoNganh[k1] ?? thucHienTheoNganh[k2] ?? [:]
+            let targetQuetChung = bangTHNganh["__target_ca_nhan__"] ?? 0
+            let targetSTGoiY = mh.target > 0.0001 ? mh.target : (bangTHNganh["__target_sieu_thi__"] ?? 0)
+            let thucHienSTGoiY = mh.thucHien > 0.0001 ? mh.thucHien : (bangTHNganh["__thuc_hien_sieu_thi__"] ?? 0)
+            let targetCaNhanTinh = targetQuetChung > 0.0001 ? targetQuetChung : (targetSTGoiY / Double(soNguoi))
             return ThongTinMatHangTienXuLy(
                 mh: mh,
                 khoa: k1,
                 khoaLM: kLM,
                 tapMaDuocGiao: tapMa,
-                targetCaNhan: mh.target / Double(soNguoi),
-                phanTramSieuThi: mh.target > 0.0001 ? (mh.thucHien / mh.target) * 100.0 : mh.phanTramHT,
-                bangTHNganh: thucHienTheoNganh[k1] ?? thucHienTheoNganh[k2] ?? [:]
+                targetCaNhan: targetCaNhanTinh,
+                phanTramSieuThi: targetSTGoiY > 0.0001 ? (thucHienSTGoiY / targetSTGoiY) * 100.0 : mh.phanTramHT,
+                bangTHNganh: bangTHNganh
             )
         }
 
@@ -2951,19 +2961,22 @@ final class KhoDuLieu {
             cacMonGiao.reserveCapacity(danhSachMHTienXuLy.count)
             for info in danhSachMHTienXuLy {
                 guard info.tapMaDuocGiao.contains(nv.maNV) else { continue }
+                let targetCaNhanNV = (info.bangTHNganh["__target_\(nv.maNV)__"] ?? 0) > 0.0001
+                    ? (info.bangTHNganh["__target_\(nv.maNV)__"] ?? 0)
+                    : info.targetCaNhan
                 let thTuBang = info.bangTHNganh[nv.maNV]
                 let ptTuSK = mapPTThiDuaSK?[info.khoaLM] ?? mapPTThiDuaSK?[info.khoa]
 
                 let thucHien: Double
                 let phanTramHT: Double
                 if let ptSK = ptTuSK {
-                    if info.targetCaNhan > 0.0001 {
+                    if targetCaNhanNV > 0.0001 {
                         if let th = thTuBang, th > 0 {
                             thucHien = th
-                            let htTinh = (th / info.targetCaNhan) * 100.0
+                            let htTinh = (th / targetCaNhanNV) * 100.0
                             phanTramHT = abs(htTinh - ptSK) <= 2.5 ? ptSK : htTinh
                         } else if ptSK > 0 {
-                            let uocTH = (info.targetCaNhan * ptSK) / 100.0
+                            let uocTH = (targetCaNhanNV * ptSK) / 100.0
                             thucHien = (uocTH * 100.0).rounded() / 100.0
                             phanTramHT = ptSK
                         } else {
@@ -2976,7 +2989,7 @@ final class KhoDuLieu {
                     }
                 } else {
                     thucHien = thTuBang ?? 0
-                    phanTramHT = info.targetCaNhan > 0.0001 ? (thucHien / info.targetCaNhan) * 100.0 : 0
+                    phanTramHT = targetCaNhanNV > 0.0001 ? (thucHien / targetCaNhanNV) * 100.0 : 0
                 }
 
                 cacMonGiao.append(MonThiDuaNhanVien(
@@ -2984,7 +2997,7 @@ final class KhoDuLieu {
                     tenNganhHang: info.mh.tenNganhHang,
                     loaiChiTieu: info.mh.loaiChiTieu,
                     thucHien: thucHien,
-                    targetCaNhan: info.targetCaNhan,
+                    targetCaNhan: targetCaNhanNV,
                     phanTramHT: phanTramHT,
                     phanTramSieuThi: info.phanTramSieuThi
                 ))
@@ -3084,8 +3097,9 @@ final class KhoDuLieu {
             let tenLoc = Self.apDungLocTuCaiDat(khoi.tenNganhHang)
             var khoaNganh = Self.chuanHoaKhoaSoSanh(tenLoc)
 
-            if let macDinh = khoaNganhMacDinh, !macDinh.isEmpty {
-                // Khi người dùng bấm trực tiếp vào 1 môn thi đua để nhập ảnh cho môn đó, ưu tiên gắn đúng vào môn đang mở
+            let laKhoiNhieuMon = mangKhoiNV.count > 1 || (!khoaNganh.isEmpty && khoi.tenNganhHang != "Ngành hàng" && Self.danhSachTenMonThiDuaChuanDMX.contains(where: { Self.chuanHoaKhoaSoSanh($0) == khoaNganh }))
+            if let macDinh = khoaNganhMacDinh, !macDinh.isEmpty, (!laKhoiNhieuMon || khoaNganh.isEmpty) {
+                // Khi người dùng bấm trực tiếp vào 1 môn thi đua để nhập ảnh riêng của 1 môn, gắn vào môn đang mở
                 khoaNganh = macDinh
             } else if !khoaNganh.isEmpty {
                 if let khop = matHangThang.first(where: {
@@ -3116,6 +3130,12 @@ final class KhoDuLieu {
             }
 
             var bangCu = ketQua[khoaNganh] ?? [:]
+            if khoi.thucHienNganhGoiY > 0 {
+                bangCu["__thuc_hien_sieu_thi__"] = khoi.thucHienNganhGoiY
+            }
+            if khoi.targetNganhGoiY > 0 {
+                bangCu["__target_sieu_thi__"] = khoi.targetNganhGoiY
+            }
             for item in khoi.danhSach {
                 let maLuu: String
                 if !caiDat.danhSachNhanVien.isEmpty {
@@ -3129,20 +3149,26 @@ final class KhoDuLieu {
                     maLuu = Self.chuanHoaMaNV(item.maNV)
                 }
                 guard !maLuu.isEmpty else { continue }
-                if item.thucHien >= 0 {
-                    if item.laPhanTramTargetCaNhan {
+                if item.target > 0 {
+                    bangCu["__target_\(maLuu)__"] = item.target
+                    bangCu["__target_ca_nhan__"] = item.target
+                }
+                if item.laPhanTramTargetCaNhan {
+                    if item.thucHien >= 0 {
                         let soNVChia = max(1, dongMon.map { danhSachMaNVChiaTarget(cho: $0).count } ?? max(1, caiDat.danhSachNhanVien.count))
                         let targetMon = (dongMon?.target ?? 0) > 0 ? (dongMon?.target ?? 0) : khoi.targetNganhGoiY
-                        let targetCaNhan = targetMon / Double(soNVChia)
+                        let targetCaNhan = (bangCu["__target_\(maLuu)__"] ?? bangCu["__target_ca_nhan__"] ?? 0) > 0
+                            ? (bangCu["__target_\(maLuu)__"] ?? bangCu["__target_ca_nhan__"] ?? 0)
+                            : (targetMon / Double(soNVChia))
                         if targetCaNhan > 0 && item.thucHien > 0 {
                             let soLuongNV = (targetCaNhan * item.thucHien) / 100.0
                             bangCu[maLuu] = ((soLuongNV * 100.0).rounded()) / 100.0
                         } else {
                             bangCu[maLuu] = 0
                         }
-                    } else if item.laPhanTram {
-                        // Lấy số đã thực hiện của môn đó chia 100 rồi nhân với số phần trăm của nhân viên thì được số lượng (doanh thu) thực hiện của nhân viên;
-                        // sau đó bảng xếp hạng sẽ lấy số lượng này so sánh với Target được chia để tính Còn/Vượt và % HT.
+                    }
+                } else if item.laPhanTram {
+                    if item.thucHien >= 0 {
                         if thucHienMon > 0 {
                             let soLuongNV = (thucHienMon / 100.0) * item.thucHien
                             let lamTron = ((soLuongNV * 10000.0).rounded()) / 10000.0
@@ -3150,14 +3176,57 @@ final class KhoDuLieu {
                         } else {
                             bangCu[maLuu] = 0
                         }
-                    } else {
-                        bangCu[maLuu] = item.thucHien
                     }
+                } else {
+                    bangCu[maLuu] = item.thucHien
                 }
             }
             ketQua[khoaNganh] = bangCu
         }
         return ketQua
+    }
+
+    /// Bổ sung hoặc cập nhật số Thực hiện / Target siêu thị của các môn thi đua từ cột TỔNG của ảnh Ma trận Thi đua Nhân viên (nếu bảng Thi đua siêu thị chưa có hoặc đang thiếu Target)
+    func boSungDanhSachThiDuaTuKhoiNhanVien(
+        mangKhoiNV: [KetQuaThiDuaNhanVienKhoi],
+        vao dl: inout DuLieuNgayDMX,
+        cheDo: LoaiCheDoDoanhThu = .luyKe
+    ) {
+        guard !mangKhoiNV.isEmpty else { return }
+        var dsHienTai = dl.danhSachThiDua(theo: cheDo)
+        var dsBoiSung: [DongThiDua] = []
+        for khoi in mangKhoiNV {
+            guard khoi.targetNganhGoiY > 0 || khoi.thucHienNganhGoiY > 0 else { continue }
+            let tenChuan = Self.chuanHoaTenMonThiDuaChuan(khoi.tenNganhHang, tienToThangMacDinh: "T11")
+            guard !tenChuan.isEmpty, tenChuan != "Ngành hàng" else { continue }
+            let kSoSanh = Self.chuanHoaKhoaSoSanh(tenChuan)
+            if let idx = dsHienTai.firstIndex(where: {
+                Self.chuanHoaKhoaSoSanh($0.tenNganhHang) == kSoSanh ||
+                Self.chuanHoaKhoaSoSanh($0.tenNganhHangGoc) == kSoSanh
+            }) {
+                if dsHienTai[idx].target <= 0 && khoi.targetNganhGoiY > 0 {
+                    dsHienTai[idx].target = khoi.targetNganhGoiY
+                }
+                if dsHienTai[idx].thucHien <= 0 && khoi.thucHienNganhGoiY > 0 {
+                    dsHienTai[idx].thucHien = khoi.thucHienNganhGoiY
+                }
+            } else {
+                let loai = Self.loaiChiTieuMacDinhChoMon(tenChuan)
+                let ht = khoi.targetNganhGoiY > 0 ? ((khoi.thucHienNganhGoiY / khoi.targetNganhGoiY) * 1000.0).rounded() / 10.0 : nil
+                dsBoiSung.append(DongThiDua(
+                    tenNganhHangGoc: tenChuan,
+                    tenNganhHang: Self.apDungLocTuCaiDat(tenChuan),
+                    loaiChiTieu: loai,
+                    thucHien: khoi.thucHienNganhGoiY,
+                    target: khoi.targetNganhGoiY,
+                    phanTramHTGoc: ht
+                ))
+            }
+        }
+        if !dsBoiSung.isEmpty {
+            dsHienTai = Self.gopDanhSachThiDua(cu: dsHienTai, moi: dsBoiSung)
+        }
+        dl.ganDanhSachThiDua(dsHienTai, theo: cheDo)
     }
 
     /// Lưu kết quả quét ảnh Phiếu Sức Khỏe & Thi Đua Cá Nhân 27 điểm của nhân viên vào dữ liệu ngày (cập nhật cả Sức khỏe 6 mục Doanh thu + 3 mục Năng suất, Doanh thu NV và Thi đua NV)

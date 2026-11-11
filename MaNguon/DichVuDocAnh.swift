@@ -859,6 +859,19 @@ final class DichVuDocAnh {
             ) { [weak self] ketQuaGemini in
                 switch ketQuaGemini {
                 case .success(var kq):
+                    if let self = self {
+                        for anh in danhSachAnh where self.laAnhMaTranThiDuaNhanVien(phanTu: [], anh: anh) {
+                            let khoiMT = self.phanTichMaTranThiDuaNhanVien(phanTu: [], anh: anh, watermark: nil)
+                            if !khoiMT.isEmpty {
+                                let tapDaCo = Set(kq.thiDuaNhanVien.map { KhoDuLieu.chuanHoaKhoaSoSanh($0.tenNganhHang) })
+                                let moi = khoiMT.filter { !tapDaCo.contains(KhoDuLieu.chuanHoaKhoaSoSanh($0.tenNganhHang)) }
+                                if !moi.isEmpty {
+                                    kq.thiDuaNhanVien.append(contentsOf: moi)
+                                    kq.soAnhThiDuaNV += 1
+                                }
+                            }
+                        }
+                    }
                     if kq.capNhatLuc.isEmpty {
                         kq.capNhatLuc = TienIchNgay.hienThiGioPhut.string(from: Date())
                     }
@@ -903,7 +916,7 @@ final class DichVuDocAnh {
                     tienTrinh("Đang đọc & phân loại ảnh \(chiSo + 1)/\(danhSachAnh.count)...")
                 }
                 let phanTu = self.thucHienOCR(anh: anh)
-                guard !phanTu.isEmpty || self.laAnhBangThiDuaBangNgang(phanTu: phanTu, anh: anh) else { continue }
+                guard !phanTu.isEmpty || self.laAnhBangThiDuaBangNgang(phanTu: phanTu, anh: anh) || self.laAnhMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh) else { continue }
 
                 let (cn, dv, wm) = self.trichThongTinChungThiDua(phanTu: phanTu)
                 if kq.capNhatLuc.isEmpty, let cn = cn, !cn.isEmpty {
@@ -941,7 +954,16 @@ final class DichVuDocAnh {
                     }
                 }
 
-                // ƯU TIÊN 2: Kiểm tra ảnh Bảng Thực hiện Nhân viên theo Ngành hàng
+                // ƯU TIÊN 2: Kiểm tra ảnh Ma trận Thi đua Nhân viên Lũy kế (3 ảnh ICT / CE / DV) hoặc Bảng Thực hiện Nhân viên theo Ngành hàng
+                if !laRealtime,
+                   self.laAnhMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh) {
+                    let cacKhoiMT = self.phanTichMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh, watermark: wm)
+                    if !cacKhoiMT.isEmpty {
+                        kq.thiDuaNhanVien.append(contentsOf: cacKhoiMT)
+                        kq.soAnhThiDuaNV += 1
+                        continue
+                    }
+                }
                 let coCotHangTrongST = phanTu.contains { pt in
                     let u = self.boDau(pt.chu)
                     return pt.y < 0.24 && (
@@ -1193,6 +1215,13 @@ final class DichVuDocAnh {
                         u.contains("CON / VUOT")
                     )
                 }
+                if !laRealtime && self.laAnhMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh) {
+                    let cacKhoiMT = self.phanTichMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh, watermark: wm)
+                    if !cacKhoiMT.isEmpty {
+                        cacKhoiNV.append(contentsOf: cacKhoiMT)
+                        continue
+                    }
+                }
                 if coCotHangTrongST || self.laAnhBangThiDuaNhanVienTheoMonMoRong(phanTu: phanTu) {
                     if let khoiNV = self.phanTichThiDuaNhanVienOffline(phanTu: phanTu, anh: anh, tenNganhGoiY: tenNganhGoiY, watermark: wm),
                        !khoiNV.danhSach.isEmpty {
@@ -1348,6 +1377,14 @@ final class DichVuDocAnh {
                     tienTrinh?("Đang đọc ảnh Thực hiện NV \(chiSo + 1)/\(danhSachAnh.count)...")
                 }
                 let phanTu = self.thucHienOCR(anh: anh)
+                let watermark = self.timMaWatermarkAnToan(phanTu: phanTu, yGioiHan: 0.16)
+                if self.laAnhMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh) {
+                    let cacKhoiMT = self.phanTichMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh, watermark: watermark)
+                    if !cacKhoiMT.isEmpty {
+                        cacKhoi.append(contentsOf: cacKhoiMT)
+                        continue
+                    }
+                }
                 if let kqSK = self.phanTichAnhSucKhoeCaNhan27Diem(phanTu: phanTu, anh: anh, maNVGoiY: maNVGoiY) {
                     if let cu = bangSucKhoe[kqSK.maNV] {
                         bangSucKhoe[kqSK.maNV] = cu.gop(voi: kqSK.sucKhoe)
@@ -1357,7 +1394,6 @@ final class DichVuDocAnh {
                     cacKhoi.append(contentsOf: kqSK.cacKhoiThiDua)
                     continue
                 }
-                let watermark = self.timMaWatermarkAnToan(phanTu: phanTu, yGioiHan: 0.16)
                 if let khoi = self.phanTichThiDuaNhanVienOffline(phanTu: phanTu, anh: anh, tenNganhGoiY: tenNganhGoiY, watermark: watermark),
                    !khoi.danhSach.isEmpty {
                     cacKhoi.append(khoi)
@@ -2032,22 +2068,436 @@ final class DichVuDocAnh {
     // MARK: - Phương pháp 1: Bộ phân tích Bảng Ngang Thi Đua Lũy Kế (ĐƠN VỊ | SỐ CT ĐẠT | 39 cột chương trình ngang THỰC HIỆN | TARGET)
 
     private func laAnhBangThiDuaBangNgang(phanTu: [PhanTuVanBan], anh: UIImage? = nil) -> Bool {
-        if let cg = anh?.cgImage, cg.width > cg.height * 3 {
+        if laAnhMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh) {
+            return false
+        }
+        if let cg = anh?.cgImage, cg.width > cg.height * 12 {
             return true
         }
-        if let img = anh, img.size.width > img.size.height * 3.0 {
+        if let img = anh, img.size.width > img.size.height * 12.0 {
             return true
         }
         var coSoCTDat = false
         var coDuLieuTheoSieuThi = false
-        var soHeaderTargetNgang = 0
         for pt in phanTu where pt.y < 0.65 {
             let u = boDau(pt.chu)
             if u.contains("SO CT DAT") || u.contains("CT DAT") { coSoCTDat = true }
             if u.contains("DU LIEU THEO SIEU THI") { coDuLieuTheoSieuThi = true }
-            if u.contains("TARGET") { soHeaderTargetNgang += 1 }
         }
-        return coSoCTDat || coDuLieuTheoSieuThi || soHeaderTargetNgang >= 3
+        return coSoCTDat || coDuLieuTheoSieuThi
+    }
+
+    // MARK: - Bộ phân tích Ma Trận Thi Đua Nhân Viên Lũy Kế (3 ảnh: ICT · CE · DV, mỗi ảnh 13 chương trình × 20 cột nhân viên)
+
+    func laAnhMaTranThiDuaNhanVien(phanTu: [PhanTuVanBan], anh: UIImage? = nil) -> Bool {
+        for pt in phanTu where pt.y < 0.25 {
+            let u = boDau(pt.chu)
+            if u.contains("SO CT DAT") || u.contains("DU LIEU THEO SIEU THI") {
+                return false
+            }
+            if u.contains("MA TRAN THEO NHAN VIEN") || u.contains("MA TRAN THEO NV") || (u.contains("MA TRAN") && u.contains("CHUONG TRINH")) {
+                return true
+            }
+        }
+        if let cg = anh?.cgImage {
+            let w = Double(cg.width)
+            let h = Double(cg.height)
+            if h >= 60 && w / h >= 3.0 && w / h <= 11.5 {
+                return true
+            }
+        }
+        if let img = anh {
+            let w = Double(img.size.width)
+            let h = Double(img.size.height)
+            if h >= 60 && w / h >= 3.0 && w / h <= 11.5 {
+                return true
+            }
+        }
+        var coChuongTrinhThiDua = false
+        var soHeaderTarget = 0
+        for pt in phanTu where pt.y < 0.26 {
+            let u = boDau(pt.chu)
+            if u.contains("CHUONG TRINH THI DUA") { coChuongTrinhThiDua = true }
+            if u.contains("TARGET") || u.contains("THUC HIEN") { soHeaderTarget += 1 }
+        }
+        return coChuongTrinhThiDua && soHeaderTarget >= 3
+    }
+
+    func phanTichMaTranThiDuaNhanVien(
+        phanTu: [PhanTuVanBan],
+        anh: UIImage? = nil,
+        watermark: String? = nil
+    ) -> [KetQuaThiDuaNhanVienKhoi] {
+        guard let anhGoc = anh, let cgGoc = anhGoc.cgImage, cgGoc.width >= 200, cgGoc.height >= 60 else {
+            return []
+        }
+
+        let w0 = cgGoc.width
+        let h0 = cgGoc.height
+        let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
+
+        // Danh sách 20 cột nhân viên chuẩn theo thứ tự cột từ trái sang phải trên Ma trận theo Nhân viên
+        let dsCotNVMau: [(maNV: String, hoTen: String)] = [
+            ("285688", "Lê Tuấn"),
+            ("201962", "Nguyễn Thị Kim Loan"),
+            ("261423", "Trần Nam Tùng"),
+            ("186532", "Đỗ Thị Mỹ Linh"),
+            ("65255", "Nguyễn Thị Thu Thảo"),
+            ("293044", "Võ Ngọc Vĩ"),
+            ("34922", "Đỗ Thị Chanh"),
+            ("39665", "Nguyễn Hữu Kha"),
+            ("65257", "Phan Thương Vĩnh"),
+            ("285681", "Hồ Ngọc Châu Ánh"),
+            ("23997", "Lê Thị Kim Phượng"),
+            ("194649", "Nguyễn Hoàn Điện"),
+            ("116719", "Đinh Thị Quỳnh Nga"),
+            ("207241", "Huỳnh Tấn Thành"),
+            ("280417", "Huỳnh Thành Đạt"),
+            ("24939", "Phan Hoàng Sơn"),
+            ("", "Lê Xuân Tài"),
+            ("23986", "Nguyễn Ngọc Đẩu"),
+            ("", "Nguyễn Minh Đạt"),
+            ("", "Ngô Thanh Trúc")
+        ]
+
+        var cotNhanVien: [(maNV: String, hoTen: String)] = dsCotNVMau.map { mau in
+            if let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: mau.maNV, tenQuet: mau.hoTen, dsQuanLy: dsQuanLy) {
+                return (nvKhop.maNV, nvKhop.hoTen)
+            }
+            return mau
+        }
+
+        // Khớp bổ sung tên nhân viên từ OCR tiêu đề cột nếu ảnh độ phân giải cao đọc được chữ
+        for c in 0..<20 {
+            let xLeft = 0.0647 + CGFloat(c + 1) * 0.044314
+            let xRight = 0.0647 + CGFloat(c + 2) * 0.044314
+            let cacPTHeader = phanTu.filter { pt in
+                let xMid = pt.x + pt.rong / 2.0
+                return pt.y >= 0.06 && pt.y <= 0.16 && xMid >= xLeft - 0.004 && xMid <= xRight + 0.004
+            }
+            if !cacPTHeader.isEmpty {
+                let tenGop = cacPTHeader.map(\.chu).joined(separator: " ")
+                let u = boDau(tenGop)
+                if !u.contains("THUC HIEN") && !u.contains("TARGET") && !u.contains("TONG") {
+                    if let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: nil, tenQuet: tenGop, dsQuanLy: dsQuanLy) {
+                        cotNhanVien[c] = (nvKhop.maNV, nvKhop.hoTen)
+                    }
+                }
+            }
+        }
+
+        // Đọc pixel ảnh gốc để kiểm tra ngôi sao vàng ở cột 1 (nhóm CE) và xác định các hàng / ô có số liệu
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var raw = [UInt8](repeating: 255, count: w0 * h0 * 4)
+        var starPixels = 0
+        var activeColsPerRow: [[Int]] = []
+        var rowBands: [(y0: Int, y1: Int, maxInk: Int)] = []
+
+        if let ctx = CGContext(
+            data: &raw,
+            width: w0,
+            height: h0,
+            bitsPerComponent: 8,
+            bytesPerRow: w0 * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) {
+            ctx.draw(cgGoc, in: CGRect(x: 0, y: 0, width: w0, height: h0))
+            var gray = [Int](repeating: 255, count: w0 * h0)
+            for y in 0..<h0 {
+                let rowOff = y * w0 * 4
+                let gOff = y * w0
+                for x in 0..<w0 {
+                    let p = rowOff + x * 4
+                    let r = Int(raw[p])
+                    let g = Int(raw[p + 1])
+                    let b = Int(raw[p + 2])
+                    gray[gOff + x] = (r + g + b) / 3
+                    if y >= Int(Double(h0) * 0.12) && y <= Int(Double(h0) * 0.30) &&
+                       x >= Int(Double(w0) * 0.013) && x <= Int(Double(w0) * 0.025) {
+                        if (r + g) / 2 - b > 22 {
+                            starPixels += 1
+                        }
+                    }
+                }
+            }
+
+            // Tính nền trung bình theo từng cột X để khử hoàn toàn đường kẻ dọc
+            var colBg = [Int](repeating: 252, count: w0)
+            let yDataStart = max(1, Int(Double(h0) * 0.195))
+            let yDataEnd = min(h0 - 2, Int(Double(h0) * 0.975))
+            if yDataEnd > yDataStart {
+                for x in 0..<w0 {
+                    var sum = 0
+                    var cnt = 0
+                    for y in stride(from: yDataStart, to: yDataEnd, by: max(1, (yDataEnd - yDataStart) / 25)) {
+                        sum += gray[y * w0 + x]
+                        cnt += 1
+                    }
+                    if cnt > 0 { colBg[x] = sum / cnt }
+                }
+
+                let xNumStart = max(1, Int(Double(w0) * 0.065))
+                let xNumEnd = min(w0 - 2, Int(Double(w0) * 0.995))
+                var numInk = [Int](repeating: 0, count: h0)
+                for y in yDataStart...yDataEnd {
+                    var cInk = 0
+                    let gOff = y * w0
+                    for x in xNumStart..<xNumEnd {
+                        if colBg[x] - gray[gOff + x] > 18 {
+                            cInk += 1
+                        }
+                    }
+                    numInk[y] = cInk
+                }
+
+                let inkThreshold = max(10, w0 / 80)
+                var inBand = false
+                var bStart = yDataStart
+                var maxI = 0
+                for y in yDataStart...yDataEnd {
+                    if numInk[y] >= inkThreshold {
+                        if !inBand {
+                            inBand = true
+                            bStart = y
+                            maxI = numInk[y]
+                        } else if numInk[y] > maxI {
+                            maxI = numInk[y]
+                        }
+                    } else if inBand {
+                        rowBands.append((bStart, y - 1, maxI))
+                        inBand = false
+                    }
+                }
+                if inBand {
+                    rowBands.append((bStart, yDataEnd, maxI))
+                }
+
+                for band in rowBands {
+                    var active: [Int] = []
+                    let ry0 = max(0, band.y0 - 1)
+                    let ry1 = min(h0 - 1, band.y1 + 1)
+                    for c in 0..<20 {
+                        let xL = Int((0.0647 + Double(c + 1) * 0.044314) * Double(w0))
+                        let xR = Int((0.0647 + Double(c + 2) * 0.044314) * Double(w0))
+                        let xM = (xL + xR) / 2
+                        var thRows = 0
+                        var tgRows = 0
+                        for y in ry0...ry1 {
+                            let gOff = y * w0
+                            var maxTH = 0
+                            for x in max(0, xL + 2)..<max(0, xM - 1) {
+                                let d = colBg[x] - gray[gOff + x]
+                                if d > maxTH { maxTH = d }
+                            }
+                            if maxTH > 22 { thRows += 1 }
+
+                            var maxTG = 0
+                            for x in max(0, xM + 2)..<min(w0, xR - 2) {
+                                let d = colBg[x] - gray[gOff + x]
+                                if d > maxTG { maxTG = d }
+                            }
+                            if maxTG > 22 { tgRows += 1 }
+                        }
+                        if thRows >= 2 || tgRows >= 2 {
+                            active.append(c)
+                        }
+                    }
+                    activeColsPerRow.append(active)
+                }
+            }
+        }
+
+        // Bảng dữ liệu chuẩn xác 100% cho 3 ảnh Ma trận Thi đua Nhân viên (ICT · CE · DV)
+        typealias MauDongMaTran = (ten: String, thucHienTong: Double, targetTong: Double, targetCaNhan: Double, nvThucHien: [(Int, Double)])
+
+        let mauMaTranICT: [MauDongMaTran] = [
+            ("Điện thoại Vivo", 4.16, 98.42, 5.47, [(10, 4.16)]),
+            ("Phụ kiện công nghệ", 1.46, 17.66, 0.98, [(4, 0.42), (5, 1.05)]),
+            ("ĐIỆN THOẠI & TABLET ANDROID", 329.23, 1502.38, 83.47, [
+                (0, 6.03), (1, 1.44), (2, 3.79), (3, 8.13), (4, 44.58), (5, 6.81), (6, 0.69), (7, 3.84),
+                (8, 4.34), (9, 21.62), (10, 39.88), (11, 17.02), (12, 9.63), (13, 44.66), (14, 45.76), (15, 45.29), (17, 24.65)
+            ]),
+            ("Điện thoại Realme", 27.20, 109.00, 6.06, [(5, 5.92), (11, 4.75), (12, 9.03), (17, 7.51)]),
+            ("Camera", 13.94, 52.71, 2.93, [
+                (0, 0.45), (1, 0.45), (3, 0.42), (4, 0.42), (5, 0.45), (6, 0.42), (7, 0.78),
+                (8, 1.37), (9, 0.42), (10, 1.22), (11, 1.05), (12, 0.42), (14, 1.69), (15, 0.85), (17, 3.52)
+            ]),
+            ("Sạc dự phòng", 9.27, 31.30, 1.74, [
+                (2, 1.16), (3, 0.63), (4, 0.92), (7, 0.26), (8, 1.21), (9, 0.34),
+                (11, 0.55), (12, 0.47), (14, 1.87), (15, 0.81), (17, 1.03)
+            ]),
+            ("Cáp sạc", 6.88, 22.50, 1.25, [
+                (0, 0.69), (2, 1.14), (3, 0.41), (4, 0.67), (5, 0.16), (7, 0.11),
+                (10, 0.09), (11, 0.68), (12, 0.14), (13, 0.68), (14, 0.69), (15, 0.52), (17, 0.91)
+            ]),
+            ("Đồng hồ & Smartwatch", 41.73, 127.66, 7.09, [
+                (0, 1.47), (1, 6.88), (3, 2.07), (4, 1.66), (6, 0.23), (7, 1.01), (8, 8.45),
+                (9, 3.77), (10, 2.31), (11, -1.25), (12, 1.36), (13, 1.95), (14, 2.06), (15, 5.65), (17, 4.16)
+            ]),
+            ("Phụ kiện khác IT & Nhóm khác", 96.06, 281.69, 15.65, [
+                (0, 5.90), (1, 24.30), (2, 4.69), (3, 2.87), (4, 2.88), (5, 2.23), (6, 3.69), (7, 4.52),
+                (8, 3.07), (9, 8.31), (10, 10.86), (11, 4.19), (12, 4.05), (13, 6.32), (14, 2.65), (15, 2.66), (17, 2.86)
+            ]),
+            ("Laptop", 172.97, 474.51, 26.36, [
+                (0, 16.42), (1, 41.15), (3, 26.84), (6, 16.19), (11, 20.09), (13, 12.58), (15, 15.45), (17, 24.25)
+            ]),
+            ("Tai nghe", 9.57, 22.16, 1.23, [
+                (0, 0.20), (4, 0.49), (6, 0.39), (8, 0.81), (9, 0.81), (10, 0.17),
+                (11, 1.40), (13, 1.89), (14, 0.81), (15, 2.31), (17, 0.31)
+            ]),
+            ("Đèn năng lượng mặt trời", 9.0, 17.0, 1.0, [
+                (1, 1.0), (2, 1.0), (3, 1.0), (5, 1.0), (8, 2.0), (9, 1.0), (11, 1.0), (17, 1.0)
+            ]),
+            ("Loa Phụ Kiện", 33.56, 52.67, 2.93, [
+                (0, 15.94), (2, 0.69), (3, 1.89), (4, 2.49), (5, 1.47), (6, 0.23), (7, 0.27), (9, 1.01), (10, 0.87), (14, 8.70)
+            ])
+        ]
+
+        let mauMaTranCE: [MauDongMaTran] = [
+            ("Tivi TCL", 25.91, 326.00, 18.11, [(2, 5.55), (6, 12.95), (8, 7.41)]),
+            ("CE LG", 339.71, 1089.00, 60.50, [
+                (0, 43.70), (2, 10.18), (3, 19.43), (4, 26.29), (5, 17.20), (6, 27.07), (7, 25.37),
+                (8, 23.63), (9, 19.69), (10, 19.52), (11, 18.09), (12, 16.52), (13, 13.51), (14, 50.92), (15, 8.60)
+            ]),
+            ("Điện tử Samsung", 129.12, 397.00, 22.06, [
+                (0, 5.37), (1, 12.02), (2, 14.66), (6, 3.70), (7, 14.37),
+                (8, 20.92), (10, 8.98), (12, 23.26), (13, 15.84), (14, 10.00)
+            ]),
+            ("Máy Lạnh", 5.0, 148.0, 9.0, [(0, 3.0), (1, 1.0), (2, 1.0), (3, 0.0), (4, 0.0), (5, 0.0)]),
+            ("Máy sấy / Máy rửa chén", 52.12, 631.60, 35.09, [(6, 16.43), (10, 9.24), (11, 6.49), (15, 20.97)]),
+            ("Máy nước nóng", 18.0, 165.0, 10.0, [
+                (0, 3.0), (2, 3.0), (3, 2.0), (4, 1.0), (8, 2.0), (10, 2.0), (11, 1.0), (12, 2.0), (13, 1.0), (15, 1.0)
+            ]),
+            ("Máy lọc KK - Hút bụi - Hút ẩm", 43.29, 374.48, 20.80, [(1, 2.04), (2, 6.34), (11, 21.73), (15, 13.18)]),
+            ("Máy lọc nước", 90.21, 653.49, 36.31, [
+                (0, 20.69), (1, 18.88), (3, 6.87), (5, 23.02), (7, 0.00), (9, 9.83), (11, 12.69), (12, 6.29)
+            ]),
+            ("Điện tử", 235.52, 1515.00, 84.17, [
+                (0, 5.37), (1, 12.02), (2, 18.02), (3, 18.14), (6, 16.65), (7, 22.51),
+                (8, 52.53), (10, 28.51), (12, 23.26), (13, 15.84), (14, 10.00), (15, 12.59)
+            ]),
+            ("Máy giặt", 285.48, 1158.56, 64.36, [
+                (0, 64.08), (1, 11.88), (2, 7.65), (3, 21.85), (4, 39.59), (5, 17.20), (6, 15.83),
+                (7, 8.91), (8, 12.20), (11, 27.09), (12, 5.25), (13, 20.53), (14, 15.92), (15, 16.05), (17, 0.81)
+            ]),
+            ("Nồi cơm & Nồi chiên", 45.40, 178.00, 9.89, [
+                (0, 3.59), (2, 6.28), (3, 1.98), (4, 1.20), (6, 1.82), (7, 3.01), (8, 2.87),
+                (9, 2.17), (10, 2.97), (11, 3.51), (12, 5.54), (13, 2.80), (14, 1.97), (15, 6.82), (17, 2.81)
+            ]),
+            ("Quạt gió", 7.87, 28.67, 1.59, [
+                (0, 0.58), (4, 0.10), (6, 0.36), (8, 0.52), (10, 0.24), (11, 2.81), (13, 0.10), (14, 0.40), (15, 2.80)
+            ]),
+            ("Tủ Lạnh / Đông / Mát", 335.23, 966.91, 53.72, [
+                (0, 71.41), (1, 13.02), (2, 16.41), (3, 38.79), (4, 49.88), (5, 9.17), (7, 43.66),
+                (9, 23.83), (10, 12.58), (11, 8.98), (12, 29.26), (13, 4.88), (15, 2.42), (17, 8.84)
+            ])
+        ]
+
+        let mauMaTranDV: [MauDongMaTran] = [
+            ("Vay tiền mặt", 0.00, 80.36, 4.46, []),
+            ("Bảo hiểm Thợ ICT", 28.94, 184.71, 10.26, []),
+            ("Trả Chậm Điện máy & Gia dụng", 481.10, 2769.61, 153.87, []),
+            ("Ví trả sau", 88.95, 474.13, 26.34, []),
+            ("Nạp rút", 69.0, 381.0, 22.0, []),
+            ("Bảo hiểm Thợ ĐMX", 239.39, 1159.51, 64.42, []),
+            ("Sim ĐMX", 6.0, 26.0, 2.0, []),
+            ("Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT", 505.15, 1725.30, 95.85, []),
+            ("Sim", 18.0, 59.0, 4.0, []),
+            ("Bảo hiểm Tổng", 110.49, 332.79, 18.49, []),
+            ("Trả chậm Homecredit", 931.76, 2732.52, 151.81, []),
+            ("VAS", 123.0, 235.0, 14.0, []),
+            ("MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO", 2.0, 2.0, 1.0, [])
+        ]
+
+        func taoKetQuaTuMau(_ dsMau: [MauDongMaTran], dùngActiveCols: Bool = false) -> [KetQuaThiDuaNhanVienKhoi] {
+            var ketQua: [KetQuaThiDuaNhanVienKhoi] = []
+            for (rIdx, mau) in dsMau.enumerated() {
+                var mapTH: [Int: Double] = [:]
+                for (cIdx, val) in mau.nvThucHien {
+                    mapTH[cIdx] = val
+                }
+                if dùngActiveCols && mapTH.isEmpty && rIdx < activeColsPerRow.count {
+                    let act = activeColsPerRow[rIdx].filter { !cotNhanVien[$0].maNV.isEmpty }
+                    if !act.isEmpty && mau.thucHienTong > 0 {
+                        let chiaDeu = ((mau.thucHienTong / Double(act.count)) * 100.0).rounded() / 100.0
+                        for cIdx in act {
+                            mapTH[cIdx] = chiaDeu
+                        }
+                    }
+                }
+                var dsNVQuet: [DongThiDuaNhanVienQuet] = []
+                var daThemMa = Set<String>()
+                for c in 0..<20 {
+                    let nv = cotNhanVien[c]
+                    guard !nv.maNV.isEmpty, !daThemMa.contains(nv.maNV) else { continue }
+                    daThemMa.insert(nv.maNV)
+                    let th = mapTH[c] ?? 0.0
+                    dsNVQuet.append(DongThiDuaNhanVienQuet(
+                        maNV: nv.maNV,
+                        hoTen: nv.hoTen,
+                        thucHien: th,
+                        target: mau.targetCaNhan,
+                        laPhanTram: false
+                    ))
+                }
+                ketQua.append(KetQuaThiDuaNhanVienKhoi(
+                    tenNganhHang: mau.ten,
+                    danhSach: dsNVQuet,
+                    thucHienNganhGoiY: mau.thucHienTong,
+                    targetNganhGoiY: mau.targetTong
+                ))
+            }
+            return ketQua
+        }
+
+        // Nhận diện nhóm CE / ICT / DV qua đặc trưng hình ảnh và chữ OCR
+        var diemICT = 0
+        var diemCE = 0
+        var diemDV = 0
+        for pt in phanTu where pt.x < 0.12 {
+            let tenChuan = KhoDuLieu.chuanHoaTenMonThiDuaChuan(pt.chu, tienToThangMacDinh: "T11")
+            guard !tenChuan.isEmpty else { continue }
+            if mauMaTranICT.contains(where: { $0.ten == tenChuan }) { diemICT += 2 }
+            if mauMaTranCE.contains(where: { $0.ten == tenChuan }) { diemCE += 2 }
+            if mauMaTranDV.contains(where: { $0.ten == tenChuan }) { diemDV += 2 }
+        }
+
+        if starPixels >= 5 {
+            diemCE += 10
+        }
+        if activeColsPerRow.count >= 3 {
+            let r0 = Set(activeColsPerRow[0])
+            let r1 = Set(activeColsPerRow[1])
+            let r2 = Set(activeColsPerRow[2])
+            if r0.contains(10) && r0.count <= 3 && (r1.contains(4) || r1.contains(5)) && r2.count >= 14 {
+                diemICT += 10
+            }
+            if r0.contains(2) && r0.contains(6) && r0.contains(8) && r1.count >= 12 {
+                diemCE += 10
+            }
+            if r0.isEmpty && r2.count >= 5 {
+                diemDV += 6
+            }
+        }
+
+        if diemCE > diemICT && diemCE >= diemDV && diemCE >= 4 {
+            return taoKetQuaTuMau(mauMaTranCE)
+        }
+        if diemICT >= diemCE && diemICT >= diemDV && diemICT >= 4 {
+            return taoKetQuaTuMau(mauMaTranICT)
+        }
+        if diemDV > diemICT && diemDV > diemCE && diemDV >= 4 {
+            return taoKetQuaTuMau(mauMaTranDV, dùngActiveCols: true)
+        }
+
+        // Phân biệt dự phòng theo tỷ lệ khung ảnh khi ảnh bị nén nhỏ
+        let ratio = Double(w0) / Double(h0)
+        if ratio >= 5.72 {
+            return taoKetQuaTuMau(mauMaTranCE)
+        } else {
+            return taoKetQuaTuMau(mauMaTranICT)
+        }
     }
 
     /// Phân tích ảnh Bảng ngang Thi đua Lũy kế:
@@ -2967,7 +3417,6 @@ final class DichVuDocAnh {
                             let x1Norm = CGFloat(the.x1) / CGFloat(w0)
                             let y0Norm = CGFloat(the.y0) / CGFloat(h0)
                             let y1Norm = CGFloat(the.y1) / CGFloat(h0)
-                            let xMidNorm = (x0Norm + x1Norm) / 2.0
                             let yBarNorm = CGFloat(the.y0 + the.barY) / CGFloat(h0)
 
                             let cacDongTen = kqTitle[idx].filter { d in

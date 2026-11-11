@@ -456,6 +456,11 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
                     }
 
                     var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
+                    KhoDuLieu.dungChung.boSungDanhSachThiDuaTuKhoiNhanVien(
+                        mangKhoiNV: cacKhoiCapNhat,
+                        vao: &dl,
+                        cheDo: self.cheDo
+                    )
                     let bangMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
                         hienTai: dl.thiDuaNhanVien(theo: self.cheDo),
                         mangKhoiNV: cacKhoiCapNhat,
@@ -4245,6 +4250,11 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
                     guard let self else { return }
                     var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
                     if !cacKhoi.isEmpty {
+                        KhoDuLieu.dungChung.boSungDanhSachThiDuaTuKhoiNhanVien(
+                            mangKhoiNV: cacKhoi,
+                            vao: &dl,
+                            cheDo: self.cheDo
+                        )
                         let bangNVMoi = KhoDuLieu.dungChung.gopKetQuaThiDuaNhanVien(
                             hienTai: dl.thiDuaNhanVien(theo: self.cheDo),
                             mangKhoiNV: cacKhoi,
