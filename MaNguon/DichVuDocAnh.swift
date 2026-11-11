@@ -3037,7 +3037,7 @@ final class DichVuDocAnh {
 
                             var soTH = th ?? 0.0
                             var soTG = tg ?? 0.0
-                            if let dVal = dtdk, soTG > 0, soTH > soTG * 2.0, idx < dsMau39.count {
+                            if dtdk != nil, soTG > 0, soTH > soTG * 2.0, idx < dsMau39.count {
                                 soTH = dsMau39[idx].th
                                 soTG = dsMau39[idx].tg
                             }
@@ -4280,7 +4280,7 @@ final class DichVuDocAnh {
         tyLeDK_DT.sort()
         tyLeDK_SL.sort()
         let heSoDT: Double? = tyLeDK_DT.isEmpty ? nil : tyLeDK_DT[tyLeDK_DT.count / 2]
-        let heSoSL: Double? = tyLeDK_SL.isEmpty ? heSoDT : tyLeDK_SL[tyLeSL.count / 2]
+        let heSoSL: Double? = tyLeDK_SL.isEmpty ? heSoDT : tyLeDK_SL[tyLeDK_SL.count / 2]
 
         var danhSachKetQua: [DongThiDua] = []
         for var d in danhSachTam {
