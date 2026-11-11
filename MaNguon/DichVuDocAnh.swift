@@ -2089,7 +2089,7 @@ final class DichVuDocAnh {
 
     // MARK: - Bộ phân tích Ma Trận Thi Đua Nhân Viên Lũy Kế (3 ảnh: ICT · CE · DV, mỗi ảnh 13 chương trình × 20 cột nhân viên)
 
-    func laAnhMaTranThiDuaNhanVien(phanTu: [PhanTuVanBan], anh: UIImage? = nil) -> Bool {
+    private func laAnhMaTranThiDuaNhanVien(phanTu: [PhanTuVanBan], anh: UIImage? = nil) -> Bool {
         for pt in phanTu where pt.y < 0.25 {
             let u = boDau(pt.chu)
             if u.contains("SO CT DAT") || u.contains("DU LIEU THEO SIEU THI") {
@@ -2123,7 +2123,7 @@ final class DichVuDocAnh {
         return coChuongTrinhThiDua && soHeaderTarget >= 3
     }
 
-    func phanTichMaTranThiDuaNhanVien(
+    private func phanTichMaTranThiDuaNhanVien(
         phanTu: [PhanTuVanBan],
         anh: UIImage? = nil,
         watermark: String? = nil
@@ -2179,7 +2179,7 @@ final class DichVuDocAnh {
                 let tenGop = cacPTHeader.map(\.chu).joined(separator: " ")
                 let u = boDau(tenGop)
                 if !u.contains("THUC HIEN") && !u.contains("TARGET") && !u.contains("TONG") {
-                    if let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: nil, tenQuet: tenGop, dsQuanLy: dsQuanLy) {
+                    if let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: "", tenQuet: tenGop, dsQuanLy: dsQuanLy) {
                         cotNhanVien[c] = (nvKhop.maNV, nvKhop.hoTen)
                     }
                 }
