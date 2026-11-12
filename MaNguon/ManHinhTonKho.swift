@@ -1,5 +1,382 @@
 import UIKit
 
+// MARK: - Hộp Thoại Chọn Nhóm Hàng / Trạng Thái Tồn Kho (Chuẩn Nhận Diện Thương Hiệu ĐMX + Ô Tìm Kiếm Nhanh)
+
+final class HopThoaiChonNhomHangDMX: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
+    struct MucChon {
+        let giaTri: String
+        let hienThi: String
+        let laTatCa: Bool
+    }
+
+    private let tieuDeChinh: String
+    private let phuDe: String
+    private let goiYTimKiem: String
+    private let tatCaMuc: [MucChon]
+    private var cacMucDaLoc: [MucChon] = []
+    private var giaTriDangChon: String?
+    private let khiChon: (String) -> Void
+
+    private let oTimKiem = UITextField()
+    private let nhanSoLuong = UILabel()
+    private let bangDanhSach = UITableView(frame: .zero, style: .plain)
+    private let nhanKhongCoKetQua = UILabel()
+
+    init(
+        tieuDe: String,
+        phuDe: String,
+        goiYTimKiem: String,
+        tatCaMuc: [MucChon],
+        giaTriDangChon: String?,
+        khiChon: @escaping (String) -> Void
+    ) {
+        self.tieuDeChinh = tieuDe
+        self.phuDe = phuDe
+        self.goiYTimKiem = goiYTimKiem
+        self.tatCaMuc = tatCaMuc
+        self.cacMucDaLoc = tatCaMuc
+        self.giaTriDangChon = giaTriDangChon
+        self.khiChon = khiChon
+        super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = .pageSheet
+        if #available(iOS 15.0, *), let sheet = sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.selectedDetentIdentifier = .large
+            sheet.prefersGrabberVisible = true
+            sheet.preferredCornerRadius = 20
+        }
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("Khong ho tro coder")
+    }
+
+    private static func boDauTiengViet(_ s: String) -> String {
+        s.folding(options: [.diacriticInsensitive, .widthInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN"))
+            .replacingOccurrences(of: "đ", with: "d")
+            .replacingOccurrences(of: "Đ", with: "d")
+            .lowercased()
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        overrideUserInterfaceStyle = .light
+        view.backgroundColor = UIColor.black.withAlphaComponent(0.15)
+
+        let khung = UIView()
+        khung.backgroundColor = BangMauBCTD.xanhChuDao
+        khung.layer.cornerRadius = 18
+        khung.layer.borderWidth = 2.5
+        khung.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        khung.clipsToBounds = true
+        khung.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(khung)
+
+        let vachTrai = UIView()
+        vachTrai.backgroundColor = BangMauBCTD.vangSang
+        vachTrai.translatesAutoresizingMaskIntoConstraints = false
+        khung.addSubview(vachTrai)
+
+        // Header: Tiêu đề vàng tươi ĐMX + Nút Đóng
+        let lbTieuDe = UILabel()
+        lbTieuDe.text = tieuDeChinh
+        lbTieuDe.font = .systemFont(ofSize: 15.5, weight: .heavy)
+        lbTieuDe.textColor = BangMauBCTD.vangSang
+        lbTieuDe.numberOfLines = 0
+
+        let nutDong = UIButton(type: .system)
+        nutDong.setTitle("Đóng", for: .normal)
+        nutDong.titleLabel?.font = .systemFont(ofSize: 13.0, weight: .heavy)
+        nutDong.backgroundColor = BangMauBCTD.vangSang
+        nutDong.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutDong.layer.cornerRadius = 9
+        nutDong.layer.borderWidth = 1.5
+        nutDong.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        nutDong.contentEdgeInsets = UIEdgeInsets(top: 7, left: 12, bottom: 7, right: 12)
+        nutDong.setContentHuggingPriority(.required, for: .horizontal)
+        nutDong.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutDong.addTarget(self, action: #selector(bamDong), for: .touchUpInside)
+
+        let hangDau = UIStackView(arrangedSubviews: [lbTieuDe, nutDong])
+        hangDau.axis = .horizontal
+        hangDau.spacing = 8
+        hangDau.alignment = .center
+
+        let lbPhuDe = UILabel()
+        lbPhuDe.text = phuDe
+        lbPhuDe.font = .systemFont(ofSize: 12.0, weight: .semibold)
+        lbPhuDe.textColor = .white
+        lbPhuDe.numberOfLines = 0
+
+        // Ô tìm kiếm nhanh chuẩn ĐMX (Nền vàng nhạt / trắng sáng, viền vàng tươi, icon kính lúp)
+        let khungTimKiem = UIView()
+        khungTimKiem.backgroundColor = .white
+        khungTimKiem.layer.cornerRadius = 11
+        khungTimKiem.layer.borderWidth = 2.0
+        khungTimKiem.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        khungTimKiem.translatesAutoresizingMaskIntoConstraints = false
+
+        let iconTim = UIImageView(image: UIImage(
+            systemName: "magnifyingglass",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .bold)
+        ))
+        iconTim.tintColor = BangMauBCTD.xanhChuDaoDam
+        iconTim.translatesAutoresizingMaskIntoConstraints = false
+        khungTimKiem.addSubview(iconTim)
+
+        oTimKiem.placeholder = goiYTimKiem
+        oTimKiem.font = .systemFont(ofSize: 14.0, weight: .bold)
+        oTimKiem.textColor = BangMauBCTD.chuChinh
+        oTimKiem.clearButtonMode = .whileEditing
+        oTimKiem.returnKeyType = .search
+        oTimKiem.autocorrectionType = .no
+        oTimKiem.autocapitalizationType = .none
+        oTimKiem.delegate = self
+        oTimKiem.addTarget(self, action: #selector(tuKhoaThayDoi), for: .editingChanged)
+        oTimKiem.translatesAutoresizingMaskIntoConstraints = false
+        khungTimKiem.addSubview(oTimKiem)
+
+        NSLayoutConstraint.activate([
+            khungTimKiem.heightAnchor.constraint(equalToConstant: 42),
+            iconTim.leadingAnchor.constraint(equalTo: khungTimKiem.leadingAnchor, constant: 12),
+            iconTim.centerYAnchor.constraint(equalTo: khungTimKiem.centerYAnchor),
+            iconTim.widthAnchor.constraint(equalToConstant: 18),
+            iconTim.heightAnchor.constraint(equalToConstant: 18),
+
+            oTimKiem.leadingAnchor.constraint(equalTo: iconTim.trailingAnchor, constant: 8),
+            oTimKiem.trailingAnchor.constraint(equalTo: khungTimKiem.trailingAnchor, constant: -8),
+            oTimKiem.topAnchor.constraint(equalTo: khungTimKiem.topAnchor),
+            oTimKiem.bottomAnchor.constraint(equalTo: khungTimKiem.bottomAnchor)
+        ])
+
+        nhanSoLuong.font = .systemFont(ofSize: 11.5, weight: .bold)
+        nhanSoLuong.textColor = BangMauBCTD.vangSang
+        nhanSoLuong.numberOfLines = 1
+
+        // Khung bảng danh sách nhóm hàng
+        let khungBang = UIView()
+        khungBang.backgroundColor = .white
+        khungBang.layer.cornerRadius = 12
+        khungBang.layer.borderWidth = 1.8
+        khungBang.layer.borderColor = BangMauBCTD.vangSang.cgColor
+        khungBang.clipsToBounds = true
+        khungBang.translatesAutoresizingMaskIntoConstraints = false
+
+        bangDanhSach.backgroundColor = .white
+        bangDanhSach.separatorStyle = .none
+        bangDanhSach.rowHeight = UITableView.automaticDimension
+        bangDanhSach.estimatedRowHeight = 48
+        bangDanhSach.keyboardDismissMode = .onDrag
+        bangDanhSach.dataSource = self
+        bangDanhSach.delegate = self
+        bangDanhSach.register(ODongNhomHangDMXCell.self, forCellReuseIdentifier: ODongNhomHangDMXCell.maTaiSuDung)
+        bangDanhSach.translatesAutoresizingMaskIntoConstraints = false
+        khungBang.addSubview(bangDanhSach)
+
+        nhanKhongCoKetQua.text = "Không tìm thấy mục nào khớp từ khóa."
+        nhanKhongCoKetQua.font = .systemFont(ofSize: 13.5, weight: .semibold)
+        nhanKhongCoKetQua.textColor = BangMauBCTD.chuPhu
+        nhanKhongCoKetQua.textAlignment = .center
+        nhanKhongCoKetQua.numberOfLines = 0
+        nhanKhongCoKetQua.isHidden = true
+        nhanKhongCoKetQua.translatesAutoresizingMaskIntoConstraints = false
+        khungBang.addSubview(nhanKhongCoKetQua)
+
+        [hangDau, lbPhuDe, khungTimKiem, nhanSoLuong, khungBang].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
+            khung.addSubview($0)
+        }
+
+        NSLayoutConstraint.activate([
+            khung.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            khung.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            khung.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            khung.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
+
+            vachTrai.topAnchor.constraint(equalTo: khung.topAnchor),
+            vachTrai.bottomAnchor.constraint(equalTo: khung.bottomAnchor),
+            vachTrai.leadingAnchor.constraint(equalTo: khung.leadingAnchor),
+            vachTrai.widthAnchor.constraint(equalToConstant: 5),
+
+            hangDau.topAnchor.constraint(equalTo: khung.topAnchor, constant: 12),
+            hangDau.leadingAnchor.constraint(equalTo: vachTrai.trailingAnchor, constant: 12),
+            hangDau.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -12),
+
+            lbPhuDe.topAnchor.constraint(equalTo: hangDau.bottomAnchor, constant: 4),
+            lbPhuDe.leadingAnchor.constraint(equalTo: vachTrai.trailingAnchor, constant: 12),
+            lbPhuDe.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -12),
+
+            khungTimKiem.topAnchor.constraint(equalTo: lbPhuDe.bottomAnchor, constant: 8),
+            khungTimKiem.leadingAnchor.constraint(equalTo: vachTrai.trailingAnchor, constant: 12),
+            khungTimKiem.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -12),
+
+            nhanSoLuong.topAnchor.constraint(equalTo: khungTimKiem.bottomAnchor, constant: 6),
+            nhanSoLuong.leadingAnchor.constraint(equalTo: vachTrai.trailingAnchor, constant: 12),
+            nhanSoLuong.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -12),
+
+            khungBang.topAnchor.constraint(equalTo: nhanSoLuong.bottomAnchor, constant: 6),
+            khungBang.leadingAnchor.constraint(equalTo: vachTrai.trailingAnchor, constant: 10),
+            khungBang.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -10),
+            khungBang.bottomAnchor.constraint(equalTo: khung.bottomAnchor, constant: -10),
+
+            bangDanhSach.topAnchor.constraint(equalTo: khungBang.topAnchor, constant: 4),
+            bangDanhSach.leadingAnchor.constraint(equalTo: khungBang.leadingAnchor),
+            bangDanhSach.trailingAnchor.constraint(equalTo: khungBang.trailingAnchor),
+            bangDanhSach.bottomAnchor.constraint(equalTo: khungBang.bottomAnchor, constant: -4),
+
+            nhanKhongCoKetQua.centerYAnchor.constraint(equalTo: khungBang.centerYAnchor),
+            nhanKhongCoKetQua.leadingAnchor.constraint(equalTo: khungBang.leadingAnchor, constant: 20),
+            nhanKhongCoKetQua.trailingAnchor.constraint(equalTo: khungBang.trailingAnchor, constant: -20)
+        ])
+
+        capNhatDanhSachTheoTuKhoa()
+    }
+
+    @objc private func bamDong() {
+        dismiss(animated: true)
+    }
+
+    @objc private func tuKhoaThayDoi() {
+        capNhatDanhSachTheoTuKhoa()
+    }
+
+    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        textField.resignFirstResponder()
+        return true
+    }
+
+    private func capNhatDanhSachTheoTuKhoa() {
+        let tuKhoa = (oTimKiem.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if tuKhoa.isEmpty {
+            cacMucDaLoc = tatCaMuc
+        } else {
+            let tkKhongDau = Self.boDauTiengViet(tuKhoa)
+            let tkThuong = tuKhoa.lowercased()
+            cacMucDaLoc = tatCaMuc.filter { muc in
+                let tenThuong = muc.hienThi.lowercased()
+                if tenThuong.contains(tkThuong) { return true }
+                return Self.boDauTiengViet(muc.hienThi).contains(tkKhongDau)
+            }
+        }
+        nhanSoLuong.text = tuKhoa.isEmpty
+            ? "📋 Hiển thị \(cacMucDaLoc.count) lựa chọn • Chạm vào dòng bất kỳ để lọc ngay:"
+            : "🔎 Tìm thấy \(cacMucDaLoc.count) kết quả cho “\(tuKhoa)”:"
+        nhanKhongCoKetQua.isHidden = !cacMucDaLoc.isEmpty
+        bangDanhSach.reloadData()
+    }
+
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        cacMucDaLoc.count
+    }
+
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: ODongNhomHangDMXCell.maTaiSuDung, for: indexPath) as? ODongNhomHangDMXCell else {
+            return UITableViewCell()
+        }
+        let muc = cacMucDaLoc[indexPath.row]
+        let dangChon = (muc.giaTri == giaTriDangChon)
+        cell.cauHinh(muc: muc, dangChon: dangChon)
+        return cell
+    }
+
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        let muc = cacMucDaLoc[indexPath.row]
+        giaTriDangChon = muc.giaTri
+        khiChon(muc.giaTri)
+        dismiss(animated: true)
+    }
+}
+
+private final class ODongNhomHangDMXCell: UITableViewCell {
+    static let maTaiSuDung = "ODongNhomHangDMXCell"
+
+    private let theNen = UIView()
+    private let vachTrai = UIView()
+    private let nhanTen = UILabel()
+    private let nhanTrangThaiChon = UILabel()
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        selectionStyle = .none
+        backgroundColor = .clear
+        contentView.backgroundColor = .clear
+
+        theNen.layer.cornerRadius = 10
+        theNen.clipsToBounds = true
+        theNen.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(theNen)
+
+        vachTrai.translatesAutoresizingMaskIntoConstraints = false
+        theNen.addSubview(vachTrai)
+
+        nhanTen.font = .systemFont(ofSize: 14.0, weight: .bold)
+        nhanTen.numberOfLines = 0
+        nhanTen.lineBreakMode = .byWordWrapping
+        nhanTen.translatesAutoresizingMaskIntoConstraints = false
+        theNen.addSubview(nhanTen)
+
+        nhanTrangThaiChon.font = .systemFont(ofSize: 12.0, weight: .heavy)
+        nhanTrangThaiChon.textAlignment = .center
+        nhanTrangThaiChon.layer.cornerRadius = 6
+        nhanTrangThaiChon.clipsToBounds = true
+        nhanTrangThaiChon.setContentHuggingPriority(.required, for: .horizontal)
+        nhanTrangThaiChon.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nhanTrangThaiChon.translatesAutoresizingMaskIntoConstraints = false
+        theNen.addSubview(nhanTrangThaiChon)
+
+        NSLayoutConstraint.activate([
+            theNen.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 3.5),
+            theNen.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -3.5),
+            theNen.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
+            theNen.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
+
+            vachTrai.topAnchor.constraint(equalTo: theNen.topAnchor),
+            vachTrai.bottomAnchor.constraint(equalTo: theNen.bottomAnchor),
+            vachTrai.leadingAnchor.constraint(equalTo: theNen.leadingAnchor),
+            vachTrai.widthAnchor.constraint(equalToConstant: 5),
+
+            nhanTen.topAnchor.constraint(equalTo: theNen.topAnchor, constant: 10),
+            nhanTen.bottomAnchor.constraint(equalTo: theNen.bottomAnchor, constant: -10),
+            nhanTen.leadingAnchor.constraint(equalTo: vachTrai.trailingAnchor, constant: 10),
+            nhanTen.trailingAnchor.constraint(lessThanOrEqualTo: nhanTrangThaiChon.leadingAnchor, constant: -8),
+
+            nhanTrangThaiChon.centerYAnchor.constraint(equalTo: theNen.centerYAnchor),
+            nhanTrangThaiChon.trailingAnchor.constraint(equalTo: theNen.trailingAnchor, constant: -10),
+            nhanTrangThaiChon.widthAnchor.constraint(greaterThanOrEqualToConstant: 26),
+            nhanTrangThaiChon.heightAnchor.constraint(equalToConstant: 24)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("Khong ho tro coder")
+    }
+
+    func cauHinh(muc: HopThoaiChonNhomHangDMX.MucChon, dangChon: Bool) {
+        let bieuTuong = muc.laTatCa ? "📋 " : "📦 "
+        nhanTen.text = bieuTuong + muc.hienThi
+        if dangChon {
+            theNen.backgroundColor = BangMauBCTD.vangNhatNen
+            theNen.layer.borderWidth = 1.8
+            theNen.layer.borderColor = BangMauBCTD.xanhChuDao.cgColor
+            nhanTen.textColor = BangMauBCTD.xanhChuDaoDam
+            vachTrai.backgroundColor = BangMauBCTD.vangChuDao
+            nhanTrangThaiChon.text = "✓"
+            nhanTrangThaiChon.backgroundColor = BangMauBCTD.xanhChuDao
+            nhanTrangThaiChon.textColor = BangMauBCTD.vangSang
+        } else {
+            theNen.backgroundColor = muc.laTatCa ? BangMauBCTD.nenHeaderPhu : BangMauBCTD.nenThePhu
+            theNen.layer.borderWidth = 1.0
+            theNen.layer.borderColor = (muc.laTatCa ? BangMauBCTD.vienXanhNhat : BangMauBCTD.vienThe).cgColor
+            nhanTen.textColor = muc.laTatCa ? BangMauBCTD.xanhChuDaoDam : BangMauBCTD.chuChinh
+            vachTrai.backgroundColor = muc.laTatCa ? BangMauBCTD.xanhChuDao : BangMauBCTD.vienDam
+            nhanTrangThaiChon.text = "▸"
+            nhanTrangThaiChon.backgroundColor = .clear
+            nhanTrangThaiChon.textColor = BangMauBCTD.chuMo
+        }
+    }
+}
+
 // MARK: - Khung Lọc Dữ Liệu Tồn Kho Từ Google Sheet (19 Cột A -> S)
 
 final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
@@ -62,7 +439,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         "Số lượng đặt",                           // K (10)
         "Số lượng được chia đến",                 // L (11)
         "Số lượng đang  đi đường",                // M (12)
-        "Số lượng được chia đi",                  // N (13)
+        "Số lượng đang chia đi",                  // N (13)
         "Số lượng đã đặt",                        // O (14)
         "Số lượng có thể bán",                    // P (15)
         "SL tồn kho tối thiểu",                   // Q (16)
@@ -97,7 +474,6 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
     private let nutLocSieuThi = UIButton(type: .system)
     private let nutChonNhomHang = UIButton(type: .system)
     private let nutChonTrangThai = UIButton(type: .system)
-    private let nutXuatAnh = UIButton(type: .system)
     private let nhanTrangThai = UILabel()
     private let vongQuay = UIActivityIndicatorView(style: .medium)
 
@@ -184,58 +560,58 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         hangLink.spacing = 6
         hangLink.alignment = .fill
 
-        // Hàng 2: Nhập mã siêu thị (Cột A) + Nút Lọc + Nút Xuất ảnh
+        // Hàng 2: Nhập mã siêu thị (Cột A) + Nút Lọc (Ô nhập rộng rãi, không bị ép hẹp)
         let lbSieuThi = UILabel()
         lbSieuThi.text = "🏪 Siêu thị (Cột A):"
         lbSieuThi.font = .systemFont(ofSize: 12.0, weight: .bold)
         lbSieuThi.textColor = BangMauBCTD.chuChinh
         lbSieuThi.setContentHuggingPriority(.required, for: .horizontal)
+        lbSieuThi.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         let maLuu = (UserDefaults.standard.string(forKey: Self.khoaLuuMaSieuThi) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         maSieuThiDangLoc = maLuu
         oMaSieuThi.text = maLuu
-        oMaSieuThi.placeholder = "VD: 76 (Bắt đầu ở cột A)"
+        oMaSieuThi.placeholder = "Nhập mã/tên siêu thị (VD: 2776)..."
         oMaSieuThi.font = .systemFont(ofSize: 13.5, weight: .bold)
         oMaSieuThi.textColor = BangMauBCTD.xanhChuDaoDam
         oMaSieuThi.backgroundColor = BangMauBCTD.vangNhatNen
         oMaSieuThi.layer.cornerRadius = 8
-        oMaSieuThi.layer.borderWidth = 1.2
+        oMaSieuThi.layer.borderWidth = 1.4
         oMaSieuThi.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
-        oMaSieuThi.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 1))
+        oMaSieuThi.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 1))
         oMaSieuThi.leftViewMode = .always
         oMaSieuThi.clearButtonMode = .whileEditing
         oMaSieuThi.returnKeyType = .search
         oMaSieuThi.delegate = self
-        oMaSieuThi.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        oMaSieuThi.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        oMaSieuThi.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        oMaSieuThi.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        oMaSieuThi.widthAnchor.constraint(greaterThanOrEqualToConstant: 120).isActive = true
 
         nutLocSieuThi.setTitle("🔍 Lọc", for: .normal)
         nutLocSieuThi.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .heavy)
         nutLocSieuThi.backgroundColor = BangMauBCTD.xanhChuDao
         nutLocSieuThi.setTitleColor(.white, for: .normal)
         nutLocSieuThi.layer.cornerRadius = 8
-        nutLocSieuThi.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+        nutLocSieuThi.layer.borderWidth = 1.2
+        nutLocSieuThi.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        nutLocSieuThi.contentEdgeInsets = UIEdgeInsets(top: 8, left: 14, bottom: 8, right: 14)
         nutLocSieuThi.setContentHuggingPriority(.required, for: .horizontal)
         nutLocSieuThi.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutLocSieuThi.addTarget(self, action: #selector(bamLocSieuThi), for: .touchUpInside)
 
-        nutXuatAnh.setTitle("🖼️ Xuất ảnh", for: .normal)
-        nutXuatAnh.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .heavy)
-        nutXuatAnh.backgroundColor = BangMauBCTD.xanhDatVach
-        nutXuatAnh.setTitleColor(.white, for: .normal)
-        nutXuatAnh.layer.cornerRadius = 8
-        nutXuatAnh.contentEdgeInsets = UIEdgeInsets(top: 7, left: 12, bottom: 7, right: 12)
-        nutXuatAnh.setContentHuggingPriority(.required, for: .horizontal)
-        nutXuatAnh.setContentCompressionResistancePriority(.required, for: .horizontal)
-        nutXuatAnh.addTarget(self, action: #selector(bamXuatAnhBang), for: .touchUpInside)
-
-        let hangSieuThi = UIStackView(arrangedSubviews: [lbSieuThi, oMaSieuThi, nutLocSieuThi, nutXuatAnh])
+        let hangSieuThi = UIStackView(arrangedSubviews: [lbSieuThi, oMaSieuThi, nutLocSieuThi])
         hangSieuThi.axis = .horizontal
         hangSieuThi.spacing = 6
         hangSieuThi.alignment = .center
+        hangSieuThi.distribution = .fill
 
-        // Hàng 3: Combobox Nhóm hàng (Cột G) & Trạng thái sản phẩm (Cột H)
-        cauHinhNutCombobox(nutChonNhomHang, tieuDe: "📂 Nhóm hàng (Cột G): Chưa chọn ▾", laChinh: true)
-        cauHinhNutCombobox(nutChonTrangThai, tieuDe: "🏷️ Trạng thái (Cột H): Tất cả ▾", laChinh: false)
+        // Hàng 3: Combobox Nhóm hàng (Cột G) thiết kế nhận diện ĐMX có tìm kiếm & Trạng thái (Cột H)
+        cauHinhNutComboboxDMX(nutChonNhomHang, tieuDe: "📂 Nhóm hàng (Cột G): Chưa chọn ▾", laChinh: true)
+        nutChonNhomHang.addTarget(self, action: #selector(bamMoChonNhomHangDMX), for: .touchUpInside)
+
+        cauHinhNutComboboxDMX(nutChonTrangThai, tieuDe: "🏷️ Trạng thái (Cột H): Tất cả ▾", laChinh: false)
+        nutChonTrangThai.showsMenuAsPrimaryAction = true
 
         let hangCombo = UIStackView(arrangedSubviews: [nutChonNhomHang, nutChonTrangThai])
         hangCombo.axis = .horizontal
@@ -245,7 +621,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         vongQuay.hidesWhenStopped = true
         vongQuay.color = BangMauBCTD.xanhChuDao
 
-        nhanTrangThai.text = "Nhập link Google Sheet, mã siêu thị (VD: 76) rồi bấm “Lọc” và chọn Nhóm hàng (Cột G) để hiển thị bảng tồn kho."
+        nhanTrangThai.text = "Nhập link Google Sheet, mã siêu thị rồi bấm “Lọc” và chọn Nhóm hàng (Cột G) để hiển thị bảng tồn kho."
         nhanTrangThai.font = .systemFont(ofSize: 11.5, weight: .semibold)
         nhanTrangThai.textColor = BangMauBCTD.chuPhu
         nhanTrangThai.numberOfLines = 0
@@ -347,19 +723,61 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         capNhatMenuCombobox()
     }
 
-    private func cauHinhNutCombobox(_ nut: UIButton, tieuDe: String, laChinh: Bool) {
+    private func cauHinhNutComboboxDMX(_ nut: UIButton, tieuDe: String, laChinh: Bool) {
         nut.setTitle(tieuDe, for: .normal)
-        nut.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .bold)
+        nut.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .heavy)
         nut.titleLabel?.numberOfLines = 2
         nut.titleLabel?.lineBreakMode = .byTruncatingTail
         nut.contentHorizontalAlignment = .left
-        nut.backgroundColor = laChinh ? BangMauBCTD.nenHeaderPhu : BangMauBCTD.nenThePhu
-        nut.setTitleColor(laChinh ? BangMauBCTD.xanhChuDaoDam : BangMauBCTD.chuChinh, for: .normal)
-        nut.layer.cornerRadius = 8
-        nut.layer.borderWidth = 1.1
-        nut.layer.borderColor = (laChinh ? BangMauBCTD.xanhChuDao : BangMauBCTD.vienDam).cgColor
-        nut.contentEdgeInsets = UIEdgeInsets(top: 7, left: 9, bottom: 7, right: 9)
-        nut.showsMenuAsPrimaryAction = true
+        if laChinh {
+            nut.backgroundColor = BangMauBCTD.xanhChuDao
+            nut.setTitleColor(BangMauBCTD.vangSang, for: .normal)
+            nut.layer.cornerRadius = 9
+            nut.layer.borderWidth = 1.6
+            nut.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        } else {
+            nut.backgroundColor = BangMauBCTD.nenHeaderPhu
+            nut.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+            nut.layer.cornerRadius = 9
+            nut.layer.borderWidth = 1.2
+            nut.layer.borderColor = BangMauBCTD.xanhChuDao.cgColor
+        }
+        nut.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+    }
+
+    @objc private func bamMoChonNhomHangDMX() {
+        endEditing(true)
+        guard !tatCaDong.isEmpty else {
+            nhanTrangThai.text = "⚠️ Hãy bấm “Quét Sheet” để tải danh sách Nhóm hàng (Cột G) trước!"
+            nhanTrangThai.textColor = BangMauBCTD.doYeuChu
+            return
+        }
+
+        var cacMuc: [HopThoaiChonNhomHangDMX.MucChon] = [
+            .init(
+                giaTri: "__ALL__",
+                hienThi: "Tất cả nhóm hàng (\(dsNhomHang.count) nhóm)",
+                laTatCa: true
+            )
+        ]
+        for nhom in dsNhomHang {
+            cacMuc.append(.init(giaTri: nhom, hienThi: nhom, laTatCa: false))
+        }
+
+        let maSTHienThi = maSieuThiDangLoc.isEmpty ? "Tất cả siêu thị" : "Siêu thị bắt đầu bằng “\(maSieuThiDangLoc)”"
+        let vc = HopThoaiChonNhomHangDMX(
+            tieuDe: "📂 CHỌN NHÓM HÀNG TỒN KHO (CỘT G)",
+            phuDe: "Đang lọc theo: \(maSTHienThi) • Có \(dsNhomHang.count) nhóm hàng",
+            goiYTimKiem: "🔍 Nhập mã hoặc tên nhóm hàng (VD: 1094, Tivi, Tủ lạnh...)",
+            tatCaMuc: cacMuc,
+            giaTriDangChon: nhomHangDangChon
+        ) { [weak self] giaTriChon in
+            guard let self = self else { return }
+            self.nhomHangDangChon = giaTriChon
+            self.capNhatMenuCombobox()
+            self.apDungBoLocVaVeBang()
+        }
+        timViewControllerCha()?.present(vc, animated: true)
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
@@ -541,7 +959,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
     }
 
     private func capNhatMenuCombobox() {
-        // 1. Menu Nhóm hàng (Cột G)
+        // 1. Nút Chọn Nhóm hàng (Cột G) mở hộp thoại ĐMX có tìm kiếm
         let nhanNhom: String
         if let chon = nhomHangDangChon {
             nhanNhom = (chon == "__ALL__") ? "Tất cả (\(dsNhomHang.count))" : chon
@@ -549,29 +967,6 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
             nhanNhom = dsNhomHang.isEmpty ? "Chưa quét" : "Chọn nhóm (\(dsNhomHang.count))"
         }
         nutChonNhomHang.setTitle("📂 Nhóm hàng (G): \(nhanNhom) ▾", for: .normal)
-
-        var actionsNhom: [UIAction] = []
-        actionsNhom.append(UIAction(
-            title: "📋 Tất cả nhóm hàng (\(dsNhomHang.count) nhóm)",
-            state: nhomHangDangChon == "__ALL__" ? .on : .off
-        ) { [weak self] _ in
-            guard let self = self else { return }
-            self.nhomHangDangChon = "__ALL__"
-            self.capNhatMenuCombobox()
-            self.apDungBoLocVaVeBang()
-        })
-        for nhom in dsNhomHang {
-            actionsNhom.append(UIAction(
-                title: nhom,
-                state: nhomHangDangChon == nhom ? .on : .off
-            ) { [weak self] _ in
-                guard let self = self else { return }
-                self.nhomHangDangChon = nhom
-                self.capNhatMenuCombobox()
-                self.apDungBoLocVaVeBang()
-            })
-        }
-        nutChonNhomHang.menu = UIMenu(title: "Chọn Nhóm hàng (Cột G)", children: actionsNhom)
 
         // 2. Menu Trạng thái sản phẩm (Cột H)
         let nhanTT = (trangThaiDangChon == "__ALL__") ? "Tất cả (\(dsTrangThai.count))" : trangThaiDangChon
@@ -614,8 +1009,8 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         guard let nhomChon = nhomHangDangChon else {
             cacDongDaLoc = []
             khungTrong.isHidden = false
-            nhanTrong.text = "✅ Đã quét xong \(tatCaDong.count) dòng (\(dsNhomHang.count) Nhóm hàng ở cột G, \(dsTrangThai.count) Trạng thái ở cột H).\n\n👉 Hãy bấm vào Combobox “Nhóm hàng (G)” phía trên để chọn nhóm hàng cần xem bảng tồn kho."
-            nhanTrangThai.text = "Đã quét \(tatCaDong.count) dòng · \(dsNhomHang.count) Nhóm hàng (Cột G) · Hãy chọn Nhóm hàng trên Combobox"
+            nhanTrong.text = "✅ Đã quét xong \(tatCaDong.count) dòng (\(dsNhomHang.count) Nhóm hàng ở cột G, \(dsTrangThai.count) Trạng thái ở cột H).\n\n👉 Hãy bấm vào nút “Nhóm hàng (G)” phía trên để tìm và chọn nhóm hàng cần xem bảng tồn kho."
+            nhanTrangThai.text = "Đã quét \(tatCaDong.count) dòng · \(dsNhomHang.count) Nhóm hàng (Cột G) · Hãy chọn Nhóm hàng"
             nhanTrangThai.textColor = BangMauBCTD.xanhChuDaoDam
             return
         }
@@ -731,7 +1126,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         return hang
     }
 
-    @objc private func bamXuatAnhBang() {
+    @objc func bamXuatAnhBang() {
         guard !cacDongDaLoc.isEmpty else {
             nhanTrangThai.text = "⚠️ Chưa có dữ liệu bảng đang hiển thị để xuất ảnh. Hãy chọn Nhóm hàng (Cột G) trước!"
             nhanTrangThai.textColor = BangMauBCTD.doYeuChu

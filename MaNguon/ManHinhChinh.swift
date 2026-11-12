@@ -371,6 +371,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
     private let nutXoaNav = UIButton(type: .system)
     private let nutCopyTongQuanNav = UIButton(type: .system)
     private let nutQuanLyNhanVienNav = UIButton(type: .system)
+    private let nutXuatAnhTonKhoNav = UIButton(type: .system)
     private let nutCaiDatNav = UIButton(type: .system)
 
     // Khung nội dung phần "Đổ số - Xem số" (3 mục con: 1. Xem số | 2. Nhập số | 3. Xuất ảnh)
@@ -577,7 +578,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         nutNgay.contentEdgeInsets = UIEdgeInsets(top: 5, left: 8, bottom: 5, right: 8)
         nutNgay.addTarget(self, action: #selector(moLichSuNgay), for: .touchUpInside)
 
-        let cumTrai = UIStackView(arrangedSubviews: [nutMoMenu, nutNgay, nutCopyTongQuanNav, nutXuatNav, nutXoaNav, nutQuanLyNhanVienNav])
+        let cumTrai = UIStackView(arrangedSubviews: [nutMoMenu, nutNgay, nutCopyTongQuanNav, nutXuatNav, nutXoaNav, nutQuanLyNhanVienNav, nutXuatAnhTonKhoNav])
         cumTrai.axis = .horizontal
         cumTrai.spacing = 6
         cumTrai.alignment = .center
@@ -663,6 +664,22 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         ])
         nutQuanLyNhanVienNav.showsMenuAsPrimaryAction = true
 
+        nutXuatAnhTonKhoNav.setTitle("🖼️ Xuất ảnh", for: .normal)
+        nutXuatAnhTonKhoNav.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .heavy)
+        nutXuatAnhTonKhoNav.titleLabel?.numberOfLines = 1
+        nutXuatAnhTonKhoNav.setTitleColor(.white, for: .normal)
+        nutXuatAnhTonKhoNav.backgroundColor = BangMauBCTD.xanhDatVach
+        nutXuatAnhTonKhoNav.layer.cornerRadius = 9
+        nutXuatAnhTonKhoNav.layer.borderWidth = 1.2
+        nutXuatAnhTonKhoNav.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        nutXuatAnhTonKhoNav.contentEdgeInsets = UIEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+        nutXuatAnhTonKhoNav.translatesAutoresizingMaskIntoConstraints = false
+        nutXuatAnhTonKhoNav.heightAnchor.constraint(equalToConstant: 31).isActive = true
+        nutXuatAnhTonKhoNav.setContentHuggingPriority(.required, for: .horizontal)
+        nutXuatAnhTonKhoNav.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutXuatAnhTonKhoNav.isHidden = true
+        nutXuatAnhTonKhoNav.addTarget(self, action: #selector(bamXuatAnhTonKhoTrenNav), for: .touchUpInside)
+
         nutCaiDatNav.setImage(UIImage(systemName: "gearshape.fill", withConfiguration: cauHinhIcon), for: .normal)
         nutCaiDatNav.tintColor = BangMauBCTD.xanhChuDaoDam
         nutCaiDatNav.backgroundColor = BangMauBCTD.nenHeaderPhu
@@ -681,6 +698,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         mucMenuChinh = .caiDat
         anMenu(animated: true)
         napDuLieu()
+    }
+
+    @objc private func bamXuatAnhTonKhoTrenNav() {
+        khungTonKho.bamXuatAnhBang()
     }
 
     private func cauHinhNutIconNav(_ nut: UIButton, icon: String, nhan: String, mau: UIColor) {
@@ -3626,6 +3647,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         nutXoaNav.isHidden = (mucMenuChinh != .doSoXemSo && mucMenuChinh != .nhanVien)
         nutCopyTongQuanNav.isHidden = (mucMenuChinh != .tongQuan)
         nutQuanLyNhanVienNav.isHidden = (mucMenuChinh != .nhanVien)
+        nutXuatAnhTonKhoNav.isHidden = (mucMenuChinh != .tonKho)
 
         let laCaiDat = (mucMenuChinh == .caiDat || mucMenuChinh == .taiKhoanHopThu)
         let laManHinhNhanVien = (mucMenuChinh == .nhanVien)
