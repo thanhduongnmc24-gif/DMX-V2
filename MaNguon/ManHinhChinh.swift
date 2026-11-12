@@ -393,6 +393,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
     private let khungCumDuoi = UIView()
     private var rangBuocTopKhungDuoiTheoVach: NSLayoutConstraint?
     private var rangBuocTopKhungDuoiTheoDinh: NSLayoutConstraint?
+    private var rangBuocTopKhungDuoiTheoDinhXemSo: NSLayoutConstraint?
     private var rangBuocTopNutQuetTheoNV: NSLayoutConstraint?
     private var rangBuocTopNutQuetTheoDinh: NSLayoutConstraint?
     private var rangBuocTopBangThiDua: NSLayoutConstraint?
@@ -1098,8 +1099,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
 
         let rgTopDuoiTheoVach = khungCumDuoi.topAnchor.constraint(equalTo: khungCumDoanhThu.bottomAnchor, constant: 6)
         let rgTopDuoiTheoDinh = khungCumDuoi.topAnchor.constraint(equalTo: khungThanhTabXemSo.bottomAnchor, constant: 3)
+        let rgTopDuoiTheoDinhXemSo = khungCumDuoi.topAnchor.constraint(equalTo: khungXemSo.topAnchor, constant: 2)
         rangBuocTopKhungDuoiTheoVach = rgTopDuoiTheoVach
         rangBuocTopKhungDuoiTheoDinh = rgTopDuoiTheoDinh
+        rangBuocTopKhungDuoiTheoDinhXemSo = rgTopDuoiTheoDinhXemSo
 
         let rgTopNutQuetNV = hangNutQuet.topAnchor.constraint(equalTo: hangChonCheDoNV.bottomAnchor, constant: 6)
         let rgTopNutQuetDinh = hangNutQuet.topAnchor.constraint(equalTo: khungCumDuoi.topAnchor, constant: 8)
@@ -3688,10 +3691,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         let laTonKho = (tabXemSo == .tonKho)
         let anCumDoanhThu = laBieuDo || laNhanVien || laTonKho
 
+        khungThanhTabXemSo.isHidden = laTonKho
         khungCumDoanhThu.isHidden = anCumDoanhThu
         vachNganHaiCum.isHidden = true
         rangBuocTopKhungDuoiTheoVach?.isActive = !anCumDoanhThu
-        rangBuocTopKhungDuoiTheoDinh?.isActive = anCumDoanhThu
+        rangBuocTopKhungDuoiTheoDinh?.isActive = (anCumDoanhThu && !laTonKho)
+        rangBuocTopKhungDuoiTheoDinhXemSo?.isActive = laTonKho
 
         hangChonCheDoNV.isHidden = !laNhanVien
         hangNutQuet.isHidden = !laNhanVien

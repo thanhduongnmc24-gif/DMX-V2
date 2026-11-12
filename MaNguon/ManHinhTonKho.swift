@@ -3,7 +3,7 @@ import UIKit
 // MARK: - Khung Lọc Dữ Liệu Tồn Kho Từ Google Sheet (19 Cột A -> S)
 
 final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
-        private static let khoaLuuLinkSheet = "dmx_ton_kho_google_sheet_url_v2"
+    private static let khoaLuuLinkSheet = "dmx_ton_kho_google_sheet_url_v2"
     private static let khoaLuuMaSieuThi = "dmx_ton_kho_ma_sieu_thi_v2"
 
     /// Chuẩn hoá chuỗi ô Sheet về Unicode dựng sẵn (NFC) và xoá khoảng trắng thừa / ký tự ẩn
@@ -94,6 +94,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
     private let oLinkSheet = UITextField()
     private let nutTaiSheet = UIButton(type: .system)
     private let oMaSieuThi = UITextField()
+    private let nutLocSieuThi = UIButton(type: .system)
     private let nutChonNhomHang = UIButton(type: .system)
     private let nutChonTrangThai = UIButton(type: .system)
     private let nutXuatAnh = UIButton(type: .system)
@@ -109,6 +110,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
     private var tatCaDong: [[String]] = []
     private var dsNhomHang: [String] = []
     private var dsTrangThai: [String] = ["Mới", "Trưng bày"]
+    private var maSieuThiDangLoc: String = ""
     private var nhomHangDangChon: String? = nil   // nil = chưa chọn; "__ALL__" = tất cả
     private var trangThaiDangChon: String = "__ALL__"
     private var cacDongDaLoc: [[String]] = []
@@ -182,14 +184,15 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         hangLink.spacing = 6
         hangLink.alignment = .fill
 
-        // Hàng 2: Nhập mã siêu thị (Cột A) + Nút Xuất ảnh
+        // Hàng 2: Nhập mã siêu thị (Cột A) + Nút Lọc + Nút Xuất ảnh
         let lbSieuThi = UILabel()
         lbSieuThi.text = "🏪 Siêu thị (Cột A):"
         lbSieuThi.font = .systemFont(ofSize: 12.0, weight: .bold)
         lbSieuThi.textColor = BangMauBCTD.chuChinh
         lbSieuThi.setContentHuggingPriority(.required, for: .horizontal)
 
-        let maLuu = UserDefaults.standard.string(forKey: Self.khoaLuuMaSieuThi) ?? ""
+        let maLuu = (UserDefaults.standard.string(forKey: Self.khoaLuuMaSieuThi) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        maSieuThiDangLoc = maLuu
         oMaSieuThi.text = maLuu
         oMaSieuThi.placeholder = "VD: 76 (Bắt đầu ở cột A)"
         oMaSieuThi.font = .systemFont(ofSize: 13.5, weight: .bold)
@@ -201,10 +204,19 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         oMaSieuThi.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 1))
         oMaSieuThi.leftViewMode = .always
         oMaSieuThi.clearButtonMode = .whileEditing
-        oMaSieuThi.returnKeyType = .done
+        oMaSieuThi.returnKeyType = .search
         oMaSieuThi.delegate = self
-        oMaSieuThi.addTarget(self, action: #selector(maSieuThiThayDoi), for: .editingChanged)
         oMaSieuThi.heightAnchor.constraint(equalToConstant: 34).isActive = true
+
+        nutLocSieuThi.setTitle("🔍 Lọc", for: .normal)
+        nutLocSieuThi.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .heavy)
+        nutLocSieuThi.backgroundColor = BangMauBCTD.xanhChuDao
+        nutLocSieuThi.setTitleColor(.white, for: .normal)
+        nutLocSieuThi.layer.cornerRadius = 8
+        nutLocSieuThi.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+        nutLocSieuThi.setContentHuggingPriority(.required, for: .horizontal)
+        nutLocSieuThi.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutLocSieuThi.addTarget(self, action: #selector(bamLocSieuThi), for: .touchUpInside)
 
         nutXuatAnh.setTitle("🖼️ Xuất ảnh", for: .normal)
         nutXuatAnh.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .heavy)
@@ -216,7 +228,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         nutXuatAnh.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutXuatAnh.addTarget(self, action: #selector(bamXuatAnhBang), for: .touchUpInside)
 
-        let hangSieuThi = UIStackView(arrangedSubviews: [lbSieuThi, oMaSieuThi, nutXuatAnh])
+        let hangSieuThi = UIStackView(arrangedSubviews: [lbSieuThi, oMaSieuThi, nutLocSieuThi, nutXuatAnh])
         hangSieuThi.axis = .horizontal
         hangSieuThi.spacing = 6
         hangSieuThi.alignment = .center
@@ -233,7 +245,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         vongQuay.hidesWhenStopped = true
         vongQuay.color = BangMauBCTD.xanhChuDao
 
-        nhanTrangThai.text = "Nhập link Google Sheet, mã siêu thị (VD: 76) rồi chọn Nhóm hàng (Cột G) để hiển thị bảng tồn kho."
+        nhanTrangThai.text = "Nhập link Google Sheet, mã siêu thị (VD: 76) rồi bấm “Lọc” và chọn Nhóm hàng (Cột G) để hiển thị bảng tồn kho."
         nhanTrangThai.font = .systemFont(ofSize: 11.5, weight: .semibold)
         nhanTrangThai.textColor = BangMauBCTD.chuPhu
         nhanTrangThai.numberOfLines = 0
@@ -355,13 +367,16 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         if textField === oLinkSheet {
             bamTaiSheet()
         } else if textField === oMaSieuThi {
-            maSieuThiThayDoi()
+            bamLocSieuThi()
         }
         return true
     }
 
-    @objc private func maSieuThiThayDoi() {
+    @objc private func bamLocSieuThi() {
+        endEditing(true)
         let ma = (oMaSieuThi.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        oMaSieuThi.text = ma
+        maSieuThiDangLoc = ma
         UserDefaults.standard.set(ma, forKey: Self.khoaLuuMaSieuThi)
         capNhatDanhSachComboboxTuDuLieu()
         apDungBoLocVaVeBang()
@@ -372,6 +387,11 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         let link = (oLinkSheet.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         oLinkSheet.text = link
         UserDefaults.standard.set(link, forKey: Self.khoaLuuLinkSheet)
+
+        let ma = (oMaSieuThi.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        oMaSieuThi.text = ma
+        maSieuThiDangLoc = ma
+        UserDefaults.standard.set(ma, forKey: Self.khoaLuuMaSieuThi)
 
         guard !link.isEmpty else {
             nhanTrangThai.text = "⚠️ Vui lòng dán link Google Sheet tồn kho vào ô phía trên rồi bấm “Quét Sheet”."
@@ -458,7 +478,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
     }
 
     private func capNhatDanhSachComboboxTuDuLieu() {
-        let maST = (oMaSieuThi.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let maST = maSieuThiDangLoc
         let dongTheoSieuThi: [[String]]
         if maST.isEmpty {
             dongTheoSieuThi = tatCaDong
@@ -588,7 +608,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
             return
         }
 
-        let maST = (oMaSieuThi.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let maST = maSieuThiDangLoc
 
         // Chờ người dùng chọn xong Nhóm hàng trong Combobox mới hiển thị bảng bên dưới
         guard let nhomChon = nhomHangDangChon else {
@@ -728,7 +748,7 @@ final class KhungLocTonKhoView: UIView, UITextFieldDelegate {
         let rongBang = Self.doRongCacCot.reduce(0, +)
         let tongRong = rongBang + le * 2
 
-        let maST = (oMaSieuThi.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let maST = maSieuThiDangLoc
         let tenNhom = (nhomHangDangChon == nil || nhomHangDangChon == "__ALL__") ? "Tất cả nhóm hàng" : (nhomHangDangChon ?? "")
         let tenTT = (trangThaiDangChon == "__ALL__") ? "Tất cả trạng thái" : trangThaiDangChon
         let chuoiTieuDe = "📦 BẢNG DỮ LIỆU TỒN KHO · SIÊU THỊ: \(maST.isEmpty ? "TẤT CẢ" : maST) · NHÓM HÀNG: \(tenNhom.uppercased()) · TRẠNG THÁI: \(tenTT.uppercased()) (\(dsXuat.count) SP)"

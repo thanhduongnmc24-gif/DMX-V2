@@ -212,7 +212,7 @@ enum TabXemSo: Int, CaseIterable {
     case nhanVien = 3
     case tonKho = 4
 
-    static var allCases: [TabXemSo] { [.luyKe, .realtime, .bieuDo, .tonKho] }
+    static var allCases: [TabXemSo] { [.luyKe, .realtime, .bieuDo] }
 
     var tieuDe: String {
         switch self {
