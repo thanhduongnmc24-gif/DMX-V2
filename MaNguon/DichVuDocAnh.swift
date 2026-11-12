@@ -9822,11 +9822,11 @@ final class DichVuDocAnh {
         sach = sach.replacingOccurrences(of: ",", with: "")
 
         guard !sach.isEmpty else { return nil }
-        if sach.range(of: "^-?\\d+(\.\\d+)?$", options: .regularExpression) != nil {
+        if sach.range(of: "^-?\\d+(\\.\\d+)?$", options: .regularExpression) != nil {
             if let wm = watermark, sach == wm { return nil }
             return Double(sach)
         }
-        if let range = sach.range(of: "-?\\d+(\.\\d+)?$", options: .regularExpression) {
+        if let range = sach.range(of: "-?\\d+(\\.\\d+)?$", options: .regularExpression) {
             let token = String(sach[range])
             if let wm = watermark, token == wm { return nil }
             return Double(token)
@@ -9876,12 +9876,12 @@ final class DichVuDocAnh {
                 s = s.replacingOccurrences(of: ",", with: ".")
             }
         } else if s.contains(".") {
-            if s.range(of: "^-?\\d{1,3}(\.\\d{3})+$", options: .regularExpression) != nil {
+            if s.range(of: "^-?\\d{1,3}(\\.\\d{3})+$", options: .regularExpression) != nil {
                 s = s.replacingOccurrences(of: ".", with: "")
             }
         }
 
-        if let range = s.range(of: "-?\\d+(\.\\d+)?", options: .regularExpression) {
+        if let range = s.range(of: "-?\\d+(\\.\\d+)?", options: .regularExpression) {
             return Double(String(s[range]))
         }
         return nil
