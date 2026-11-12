@@ -851,7 +851,7 @@ final class DichVuDocAnh {
         hoanTat: @escaping (KetQuaQuetTatCaAnh) -> Void
     ) {
         let phuongPhapChon = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
-        if phuongPhapChon == .gemini {
+        if phuongPhapChon == .gemini || laRealtime {
             DichVuQuetAnhGemini.dungChung.quet(
                 danhSachAnh: danhSachAnh,
                 cheDo: cheDoDangChon,
@@ -1499,6 +1499,37 @@ final class DichVuDocAnh {
     // MARK: - 4. Quét danh sách ảnh chụp bảng Doanh thu hợp nhất theo Nhân viên
 
     func quetAnhDoanhThuNhanVien(
+        danhSachAnh: [UIImage],
+        maNVGoiY: String? = nil,
+        tienTrinh: ((String) -> Void)? = nil,
+        hoanTatSucKhoe: (([String: DuLieuSucKhoeBoSungNV]) -> Void)? = nil,
+        hoanTat: @escaping ([DoanhThuNhanVienItem]) -> Void
+    ) {
+        DichVuQuetAnhGemini.dungChung.quetDoanhThuNhanVien(
+            danhSachAnh: danhSachAnh,
+            cheDo: .luyKe,
+            tienTrinh: tienTrinh
+        ) { [weak self] ketQuaGemini in
+            switch ketQuaGemini {
+            case .success(let dsGemini) where !dsGemini.isEmpty:
+                hoanTat(dsGemini)
+            default:
+                guard let self = self else {
+                    hoanTat([])
+                    return
+                }
+                self.quetAnhDoanhThuNhanVienOffline(
+                    danhSachAnh: danhSachAnh,
+                    maNVGoiY: maNVGoiY,
+                    tienTrinh: tienTrinh,
+                    hoanTatSucKhoe: hoanTatSucKhoe,
+                    hoanTat: hoanTat
+                )
+            }
+        }
+    }
+
+    private func quetAnhDoanhThuNhanVienOffline(
         danhSachAnh: [UIImage],
         maNVGoiY: String? = nil,
         tienTrinh: ((String) -> Void)? = nil,
@@ -4079,7 +4110,7 @@ final class DichVuDocAnh {
                         var danhSachKetQua: [DongThiDua] = []
                         for var item in dsTamLuoi {
                             if item.soTG > 0 {
-                                if item.soTH <= 0.0001 {
+                                if abs(item.soTH) <= 0.0001 {
                                     item.ht = 0.0
                                     item.pdk = 0.0
                                     item.dtdk = 0.0
@@ -4177,8 +4208,8 @@ final class DichVuDocAnh {
         for pt in phanTu where pt.y < 0.22 {
             let u = boDau(pt.chu)
             if u.contains("CHUONG TRINH") { coChuongTrinh = true }
-            if u.contains("TARGET NGAY") || (pt.x >= 0.52 && pt.x < 0.74 && u == "NGAY") { coTargetNgay = true }
-            if u.contains("HT NGAY") || (pt.x >= 0.72 && pt.x < 0.86 && u == "NGAY") { coHTNgay = true }
+            if u.contains("REALTIME") || u.contains("TARGET NGAY") || (pt.x >= 0.44 && pt.x < 0.74 && u == "NGAY") { coTargetNgay = true }
+            if u.contains("HT NGAY") || (pt.x >= 0.58 && pt.x < 0.88 && u == "NGAY") { coHTNgay = true }
             if pt.x >= 0.80 && (u.contains("HANG VUNG") || u.contains("VUNG")) { coHangVung = true }
         }
         if coTargetNgay || coHTNgay || (coHangVung && coChuongTrinh) || coHangVung {
@@ -4200,7 +4231,8 @@ final class DichVuDocAnh {
     private func phanTichBangThiDuaPhuongPhap2_6Cot(
         phanTu: [PhanTuVanBan],
         anh: UIImage? = nil,
-        watermark: String? = nil
+        watermark: String? = nil,
+        laRealtime: Bool = false
     ) -> [DongThiDua] {
         if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) || laAnhLuoiTheThiDua(phanTu: phanTu) {
             return []
@@ -4260,6 +4292,12 @@ final class DichVuDocAnh {
             kq = kq.replacingOccurrences(of: "(?i)nguyễn\\s*thanh", with: " ", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(?i)dung\\s*nguyen(\\s*thanh)?", with: " ", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(?i)nguyen\\s*thanh", with: " ", options: .regularExpression)
+            kq = kq.replacingOccurrences(of: "−", with: "-")
+                .replacingOccurrences(of: "–", with: "-")
+                .replacingOccurrences(of: "—", with: "-")
+                .replacingOccurrences(of: "﹣", with: "-")
+                .replacingOccurrences(of: "－", with: "-")
+            kq = kq.replacingOccurrences(of: "(?<![0-9])-\\s+(?=\\d)", with: "-", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(\\d),\\s+(\\d{3}\\b)", with: "$1,$2", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(\\d)\\.\\s+(\\d{1,2}\\b)", with: "$1.$2", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(\\d{1,3})\\s+(\\d)\\s*%", with: "$1.$2%", options: .regularExpression)
@@ -4283,7 +4321,7 @@ final class DichVuDocAnh {
             return trichCacSoTheThiDua(trong: sach).filter { val in
                 if let wm = maWM, let wmVal = Double(wm), abs(val - wmVal) < 0.1 { return false }
                 if abs(val - 54453) < 0.1 || abs(val - 5445) < 0.1 || abs(val - 4453) < 0.1 { return false }
-                return val >= 0 && val < 100000
+                return val > -100000 && val < 100000
             }
         }
 
@@ -4631,6 +4669,60 @@ final class DichVuDocAnh {
                         ))
                     }
 
+                    // Phát hiện dấu trừ (-) của số âm ở Cột 2 (THỰC HIỆN) và Cột 4/5 (% HT) trực tiếp từ điểm ảnh gốc
+                    var coDauAmDong = [Bool](repeating: false, count: cacDongHopLe.count)
+                    let xTH0 = max(1, Int((CGFloat(w0) * (xv1 + 0.015)).rounded()))
+                    let xTH1 = min(w0 - 4, Int((CGFloat(w0) * (xv2 - 0.005)).rounded()))
+                    let xDK0 = max(1, Int((CGFloat(w0) * xv4).rounded()))
+                    let xDK1 = min(w0 - 4, Int((CGFloat(w0) * (xv5 - 0.005)).rounded()))
+                    for (idxD, dInfo) in cacDongHopLe.enumerated() {
+                        let yc = (dInfo.y0Px + dInfo.y1Px) / 2
+                        guard yc >= 5 && yc < h0 - 5 else { continue }
+                        func kiemTraDauTruCot(tu xa: Int, den xb: Int, dungCMin: Bool) -> Bool {
+                            guard xb > xa + 4 else { return false }
+                            var xDau: Int? = nil
+                            for x in xa...xb {
+                                var m = 255
+                                for y in (yc - 4)...(yc + 4) {
+                                    let off = (y * w0 + x) * 4
+                                    let v = dungCMin
+                                        ? min(Int(raw0[off]), min(Int(raw0[off + 1]), Int(raw0[off + 2])))
+                                        : ((Int(raw0[off]) + Int(raw0[off + 1]) + Int(raw0[off + 2])) / 3)
+                                    if v < m { m = v }
+                                }
+                                if m < (dungCMin ? 190 : 185) {
+                                    xDau = x
+                                    break
+                                }
+                            }
+                            guard let xf = xDau, xf + 2 <= xb else { return false }
+                            var midMin = 255
+                            var topMin = 255
+                            var botMin = 255
+                            for x in xf...min(xb, xf + 2) {
+                                for y in (yc - 1)...(yc + 1) {
+                                    let off = (y * w0 + x) * 4
+                                    let v = dungCMin ? min(Int(raw0[off]), min(Int(raw0[off + 1]), Int(raw0[off + 2]))) : ((Int(raw0[off]) + Int(raw0[off + 1]) + Int(raw0[off + 2])) / 3)
+                                    if v < midMin { midMin = v }
+                                }
+                                for y in (yc - 4)...(yc - 2) {
+                                    let off = (y * w0 + x) * 4
+                                    let v = dungCMin ? min(Int(raw0[off]), min(Int(raw0[off + 1]), Int(raw0[off + 2]))) : ((Int(raw0[off]) + Int(raw0[off + 1]) + Int(raw0[off + 2])) / 3)
+                                    if v < topMin { topMin = v }
+                                }
+                                for y in (yc + 2)...(yc + 4) {
+                                    let off = (y * w0 + x) * 4
+                                    let v = dungCMin ? min(Int(raw0[off]), min(Int(raw0[off + 1]), Int(raw0[off + 2]))) : ((Int(raw0[off]) + Int(raw0[off + 1]) + Int(raw0[off + 2])) / 3)
+                                    if v < botMin { botMin = v }
+                                }
+                            }
+                            return midMin < (dungCMin ? 190 : 185) && topMin > 220 && botMin > 220
+                        }
+                        if kiemTraDauTruCot(tu: xTH0, den: xTH1, dungCMin: false) || kiemTraDauTruCot(tu: xDK0, den: xDK1, dungCMin: true) {
+                            coDauAmDong[idxD] = true
+                        }
+                    }
+
                     if cacDongHopLe.count >= 1 {
                         // 4. Phóng nét ảnh và kéo giãn tương phản mượt [70..210] -> [0..255] để tẩy sạch watermark mà giữ nguyên nét chữ
                         let heSo: Int = (w0 < 900) ? 3 : ((w0 < 1500) ? 2 : 1)
@@ -4720,8 +4812,8 @@ final class DichVuDocAnh {
                                     let srcRow = (tt.ySrc0 + dy) * bprW
                                     let dstRow = (tt.yDst0 + dy) * bprW
                                     explodedPixels.replaceSubrange(dstRow..<(dstRow + bprW), with: cleanPixels[srcRow..<(srcRow + bprW)])
-                                    // Nếu là Bảng dọc có thanh tiến độ ở Cột 4A (xv3..xv4), xoá trắng nửa dưới chứa thanh tiến độ ngang và mũi tên '>'
-                                    if laBangDocCoThanhTienDo && dy >= dyCutBar && xBar1 > xBar0 {
+                                    // Nếu là Bảng dọc có thanh tiến độ ở Cột 4A (xv3..xv4), xoá trắng vùng thanh tiến độ (với Realtime xoá toàn bộ ô thanh tiến độ vì % HT ngày nằm ở xv4..xv5)
+                                    if laBangDocCoThanhTienDo && (laRealtime || dy >= dyCutBar) && xBar1 > xBar0 {
                                         for px in xBar0..<min(w, xBar1) {
                                             let off = dstRow + px * 4
                                             explodedPixels[off] = 255
@@ -5038,20 +5130,31 @@ final class DichVuDocAnh {
                                     guard tenSach.count >= 2, !laTenTheDoanhThuKhongPhaiThiDua(tenSach) else { continue }
                                     guard th != nil || tg != nil || ht != nil || dk != nil || KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) else { continue }
 
+                                    if (laRealtime || ht == nil), let dkVal = dk {
+                                        ht = dkVal
+                                    }
+                                    let laDongAm = (idxDong < coDauAmDong.count && coDauAmDong[idxDong]) || ((th ?? 0) < -0.0001) || ((ht ?? 0) < -0.05) || (laRealtime && (dk ?? 0) < -0.05)
+
                                     var soTH = th ?? 0.0
                                     var soTG = tg ?? 0.0
 
-                                    if let hVal = ht, hVal > 100.0, soTG > 0, soTH > 0, abs((soTH / soTG) * 100.0 - (hVal / 10.0)) <= 1.2 {
+                                    if laDongAm {
+                                        if abs(soTH) > 0.0001 { soTH = -abs(soTH) }
+                                        if let hVal = ht, abs(hVal) > 0.0001 { ht = -abs(hVal) }
+                                        if let dVal = dk, abs(dVal) > 0.0001 { dk = -abs(dVal) }
+                                    }
+
+                                    if let hVal = ht, abs(hVal) > 100.0, soTG > 0, abs(soTH) > 0, abs((soTH / soTG) * 100.0 - (hVal / 10.0)) <= 1.2 {
                                         ht = hVal / 10.0
                                     }
-                                    if let hVal = ht, hVal > 0.05 {
+                                    if let hVal = ht, abs(hVal) > 0.05 {
                                         if th == nil && soTG > 0 {
                                             let uocTH = soTG * (hVal / 100.0)
                                             soTH = (loai == .soLuong) ? uocTH.rounded() : ((uocTH * 100).rounded() / 100)
-                                        } else if tg == nil && soTH > 0 {
-                                            let uocTG = soTH / (hVal / 100.0)
+                                        } else if tg == nil && abs(soTH) > 0 {
+                                            let uocTG = abs(soTH / (hVal / 100.0))
                                             soTG = (loai == .soLuong) ? uocTG.rounded() : ((uocTG * 100).rounded() / 100)
-                                        } else if soTG > 0 && soTH > 0 {
+                                        } else if soTG > 0 && soTH > 0 && hVal > 0 {
                                             let htTinh = (soTH / soTG) * 100.0
                                             if abs(htTinh - hVal) > max(1.8, hVal * 0.08) {
                                                 var daSua = false
@@ -5070,15 +5173,15 @@ final class DichVuDocAnh {
                                         }
                                     }
 
-                                    if let hVal = ht, hVal <= 0.001, soTG > 0 {
+                                    if !laDongAm, let hVal = ht, abs(hVal) <= 0.001, soTG > 0 {
                                         if th == nil || (soTH / soTG) * 100.0 >= 2.0 {
                                             soTH = 0.0
                                         }
                                     }
-                                    if soTG > 0 && soTH >= 0 {
-                                        if soTH <= 0.0001 {
+                                    if soTG > 0 {
+                                        if abs(soTH) <= 0.0001 && !laDongAm {
                                             ht = 0.0
-                                        } else {
+                                        } else if abs(soTH) > 0.0001 {
                                             let htChuan = ((soTH / soTG) * 1000.0).rounded() / 10.0
                                             let nguongLech: Double = (loai == .soLuong && soTG <= 25) ? 3.5 : 1.2
                                             if ht == nil || abs((ht ?? 0) - htChuan) > nguongLech {
@@ -5274,10 +5377,10 @@ final class DichVuDocAnh {
         var danhSachKetQua: [DongThiDua] = []
         for var d in danhSachTam {
             if d.soTG > 0 {
-                if d.soTH <= 0.0001 {
+                if abs(d.soTH) <= 0.0001 {
                     d.phanTramHT = 0.0
                     d.phanTramDuKien = 0.0
-                } else if let heSo = (d.loai == .soLuong ? (heSoSL ?? heSoDT) : (heSoDT ?? heSoSL)), heSo > 1.0 {
+                } else if !laRealtime, d.soTH > 0, let heSo = (d.loai == .soLuong ? (heSoSL ?? heSoDT) : (heSoDT ?? heSoSL)), heSo > 1.0 {
                     let dkKyVong: Double
                     if d.loai == .soLuong {
                         let slDK = (d.soTH * heSo).rounded()
@@ -5293,7 +5396,7 @@ final class DichVuDocAnh {
             }
 
             var duKienTinh: Double? = nil
-            if let db = d.phanTramDuKien, d.soTG > 0 {
+            if !laRealtime, let db = d.phanTramDuKien, d.soTG > 0 {
                 let uocDK = d.soTG * (db / 100.0)
                 duKienTinh = (d.loai == .soLuong) ? uocDK.rounded() : ((uocDK * 100).rounded() / 100)
             }
@@ -5305,8 +5408,8 @@ final class DichVuDocAnh {
                 thucHien: d.soTH,
                 target: d.soTG,
                 phanTramHTGoc: d.phanTramHT,
-                phanTramDuBaoGoc: d.phanTramDuKien ?? d.phanTramHT,
-                duKienGoc: duKienTinh
+                phanTramDuBaoGoc: laRealtime ? d.phanTramHT : (d.phanTramDuKien ?? d.phanTramHT),
+                duKienGoc: laRealtime ? nil : duKienTinh
             )
             danhSachKetQua = KhoDuLieu.gopDanhSachThiDua(cu: danhSachKetQua, moi: [dong])
         }
@@ -5329,6 +5432,11 @@ final class DichVuDocAnh {
     ) -> [DongThiDua] {
         if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) || laAnhLuoiTheThiDua(phanTu: phanTu) {
             return []
+        }
+        // Ưu tiên phân tích theo bố cục bảng dọc 5 cột có thanh tiến độ chuẩn ĐMX (như ảnh BC Thi đua Realtime 39 chương trình)
+        let dsBangDoc = phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: watermark, laRealtime: true)
+        if !dsBangDoc.isEmpty {
+            return dsBangDoc
         }
 
         var phanTuGocDonDong: [PhanTuVanBan] = []
@@ -5383,6 +5491,12 @@ final class DichVuDocAnh {
             kq = kq.replacingOccurrences(of: "(?i)nguyễn\\s*thanh", with: " ", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(?i)dung\\s*nguyen(\\s*thanh)?", with: " ", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(?i)nguyen\\s*thanh", with: " ", options: .regularExpression)
+            kq = kq.replacingOccurrences(of: "−", with: "-")
+                .replacingOccurrences(of: "–", with: "-")
+                .replacingOccurrences(of: "—", with: "-")
+                .replacingOccurrences(of: "﹣", with: "-")
+                .replacingOccurrences(of: "－", with: "-")
+            kq = kq.replacingOccurrences(of: "(?<![0-9])-\\s+(?=\\d)", with: "-", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(\\d),\\s+(\\d{3}\\b)", with: "$1,$2", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(\\d)\\.\\s+(\\d{1,2}\\b)", with: "$1.$2", options: .regularExpression)
             kq = kq.replacingOccurrences(of: "(\\d{1,3})\\s+(\\d)\\s*%", with: "$1.$2%", options: .regularExpression)
@@ -5406,7 +5520,7 @@ final class DichVuDocAnh {
             return trichCacSoTheThiDua(trong: sach).filter { val in
                 if let wm = maWM, let wmVal = Double(wm), abs(val - wmVal) < 0.1 { return false }
                 if abs(val - 54453) < 0.1 || abs(val - 5445) < 0.1 || abs(val - 4453) < 0.1 { return false }
-                return val >= 0 && val < 100000
+                return val > -100000 && val < 100000
             }
         }
 
@@ -6042,14 +6156,18 @@ final class DichVuDocAnh {
                                         }
                                     }
 
-                                    // Nếu % HT trên bảng là 0% thì Thực hiện bắt buộc là 0 (tránh nhận nhầm số rác hoặc tràn cột thành 100%)
-                                    if let hVal = ht, hVal <= 0.001, soTG > 0 {
+                                    if let hVal = ht, hVal < -0.05 && soTH > 0 {
+                                        soTH = -abs(soTH)
+                                    } else if soTH < -0.0001, let hVal = ht, hVal > 0 {
+                                        ht = -abs(hVal)
+                                    }
+                                    if let hVal = ht, abs(hVal) <= 0.001, soTG > 0 && soTH >= 0 {
                                         if th == nil || (soTH / soTG) * 100.0 >= 2.0 {
                                             soTH = 0.0
                                         }
                                     }
-                                    if soTG > 0 && soTH >= 0 {
-                                        if soTH <= 0.0001 {
+                                    if soTG > 0 {
+                                        if abs(soTH) <= 0.0001 {
                                             ht = 0.0
                                         } else {
                                             let htChuan = ((soTH / soTG) * 1000.0).rounded() / 10.0
@@ -6208,7 +6326,7 @@ final class DichVuDocAnh {
 
         var danhSachKetQua: [DongThiDua] = []
         for var d in danhSachTam {
-            if d.soTG > 0 && d.soTH <= 0.0001 {
+            if d.soTG > 0 && abs(d.soTH) <= 0.0001 {
                 d.phanTramHT = 0.0
             }
             let dong = DongThiDua(
@@ -8309,9 +8427,9 @@ final class DichVuDocAnh {
         let y1 = max(y0 + 20, min(h - 4, Int(CGFloat(h) * 0.96)))
 
         let cacDaiTimKiem: [(CGFloat, CGFloat)] = [
-            (0.25, 0.34),
-            (0.42, 0.51),
-            (0.60, 0.68),
+            (0.25, 0.37),
+            (0.42, 0.53),
+            (0.60, 0.69),
             (0.78, 0.87)
         ]
 
@@ -8350,7 +8468,7 @@ final class DichVuDocAnh {
     }
 
     /// Phát hiện các đường kẻ ngang chia dòng nhân viên trong bảng BI mới (hỗ trợ cả ảnh CÓ tiêu đề và ảnh KHÔNG tiêu đề, kháng nhiễu watermark chéo)
-    private func timCacDuongKeNgangBangNhanVien(anh: UIImage, coHeader: Bool, yHeaderMax: CGFloat) -> [CGFloat] {
+    private func timCacDuongKeNgangBangNhanVien(anh: UIImage, coHeader: Bool, yHeaderMax: CGFloat, duongKeDoc: [CGFloat] = []) -> [CGFloat] {
         guard let cg = anh.cgImage else { return [] }
         let w = cg.width
         let h = cg.height
@@ -8369,17 +8487,25 @@ final class DichVuDocAnh {
         ) else { return [] }
         ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
 
-        // Lấy mẫu tại các dải lề trống giữa các cột (nơi KHÔNG có cả chữ tiêu đề Header lẫn chữ tên NV hay chữ số)
-        // kết hợp trung vị (median) + độ lệch phân vị 70% để kháng hoàn toàn watermark chéo (54453 / Dũng Nguyễn Thanh)
-        let cacDaiX: [(CGFloat, CGFloat)] = [
-            (0.005, 0.024),
-            (0.282, 0.293), (0.303, 0.315),
-            (0.448, 0.457), (0.467, 0.480),
-            (0.630, 0.638), (0.648, 0.666),
-            (0.766, 0.786),
-            (0.813, 0.821), (0.831, 0.842),
-            (0.978, 0.995)
-        ]
+        // Lấy mẫu tại các dải lề trống giữa các cột (tự động thích ứng theo đường kẻ dọc thực tế của bảng)
+        var cacDaiX: [(CGFloat, CGFloat)] = [(0.005, 0.022), (0.978, 0.995)]
+        if duongKeDoc.count == 4 {
+            for v in duongKeDoc {
+                cacDaiX.append((max(0.01, v - 0.020), max(0.02, v - 0.005)))
+                cacDaiX.append((min(0.98, v + 0.005), min(0.99, v + 0.022)))
+            }
+        } else {
+            cacDaiX.append(contentsOf: [
+                (0.282, 0.293), (0.303, 0.315),
+                (0.325, 0.344), (0.355, 0.380),
+                (0.448, 0.457), (0.467, 0.480),
+                (0.515, 0.540),
+                (0.630, 0.638), (0.648, 0.664),
+                (0.674, 0.700),
+                (0.766, 0.786),
+                (0.813, 0.821), (0.833, 0.852)
+            ])
+        }
         var danhSachX: [Int] = []
         for (b0, b1) in cacDaiX {
             let x0 = max(1, Int(CGFloat(w) * b0))
@@ -8440,7 +8566,7 @@ final class DichVuDocAnh {
                 continue
             }
 
-            if spanNorm > 0.024 && yTop < Int(CGFloat(h) * 0.14) {
+            if spanNorm > 0.024 && yTop < Int(CGFloat(h) * 0.38) {
                 cacMocHeader.append(yBotNorm)
             } else if spanNorm <= 0.024 {
                 let yTren = max(0, yTop - buocKiemTraTrang)
@@ -8453,8 +8579,10 @@ final class DichVuDocAnh {
         }
 
         if let dayHeader = cacMocHeader.max() {
+            cacMoc = cacMoc.filter { $0 > dayHeader + 0.012 }
             cacMoc.insert(dayHeader, at: 0)
         } else if coHeader && yHeaderMax > 0.02 {
+            cacMoc = cacMoc.filter { $0 > yHeaderMax + 0.012 }
             cacMoc.insert(yHeaderMax, at: 0)
         }
 
@@ -8546,9 +8674,9 @@ final class DichVuDocAnh {
 
         let nguonTimHeader = phanTuGocMoRong + boSungToanAnh
 
-        // Nhận diện chính xác các phần tử thuộc dòng Tiêu đề (Header) ở vùng đầu bảng (y < 0.18)
+        // Nhận diện chính xác các phần tử thuộc dòng Tiêu đề (Header) của bảng (hỗ trợ cả ảnh cắt sát y < 0.18 và ảnh chụp toàn màn hình y ~ 0.25..0.35)
         let cacUngVienHeader = nguonTimHeader.filter { pt in
-            guard pt.y < 0.18 else { return false }
+            guard pt.y < 0.40 else { return false }
             let chu = pt.chu
             if chu.range(of: "(?i)\\b(?:id|ld|1d|ia|iđ)\\s*[:.;\\-]?\\s*\\d{3,7}", options: .regularExpression) != nil {
                 return false
@@ -8557,15 +8685,20 @@ final class DichVuDocAnh {
                 return false
             }
             let u = chuanHoaTieuDe(chu)
-            return u.contains("NHAN VIEN") ||
-                u.contains("NGANH HANG") ||
+            if u.contains("TIM NHAN VIEN") || u.contains("SAP XEP") || u.contains("CAP NHAT") ||
+               u.contains("DOANH THU HOP") || u.contains("THEO DOANH THU") || u.contains("THEO GIO CONG") ||
+               u.contains("CHI TIET DOANH THU") {
+                return false
+            }
+            return u.contains("NGANH HANG") ||
                 u.contains("NHOM HANG") ||
                 u.contains("SO LUONG") ||
-                u.contains("DOANH THU") ||
+                u.contains("DOANH THU QD") ||
                 u.contains("THU QD") ||
                 u.contains("KHOAN VAY") ||
-                u.contains("TI TRONG") ||
-                u.contains("TY TRONG") ||
+                u.contains("% TI TRONG") ||
+                u.contains("% TY TRONG") ||
+                (u.contains("NHAN VIEN") && u.contains("/")) ||
                 u == "LUONG" || u == "KHOAN" || u == "VAY" || u == "TRONG"
         }
 
@@ -8607,13 +8740,13 @@ final class DichVuDocAnh {
             if let yId1 = yIdDauTien {
                 yMax = min(yMax, max(0.045, yId1 - 0.040))
             }
-            yHeaderMax = max(0.045, min(0.085, yMax))
+            yHeaderMax = max(0.045, min(0.380, yMax))
         } else {
             yHeaderMax = 0.0
         }
 
         let soDongCoId = phanTuMoRong.filter { pt in
-            pt.x < 0.36 && pt.chu.range(of: "(?i)\\b(?:id|ld|1d|ia|iđ)\\s*[:.;\\-]?\\s*\\d{4,7}", options: .regularExpression) != nil
+            pt.x < 0.38 && pt.chu.range(of: "(?i)\\b(?:id|ld|1d|ia|iđ)\\s*[:.;\\-]?\\s*\\d{4,7}", options: .regularExpression) != nil
         }.count
 
         let duongKeDoc = (!laBangRong && anh != nil) ? timCacDuongKeDocBangNhanVien(anh: anh!, yBatDau: max(0.02, yHeaderMax)) : []
@@ -8624,9 +8757,9 @@ final class DichVuDocAnh {
         var mocBatDauTiTrong: CGFloat = 0.826
 
         if duongKeDoc.count == 4,
-           duongKeDoc[0] >= 0.25 && duongKeDoc[0] <= 0.34,
-           duongKeDoc[1] >= 0.42 && duongKeDoc[1] <= 0.51,
-           duongKeDoc[2] >= 0.60 && duongKeDoc[2] <= 0.68,
+           duongKeDoc[0] >= 0.25 && duongKeDoc[0] <= 0.37,
+           duongKeDoc[1] >= 0.42 && duongKeDoc[1] <= 0.53,
+           duongKeDoc[2] >= 0.60 && duongKeDoc[2] <= 0.69,
            duongKeDoc[3] >= 0.78 && duongKeDoc[3] <= 0.87 {
             mocBatDauSoLuong = duongKeDoc[0]
             mocBatDauDoanhThu = duongKeDoc[1]
@@ -8827,7 +8960,7 @@ final class DichVuDocAnh {
 
         // Xây dựng danh sách khoảng hàng theo cả 2 phương pháp (Đường kẻ ngang & Hàng số + Đáy ID) rồi chọn phương pháp đọc được nhiều nhân viên nhất
         let cacMocNgang = (!laBangRong && anh != nil)
-            ? timCacDuongKeNgangBangNhanVien(anh: anh!, coHeader: coHeaderBang, yHeaderMax: yHeaderMax)
+            ? timCacDuongKeNgangBangNhanVien(anh: anh!, coHeader: coHeaderBang, yHeaderMax: yHeaderMax, duongKeDoc: duongKeDoc)
             : []
 
         var khoangTuDuongKe: [(yTren: CGFloat, yDuoi: CGFloat)] = []
@@ -9463,6 +9596,9 @@ final class DichVuDocAnh {
             .replacingOccurrences(of: "−", with: "-")
             .replacingOccurrences(of: "–", with: "-")
             .replacingOccurrences(of: "—", with: "-")
+            .replacingOccurrences(of: "﹣", with: "-")
+            .replacingOccurrences(of: "－", with: "-")
+            .replacingOccurrences(of: "(?<![0-9])-\\s+(?=\\d)", with: "-", options: .regularExpression)
             .replacingOccurrences(of: "^[^0-9\\-]+|[^0-9]+$", with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -9495,9 +9631,16 @@ final class DichVuDocAnh {
     }
 
     private func trichCacSo(trong chuoi: String) -> [Double] {
+        let chuan = chuoi
+            .replacingOccurrences(of: "−", with: "-")
+            .replacingOccurrences(of: "–", with: "-")
+            .replacingOccurrences(of: "—", with: "-")
+            .replacingOccurrences(of: "﹣", with: "-")
+            .replacingOccurrences(of: "－", with: "-")
+            .replacingOccurrences(of: "(?<![0-9])-\\s+(?=\\d)", with: "-", options: .regularExpression)
         guard let regex = try? NSRegularExpression(pattern: "-?\\d+[\\d.,]*") else { return [] }
-        let ns = chuoi as NSString
-        let matches = regex.matches(in: chuoi, range: NSRange(location: 0, length: ns.length))
+        let ns = chuan as NSString
+        let matches = regex.matches(in: chuan, range: NSRange(location: 0, length: ns.length))
         return matches.compactMap { m in
             let sub = ns.substring(with: m.range)
             return chuyenChuoiThanhSoDoanhThu(sub)

@@ -1309,7 +1309,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 ("✏️ Nhập / Sửa tay số liệu Doanh thu Lũy kế", #selector(bamSuaTayDoanhThuLK)),
                 ("📋 Quét ảnh Bảng Thi đua Ngành hàng Lũy kế", #selector(bamQuetThiDuaLK)),
                 ("📁 Nhập ảnh Thi đua Lũy kế từ Tệp (Files)", #selector(bamNhapTepThiDuaLK)),
-                ("👥 Quét 3 ảnh Ma trận Thi đua Nhân viên Lũy kế", #selector(bamQuetThiDuaNVLK)),
+                ("💰 Quét ảnh Bảng Doanh thu Nhân viên Lũy kế", #selector(bamQuetDoanhThuNVLK)),
+                ("👥 Quét ảnh Bảng Thi đua Nhân viên Lũy kế", #selector(bamQuetThiDuaNVLK)),
                 ("📁 Nhập ảnh Thi đua Nhân viên Lũy kế từ Tệp (Files)", #selector(bamNhapTepThiDuaNVLK))
             ]
         )
@@ -3719,13 +3720,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         if laNhanVien {
             if cheDoDoanhThu == .luyKe {
                 nutThemAnhMoi.isHidden = false
-                nutThemAnhMoi.setTitle(" Nhập ảnh Sức khỏe NV (DT & Thi đua Lũy kế)", for: .normal)
-                nutNhapDoanhThuNV.isHidden = true
-                rangBuocBangRongHaiNutNV?.isActive = false
+                nutThemAnhMoi.setTitle(" Nhập Thi đua NV (Lũy kế)", for: .normal)
+                nutNhapDoanhThuNV.isHidden = false
+                nutNhapDoanhThuNV.setTitle(" Nhập Doanh thu NV (Lũy kế)", for: .normal)
+                rangBuocBangRongHaiNutNV?.isActive = true
             } else {
                 nutThemAnhMoi.isHidden = true
                 nutNhapDoanhThuNV.isHidden = false
-                nutNhapDoanhThuNV.setTitle(" Nhập ảnh Doanh thu NV (Realtime)", for: .normal)
+                nutNhapDoanhThuNV.setTitle(" Nhập Doanh thu NV (Realtime)", for: .normal)
                 rangBuocBangRongHaiNutNV?.isActive = false
             }
         } else {
@@ -4006,11 +4008,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
     }
 
     @objc private func bamNhapAnhDoanhThuNV() {
-        if cheDoDoanhThu == .realtime {
-            moChonAnh(cheDo: .doanhThuNhanVien(.realtime), gioiHan: 0)
-        } else {
-            moChonAnh(cheDo: .thiDuaNhanVien(.luyKe), gioiHan: 0)
-        }
+        moChonAnh(cheDo: .doanhThuNhanVien(cheDoDoanhThu), gioiHan: 0)
     }
 
     private func moHuongDanQuetAnhThiDua(cheDo: LoaiCheDoDoanhThu? = nil) {
@@ -4805,16 +4803,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
     }
 
     private func xuLyQuetDoanhThuNhanVien(_ cacAnh: [UIImage], loai: LoaiCheDoDoanhThu) {
-        if loai == .luyKe {
-            xuLyQuetThiDuaNhanVien(cacAnh, loai: .luyKe)
-        } else {
-            xuLyQuetDoanhThuNhanVienCu(cacAnh, loai: .realtime)
-        }
+        xuLyQuetDoanhThuNhanVienCu(cacAnh, loai: loai)
     }
 
     private func xuLyQuetDoanhThuNhanVienCu(_ cacAnh: [UIImage], loai: LoaiCheDoDoanhThu) {
         let tenCheDo = loai.tieuDe
-        hienTienTrinh("Đang đọc \(cacAnh.count) ảnh Doanh thu / Sức khỏe Nhân viên (\(tenCheDo))...")
+        hienTienTrinh("Đang đọc \(cacAnh.count) ảnh Doanh thu Nhân viên (\(tenCheDo))...")
         var skQuetDuoc: [String: DuLieuSucKhoeBoSungNV] = [:]
         DichVuDocAnh.dungChung.quetAnhDoanhThuNhanVien(
             danhSachAnh: cacAnh,
@@ -4841,11 +4835,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
                 let dsQuanLy = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
                 var mapDTNV: [String: DoanhThuNhanVienItem] = [:]
-                if loai == .realtime {
-                    for item in dl.doanhThuNhanVien(theo: loai) {
-                        let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
-                        if !ma.isEmpty { mapDTNV[ma] = item }
-                    }
+                for item in dl.doanhThuNhanVien(theo: loai) {
+                    let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
+                    if !ma.isEmpty { mapDTNV[ma] = item }
                 }
                 var daQuetTrongDot = Set<String>()
                 for item in dsQuet {
@@ -4873,6 +4865,15 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                     }
                     daQuetTrongDot.insert(ma)
                     mapDTNV[ma] = capNhat
+                    if loai == .luyKe {
+                        var skNV = dl.sucKhoeBoSungNhanVien[ma] ?? DuLieuSucKhoeBoSungNV()
+                        skNV.doanhThuQDSucKhoe = capNhat.doanhThuQD
+                        skNV.soLuotBillBanHang = capNhat.soLuong
+                        if abs(capNhat.phanTramQuyDoi) > 0.0001 {
+                            skNV.phanTramQuyDoi = capNhat.phanTramQuyDoi
+                        }
+                        dl.sucKhoeBoSungNhanVien[ma] = skNV
+                    }
                 }
                 dl.ganDoanhThuNhanVien(Array(mapDTNV.values), theo: loai)
                 if !skQuetDuoc.isEmpty {
@@ -4885,6 +4886,13 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 }
                 KhoDuLieu.dungChung.luu(dl)
                 self.napDuLieu()
+                let tb = UIAlertController(
+                    title: "Đã nhập Doanh thu Nhân viên (\(tenCheDo))",
+                    message: "Đã cập nhật doanh thu cho \(daQuetTrongDot.count) nhân viên và đồng bộ lên Bảng sức khỏe nhân viên.",
+                    preferredStyle: .alert
+                )
+                tb.addAction(UIAlertAction(title: "Hoàn tất", style: .default))
+                self.present(tb, animated: true)
             }
         )
     }
@@ -4964,8 +4972,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
             tf.autocapitalizationType = .allCharacters
         }
         hop.addTextField { tf in
-            tf.placeholder = "Thực hiện (VD: 12.73)"
-            tf.keyboardType = .decimalPad
+            tf.placeholder = "Thực hiện (VD: 12.73 hoặc -0.94)"
+            tf.keyboardType = .numbersAndPunctuation
             if !laThemMoi { tf.text = String(dong.thucHien) }
         }
         hop.addTextField { tf in
@@ -5008,6 +5016,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 ptDBMoi = vPTDB > 0 ? vPTDB : nil
             }
 
+            let ptHTGocMoi: Double? = {
+                if abs(th - dong.thucHien) > 0.0001 || abs(tg - dong.target) > 0.0001 {
+                    return tg > 0.0001 ? ((th / tg) * 100.0) : nil
+                }
+                return dong.phanTramHTGoc
+            }()
             let capNhat = DongThiDua(
                 id: dong.id,
                 tenNganhHangGoc: tenNhap,
@@ -5015,7 +5029,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 loaiChiTieu: loai,
                 thucHien: th,
                 target: tg,
-                phanTramHTGoc: dong.phanTramHTGoc,
+                phanTramHTGoc: ptHTGocMoi,
                 phanTramDuBaoGoc: ptDBMoi,
                 duKienGoc: dkMoi
             )

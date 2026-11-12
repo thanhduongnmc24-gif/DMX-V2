@@ -1103,8 +1103,8 @@ struct DongThiDua: Codable, Hashable, Identifiable {
 
     /// Doanh thu / Số lượng dự kiến cuối tháng (ưu tiên con số quét trực tiếp từ ô DT DỰ KIẾN / SL DỰ KIẾN trên ảnh Lũy kế)
     var duKien: Double {
-        if let dk = duKienGoc, dk > 0 {
-            if let htGoc = phanTramHTGoc, htGoc > 0.1, target > 0.0001 {
+        if let dk = duKienGoc, abs(dk) > 0.0001 {
+            if let htGoc = phanTramHTGoc, abs(htGoc) > 0.1, target > 0.0001 {
                 let htMoi = (thucHien / target) * 100.0
                 if abs(htMoi - htGoc) > 1.5 {
                     let uoc = (target * phanTramDuBao) / 100.0
@@ -1113,7 +1113,7 @@ struct DongThiDua: Codable, Hashable, Identifiable {
             }
             return dk
         }
-        if target > 0.0001, phanTramDuBao > 0 {
+        if target > 0.0001, abs(phanTramDuBao) > 0.0001 {
             let uoc = (target * phanTramDuBao) / 100.0
             return loaiChiTieu == .soLuong ? uoc.rounded() : ((uoc * 100).rounded() / 100)
         }
@@ -2874,49 +2874,20 @@ final class KhoDuLieu {
 
         let tatCaMaSet = Set(dsNV.map(\.maNV))
 
-        // Riêng Realtime: không có thi đua nhân viên, chỉ lấy đúng dữ liệu Doanh thu Nhân viên Realtime
-        if cheDo == .realtime {
-            var mapDTRealtime: [String: DoanhThuNhanVienItem] = [:]
-            for item in dtNVList {
-                let maChuan = Self.chuanHoaMaNV(item.maNV)
-                if tatCaMaSet.contains(maChuan) {
-                    if mapDTRealtime[maChuan] == nil {
-                        mapDTRealtime[maChuan] = item
-                    }
-                } else if let khop = Self.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsNV) {
-                    if mapDTRealtime[khop.maNV] == nil {
-                        mapDTRealtime[khop.maNV] = item
-                    }
-                }
+        // Nếu ở chế độ Realtime mà chưa có thi đua nhân viên Realtime thì kế thừa bảng thi đua nhân viên Lũy kế để hiển thị đầy đủ trên Bảng sức khỏe
+        let thucHienNganhSuDung: [String: [String: Double]] = {
+            if cheDo == .realtime && thucHienTheoNganh.isEmpty {
+                return thucHienNhanVienTheoMatHangThang(den: ngay, cheDo: .luyKe)
             }
-            let ketQuaRealtime: [TongHopNhanVien] = dsNV.map { nv in
-                let dtCaNhan = mapDTRealtime[nv.maNV]
-                let dtQDCuoi = dtCaNhan?.doanhThuQD ?? 0
-                let soDonCuoi = dtCaNhan?.soLuong ?? 0
-                let tiTrongCuoi: Double = {
-                    if let dtCaNhan, dtCaNhan.phanTramQuyDoi != 0 { return dtCaNhan.phanTramQuyDoi }
-                    if let dtCaNhan, dtCaNhan.dtTraThangQD != 0 { return dtCaNhan.dtTraThangQD }
-                    return 0
-                }()
-                return TongHopNhanVien(
-                    nhanVien: nv,
-                    soMonDat: 0,
-                    tongMonGiao: 0,
-                    phanTramHTTB: 0,
-                    doanhThuQD: dtQDCuoi,
-                    soLuongDon: soDonCuoi,
-                    dtQDKhoanVay: dtCaNhan?.dtQDKhoanVay ?? 0,
-                    dtTraThangQD: (dtCaNhan?.dtTraThangQD ?? 0) > 0 ? (dtCaNhan?.dtTraThangQD ?? 0) : (dtCaNhan?.doanhThuThuc ?? 0),
-                    phanTramTiTrong: tiTrongCuoi,
-                    cacMonGiao: [],
-                    doanhThuCaNhan: dtCaNhan
-                )
+            return thucHienTheoNganh
+        }()
+        let matHangSuDung: [DongThiDua] = {
+            if cheDo == .realtime && matHang.allSatisfy({ $0.target <= 0.0001 && abs($0.thucHien) <= 0.0001 }) {
+                let mhLK = danhSachMatHangThang(den: ngay, cheDo: .luyKe)
+                if !mhLK.isEmpty { return mhLK }
             }
-            let sapXepAnToan: KieuSapXepNhanVien = (sapXep == .soMonHoanThanh || sapXep == .phanTramTB) ? .doanhThuQD : sapXep
-            let ketQua = Self.sapXepDanhSachTongHopNV(ketQuaRealtime, theo: sapXepAnToan)
-            boNhoDemTongHopNV[khoaDem] = ketQua
-            return ketQua
-        }
+            return matHang
+        }()
 
         // Tiền tính toán thông tin mặt hàng và chia Target 1 lần duy nhất thay vì lặp lại 16 x 35 lần
         let bangChiaTarget = caiDat.chiaTargetNganhHang
@@ -2929,7 +2900,7 @@ final class KhoDuLieu {
             let phanTramSieuThi: Double
             let bangTHNganh: [String: Double]
         }
-        let danhSachMHTienXuLy: [ThongTinMatHangTienXuLy] = matHang.map { mh in
+        let danhSachMHTienXuLy: [ThongTinMatHangTienXuLy] = matHangSuDung.map { mh in
             let k1 = Self.chuanHoaKhoaSoSanh(mh.tenNganhHang)
             let k2 = Self.chuanHoaKhoaSoSanh(mh.tenNganhHangGoc)
             let kLM = Self.chuanHoaKhoaLienMachThiDua(mh.tenNganhHangGoc)
@@ -2940,10 +2911,10 @@ final class KhoDuLieu {
                 tapMa = tatCaMaSet
             }
             let soNguoi = max(1, tapMa.count)
-            let bangTHNganh = thucHienTheoNganh[k1] ?? thucHienTheoNganh[k2] ?? [:]
+            let bangTHNganh = thucHienNganhSuDung[k1] ?? thucHienNganhSuDung[k2] ?? [:]
             let targetQuetChung = bangTHNganh["__target_ca_nhan__"] ?? 0
             let targetSTGoiY = mh.target > 0.0001 ? mh.target : (bangTHNganh["__target_sieu_thi__"] ?? 0)
-            let thucHienSTGoiY = mh.thucHien > 0.0001 ? mh.thucHien : (bangTHNganh["__thuc_hien_sieu_thi__"] ?? 0)
+            let thucHienSTGoiY = abs(mh.thucHien) > 0.0001 ? mh.thucHien : (bangTHNganh["__thuc_hien_sieu_thi__"] ?? 0)
             let targetCaNhanTinh = targetQuetChung > 0.0001 ? targetQuetChung : (targetSTGoiY / Double(soNguoi))
             return ThongTinMatHangTienXuLy(
                 mh: mh,
@@ -2972,7 +2943,7 @@ final class KhoDuLieu {
         }
 
         let ketQuaChuaXep: [TongHopNhanVien] = dsNV.map { nv in
-            let boSungNV = bangSucKhoeThang[nv.maNV]
+            let boSungNV = (cheDo == .luyKe) ? bangSucKhoeThang[nv.maNV] : nil
             let mapPTThiDuaSK = boSungNV?.phanTramThiDuaCaNhan
             var cacMonGiao: [MonThiDuaNhanVien] = []
             cacMonGiao.reserveCapacity(danhSachMHTienXuLy.count)
@@ -2988,11 +2959,11 @@ final class KhoDuLieu {
                 let phanTramHT: Double
                 if let ptSK = ptTuSK {
                     if targetCaNhanNV > 0.0001 {
-                        if let th = thTuBang, th > 0 {
+                        if let th = thTuBang, abs(th) > 0.0001 {
                             thucHien = th
                             let htTinh = (th / targetCaNhanNV) * 100.0
                             phanTramHT = abs(htTinh - ptSK) <= 2.5 ? ptSK : htTinh
-                        } else if ptSK > 0 {
+                        } else if abs(ptSK) > 0.0001 {
                             let uocTH = (targetCaNhanNV * ptSK) / 100.0
                             thucHien = (uocTH * 100.0).rounded() / 100.0
                             phanTramHT = ptSK
@@ -3002,7 +2973,7 @@ final class KhoDuLieu {
                         }
                     } else {
                         thucHien = thTuBang ?? 0
-                        phanTramHT = max(0, ptSK)
+                        phanTramHT = ptSK
                     }
                 } else {
                     thucHien = thTuBang ?? 0
@@ -3030,18 +3001,22 @@ final class KhoDuLieu {
             let phanTramHTTB = tongMonGiao > 0 ? cacMonGiao.map(\.phanTramHT).reduce(0, +) / Double(tongMonGiao) : 0
             let dtCaNhan = mapDTCaNhan[nv.maNV]
 
-            let dtQDCuoi = (boSungNV?.doanhThuQDSucKhoe ?? 0) > 0 ? (boSungNV?.doanhThuQDSucKhoe ?? 0) : (dtCaNhan?.doanhThuQD ?? 0)
-            let soDonCuoi = (boSungNV?.soLuotBillBanHang ?? 0) > 0 ? (boSungNV?.soLuotBillBanHang ?? 0) : (dtCaNhan?.soLuong ?? 0)
-            let tiTrongCuoi: Double
-            if let skQD = boSungNV?.phanTramQuyDoi, skQD != 0 {
-                tiTrongCuoi = skQD
-            } else if let dtCaNhan, dtCaNhan.phanTramQuyDoi != 0 {
-                tiTrongCuoi = dtCaNhan.phanTramQuyDoi
-            } else if let dtCaNhan, dtCaNhan.dtTraThangQD != 0 {
-                tiTrongCuoi = dtCaNhan.dtTraThangQD
-            } else {
-                tiTrongCuoi = 0
-            }
+            let dtQDCuoi: Double = {
+                if let dt = dtCaNhan?.doanhThuQD, abs(dt) > 0.0001 { return dt }
+                if let skDT = boSungNV?.doanhThuQDSucKhoe, abs(skDT) > 0.0001 { return skDT }
+                return dtCaNhan?.doanhThuQD ?? 0
+            }()
+            let soDonCuoi: Double = {
+                if let sl = dtCaNhan?.soLuong, abs(sl) > 0.0001 { return sl }
+                if let skSL = boSungNV?.soLuotBillBanHang, abs(skSL) > 0.0001 { return skSL }
+                return dtCaNhan?.soLuong ?? 0
+            }()
+            let tiTrongCuoi: Double = {
+                if let dtCaNhan, abs(dtCaNhan.phanTramQuyDoi) > 0.0001 { return dtCaNhan.phanTramQuyDoi }
+                if let skQD = boSungNV?.phanTramQuyDoi, abs(skQD) > 0.0001 { return skQD }
+                if let dtCaNhan, abs(dtCaNhan.dtTraThangQD) > 0.0001 { return dtCaNhan.dtTraThangQD }
+                return 0
+            }()
 
             return TongHopNhanVien(
                 nhanVien: nv,
@@ -3058,7 +3033,8 @@ final class KhoDuLieu {
             )
         }
 
-        let ketQua = Self.sapXepDanhSachTongHopNV(ketQuaChuaXep, theo: sapXep)
+        let sapXepAnToan: KieuSapXepNhanVien = (cheDo == .realtime && (sapXep == .soMonHoanThanh || sapXep == .phanTramTB)) ? .doanhThuQD : sapXep
+        let ketQua = Self.sapXepDanhSachTongHopNV(ketQuaChuaXep, theo: sapXepAnToan)
         boNhoDemTongHopNV[khoaDem] = ketQua
         return ketQua
     }
