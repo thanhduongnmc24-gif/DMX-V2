@@ -2887,7 +2887,7 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
         }()
         let tbDTQD = sk?.tbDoanhThuQDSieuThi ?? tbDTQDTuBang
 
-        let mtQD = (sk?.mucTieuTargetQD ?? 0) > 0 ? (sk?.mucTieuTargetQD ?? 0) : max(0, tongHop.doanhThuCaNhan?.target ?? 0)
+        let mtQD = (sk?.mucTieuTargetQD ?? 0) > 40 ? (sk?.mucTieuTargetQD ?? 0) : ((tongHop.doanhThuCaNhan?.target ?? 0) > 40 ? (tongHop.doanhThuCaNhan?.target ?? 0) : 0)
         let ptTarget: Double = {
             if let v = sk?.phanTramTarget, abs(v) > 0.0001 { return v }
             if mtQD > 0 && abs(dtQD) > 0.0001 { return (dtQD / mtQD) * 100.0 }
@@ -3556,7 +3556,7 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
                 return 0
             }()
             let tbDTQD = sk?.tbDoanhThuQDSieuThi ?? tbDTQDTuBang
-            let mtQD = (sk?.mucTieuTargetQD ?? 0) > 0 ? (sk?.mucTieuTargetQD ?? 0) : max(0, tongHop.doanhThuCaNhan?.target ?? 0)
+            let mtQD = (sk?.mucTieuTargetQD ?? 0) > 40 ? (sk?.mucTieuTargetQD ?? 0) : ((tongHop.doanhThuCaNhan?.target ?? 0) > 40 ? (tongHop.doanhThuCaNhan?.target ?? 0) : 0)
             let ptTarget: Double = {
                 if let v = sk?.phanTramTarget, abs(v) > 0.0001 { return v }
                 if mtQD > 0 && abs(dtQD) > 0.0001 { return (dtQD / mtQD) * 100.0 }

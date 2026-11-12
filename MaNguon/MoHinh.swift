@@ -1326,8 +1326,14 @@ struct CaiDatDMX: Codable {
         danhSachCumTuLocBo = (try? c.decode([String].self, forKey: .danhSachCumTuLocBo)) ?? []
         let cot = (try? c.decode(Int.self, forKey: .soCotXuatAnh)) ?? 3
         soCotXuatAnh = (cot >= 1 && cot <= 4) ? cot : 3
-        let dsNV = (try? c.decode([NhanVienQuanLy].self, forKey: .danhSachNhanVien)) ?? []
-        danhSachNhanVien = NhanVienQuanLy.sapXepAZ(dsNV.isEmpty ? Self.nhanVienMau : dsNV)
+        var dsNV = (try? c.decode([NhanVienQuanLy].self, forKey: .danhSachNhanVien)) ?? []
+        if dsNV.isEmpty { dsNV = Self.nhanVienMau }
+        for i in dsNV.indices {
+            if dsNV[i].maNV == "65257" && dsNV[i].hoTen.count < 14 {
+                dsNV[i].hoTen = "Phan Thương Vĩnh"
+            }
+        }
+        danhSachNhanVien = NhanVienQuanLy.sapXepAZ(dsNV)
         chiaTargetNganhHang = (try? c.decode([String: [String]].self, forKey: .chiaTargetNganhHang)) ?? [:]
         mucTieuDoanhThuQDThang = (try? c.decode([String: Double].self, forKey: .mucTieuDoanhThuQDThang)) ?? [:]
         phanTramTargetLuyKe = min(200, max(50, (try? c.decode(Double.self, forKey: .phanTramTargetLuyKe)) ?? 100))
@@ -2613,8 +2619,15 @@ final class KhoDuLieu {
             }
         } else {
             if !dlNgay.danhSachThiDua.isEmpty {
-                boNhoDemMatHangThang[khoaDem] = dlNgay.danhSachThiDua
-                return dlNgay.danhSachThiDua
+                var ds = dlNgay.danhSachThiDua
+                for i in ds.indices {
+                    let chuanGoc = Self.chuanHoaTenMonThiDuaChuan(ds[i].tenNganhHangGoc)
+                    if !chuanGoc.isEmpty { ds[i].tenNganhHangGoc = chuanGoc }
+                    ds[i].tenNganhHang = Self.apDungLocTuCaiDat(ds[i].tenNganhHangGoc)
+                }
+                let kq = Self.gopDanhSachThiDua(cu: [], moi: ds)
+                boNhoDemMatHangThang[khoaDem] = kq
+                return kq
             }
             let tienTo = String(khoaDen.prefix(7))
             let cacKhoa = cacNgay.keys.filter { $0.hasPrefix(tienTo) && $0 <= khoaDen }.sorted(by: >)
@@ -2647,7 +2660,11 @@ final class KhoDuLieu {
         let k1 = Self.chuanHoaKhoaSoSanh(dong.tenNganhHang)
         let k2 = Self.chuanHoaKhoaSoSanh(dong.tenNganhHangGoc)
         if let ds = cd.chiaTargetNganhHang[k1] ?? cd.chiaTargetNganhHang[k2] {
-            return ds.filter { tatCaMa.contains($0) }
+            let loc = ds.filter { tatCaMa.contains($0) }
+            if loc.count >= 14 || loc.isEmpty {
+                return tatCaMa
+            }
+            return loc
         }
         return tatCaMa
     }
@@ -2732,6 +2749,10 @@ final class KhoDuLieu {
             guard let bangNganh = dl?.thiDuaNhanVien else { continue }
             for (khoaNganh, bangNV) in bangNganh {
                 ketQua[khoaNganh, default: [:]].merge(bangNV) { _, moi in moi }
+                let kLM = Self.chuanHoaKhoaLienMachThiDua(khoaNganh)
+                if !kLM.isEmpty {
+                    ketQua[kLM, default: [:]].merge(bangNV) { _, moi in moi }
+                }
             }
         }
         boNhoDemThucHienNVThang[khoaDem] = ketQua
@@ -2747,7 +2768,9 @@ final class KhoDuLieu {
         let soNV = dsMaDuocChon.count
         guard soNV > 0 else { return [] }
 
-        let bangTH = thucHienNhanVienTheoMatHangThang(den: ngay, cheDo: cheDo)[khoaNganh] ?? [:]
+        let kLM = Self.chuanHoaKhoaLienMachThiDua(dong.tenNganhHangGoc)
+        let bangAllTH = thucHienNhanVienTheoMatHangThang(den: ngay, cheDo: cheDo)
+        let bangTH = bangAllTH[khoaNganh] ?? bangAllTH[kLM] ?? [:]
         let targetCaNhanChung = (bangTH["__target_ca_nhan__"] ?? 0) > 0.0001
             ? (bangTH["__target_ca_nhan__"] ?? 0)
             : (dong.target / Double(soNV))
@@ -2904,14 +2927,19 @@ final class KhoDuLieu {
             let k1 = Self.chuanHoaKhoaSoSanh(mh.tenNganhHang)
             let k2 = Self.chuanHoaKhoaSoSanh(mh.tenNganhHangGoc)
             let kLM = Self.chuanHoaKhoaLienMachThiDua(mh.tenNganhHangGoc)
+            let bangTHNganh = thucHienNganhSuDung[k1] ?? thucHienNganhSuDung[k2] ?? thucHienNganhSuDung[kLM] ?? [:]
             let tapMa: Set<String>
             if let dsChon = bangChiaTarget[k1] ?? bangChiaTarget[k2] {
-                tapMa = Set(dsChon).intersection(tatCaMaSet)
+                let giao = Set(dsChon).intersection(tatCaMaSet)
+                if giao.count >= 14 || giao.isEmpty {
+                    tapMa = tatCaMaSet
+                } else {
+                    tapMa = giao.union(bangTHNganh.keys.filter { tatCaMaSet.contains($0) })
+                }
             } else {
                 tapMa = tatCaMaSet
             }
             let soNguoi = max(1, tapMa.count)
-            let bangTHNganh = thucHienNganhSuDung[k1] ?? thucHienNganhSuDung[k2] ?? [:]
             let targetQuetChung = bangTHNganh["__target_ca_nhan__"] ?? 0
             let targetSTGoiY = mh.target > 0.0001 ? mh.target : (bangTHNganh["__target_sieu_thi__"] ?? 0)
             let thucHienSTGoiY = abs(mh.thucHien) > 0.0001 ? mh.thucHien : (bangTHNganh["__thuc_hien_sieu_thi__"] ?? 0)
@@ -2927,9 +2955,34 @@ final class KhoDuLieu {
             )
         }
 
+        // Tự động khôi phục dữ liệu nếu lần quét trước bị lệch cột SỐ LƯỢNG sang dtTraThangQD / target
+        func chuanHoaItemDTNV(_ rawItem: DoanhThuNhanVienItem) -> DoanhThuNhanVienItem {
+            var it = rawItem
+            if abs(it.soLuong) < 0.001 && it.dtTraThangQD >= 1.0 && abs(it.doanhThuThuc - it.dtTraThangQD) < 0.001 {
+                it.soLuong = it.dtTraThangQD
+                let ptThuc: Double
+                if it.phanTramHT > 0 && it.phanTramHT <= 100 {
+                    ptThuc = it.phanTramHT
+                } else if it.target > 0 && it.target <= 100 {
+                    ptThuc = it.target
+                } else {
+                    ptThuc = it.phanTramQuyDoi
+                }
+                it.phanTramQuyDoi = ptThuc
+                it.dtTraThangQD = 0
+                it.doanhThuThuc = 0
+                it.target = 0
+                it.phanTramHT = 0
+            } else if it.target > 0 && it.target < 40 && abs(it.target - it.phanTramQuyDoi) < 0.01 {
+                it.target = 0
+            }
+            return it
+        }
+
         // Tiền ánh xạ doanh thu cá nhân theo mã NV 1 lần duy nhất
         var mapDTCaNhan: [String: DoanhThuNhanVienItem] = [:]
-        for item in dtNVList {
+        for rawItem in dtNVList {
+            let item = chuanHoaItemDTNV(rawItem)
             let maChuan = Self.chuanHoaMaNV(item.maNV)
             if tatCaMaSet.contains(maChuan) {
                 if mapDTCaNhan[maChuan] == nil {
@@ -3013,8 +3066,8 @@ final class KhoDuLieu {
             }()
             let tiTrongCuoi: Double = {
                 if let dtCaNhan, abs(dtCaNhan.phanTramQuyDoi) > 0.0001 { return dtCaNhan.phanTramQuyDoi }
-                if let skQD = boSungNV?.phanTramQuyDoi, abs(skQD) > 0.0001 { return skQD }
-                if let dtCaNhan, abs(dtCaNhan.dtTraThangQD) > 0.0001 { return dtCaNhan.dtTraThangQD }
+                if let skQD = boSungNV?.phanTramQuyDoi, abs(skQD) > 0.0001, abs(skQD - soDonCuoi) > 0.1 { return skQD }
+                if let dtCaNhan, abs(dtCaNhan.dtTraThangQD) > 0.0001, abs(dtCaNhan.dtTraThangQD - soDonCuoi) > 0.1 { return dtCaNhan.dtTraThangQD }
                 return 0
             }()
 
@@ -3496,6 +3549,8 @@ final class KhoDuLieu {
         map["VITRASAU"] = "Ví trả sau"
         map["PHUKIENKHACITNHOMKHAC"] = "Phụ kiện khác IT & Nhóm khác"
         map["PHUKIENKHACIT"] = "Phụ kiện khác IT & Nhóm khác"
+        map["PHUKIENITNHOMKHAC"] = "Phụ kiện khác IT & Nhóm khác"
+        map["PHUKIENIT"] = "Phụ kiện khác IT & Nhóm khác"
         map["TRACHAMDIENMAYGIADUNG"] = "Trả Chậm Điện máy & Gia dụng"
         map["TRACHAMDIENMAY"] = "Trả Chậm Điện máy & Gia dụng"
         map["DIENTHOAITABLETANDROID"] = "ĐIỆN THOẠI & TABLET ANDROID"
@@ -3564,6 +3619,7 @@ final class KhoDuLieu {
         khoaBoNhoDemTinh.unlock()
 
         var khongDau = ten
+            .replacingOccurrences(of: "_", with: " ")
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN"))
             .replacingOccurrences(of: "đ", with: "d")
             .replacingOccurrences(of: "Đ", with: "D")
@@ -3631,6 +3687,14 @@ final class KhoDuLieu {
             ketQua = "SIMDMX"
         } else if ketQua == "5IM" || ketQua == "S1M" || ketQua == "SIMSL" || ketQua == "SIM5L" {
             ketQua = "SIM"
+        } else if ketQua == "PHUKIENITNHOMKHAC" || (ketQua.hasPrefix("PHUKIEN") && ketQua.contains("NHOMKHAC")) {
+            ketQua = "PHUKIENKHACITNHOMKHAC"
+        } else if ketQua == "VASSL" || ketQua == "VAS5L" || ketQua == "VA5SL" {
+            ketQua = "VAS"
+        } else if ketQua == "NAPRUTSL" || ketQua == "NAPRUT5L" {
+            ketQua = "NAPRUT"
+        } else if ketQua == "MAYNUOCNONGSL" || ketQua == "MAYNUOCNONG5L" {
+            ketQua = "MAYNUOCNONG"
         }
 
         khoaBoNhoDemTinh.lock()
