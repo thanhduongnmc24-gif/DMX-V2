@@ -190,13 +190,118 @@ final class DichVuQuetAnhGemini {
         }
     }
 
-    /// Nén ảnh vừa đủ sắc nét (cạnh dài tối đa 1360px, JPEG 0.76) để tải lên Gemini Flash chỉ mất ~0.3s và phản hồi trong 2-4s.
+    /// Nén ảnh sắc nét (hỗ trợ cắt xếp dọc cho ảnh Bảng ngang siêu rộng để không bị mờ chữ 39 cột, và giữ độ nét 2048px cho Bảng dọc / Lưới 6 cột).
     private func duLieuAnhGon(_ anh: UIImage) -> Data? {
-        let gioiHan: CGFloat = 1360
-        let canhLon = max(anh.size.width, anh.size.height)
-        guard canhLon > gioiHan else { return anh.jpegData(compressionQuality: 0.76) }
+        let w = anh.size.width
+        let h = anh.size.height
+        guard w > 10, h > 10 else { return anh.jpegData(compressionQuality: 0.84) }
+
+        // Nếu là ảnh Ma trận Thi đua Nhân viên (3.0 < width/height <= 11.5): cắt thành 4 dải cột nhân viên nhưng luôn ghép kèm cột Tên chương trình + TỔNG (x: 0..0.11) ở bên trái mỗi dải
+        if w > h * 3.0 && w <= h * 11.5, let cg = anh.cgImage {
+            let cw = CGFloat(cg.width)
+            let ch = CGFloat(cg.height)
+            let wTrai = max(1, (cw * 0.112).rounded())
+            let rectTrai = CGRect(x: 0, y: 0, width: wTrai, height: ch)
+            let cacDaiPhai: [(CGFloat, CGFloat)] = [
+                (0.108, 0.340),
+                (0.328, 0.560),
+                (0.548, 0.780),
+                (0.768, 1.000)
+            ]
+            let rongDich: CGFloat = 2200
+            let demDoc: CGFloat = 24
+            if let cgTrai = cg.cropping(to: rectTrai) {
+                var cacDaiGhep: [(trai: CGImage, phai: CGImage, caoVe: CGFloat, tyLeTrai: CGFloat)] = []
+                for (x0, x1) in cacDaiPhai {
+                    let rectP = CGRect(
+                        x: (cw * x0).rounded(),
+                        y: 0,
+                        width: max(1, (cw * (x1 - x0)).rounded()),
+                        height: ch
+                    )
+                    if let cgPhai = cg.cropping(to: rectP) {
+                        let tongRongGoc = CGFloat(cgTrai.width + cgPhai.width)
+                        let tyLe = rongDich / tongRongGoc
+                        let caoVe = max(160, (ch * tyLe).rounded())
+                        let tyLeTrai = CGFloat(cgTrai.width) / tongRongGoc
+                        cacDaiGhep.append((cgTrai, cgPhai, caoVe, tyLeTrai))
+                    }
+                }
+                if !cacDaiGhep.isEmpty {
+                    let tongCao = cacDaiGhep.reduce(CGFloat(0)) { $0 + $1.caoVe } + CGFloat(cacDaiGhep.count + 1) * demDoc
+                    let dinhDang = UIGraphicsImageRendererFormat.default()
+                    dinhDang.scale = 1.0
+                    dinhDang.opaque = true
+                    let boVe = UIGraphicsImageRenderer(size: CGSize(width: rongDich, height: tongCao), format: dinhDang)
+                    let anhGhep = boVe.image { ctx in
+                        UIColor.white.setFill()
+                        ctx.fill(CGRect(x: 0, y: 0, width: rongDich, height: tongCao))
+                        var yHienTai = demDoc
+                        for item in cacDaiGhep {
+                            let wVeTrai = (rongDich * item.tyLeTrai).rounded()
+                            UIImage(cgImage: item.trai, scale: 1.0, orientation: anh.imageOrientation)
+                                .draw(in: CGRect(x: 0, y: yHienTai, width: wVeTrai, height: item.caoVe))
+                            UIImage(cgImage: item.phai, scale: 1.0, orientation: anh.imageOrientation)
+                                .draw(in: CGRect(x: wVeTrai, y: yHienTai, width: rongDich - wVeTrai, height: item.caoVe))
+                            yHienTai += item.caoVe + demDoc
+                        }
+                    }
+                    return anhGhep.jpegData(compressionQuality: 0.86)
+                }
+            }
+        }
+
+        // Nếu là ảnh Bảng ngang siêu rộng của Siêu thị (width > height * 11.5): cắt thành 4 dải ngang có chồng lấp 3% và xếp dọc trên 1 khung ảnh rộng 2200px
+        if w > h * 11.5, let cg = anh.cgImage {
+            let cw = CGFloat(cg.width)
+            let ch = CGFloat(cg.height)
+            let cacDai: [(CGFloat, CGFloat)] = [
+                (0.00, 0.27),
+                (0.24, 0.52),
+                (0.49, 0.77),
+                (0.74, 1.00)
+            ]
+            let rongDich: CGFloat = min(2200, max(1600, cw * 0.28))
+            let demDoc: CGFloat = 20
+            var cacAnhDai: [(img: CGImage, caoVe: CGFloat)] = []
+            for (x0, x1) in cacDai {
+                let rect = CGRect(
+                    x: (cw * x0).rounded(),
+                    y: 0,
+                    width: max(1, (cw * (x1 - x0)).rounded()),
+                    height: ch
+                )
+                if let sub = cg.cropping(to: rect) {
+                    let tyLe = rongDich / CGFloat(sub.width)
+                    let caoVe = max(80, (CGFloat(sub.height) * tyLe).rounded())
+                    cacAnhDai.append((sub, caoVe))
+                }
+            }
+            if !cacAnhDai.isEmpty {
+                let tongCao = cacAnhDai.reduce(CGFloat(0)) { $0 + $1.caoVe } + CGFloat(cacAnhDai.count + 1) * demDoc
+                let dinhDang = UIGraphicsImageRendererFormat.default()
+                dinhDang.scale = 1.0
+                dinhDang.opaque = true
+                let boVe = UIGraphicsImageRenderer(size: CGSize(width: rongDich, height: tongCao), format: dinhDang)
+                let anhGhep = boVe.image { ctx in
+                    UIColor.white.setFill()
+                    ctx.fill(CGRect(x: 0, y: 0, width: rongDich, height: tongCao))
+                    var yHienTai = demDoc
+                    for item in cacAnhDai {
+                        UIImage(cgImage: item.img, scale: 1.0, orientation: anh.imageOrientation)
+                            .draw(in: CGRect(x: 0, y: yHienTai, width: rongDich, height: item.caoVe))
+                        yHienTai += item.caoVe + demDoc
+                    }
+                }
+                return anhGhep.jpegData(compressionQuality: 0.85)
+            }
+        }
+
+        let gioiHan: CGFloat = 2048
+        let canhLon = max(w, h)
+        guard canhLon > gioiHan else { return anh.jpegData(compressionQuality: 0.84) }
         let tiLe = gioiHan / canhLon
-        let kichThuoc = CGSize(width: (anh.size.width * tiLe).rounded(), height: (anh.size.height * tiLe).rounded())
+        let kichThuoc = CGSize(width: (w * tiLe).rounded(), height: (h * tiLe).rounded())
         let dinhDang = UIGraphicsImageRendererFormat.default()
         dinhDang.scale = 1.0
         dinhDang.opaque = true
@@ -204,7 +309,7 @@ final class DichVuQuetAnhGemini {
         let anhGon = boVe.image { _ in
             anh.draw(in: CGRect(origin: .zero, size: kichThuoc))
         }
-        return anhGon.jpegData(compressionQuality: 0.76)
+        return anhGon.jpegData(compressionQuality: 0.84)
     }
 
     private func taoBodyData(imageData: Data, cheDo: LoaiCheDoDoanhThu, tatThinking: Bool) -> Data? {
@@ -214,7 +319,7 @@ final class DichVuQuetAnhGemini {
         ]
         var genConfig: [String: Any] = [
             "temperature": 0.0,
-            "maxOutputTokens": 4096,
+            "maxOutputTokens": 8192,
             "responseMimeType": "application/json"
         ]
         if tatThinking {
@@ -377,45 +482,54 @@ final class DichVuQuetAnhGemini {
         {"capNhatLuc":"","thongTinDonVi":"","doanhThu":{"doanhThuThuc":0,"targetThuc":0,"duKienThuc":0,"phanTramHTThuc":0,"doanhThuQuyDoi":0,"targetQuyDoi":0,"duKienQuyDoi":0,"phanTramHTQuyDoi":0},"nganhHang":[{"ten":"","loai":"DT hoặc SL","thucHien":0,"target":0,"phanTramHT":0,"duKien":0,"phanTramDuKien":0}],"nhanVien":[{"maNV":"","hoTen":"","soLuong":0,"doanhThuQD":0,"dtKhoanVay":0,"phanTramTiTrong":0}],"thiDuaNhanVien":[{"tenNganhHang":"","danhSach":[{"maNV":"","hoTen":"","thucHien":0,"target":0}]}]}
 
         Quy tắc bắt buộc khi đọc Bảng Thi Đua (mảng "nganhHang"):
-        1. Phân biệt rõ 2 loại bảng Thi Đua có dấu (+) ở đầu dòng:
-           - BẢNG THI ĐUA THEO NGÀY / REALTIME (5 CỘT): Gồm 5 cột: [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET NGÀY | % HT NGÀY | HẠNG VÙNG].
-             + Cột 1 (CHƯƠNG TRÌNH): Tên môn thi đua kèm huy hiệu "DT" hoặc "SL" ở cuối (bỏ dấu "+" và ngôi sao vàng ⭐ ở đầu; tách "DT" hoặc "SL" vào trường "loai"; phần tên môn sạch đưa vào "ten").
-             + Cột 2 (THỰC HIỆN): Đưa vào "thucHien".
-             + Cột 3 (TARGET NGÀY): Đưa vào "target".
-             + Cột 4 (% HT NGÀY): Đưa vào "phanTramHT". Đặt "phanTramDuKien": 0 và "duKien": 0.
-             + Cột 5 (HẠNG VÙNG): Bỏ qua.
-           - BẢNG THI ĐUA LŨY KẾ (6 CỘT): Gồm 6 cột: [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET | % HT | % HT DỰ KIẾN | HẠNG VÙNG].
+        1. Hỗ trợ đầy đủ 3 định dạng ảnh Thi Đua Lũy kế (Bảng ngang, Bảng dọc, Lưới thẻ) và Bảng Realtime:
+           - ĐỊNH DẠNG A — BẢNG NGANG LŨY KẾ (Dữ liệu theo Siêu thị · 39 chương trình xếp ngang):
+             + Hai cột đầu bên trái là [ĐƠN VỊ | SỐ CT ĐẠT], tiếp theo là 39 cột chương trình ngang (nếu ảnh rộng được cắt thành 4 dải xếp dọc thì đọc lần lượt hết các cột từ dải trên xuống dải dưới, bỏ qua cột bị lặp ở mép nối).
+             + Hàng tiêu đề trên của mỗi chương trình có dạng "<Tên môn> (DT)" hoặc "<Tên môn> (SL)" -> tách "DT"/"SL" vào "loai", tên môn vào "ten".
+             + Hàng tiêu đề con bên dưới chia làm 2 cột: [THỰC HIỆN | TARGET]. Đọc con số ở dòng siêu thị (hoặc dòng TỔNG) đưa vào "thucHien" và "target", tính "phanTramHT" = (thucHien / target) * 100.
+           - ĐỊNH DẠNG B — BẢNG DỌC LŨY KẾ (5 CỘT CÓ THANH TIẾN ĐỘ hoặc 6 CỘT):
+             + Gồm [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET | % DỰ KIẾN HOÀN THÀNH | HẠNG VÙNG].
              + Cột 1 (CHƯƠNG TRÌNH): Tách huy hiệu "DT"/"SL" vào "loai", tên môn sạch (bỏ dấu "+", ngôi sao ⭐) vào "ten".
              + Cột 2 (THỰC HIỆN): Đưa vào "thucHien".
-             + Cột 3 (TARGET): Đưa vào "target" (lưu ý dấu phẩy hàng nghìn như 1,502.38 = 1502.38).
-             + Cột 4 (% HT): Đưa vào "phanTramHT".
-             + Cột 5 (% HT DỰ KIẾN): Đưa vào "phanTramDuKien".
-             + Cột 6 (HẠNG VÙNG): Bỏ qua.
-           - Ngoài ra nếu ảnh là Lưới thẻ thi đua 2 cột hoặc Bảng 4 cột có tiền tố T11: đọc đầy đủ tên môn, đơn vị DT/SL, Thực hiện, Target, % HT và % Dự kiến / DT Dự kiến.
-        2. Đọc ĐẦY ĐỦ TẤT CẢ các dòng môn thi đua từ trên xuống dưới, kể cả các dòng tên dài xuống 2-3 hàng chữ như "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO" (loai: "SL") hoặc "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT" và kể cả dòng có Thực hiện = 0, Target = 0. Không đưa nhãn DT, SL, CE, ICT, DV hay dấu + vào trong "ten".
+             + Cột 3 (TARGET): Đưa vào "target" (lưu ý dấu phẩy hàng nghìn như 1,089.00 = 1089.00, 2,769.61 = 2769.61).
+             + Cột 4 (% DỰ KIẾN HOÀN THÀNH): Con số % nhỏ nằm bên trái phía trên thanh tiến độ là "phanTramHT" (ví dụ 7.9%, 31.2%); con số % lớn in đậm màu đỏ/cam/xanh nằm bên phải thanh tiến độ là "phanTramDuKien" (ví dụ 22.6%, 88.7%, 300%).
+             + Cột cuối (HẠNG VÙNG): Bỏ qua.
+           - ĐỊNH DẠNG C — LƯỚI THẺ LŨY KẾ (Lưới 6 cột × 7 hàng = 39 thẻ hoặc Lưới 2 cột thẻ):
+             + Đọc lần lượt tất cả 39 thẻ từ trái sang phải, từ trên xuống dưới.
+             + Trong mỗi thẻ: góc trên trái là tên môn ("T11 - ..."), góc trên phải là huy hiệu "DT" hoặc "SL", con số % lớn ở giữa bên trái là "phanTramDuKien" (DỰ KIẾN HOÀN THÀNH), và 4 ô số ở nửa dưới thẻ gồm: "THỰC HIỆN" -> "thucHien", "TARGET" -> "target", "% HT THÁNG" -> "phanTramHT", "DT DỰ KIẾN" / "SL DỰ KIẾN" -> "duKien".
+           - ĐỊNH DẠNG D — BẢNG THI ĐUA THEO NGÀY / REALTIME (5 CỘT): [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET NGÀY | % HT NGÀY | HẠNG VÙNG] -> đặt "phanTramDuKien": 0 và "duKien": 0.
+        2. Đọc ĐẦY ĐỦ TẤT CẢ các dòng môn thi đua từ trên xuống dưới, kể cả các dòng tên dài xuống 2-3 hàng chữ như "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO" (loai: "SL") hoặc "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT" và kể cả dòng có Thực hiện = 0, Target = 0. Không đưa nhãn DT, SL, CE, ICT, DV hay dấu + vào trong "ten".
         3. Với bảng doanh thu nhân viên 5 cột (NHÂN VIÊN / NGÀNH HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG), trích đúng "maNV" (bỏ tiền tố id:) và "hoTen" vào mảng "nhanVien".
-        4. Với bảng chi tiết môn thi đua của nhân viên (bảng mở rộng 1 môn thi đua có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % đóng góp của nhân viên như 24%, 14%, 8%...): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien" (bỏ qua dòng tên chương trình và dòng tên siêu thị ĐML_...), đặt "laPhanTram": true, "thucHien" là con số phần trăm (ví dụ 24% -> 24), đặt "thucHienNganhGoiY" là số THỰC HIỆN của môn đó ở dòng đầu bảng, và đặt "targetNganhGoiY" là số TARGET của môn đó ở dòng đầu bảng.
+        4. Với bảng Thi đua Nhân viên (mảng "thiDuaNhanVien"), hỗ trợ cả 2 mẫu:
+           - MẪU 1 — MA TRẬN THEO NHÂN VIÊN ("Ma trận theo Nhân viên · 13 chương trình"):
+             + Các hàng là danh sách chương trình thi đua (cột "CHƯƠNG TRÌNH THI ĐUA"), cột "TỔNG" có [THỰC HIỆN | TARGET] (đặt vào "thucHienNganhGoiY" và "targetNganhGoiY"), tiếp theo là 20 cột nhân viên (Lê Tuấn, Nguyễn Thị Kim Loan, Trần Nam Tùng, Đỗ Thị Mỹ Linh, Nguyễn Thị Thu Thảo, Võ Ngọc Vĩ, Đỗ Thị Chanh, Nguyễn Hữu Kha, Phan Thương Vĩnh, Hồ Ngọc Châu Ánh, Lê Thị Kim Phượng, Nguyễn Hoàn Điện, Đinh Thị Quỳnh Nga, Huỳnh Tấn Thành, Huỳnh Thành Đạt, Phan Hoàng Sơn, Lê Xuân Tài, Nguyễn Ngọc Đẩu, Nguyễn Minh Đạt, Ngô Thanh Trúc), mỗi cột nhân viên chia làm 2 cột con [THỰC HIỆN | TARGET].
+             + Với mỗi hàng chương trình, tạo 1 phần tử trong "thiDuaNhanVien" với "tenNganhHang", "thucHienNganhGoiY", "targetNganhGoiY", và "danhSach" gồm các nhân viên kèm "hoTen", "thucHien" (nếu ô là dấu "—" thì đặt thucHien = 0), "target" (lấy giá trị cột TARGET cá nhân của hàng đó), "laPhanTram": false.
+           - MẪU 2 — BẢNG MỞ RỘNG 1 MÔN THI ĐUA (có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % đóng góp): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien", đặt "laPhanTram": true, "thucHien" là con số phần trăm, kèm "thucHienNganhGoiY" và "targetNganhGoiY".
         5. Nếu ảnh là PHIẾU SỨC KHỎE & THI ĐUA CÁ NHÂN NHÂN VIÊN 27 ĐIỂM (có tên nhân viên, mã NV 6 số, khối DOANH THU 6 mục, khối NĂNG SUẤT 3 mục, khối THI ĐUA gồm lưới thẻ % các môn): hãy trả thêm trường "sucKhoeNhanVien": [{"maNV":"293044","hoTen":"Võ Ngọc Vĩ","doanhThuQD":97.1,"tbDoanhThuQD":228.7,"phanTramTarget":46,"tbPhanTramTarget":108,"mucTieuTargetQD":703.7,"soLuotBill":33,"tbSoLuotBill":35,"phanTramQuyDoi":64,"tbPhanTramQuyDoi":43,"phanTramTraCham":45,"tbPhanTramTraCham":53,"phanTramBanKem":100,"tbPhanTramBanKem":61,"diemThuongERP":1254937,"tbDiemThuongERP":1496937,"diemThuongGioCong":17317,"tbDiemThuongGioCong":20855,"dtqdGioCong":1.34,"tbDtqdGioCong":3.20,"thiDua":[{"ten":"Phụ kiện công nghệ","phanTram":107}]}] (các môn nằm ở phần "Chưa có số liệu" đặt phanTram: 0).
         """
+    }
+
+    private func chuyenChuoiThanhSo(_ s: String) -> Double? {
+        var chuoi = s
+            .replacingOccurrences(of: "%", with: "")
+            .replacingOccurrences(of: " ", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if chuoi.contains(",") && chuoi.contains(".") {
+            if let viTriPhay = chuoi.lastIndex(of: ","), let viTriCham = chuoi.lastIndex(of: "."), viTriPhay > viTriCham {
+                chuoi = chuoi.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
+            } else {
+                chuoi = chuoi.replacingOccurrences(of: ",", with: "")
+            }
+        } else if chuoi.contains(",") {
+            chuoi = chuoi.replacingOccurrences(of: ",", with: ".")
+        }
+        return Double(chuoi)
     }
 
     private func so(_ obj: [String: Any], _ key: String) -> Double {
         if let n = obj[key] as? NSNumber { return n.doubleValue }
         if let s = obj[key] as? String {
-            var chuoi = s
-                .replacingOccurrences(of: "%", with: "")
-                .replacingOccurrences(of: " ", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if chuoi.contains(",") && chuoi.contains(".") {
-                if let viTriPhay = chuoi.lastIndex(of: ","), let viTriCham = chuoi.lastIndex(of: "."), viTriPhay > viTriCham {
-                    chuoi = chuoi.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
-                } else {
-                    chuoi = chuoi.replacingOccurrences(of: ",", with: "")
-                }
-            } else if chuoi.contains(",") {
-                chuoi = chuoi.replacingOccurrences(of: ",", with: ".")
-            }
-            return Double(chuoi) ?? 0
+            return chuyenChuoiThanhSo(s) ?? 0
         }
         return 0
     }
@@ -440,10 +554,10 @@ final class DichVuQuetAnhGemini {
         if let arr = json["nganhHang"] as? [[String: Any]] {
             let dsQuet = arr.compactMap { item -> DongThiDua? in
                 guard let tenTho = item["ten"] as? String else { return nil }
-                let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(tenTho)
+                let tenSach = KhoDuLieu.chuanHoaTenMonThiDuaChuan(tenTho, tienToThangMacDinh: "T11")
                 guard !tenSach.isEmpty else { return nil }
                 let loaiStr = ((item["loai"] as? String) ?? "DT").uppercased()
-                let laTheTinDung = (tenSach == "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBAK EVO")
+                let laTheTinDung = (tenSach == "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO")
                 let loai: LoaiChiTieuThiDua = (loaiStr.contains("SL") || laTheTinDung) ? .soLuong : .doanhThu
                 let th = so(item, "thucHien")
                 let tg = so(item, "target")
@@ -505,16 +619,27 @@ final class DichVuQuetAnhGemini {
                 let nganh = KhoDuLieu.chuanHoaTenMonThiDuaChuan((khoi["tenNganhHang"] as? String) ?? "")
                 let thucHienGoiY = so(khoi, "thucHienNganhGoiY")
                 let targetGoiY = so(khoi, "targetNganhGoiY")
+                let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
                 let ds = (khoi["danhSach"] as? [[String: Any]] ?? []).compactMap { nv -> DongThiDuaNhanVienQuet? in
-                    let ma = KhoDuLieu.chuanHoaMaNV((nv["maNV"] as? String) ?? "")
-                    let ten = ((nv["hoTen"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !ma.isEmpty, !ten.isEmpty else { return nil }
+                    let maTho = (nv["maNV"] as? String) ?? ""
+                    let tenTho = ((nv["hoTen"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: maTho, tenQuet: tenTho, dsQuanLy: dsQuanLy)
+                    let ma = nvKhop?.maNV ?? KhoDuLieu.chuanHoaMaNV(maTho)
+                    let ten = nvKhop?.hoTen ?? tenTho
+                    guard !ma.isEmpty || !ten.isEmpty else { return nil }
                     let laPT = (nv["laPhanTram"] as? Bool) ?? ((nv["thucHien"] as? String)?.contains("%") ?? false)
+                    var thVal = so(nv, "thucHien")
+                    var tgVal = so(nv, "target")
+                    if let sTh = nv["thucHien"] as? String, sTh.contains("/") {
+                        let parts = sTh.components(separatedBy: "/")
+                        if let v1 = chuyenChuoiThanhSo(parts[0]) { thVal = v1 }
+                        if tgVal <= 0, parts.count > 1, let v2 = chuyenChuoiThanhSo(parts[1]) { tgVal = v2 }
+                    }
                     return DongThiDuaNhanVienQuet(
                         maNV: ma,
                         hoTen: ten,
-                        thucHien: so(nv, "thucHien"),
-                        target: so(nv, "target"),
+                        thucHien: thVal,
+                        target: tgVal,
                         laPhanTram: laPT
                     )
                 }
