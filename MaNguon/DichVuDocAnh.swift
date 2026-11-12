@@ -851,7 +851,7 @@ final class DichVuDocAnh {
         hoanTat: @escaping (KetQuaQuetTatCaAnh) -> Void
     ) {
         let phuongPhapChon = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
-        if phuongPhapChon == .gemini || laRealtime {
+        if phuongPhapChon == .gemini || cheDoDangChon == .realtime {
             DichVuQuetAnhGemini.dungChung.quet(
                 danhSachAnh: danhSachAnh,
                 cheDo: cheDoDangChon,
@@ -5086,7 +5086,7 @@ final class DichVuDocAnh {
                                         }
                                     }
 
-                                    var cacDongTenCot0 = ketQuaTungCot[0][idxDong]
+                                    let cacDongTenCot0 = ketQuaTungCot[0][idxDong]
                                     var (tenSach, loai) = nhanDienTenVaDonVi(tu: cacDongTenCot0, coSoThapPhan: coThapPhan)
 
                                     if tenSach.count < 2 || !KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) {
