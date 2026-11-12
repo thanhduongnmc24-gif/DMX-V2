@@ -3220,8 +3220,19 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
             : dl.thongTinDonVi.uppercased()
         let ngayStr = TienIchNgay.hienThiNgay.string(from: ngay)
 
-        let sk = dl.sucKhoeBoSungNhanVien[tongHop.nhanVien.maNV]
+        let skRaw = dl.sucKhoeBoSungNhanVien[tongHop.nhanVien.maNV]
             ?? kho.sucKhoeBoSungNhanVienThang(cho: ngay)[tongHop.nhanVien.maNV]
+        let sk: DuLieuSucKhoeBoSungNV? = {
+            guard var s = skRaw else { return nil }
+            let sl = s.soLuotBillBanHang ?? 0
+            let pt = s.phanTramQuyDoi ?? 0
+            if abs(sl - sl.rounded()) > 0.01 || (pt > 45.0 && sl <= 10.0) {
+                s.doanhThuQDSucKhoe = nil
+                s.soLuotBillBanHang = nil
+                s.phanTramQuyDoi = nil
+            }
+            return s
+        }()
         let hienThiNS = kho.caiDat.hienThiNangSuatNhanVien
         let danhSachMon = tongHop.cacMonGiao
 
@@ -4301,7 +4312,7 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
                 let dsQuanLy = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
                 if !dsQuet.isEmpty {
                     var mapDTNV: [String: DoanhThuNhanVienItem] = [:]
-                    for item in dl.doanhThuNhanVien(theo: self.cheDo) {
+                    for item in KhoDuLieu.locSachDanhSachDTNV(dl.doanhThuNhanVien(theo: self.cheDo)) {
                         let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
                         if !ma.isEmpty { mapDTNV[ma] = item }
                     }
@@ -4353,7 +4364,7 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
                 KhoDuLieu.dungChung.luu(dl)
                 self.napLaiDuLieuHienTai()
 
-                guard dsQuet.isEmpty else { return }
+                guard dsQuet.isEmpty || cacAnh.count > 1 else { return }
                 var skThiDua: [String: DuLieuSucKhoeBoSungNV] = [:]
                 DichVuDocAnh.dungChung.quetAnhThiDuaNhanVien(
                     danhSachAnh: cacAnh,

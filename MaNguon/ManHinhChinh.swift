@@ -4622,6 +4622,13 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                         }
                         daQuetTrongDot.insert(ma)
                         mapDTNV[ma] = capNhat
+                        if cheDoTab == .luyKe {
+                            var skNV = dl.sucKhoeBoSungNhanVien[ma] ?? DuLieuSucKhoeBoSungNV()
+                            skNV.doanhThuQDSucKhoe = capNhat.doanhThuQD
+                            skNV.soLuotBillBanHang = capNhat.soLuong
+                            skNV.phanTramQuyDoi = capNhat.phanTramQuyDoi
+                            dl.sucKhoeBoSungNhanVien[ma] = skNV
+                        }
                     }
                     dl.ganDoanhThuNhanVien(Array(mapDTNV.values), theo: cheDoTab)
                     cacMucDaDien.append("• Doanh thu Nhân viên \(tenCheDo) (\(kq.soAnhDoanhThuNV) ảnh): \(mapDTNV.count) NV (Đã thay thế dữ liệu cũ)")
@@ -4835,7 +4842,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
                 let dsQuanLy = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
                 var mapDTNV: [String: DoanhThuNhanVienItem] = [:]
-                for item in dl.doanhThuNhanVien(theo: loai) {
+                for item in KhoDuLieu.locSachDanhSachDTNV(dl.doanhThuNhanVien(theo: loai)) {
                     let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
                     if !ma.isEmpty { mapDTNV[ma] = item }
                 }

@@ -9,10 +9,10 @@ final class DichVuQuetAnhGemini {
 
     private func danhSachModelHopLe(modelUuTien: String) -> [(model: String, tatThinking: Bool)] {
         let ungVien: [(model: String, tatThinking: Bool)] = [
-            ("gemini-3.1-flash", true),
-            ("gemini-3-flash-preview", true),
-            ("gemini-3.1-flash-lite-preview", true),
-            (modelUuTien, modelUuTien.hasPrefix("gemini-2.5-flash") || modelUuTien.hasPrefix("gemini-3")),
+            ("gemini-3.1-flash", false),
+            ("gemini-3-flash-preview", false),
+            ("gemini-3.1-flash-lite-preview", false),
+            (modelUuTien, modelUuTien.hasPrefix("gemini-2.5-flash")),
             ("gemini-2.5-flash", true),
             ("gemini-2.5-flash-lite", true),
             ("gemini-2.0-flash", false)
@@ -384,7 +384,7 @@ final class DichVuQuetAnhGemini {
         URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
             guard let self else { return }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            if status == 404 {
+            if status == 404 || status == 400 {
                 self.khoaModel404.lock()
                 self.cacModelKhongHoTro.insert(cap.model)
                 self.khoaModel404.unlock()
@@ -639,23 +639,12 @@ final class DichVuQuetAnhGemini {
             kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: [], moi: dsQuet)
             if !kq.danhSachThiDua.isEmpty { kq.soAnhThiDua = 1 }
         }
-        if let arr = json["nhanVien"] as? [[String: Any]] {
-            kq.doanhThuNhanVien = arr.compactMap { item in
-                let ma = KhoDuLieu.chuanHoaMaNV((item["maNV"] as? String) ?? "")
-                let ten = ((item["hoTen"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !ma.isEmpty || !ten.isEmpty else { return nil }
-                return DoanhThuNhanVienItem(
-                    maNV: ma,
-                    hoTen: ten,
-                    soLuong: so(item, "soLuong"),
-                    doanhThuThuc: 0,
-                    doanhThuQD: so(item, "doanhThuQD"),
-                    dtQDKhoanVay: so(item, "dtKhoanVay"),
-                    dtTraThangQD: so(item, "phanTramTiTrong"),
-                    phanTramQuyDoi: so(item, "phanTramTiTrong")
-                )
+        if json["nhanVien"] is [[String: Any]] {
+            let dsDT = locDoanhThuNhanVienTuJSON(json)
+            if !dsDT.isEmpty {
+                kq.doanhThuNhanVien = dsDT
+                kq.soAnhDoanhThuNV = 1
             }
-            if !kq.doanhThuNhanVien.isEmpty { kq.soAnhDoanhThuNV = 1 }
         }
         if let arr = json["thiDuaNhanVien"] as? [[String: Any]] {
             kq.thiDuaNhanVien = arr.compactMap { khoi in
@@ -798,13 +787,6 @@ final class DichVuQuetAnhGemini {
                 kq.soAnhThiDuaNV += 1
             }
         }
-        if kq.doanhThuNhanVien.isEmpty {
-            let dsDTTuBang = locDoanhThuNhanVienTuJSON(json)
-            if !dsDTTuBang.isEmpty {
-                kq.doanhThuNhanVien = dsDTTuBang
-                kq.soAnhDoanhThuNV = 1
-            }
-        }
         // Nếu JSON được tạo từ câu lệnh lọc bảng nhân viên × ngành hàng (chưa vào kq.thiDuaNhanVien)
         if kq.thiDuaNhanVien.isEmpty {
             let khoiTuBang = locThiDuaNhanVienTuJSON(json)
@@ -812,6 +794,18 @@ final class DichVuQuetAnhGemini {
                 kq.thiDuaNhanVien = khoiTuBang
                 kq.soAnhThiDuaNV = khoiTuBang.count
             }
+        }
+        if kq.thiDuaNhanVien.isEmpty && kq.doanhThuNhanVien.isEmpty {
+            let dsDTTuBang = locDoanhThuNhanVienTuJSON(json)
+            if !dsDTTuBang.isEmpty {
+                kq.doanhThuNhanVien = dsDTTuBang
+                kq.soAnhDoanhThuNV = 1
+            }
+        }
+        // Nếu là ảnh Ma trận Thi đua Nhân viên (không phải phiếu sức khỏe 27 điểm) thì tuyệt đối không sinh doanhThuNhanVien giả
+        if !kq.thiDuaNhanVien.isEmpty && kq.sucKhoeNhanVien.isEmpty {
+            kq.doanhThuNhanVien = []
+            kq.soAnhDoanhThuNV = 0
         }
         return kq
     }

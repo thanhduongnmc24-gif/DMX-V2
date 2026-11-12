@@ -1931,6 +1931,23 @@ final class KhoDuLieu {
         return ketQua
     }
 
+    /// Kiểm tra và loại bỏ dữ liệu Doanh thu NV bị nhiễm từ bảng Ma trận Thi đua Nhân viên (ví dụ SỐ LƯỢNG có số lẻ thập phân 5.24, 16.43 hoặc % TỈ TRỌNG = 71.4% của Tủ Lạnh)
+    static func laItemDTNVBiNhiemMaTran(_ it: DoanhThuNhanVienItem) -> Bool {
+        if abs(it.soLuong - it.soLuong.rounded()) > 0.01 { return true }
+        if it.phanTramQuyDoi > 45.0 && it.soLuong <= 10.0 { return true }
+        return false
+    }
+
+    static func locSachDanhSachDTNV(_ ds: [DoanhThuNhanVienItem]) -> [DoanhThuNhanVienItem] {
+        guard !ds.isEmpty else { return [] }
+        let soItemLeSL = ds.filter { abs($0.soLuong - $0.soLuong.rounded()) > 0.01 }.count
+        let tongTiTrong = ds.reduce(0.0) { $0 + max(0, $1.phanTramQuyDoi) }
+        if soItemLeSL >= 1 || tongTiTrong > 130.0 {
+            return []
+        }
+        return ds.filter { !laItemDTNVBiNhiemMaTran($0) }
+    }
+
     /// Lấy Doanh thu Lũy kế Nhân viên của tháng (khi nhập mới sẽ thay thế dữ liệu cũ)
     func doanhThuNhanVienLuyKeThang(cho ngay: Date) -> [DoanhThuNhanVienItem] {
         khoaTruyCap.lock()
@@ -1940,14 +1957,20 @@ final class KhoDuLieu {
             return daDem
         }
         let tienTo = String(khoa.prefix(7))
-        if let hienTai = cacNgay[khoa]?.doanhThuNhanVien, !hienTai.isEmpty {
-            boNhoDemDTNVLuyKeThang[khoa] = hienTai
-            return hienTai
+        if let hienTai = cacNgay[khoa]?.doanhThuNhanVien {
+            let sach = Self.locSachDanhSachDTNV(hienTai)
+            if !sach.isEmpty {
+                boNhoDemDTNVLuyKeThang[khoa] = sach
+                return sach
+            }
         }
         for k in cacNgay.keys.filter({ $0.hasPrefix(tienTo) }).sorted(by: >) {
-            if let ds = cacNgay[k]?.doanhThuNhanVien, !ds.isEmpty {
-                boNhoDemDTNVLuyKeThang[khoa] = ds
-                return ds
+            if let ds = cacNgay[k]?.doanhThuNhanVien {
+                let sach = Self.locSachDanhSachDTNV(ds)
+                if !sach.isEmpty {
+                    boNhoDemDTNVLuyKeThang[khoa] = sach
+                    return sach
+                }
             }
         }
         boNhoDemDTNVLuyKeThang[khoa] = []
@@ -2888,11 +2911,12 @@ final class KhoDuLieu {
 
         let dtNVList: [DoanhThuNhanVienItem]
         if cheDo == .luyKe {
-            dtNVList = !dlHienTai.doanhThuNhanVien.isEmpty
-                ? dlHienTai.doanhThuNhanVien
+            let sachHienTai = Self.locSachDanhSachDTNV(dlHienTai.doanhThuNhanVien)
+            dtNVList = !sachHienTai.isEmpty
+                ? sachHienTai
                 : doanhThuNhanVienLuyKeThang(cho: ngay)
         } else {
-            dtNVList = dlHienTai.doanhThuNhanVienRealtime
+            dtNVList = Self.locSachDanhSachDTNV(dlHienTai.doanhThuNhanVienRealtime)
         }
 
         let tatCaMaSet = Set(dsNV.map(\.maNV))
@@ -3053,20 +3077,29 @@ final class KhoDuLieu {
             let tongMonGiao = cacMonGiao.count
             let phanTramHTTB = tongMonGiao > 0 ? cacMonGiao.map(\.phanTramHT).reduce(0, +) / Double(tongMonGiao) : 0
             let dtCaNhan = mapDTCaNhan[nv.maNV]
+            let skBiNhiemMaTran: Bool = {
+                guard let sk = boSungNV else { return false }
+                let sl = sk.soLuotBillBanHang ?? 0
+                let pt = sk.phanTramQuyDoi ?? 0
+                if abs(sl - sl.rounded()) > 0.01 { return true }
+                if pt > 45.0 && sl <= 10.0 { return true }
+                return false
+            }()
+            let boSungHopLe = skBiNhiemMaTran ? nil : boSungNV
 
             let dtQDCuoi: Double = {
                 if let dt = dtCaNhan?.doanhThuQD, abs(dt) > 0.0001 { return dt }
-                if let skDT = boSungNV?.doanhThuQDSucKhoe, abs(skDT) > 0.0001 { return skDT }
+                if let skDT = boSungHopLe?.doanhThuQDSucKhoe, abs(skDT) > 0.0001 { return skDT }
                 return dtCaNhan?.doanhThuQD ?? 0
             }()
             let soDonCuoi: Double = {
                 if let sl = dtCaNhan?.soLuong, abs(sl) > 0.0001 { return sl }
-                if let skSL = boSungNV?.soLuotBillBanHang, abs(skSL) > 0.0001 { return skSL }
+                if let skSL = boSungHopLe?.soLuotBillBanHang, abs(skSL) > 0.0001 { return skSL }
                 return dtCaNhan?.soLuong ?? 0
             }()
             let tiTrongCuoi: Double = {
                 if let dtCaNhan, abs(dtCaNhan.phanTramQuyDoi) > 0.0001 { return dtCaNhan.phanTramQuyDoi }
-                if let skQD = boSungNV?.phanTramQuyDoi, abs(skQD) > 0.0001, abs(skQD - soDonCuoi) > 0.1 { return skQD }
+                if let skQD = boSungHopLe?.phanTramQuyDoi, abs(skQD) > 0.0001, abs(skQD - soDonCuoi) > 0.1 { return skQD }
                 if let dtCaNhan, abs(dtCaNhan.dtTraThangQD) > 0.0001, abs(dtCaNhan.dtTraThangQD - soDonCuoi) > 0.1 { return dtCaNhan.dtTraThangQD }
                 return 0
             }()
