@@ -953,7 +953,7 @@ final class DichVuQuetAnhGemini {
             if let n = anyVal as? NSNumber { return n.doubleValue }
             if let s = anyVal as? String {
                 let trim = s.trimmingCharacters(in: .whitespacesAndNewlines)
-                let khongGach = trim.replacingOccurrences(of: "^[\-–—_\s]+$", with: "", options: .regularExpression)
+                let khongGach = trim.replacingOccurrences(of: "^[\\-–—_\\s]+$", with: "", options: .regularExpression)
                 if khongGach.isEmpty { return 0 }
                 return chuyenChuoiThanhSo(trim) ?? 0
             }
@@ -978,20 +978,20 @@ final class DichVuQuetAnhGemini {
         func tachMaVaTenNV(_ chuoi: String, maPhu: String = "") -> (maNV: String, hoTen: String)? {
             let clean = chuoi
                 .replacingOccurrences(of: "\n", with: " ")
-                .replacingOccurrences(of: "\s+", with: " ", options: .regularExpression)
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let u = clean.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
             if u == "TONG" || u == "TONG CONG" || u == "NHAN VIEN" || u == "TOTAL" {
                 return nil
             }
             var ma = maPhu.trimmingCharacters(in: .whitespacesAndNewlines)
-            if ma.isEmpty, let r = clean.range(of: "\b\d{4,7}\b", options: .regularExpression) {
+            if ma.isEmpty, let r = clean.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) {
                 ma = String(clean[r])
             }
             let ten = clean
                 .replacingOccurrences(of: ma, with: "")
-                .replacingOccurrences(of: "^[\s\-–—:|_]+|[\s\-–—:|_]+$", with: "", options: .regularExpression)
-                .replacingOccurrences(of: "\s+", with: " ", options: .regularExpression)
+                .replacingOccurrences(of: "^[\\s\\-–—:|_]+|[\\s\\-–—:|_]+$", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if !dsQuanLy.isEmpty,
                let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: ma, tenQuet: ten.isEmpty ? clean : ten, dsQuanLy: dsQuanLy) {
@@ -1414,10 +1414,10 @@ final class DichVuQuetAnhGemini {
 
             var ma = KhoDuLieu.chuanHoaMaNV(maTho)
             var ten = tenTho
-                .replacingOccurrences(of: "(?i)\bid\s*:\s*\d+", with: "", options: .regularExpression)
-                .replacingOccurrences(of: "^[+\-–—\s]+", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "(?i)\\bid\\s*:\\s*\\d+", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "^[+\\-–—\\s]+", with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            if ma.isEmpty, let r = tenTho.range(of: "\b\d{4,7}\b", options: .regularExpression) {
+            if ma.isEmpty, let r = tenTho.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) {
                 ma = String(tenTho[r])
             }
             if !dsQuanLy.isEmpty, let khop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: ma, tenQuet: ten, dsQuanLy: dsQuanLy) {

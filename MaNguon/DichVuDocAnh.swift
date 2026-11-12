@@ -3143,8 +3143,8 @@ final class DichVuDocAnh {
                     let yTamPx = (1.0 - box.origin.y - box.size.height / 2.0) * CGFloat(totalH)
                     var rIdxMatch: Int?
                     if !laVanBan,
-                       let r = txt.range(of: "(?:ID|1D|lD|I0)\s*(1\d{2})", options: [.regularExpression, .caseInsensitive]),
-                       let numR = String(txt[r]).range(of: "1\d{2}", options: .regularExpression),
+                       let r = txt.range(of: "(?:ID|1D|lD|I0)\\s*(1\\d{2})", options: [.regularExpression, .caseInsensitive]),
+                       let numR = String(txt[r]).range(of: "1\\d{2}", options: .regularExpression),
                        let code = Int(txt[r][numR]) {
                         let idx = code - 100
                         if idx >= 0 && idx < bands.count {
@@ -3163,7 +3163,7 @@ final class DichVuDocAnh {
                             chuLuu = String(chuLuu[rColon.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
                         } else {
                             chuLuu = chuLuu.replacingOccurrences(
-                                of: "^(?:ID|1D|lD|I0)?\s*1\d{2}\s*[:;.]?\s*",
+                                of: "^(?:ID|1D|lD|I0)?\\s*1\\d{2}\\s*[:;.]?\\s*",
                                 with: "",
                                 options: [.regularExpression, .caseInsensitive]
                             ).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3199,17 +3199,17 @@ final class DichVuDocAnh {
         var dsNhanVien: [(rowIdx: Int, maNV: String, hoTen: String)] = []
         for rIdx in rowBounds.indices {
             let text = (nvOCR[rIdx] ?? []).joined(separator: " ")
-                .replacingOccurrences(of: "\s+", with: " ", options: .regularExpression)
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
             var maNV = ""
-            if let range = text.range(of: "\b\d{4,7}\b", options: .regularExpression) {
+            if let range = text.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) {
                 maNV = String(text[range])
             }
             let hoTen = text
                 .replacingOccurrences(of: maNV, with: "")
                 .replacingOccurrences(of: "[-–—]", with: " ", options: .regularExpression)
-                .replacingOccurrences(of: "\s+", with: " ", options: .regularExpression)
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if !dsQuanLy.isEmpty,
                let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: maNV, tenQuet: hoTen, dsQuanLy: dsQuanLy) {
@@ -3225,7 +3225,7 @@ final class DichVuDocAnh {
             let joined = chuoiArr.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
             guard !joined.isEmpty else { return 0.0 }
             let khongDauGach = joined
-                .replacingOccurrences(of: "[\-–—_\s]+", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "[\\-–—_\\s]+", with: "", options: .regularExpression)
             if khongDauGach.isEmpty {
                 return 0.0
             }
@@ -7810,7 +7810,7 @@ final class DichVuDocAnh {
         }
 
         func lamSachDongTenNV(_ chu: String) -> String {
-            var s = chu
+            let s = chu
                 .replacingOccurrences(of: "(?i)\\b(?:id|ld|1d|ia|iđ)\\s*[:.;\\-]?\\s*\\d{3,8}", with: " ", options: .regularExpression)
                 .replacingOccurrences(of: "54453", with: " ")
                 .replacingOccurrences(of: "(?i)D[uũ]ng\\s*Nguy[eễ]n\\s*Thanh", with: " ", options: .regularExpression)
@@ -9822,11 +9822,11 @@ final class DichVuDocAnh {
         sach = sach.replacingOccurrences(of: ",", with: "")
 
         guard !sach.isEmpty else { return nil }
-        if sach.range(of: "^-?\\d+(\\.\\d+)?$", options: .regularExpression) != nil {
+        if sach.range(of: "^-?\\d+(\.\\d+)?$", options: .regularExpression) != nil {
             if let wm = watermark, sach == wm { return nil }
             return Double(sach)
         }
-        if let range = sach.range(of: "-?\\d+(\\.\\d+)?$", options: .regularExpression) {
+        if let range = sach.range(of: "-?\\d+(\.\\d+)?$", options: .regularExpression) {
             let token = String(sach[range])
             if let wm = watermark, token == wm { return nil }
             return Double(token)
@@ -9876,12 +9876,12 @@ final class DichVuDocAnh {
                 s = s.replacingOccurrences(of: ",", with: ".")
             }
         } else if s.contains(".") {
-            if s.range(of: "^-?\\d{1,3}(\\.\\d{3})+$", options: .regularExpression) != nil {
+            if s.range(of: "^-?\\d{1,3}(\.\\d{3})+$", options: .regularExpression) != nil {
                 s = s.replacingOccurrences(of: ".", with: "")
             }
         }
 
-        if let range = s.range(of: "-?\\d+(\\.\\d+)?", options: .regularExpression) {
+        if let range = s.range(of: "-?\\d+(\.\\d+)?", options: .regularExpression) {
             return Double(String(s[range]))
         }
         return nil
