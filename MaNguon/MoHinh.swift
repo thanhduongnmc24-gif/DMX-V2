@@ -1619,6 +1619,23 @@ final class ThuMucDuLieu {
 }
 
 final class KhoDuLieu {
+    static func chuyenChuoiThanhSo(_ s: String) -> Double? {
+        var chuoi = s
+            .replacingOccurrences(of: "%", with: "")
+            .replacingOccurrences(of: " ", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if chuoi.contains(",") && chuoi.contains(".") {
+            if let viTriPhay = chuoi.lastIndex(of: ","), let viTriCham = chuoi.lastIndex(of: "."), viTriPhay > viTriCham {
+                chuoi = chuoi.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
+            } else {
+                chuoi = chuoi.replacingOccurrences(of: ",", with: "")
+            }
+        } else if chuoi.contains(",") {
+            chuoi = chuoi.replacingOccurrences(of: ",", with: ".")
+        }
+        return Double(chuoi)
+    }
+
     static let dungChung = KhoDuLieu()
 
     private let khoaTruyCap = NSRecursiveLock()

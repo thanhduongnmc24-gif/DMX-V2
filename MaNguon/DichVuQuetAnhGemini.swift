@@ -509,23 +509,27 @@ final class DichVuQuetAnhGemini {
         """
     }
 
+    private func chuyenChuoiThanhSo(_ s: String) -> Double? {
+        var chuoi = s
+            .replacingOccurrences(of: "%", with: "")
+            .replacingOccurrences(of: " ", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if chuoi.contains(",") && chuoi.contains(".") {
+            if let viTriPhay = chuoi.lastIndex(of: ","), let viTriCham = chuoi.lastIndex(of: "."), viTriPhay > viTriCham {
+                chuoi = chuoi.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
+            } else {
+                chuoi = chuoi.replacingOccurrences(of: ",", with: "")
+            }
+        } else if chuoi.contains(",") {
+            chuoi = chuoi.replacingOccurrences(of: ",", with: ".")
+        }
+        return Double(chuoi)
+    }
+
     private func so(_ obj: [String: Any], _ key: String) -> Double {
         if let n = obj[key] as? NSNumber { return n.doubleValue }
         if let s = obj[key] as? String {
-            var chuoi = s
-                .replacingOccurrences(of: "%", with: "")
-                .replacingOccurrences(of: " ", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if chuoi.contains(",") && chuoi.contains(".") {
-                if let viTriPhay = chuoi.lastIndex(of: ","), let viTriCham = chuoi.lastIndex(of: "."), viTriPhay > viTriCham {
-                    chuoi = chuoi.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
-                } else {
-                    chuoi = chuoi.replacingOccurrences(of: ",", with: "")
-                }
-            } else if chuoi.contains(",") {
-                chuoi = chuoi.replacingOccurrences(of: ",", with: ".")
-            }
-            return Double(chuoi) ?? 0
+            return chuyenChuoiThanhSo(s) ?? 0
         }
         return 0
     }
@@ -628,8 +632,8 @@ final class DichVuQuetAnhGemini {
                     var tgVal = so(nv, "target")
                     if let sTh = nv["thucHien"] as? String, sTh.contains("/") {
                         let parts = sTh.components(separatedBy: "/")
-                        if let v1 = KhoDuLieu.chuyenChuoiThanhSo(parts[0]) { thVal = v1 }
-                        if tgVal <= 0, parts.count > 1, let v2 = KhoDuLieu.chuyenChuoiThanhSo(parts[1]) { tgVal = v2 }
+                        if let v1 = chuyenChuoiThanhSo(parts[0]) { thVal = v1 }
+                        if tgVal <= 0, parts.count > 1, let v2 = chuyenChuoiThanhSo(parts[1]) { tgVal = v2 }
                     }
                     return DongThiDuaNhanVienQuet(
                         maNV: ma,
