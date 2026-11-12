@@ -957,7 +957,22 @@ final class DichVuDocAnh {
                 // ƯU TIÊN 2: Kiểm tra ảnh Ma trận Thi đua Nhân viên Lũy kế (3 ảnh ICT / CE / DV) hoặc Bảng Thực hiện Nhân viên theo Ngành hàng
                 if !laRealtime,
                    self.laAnhMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh) {
-                    let cacKhoiMT = self.phanTichMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh, watermark: wm)
+                    var cacKhoiMT: [KetQuaThiDuaNhanVienKhoi] = []
+                    let semG = DispatchSemaphore(value: 0)
+                    DichVuQuetAnhGemini.dungChung.quetThiDuaNhanVien(
+                        danhSachAnh: [anh],
+                        cheDo: .luyKe,
+                        tienTrinh: nil
+                    ) { kqG in
+                        if case .success(let dsG) = kqG, !dsG.isEmpty {
+                            cacKhoiMT = dsG
+                        }
+                        semG.signal()
+                    }
+                    _ = semG.wait(timeout: .now() + 28)
+                    if cacKhoiMT.isEmpty {
+                        cacKhoiMT = self.phanTichMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh, watermark: wm)
+                    }
                     if !cacKhoiMT.isEmpty {
                         kq.thiDuaNhanVien.append(contentsOf: cacKhoiMT)
                         kq.soAnhThiDuaNV += 1
@@ -1216,7 +1231,22 @@ final class DichVuDocAnh {
                     )
                 }
                 if !laRealtime && self.laAnhMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh) {
-                    let cacKhoiMT = self.phanTichMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh, watermark: wm)
+                    var cacKhoiMT: [KetQuaThiDuaNhanVienKhoi] = []
+                    let semG = DispatchSemaphore(value: 0)
+                    DichVuQuetAnhGemini.dungChung.quetThiDuaNhanVien(
+                        danhSachAnh: [anh],
+                        cheDo: .luyKe,
+                        tienTrinh: nil
+                    ) { kqG in
+                        if case .success(let dsG) = kqG, !dsG.isEmpty {
+                            cacKhoiMT = dsG
+                        }
+                        semG.signal()
+                    }
+                    _ = semG.wait(timeout: .now() + 28)
+                    if cacKhoiMT.isEmpty {
+                        cacKhoiMT = self.phanTichMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh, watermark: wm)
+                    }
                     if !cacKhoiMT.isEmpty {
                         cacKhoiNV.append(contentsOf: cacKhoiMT)
                         continue
@@ -1362,6 +1392,40 @@ final class DichVuDocAnh {
     // MARK: - 2. Quét danh sách ảnh chụp bảng Thực hiện Nhân viên theo Ngành hàng
 
     func quetAnhThiDuaNhanVien(
+        danhSachAnh: [UIImage],
+        tenNganhGoiY: String? = nil,
+        maNVGoiY: String? = nil,
+        tienTrinh: ((String) -> Void)? = nil,
+        hoanTatSucKhoe: (([String: DuLieuSucKhoeBoSungNV]) -> Void)? = nil,
+        hoanTat: @escaping ([KetQuaThiDuaNhanVienKhoi]) -> Void
+    ) {
+        // Thử trước với Gemini 3.1 Flash bằng câu lệnh chuyên biệt lọc bảng nhân viên × ngành hàng ra JSON
+        DichVuQuetAnhGemini.dungChung.quetThiDuaNhanVien(
+            danhSachAnh: danhSachAnh,
+            cheDo: .luyKe,
+            tienTrinh: tienTrinh
+        ) { [weak self] ketQuaGemini in
+            switch ketQuaGemini {
+            case .success(let cacKhoiGemini) where !cacKhoiGemini.isEmpty:
+                hoanTat(cacKhoiGemini)
+            default:
+                guard let self = self else {
+                    hoanTat([])
+                    return
+                }
+                self.quetAnhThiDuaNhanVienOffline(
+                    danhSachAnh: danhSachAnh,
+                    tenNganhGoiY: tenNganhGoiY,
+                    maNVGoiY: maNVGoiY,
+                    tienTrinh: tienTrinh,
+                    hoanTatSucKhoe: hoanTatSucKhoe,
+                    hoanTat: hoanTat
+                )
+            }
+        }
+    }
+
+    private func quetAnhThiDuaNhanVienOffline(
         danhSachAnh: [UIImage],
         tenNganhGoiY: String? = nil,
         maNVGoiY: String? = nil,

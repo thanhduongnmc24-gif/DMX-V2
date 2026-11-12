@@ -62,9 +62,10 @@ final class DichVuQuetAnhGemini {
         }
 
         let modelLuu = cd.geminiModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let modelUuTien = (modelLuu.hasPrefix("gemini-") && modelLuu.contains("flash")) ? modelLuu : "gemini-2.5-flash"
+        let modelUuTien = (modelLuu.hasPrefix("gemini-") && modelLuu.contains("flash")) ? modelLuu : "gemini-3.1-flash"
 
         var cacModel: [(model: String, tatThinking: Bool)] = [
+            ("gemini-3.1-flash", false),
             (modelUuTien, modelUuTien.hasPrefix("gemini-2.5-flash")),
             ("gemini-2.5-flash", true),
             ("gemini-2.5-flash-lite", true),
@@ -312,9 +313,9 @@ final class DichVuQuetAnhGemini {
         return anhGon.jpegData(compressionQuality: 0.84)
     }
 
-    private func taoBodyData(imageData: Data, cheDo: LoaiCheDoDoanhThu, tatThinking: Bool) -> Data? {
+    private func taoBodyData(imageData: Data, cheDo: LoaiCheDoDoanhThu, tatThinking: Bool, promptTuChon: String? = nil) -> Data? {
         let parts: [[String: Any]] = [
-            ["text": prompt(cheDo: cheDo)],
+            ["text": promptTuChon ?? prompt(cheDo: cheDo)],
             ["inline_data": ["mime_type": "image/jpeg", "data": imageData.base64EncodedString()]]
         ]
         var genConfig: [String: Any] = [
@@ -338,6 +339,7 @@ final class DichVuQuetAnhGemini {
         chiSo: Int,
         cheDo: LoaiCheDoDoanhThu,
         imageData: Data,
+        promptTuChon: String? = nil,
         hoanTat: @escaping (Result<KetQuaQuetTatCaAnh, Error>) -> Void
     ) {
         guard chiSo < cacCap.count else {
@@ -350,13 +352,13 @@ final class DichVuQuetAnhGemini {
         }
         let cap = cacCap[chiSo]
         guard var thanhPhan = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/\(cap.model):generateContent") else {
-            goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, hoanTat: hoanTat)
+            goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, hoanTat: hoanTat)
             return
         }
         thanhPhan.queryItems = [URLQueryItem(name: "key", value: cap.key)]
         guard let url = thanhPhan.url,
-              let bodyData = taoBodyData(imageData: imageData, cheDo: cheDo, tatThinking: cap.tatThinking) else {
-            goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, hoanTat: hoanTat)
+              let bodyData = taoBodyData(imageData: imageData, cheDo: cheDo, tatThinking: cap.tatThinking, promptTuChon: promptTuChon) else {
+            goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, hoanTat: hoanTat)
             return
         }
 
@@ -370,7 +372,7 @@ final class DichVuQuetAnhGemini {
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             if error != nil || status != 200 {
                 if chiSo + 1 < cacCap.count {
-                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, hoanTat: hoanTat)
+                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, hoanTat: hoanTat)
                     return
                 }
                 let loi = data.map { self.thongDiepLoi(tu: $0, status: status) } ?? (error?.localizedDescription ?? "Gemini Flash không phản hồi.")
@@ -380,7 +382,7 @@ final class DichVuQuetAnhGemini {
 
             guard let data, let json = self.layJSONKetQua(tu: data) else {
                 if chiSo + 1 < cacCap.count {
-                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, hoanTat: hoanTat)
+                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, hoanTat: hoanTat)
                     return
                 }
                 hoanTat(.failure(NSError(
@@ -394,7 +396,7 @@ final class DichVuQuetAnhGemini {
             let ketQua = self.chuyen(json: json, cheDo: cheDo)
             guard ketQua.coDuLieu else {
                 if chiSo + 1 < cacCap.count {
-                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, hoanTat: hoanTat)
+                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, hoanTat: hoanTat)
                     return
                 }
                 hoanTat(.failure(NSError(
@@ -423,6 +425,17 @@ final class DichVuQuetAnhGemini {
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Nếu phản hồi là mảng JSON gốc [...] thì bọc vào ["danhSach": arr]
+        if let dauVuong = text.firstIndex(of: "["),
+           (text.firstIndex(of: "{") == nil || dauVuong < text.firstIndex(of: "{")!),
+           let cuoiVuong = text.lastIndex(of: "]"), dauVuong <= cuoiVuong {
+            let subArr = String(text[dauVuong...cuoiVuong])
+            if let arrData = subArr.data(using: .utf8),
+               let arrObj = try? JSONSerialization.jsonObject(with: arrData) as? [[String: Any]] {
+                return ["danhSach": arrObj]
+            }
+        }
 
         if let dau = text.firstIndex(of: "{"), let cuoi = text.lastIndex(of: "}"), dau <= cuoi {
             let sub = String(text[dau...cuoi])
@@ -756,6 +769,371 @@ final class DichVuQuetAnhGemini {
                 kq.soAnhThiDuaNV += 1
             }
         }
+        // Nếu JSON được tạo từ câu lệnh lọc bảng nhân viên × ngành hàng (chưa vào kq.thiDuaNhanVien)
+        if kq.thiDuaNhanVien.isEmpty {
+            let khoiTuBang = locThiDuaNhanVienTuJSON(json)
+            if !khoiTuBang.isEmpty {
+                kq.thiDuaNhanVien = khoiTuBang
+                kq.soAnhThiDuaNV = khoiTuBang.count
+            }
+        }
         return kq
+    }
+
+    /// Câu lệnh chuyên biệt để quét ảnh Thi đua Nhân viên theo đúng yêu cầu
+    private var promptThiDuaNhanVien: String {
+        "đây là ảnh doanh thu của nhân viên ứng với từng ngành hàng, cột đầu tiên là tên nhân viên, các cột tiếp theo là ngành hàng, hãy lọc nó thành một đoạn json"
+    }
+
+    /// Quét danh sách ảnh Thi đua Nhân viên bằng Gemini 3.1 Flash với câu lệnh chuyên biệt và lọc kết quả JSON vào ứng dụng
+    func quetThiDuaNhanVien(
+        danhSachAnh: [UIImage],
+        cheDo: LoaiCheDoDoanhThu = .luyKe,
+        tienTrinh: ((String) -> Void)? = nil,
+        hoanTat: @escaping (Result<[KetQuaThiDuaNhanVienKhoi], Error>) -> Void
+    ) {
+        let cd = KhoDuLieu.dungChung.layCaiDatAnToan()
+        let keyUD = (UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyCD = cd.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let keyNguoiDung: String
+        if !keyUD.isEmpty && keyUD != CaiDatDMX.geminiKeyMacDinh {
+            keyNguoiDung = keyUD
+        } else if !keyCD.isEmpty && keyCD != CaiDatDMX.geminiKeyMacDinh {
+            keyNguoiDung = keyCD
+        } else {
+            keyNguoiDung = ""
+        }
+
+        let keyChinh = keyNguoiDung.isEmpty ? CaiDatDMX.geminiKeyMacDinh : keyNguoiDung
+        var danhSachKey: [String] = []
+        if !keyChinh.isEmpty { danhSachKey.append(keyChinh) }
+        if !CaiDatDMX.geminiKeyMacDinh.isEmpty && !danhSachKey.contains(CaiDatDMX.geminiKeyMacDinh) {
+            danhSachKey.append(CaiDatDMX.geminiKeyMacDinh)
+        }
+
+        guard !danhSachKey.isEmpty, !danhSachAnh.isEmpty else {
+            hoanTat(.failure(NSError(domain: "GeminiVision", code: 400, userInfo: [NSLocalizedDescriptionKey: "Chưa có ảnh hoặc API Key."])))
+            return
+        }
+
+        var cacDuLieuAnh: [Data] = []
+        for anh in danhSachAnh {
+            if let d = duLieuAnhGon(anh) {
+                cacDuLieuAnh.append(d)
+            }
+        }
+        guard !cacDuLieuAnh.isEmpty else {
+            hoanTat(.failure(NSError(domain: "GeminiVision", code: 400, userInfo: [NSLocalizedDescriptionKey: "Không đọc được dữ liệu ảnh."])))
+            return
+        }
+
+        let modelLuu = cd.geminiModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelUuTien = (modelLuu.hasPrefix("gemini-") && modelLuu.contains("flash")) ? modelLuu : "gemini-3.1-flash"
+        var cacModel: [(model: String, tatThinking: Bool)] = [
+            ("gemini-3.1-flash", false),
+            (modelUuTien, modelUuTien.hasPrefix("gemini-2.5-flash")),
+            ("gemini-2.5-flash", true),
+            ("gemini-2.5-flash-lite", true),
+            ("gemini-2.0-flash", false)
+        ]
+        var daCoModel = Set<String>()
+        cacModel = cacModel.filter { item in
+            let k = "\(item.model)|\(item.tatThinking)"
+            if daCoModel.contains(k) { return false }
+            daCoModel.insert(k)
+            return true
+        }
+
+        var cacCapThu: [CauHinhThuGemini] = []
+        for k in danhSachKey {
+            for m in cacModel {
+                cacCapThu.append(CauHinhThuGemini(key: k, model: m.model, tatThinking: m.tatThinking))
+            }
+        }
+
+        let tongAnh = cacDuLieuAnh.count
+        let khoa = NSLock()
+        var ketQuaTungAnh = Array<[KetQuaThiDuaNhanVienKhoi]>(repeating: [], count: tongAnh)
+        var loiCuoi: Error?
+        let nhom = DispatchGroup()
+        let semaphore = DispatchSemaphore(value: 2)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            for (idx, imgData) in cacDuLieuAnh.enumerated() {
+                semaphore.wait()
+                nhom.enter()
+                DispatchQueue.main.async {
+                    tienTrinh?("Gemini 3.1 Flash đang quét ảnh Thi đua NV \(idx + 1)/\(tongAnh)...")
+                }
+                self.goiGeminiChoMotAnh(
+                    cacCap: cacCapThu,
+                    chiSo: 0,
+                    cheDo: cheDo,
+                    imageData: imgData,
+                    promptTuChon: self.promptThiDuaNhanVien
+                ) { kqAnh in
+                    khoa.lock()
+                    switch kqAnh {
+                    case .success(let kq):
+                        ketQuaTungAnh[idx] = kq.thiDuaNhanVien
+                    case .failure(let err):
+                        loiCuoi = err
+                    }
+                    khoa.unlock()
+                    semaphore.signal()
+                    nhom.leave()
+                }
+            }
+            nhom.wait()
+
+            let tatCaKhoi = ketQuaTungAnh.flatMap { $0 }
+            DispatchQueue.main.async {
+                if !tatCaKhoi.isEmpty {
+                    hoanTat(.success(tatCaKhoi))
+                } else {
+                    hoanTat(.failure(loiCuoi ?? NSError(domain: "GeminiVision", code: 422, userInfo: [NSLocalizedDescriptionKey: "Chưa lọc được bảng thi đua nhân viên từ JSON."])))
+                }
+            }
+        }
+    }
+
+    /// Bộ lọc đa năng chuyển đổi kết quả JSON từ câu lệnh "đây là ảnh doanh thu của nhân viên ứng với từng ngành hàng..." sang danh sách KetQuaThiDuaNhanVienKhoi của ứng dụng
+    func locThiDuaNhanVienTuJSON(_ json: [String: Any]) -> [KetQuaThiDuaNhanVienKhoi] {
+        let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
+
+        func docGiaTriSo(_ anyVal: Any?) -> Double {
+            guard let anyVal else { return 0 }
+            if let n = anyVal as? NSNumber { return max(0, n.doubleValue) }
+            if let s = anyVal as? String {
+                let trim = s.trimmingCharacters(in: .whitespacesAndNewlines)
+                let khongGach = trim.replacingOccurrences(of: "[\\-–—_\\s]+", with: "", options: .regularExpression)
+                if khongGach.isEmpty { return 0 }
+                return max(0, chuyenChuoiThanhSo(trim) ?? 0)
+            }
+            if let dict = anyVal as? [String: Any] {
+                for k in ["thucHien", "thuc_hien", "doanhThu", "doanh_thu", "giaTri", "gia_tri", "value", "so_lieu", "soLieu"] {
+                    if let v = dict[k] {
+                        return docGiaTriSo(v)
+                    }
+                }
+            }
+            return 0
+        }
+
+        func tachMaVaTenNV(_ chuoi: String, maPhu: String = "") -> (maNV: String, hoTen: String)? {
+            let clean = chuoi.trimmingCharacters(in: .whitespacesAndNewlines)
+            let u = clean.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
+            if u == "TONG" || u == "TONG CONG" || u == "NHAN VIEN" || u == "TOTAL" {
+                return nil
+            }
+            var ma = maPhu.trimmingCharacters(in: .whitespacesAndNewlines)
+            if ma.isEmpty, let r = clean.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) {
+                ma = String(clean[r])
+            }
+            let ten = clean
+                .replacingOccurrences(of: ma, with: "")
+                .replacingOccurrences(of: "^[\\s\\-–—:|_]+|[\\s\\-–—:|_]+$", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !dsQuanLy.isEmpty,
+               let nvKhop = KhoDuLieu.khopNhanVienQuetVoiQuanLy(maQuet: ma, tenQuet: ten.isEmpty ? clean : ten, dsQuanLy: dsQuanLy) {
+                return (nvKhop.maNV, nvKhop.hoTen)
+            }
+            let maChuan = KhoDuLieu.chuanHoaMaNV(ma)
+            guard !maChuan.isEmpty || !ten.isEmpty else { return nil }
+            return (maChuan, ten.isEmpty ? clean : ten)
+        }
+
+        var bangMon: [String: (tenChuan: String, tong: Double, dsNV: [String: (hoTen: String, thucHien: Double)])] = [:]
+        var thuTuMon: [String] = []
+
+        func ghiNhanSoLieu(tenNganhTho: String, maNV: String, hoTen: String, giaTri: Double, laHangTong: Bool = false) {
+            let tenChuan = KhoDuLieu.chuanHoaTenMonThiDuaChuan(tenNganhTho, tienToThangMacDinh: "T11")
+            guard !tenChuan.isEmpty,
+                  tenChuan != "Ngành hàng",
+                  !KhoDuLieu.laTenDongNhanVienBiQuetNham(tenChuan) else { return }
+            let kLM = KhoDuLieu.chuanHoaKhoaLienMachThiDua(tenChuan)
+            guard !kLM.isEmpty else { return }
+
+            if bangMon[kLM] == nil {
+                bangMon[kLM] = (tenChuan: tenChuan, tong: 0, dsNV: [:])
+                thuTuMon.append(kLM)
+            }
+            if laHangTong {
+                if giaTri > 0 {
+                    bangMon[kLM]?.tong = giaTri
+                }
+            } else if !maNV.isEmpty {
+                bangMon[kLM]?.dsNV[maNV] = (hoTen: hoTen, thucHien: giaTri)
+            }
+        }
+
+        let cacKhoaNhanVien: Set<String> = [
+            "nhan_vien", "nhanvien", "ten_nhan_vien", "tennhanvien", "ho_ten", "hoten",
+            "employee", "name", "ten", "ma_va_ten", "nhan_su", "staff"
+        ]
+        let cacKhoaMaNV: Set<String> = [
+            "ma_nv", "manv", "ma_nhan_vien", "manhanvien", "id", "ma", "employee_id"
+        ]
+        let cacKhoaNganhLong: Set<String> = [
+            "nganh_hang", "nganhhang", "doanh_thu", "doanhthu", "du_lieu", "dulieu",
+            "chi_tiet", "chitiet", "cac_nganh_hang", "categories", "data", "mon_thi_dua", "values", "scores"
+        ]
+
+        // TRƯỜNG HỢP 1: Mảng các dòng nhân viên (từ json["danhSach"], json["nhan_vien"], json["data"], json["rows"], ...)
+        var mangDong: [[String: Any]] = []
+        for (_, val) in json {
+            if let arr = val as? [[String: Any]], !arr.isEmpty {
+                // Bỏ qua nếu là mảng cấu trúc chuẩn đã xử lý ở trên
+                if arr.first?["danhSach"] != nil { continue }
+                mangDong = arr
+                break
+            }
+        }
+
+        if !mangDong.isEmpty {
+            for dong in mangDong {
+                var chuoiTenNV = ""
+                var chuoiMaNV = ""
+                for (k, v) in dong {
+                    let kNorm = k.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN"))
+                        .replacingOccurrences(of: "đ", with: "d")
+                        .lowercased()
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if cacKhoaNhanVien.contains(kNorm) || kNorm.contains("nhan_vien") || kNorm.contains("nhanvien") || kNorm == "nhân viên" {
+                        if let s = v as? String { chuoiTenNV = s }
+                    } else if cacKhoaMaNV.contains(kNorm) {
+                        if let s = v as? String { chuoiMaNV = s }
+                        else if let n = v as? NSNumber { chuoiMaNV = n.stringValue }
+                    }
+                }
+
+                let uTen = chuoiTenNV.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
+                let laTong = (uTen == "TONG" || uTen == "TONG CONG" || uTen == "TOTAL")
+                let nvInfo = laTong ? nil : tachMaVaTenNV(chuoiTenNV, maPhu: chuoiMaNV)
+                if !laTong && nvInfo == nil { continue }
+
+                // Kiểm tra xem các ngành hàng nằm trong dict con hay nằm phẳng ngay trong dòng
+                var daTimThayDictCon = false
+                for (k, v) in dong {
+                    let kNorm = k.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN"))
+                        .replacingOccurrences(of: "đ", with: "d")
+                        .lowercased()
+                    if cacKhoaNganhLong.contains(kNorm), let subDict = v as? [String: Any] {
+                        daTimThayDictCon = true
+                        for (tenMonKey, valMon) in subDict {
+                            let gt = docGiaTriSo(valMon)
+                            ghiNhanSoLieu(
+                                tenNganhTho: tenMonKey,
+                                maNV: nvInfo?.maNV ?? "",
+                                hoTen: nvInfo?.hoTen ?? "",
+                                giaTri: gt,
+                                laHangTong: laTong
+                            )
+                        }
+                    } else if cacKhoaNganhLong.contains(kNorm), let subArr = v as? [[String: Any]] {
+                        daTimThayDictCon = true
+                        for itemMon in subArr {
+                            let tenMonKey = (itemMon["ten"] as? String)
+                                ?? (itemMon["nganh_hang"] as? String)
+                                ?? (itemMon["nganhHang"] as? String)
+                                ?? (itemMon["mon"] as? String)
+                                ?? ""
+                            let gt = docGiaTriSo(itemMon)
+                            ghiNhanSoLieu(
+                                tenNganhTho: tenMonKey,
+                                maNV: nvInfo?.maNV ?? "",
+                                hoTen: nvInfo?.hoTen ?? "",
+                                giaTri: gt,
+                                laHangTong: laTong
+                            )
+                        }
+                    }
+                }
+
+                if !daTimThayDictCon {
+                    for (k, v) in dong {
+                        let kNorm = k.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN"))
+                            .replacingOccurrences(of: "đ", with: "d")
+                            .lowercased()
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        if cacKhoaNhanVien.contains(kNorm) || cacKhoaMaNV.contains(kNorm) || kNorm.contains("nhan_vien") || kNorm.contains("nhanvien") {
+                            continue
+                        }
+                        let gt = docGiaTriSo(v)
+                        ghiNhanSoLieu(
+                            tenNganhTho: k,
+                            maNV: nvInfo?.maNV ?? "",
+                            hoTen: nvInfo?.hoTen ?? "",
+                            giaTri: gt,
+                            laHangTong: laTong
+                        )
+                    }
+                }
+            }
+        }
+
+        // TRƯỜNG HỢP 2: JSON dạng Dictionary ánh xạ trực tiếp {"285688 - Lê Tuấn": {"Tivi TCL (DT)": 0, "CE LG (DT)": 83.70, ...}, "TỔNG": {...}}
+        if bangMon.isEmpty {
+            let dictNguon: [String: Any]
+            if let sub = (json["du_lieu"] as? [String: Any]) ?? (json["data"] as? [String: Any]) ?? (json["nhan_vien"] as? [String: Any]) {
+                dictNguon = sub
+            } else {
+                dictNguon = json
+            }
+            for (kOuter, vOuter) in dictNguon {
+                guard let innerDict = vOuter as? [String: Any] else { continue }
+                let uOuter = kOuter.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
+                let laTong = (uOuter == "TONG" || uOuter == "TONG CONG" || uOuter == "TOTAL")
+                if let nvInfo = laTong ? nil : tachMaVaTenNV(kOuter) {
+                    for (tenMonKey, valMon) in innerDict {
+                        let gt = docGiaTriSo(valMon)
+                        ghiNhanSoLieu(
+                            tenNganhTho: tenMonKey,
+                            maNV: nvInfo.maNV,
+                            hoTen: nvInfo.hoTen,
+                            giaTri: gt,
+                            laHangTong: false
+                        )
+                    }
+                } else if laTong {
+                    for (tenMonKey, valMon) in innerDict {
+                        let gt = docGiaTriSo(valMon)
+                        ghiNhanSoLieu(
+                            tenNganhTho: tenMonKey,
+                            maNV: "",
+                            hoTen: "",
+                            giaTri: gt,
+                            laHangTong: true
+                        )
+                    }
+                }
+            }
+        }
+
+        // Kết xuất ra mảng KetQuaThiDuaNhanVienKhoi để nạp thẳng vào KhoDuLieu
+        var ketQua: [KetQuaThiDuaNhanVienKhoi] = []
+        for kLM in thuTuMon {
+            guard let info = bangMon[kLM], !info.dsNV.isEmpty else { continue }
+            let dsQuet = info.dsNV.map { (ma, v) in
+                DongThiDuaNhanVienQuet(
+                    maNV: ma,
+                    hoTen: v.hoTen,
+                    thucHien: v.thucHien,
+                    target: 0,
+                    laPhanTram: false,
+                    laPhanTramTargetCaNhan: false
+                )
+            }
+            ketQua.append(KetQuaThiDuaNhanVienKhoi(
+                tenNganhHang: info.tenChuan,
+                danhSach: dsQuet,
+                thucHienNganhGoiY: info.tong,
+                targetNganhGoiY: 0
+            ))
+        }
+        return ketQua
     }
 }

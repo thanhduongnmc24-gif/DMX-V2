@@ -1212,7 +1212,7 @@ enum PhuongPhapQuetThiDua: Int, Codable, CaseIterable {
 struct CaiDatDMX: Codable {
     static let khoaKhongChonMonThiDua = "__KHONG_CHON_MON_NAO__"
     static let geminiKeyMacDinh = "AIzaSyBLV7N_qUxSuiJ3B3FETmj2Ta67CKeVKWo"
-    static let geminiModelMacDinh = "gemini-2.5-flash"
+    static let geminiModelMacDinh = "gemini-3.1-flash"
 
     var kieuHienThi: KieuHienThiBaoCao = .bangChiTiet
     var phuongPhapQuetThiDua: PhuongPhapQuetThiDua = .bangDoc

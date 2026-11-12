@@ -963,6 +963,7 @@ final class DichVuGeminiAI {
 
     /// Chỉ dùng dòng Gemini 2.5; không tự hạ xuống model đời thấp hơn.
     static let cacModelMienPhi: [(ma: String, ten: String)] = [
+        ("gemini-3.1-flash", "Gemini 3.1 Flash (Thế hệ mới · siêu tốc & chính xác)"),
         ("gemini-2.5-pro", "Gemini 2.5 Pro (Chuyên sâu · chất lượng cao nhất)"),
         ("gemini-2.5-flash", "Gemini 2.5 Flash (Nhanh · báo cáo chi tiết)")
     ]
@@ -996,7 +997,7 @@ final class DichVuGeminiAI {
 
     var modelHienTai: String {
         let luu = KhoDuLieu.dungChung.caiDat.geminiModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        return luu.hasPrefix("gemini-2.5-") ? luu : "gemini-2.5-flash"
+        return (luu.hasPrefix("gemini-3") || luu.hasPrefix("gemini-2.5-")) ? luu : "gemini-3.1-flash"
     }
 
     /// Kiểm tra API Key trực tiếp với máy chủ Google Gemini (tự động thử model dự phòng miễn phí nếu model đầu bận)
@@ -1013,7 +1014,7 @@ final class DichVuGeminiAI {
         }
 
         let modelYeuCau = (model ?? modelHienTai).trimmingCharacters(in: .whitespacesAndNewlines)
-        let modelUuTien = modelYeuCau.hasPrefix("gemini-2.5-") ? modelYeuCau : "gemini-2.5-flash"
+        let modelUuTien = (modelYeuCau.hasPrefix("gemini-3") || modelYeuCau.hasPrefix("gemini-2.5-")) ? modelYeuCau : "gemini-3.1-flash"
         var danhSachThu: [String] = [modelUuTien]
         for m in Self.cacModelMienPhi.map(\.ma) where !danhSachThu.contains(m) {
             danhSachThu.append(m)
@@ -1384,7 +1385,7 @@ final class DichVuGeminiAI {
             "temperature": 0.4,
             "maxOutputTokens": maxTokens
         ]
-        if model.hasPrefix("gemini-2.5-flash") {
+        if model.hasPrefix("gemini-3") || model.hasPrefix("gemini-2.5-flash") {
             genConfig["thinkingConfig"] = ["thinkingBudget": 0]
         }
         if epKieuJSON {
