@@ -941,7 +941,6 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
     private var rangBuocRongBang: NSLayoutConstraint?
 
     private let nhanTieuDe = UILabel()
-    private let nutNhapDoanhThu = UIButton(type: .system)
     private let nutChiaSeAnh = UIButton(type: .system)
     private let nutSapXep = UIButton(type: .system)
     private let cuonNgang = UIScrollView()
@@ -984,30 +983,14 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         nutSapXep.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutSapXep.addTarget(self, action: #selector(bamMoMenuSapXep), for: .touchUpInside)
 
-        let cfgShare = UIImage.SymbolConfiguration(pointSize: 11.5, weight: .bold)
-        nutNhapDoanhThu.setImage(UIImage(systemName: "camera.viewfinder", withConfiguration: cfgShare), for: .normal)
-        nutNhapDoanhThu.setTitle(" Nhập DT NV", for: .normal)
-        nutNhapDoanhThu.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
-        nutNhapDoanhThu.titleLabel?.numberOfLines = 0
-        nutNhapDoanhThu.titleLabel?.lineBreakMode = .byWordWrapping
-        nutNhapDoanhThu.titleLabel?.textAlignment = .center
-        nutNhapDoanhThu.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutNhapDoanhThu.backgroundColor = BangMauBCTD.xanhChuDao
-        nutNhapDoanhThu.tintColor = .white
-        nutNhapDoanhThu.setTitleColor(.white, for: .normal)
-        nutNhapDoanhThu.layer.cornerRadius = 8
-        nutNhapDoanhThu.contentEdgeInsets = UIEdgeInsets(top: 6, left: 9, bottom: 6, right: 9)
-        nutNhapDoanhThu.setContentHuggingPriority(.required, for: .horizontal)
-        nutNhapDoanhThu.setContentCompressionResistancePriority(.required, for: .horizontal)
-        nutNhapDoanhThu.addTarget(self, action: #selector(bamNhapDoanhThuNV), for: .touchUpInside)
+        nhanTieuDe.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        nhanTieuDe.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
+        let cfgShare = UIImage.SymbolConfiguration(pointSize: 11.5, weight: .bold)
         nutChiaSeAnh.setImage(UIImage(systemName: "square.and.arrow.up", withConfiguration: cfgShare), for: .normal)
         nutChiaSeAnh.setTitle(" Chia sẻ ảnh", for: .normal)
         nutChiaSeAnh.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
-        nutChiaSeAnh.titleLabel?.numberOfLines = 0
-        nutChiaSeAnh.titleLabel?.lineBreakMode = .byWordWrapping
-        nutChiaSeAnh.titleLabel?.textAlignment = .center
-        nutChiaSeAnh.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutChiaSeAnh.titleLabel?.numberOfLines = 1
         nutChiaSeAnh.backgroundColor = BangMauBCTD.xanhDatVach
         nutChiaSeAnh.tintColor = .white
         nutChiaSeAnh.setTitleColor(.white, for: .normal)
@@ -1017,7 +1000,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         nutChiaSeAnh.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutChiaSeAnh.addTarget(self, action: #selector(bamChiaSeAnh), for: .touchUpInside)
 
-        let thanhDieuKhien = UIStackView(arrangedSubviews: [nhanTieuDe, nutNhapDoanhThu, nutChiaSeAnh, nutSapXep])
+        let thanhDieuKhien = UIStackView(arrangedSubviews: [nhanTieuDe, nutChiaSeAnh, nutSapXep])
         thanhDieuKhien.axis = .horizontal
         thanhDieuKhien.spacing = 8
         thanhDieuKhien.alignment = .center
@@ -1113,10 +1096,6 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
 
     @objc private func bamMoCaiDat() {
         khiBamMoCaiDatNV?()
-    }
-
-    @objc private func bamNhapDoanhThuNV() {
-        khiBamQuetDoanhThuNV?()
     }
 
     @objc private func bamChiaSeAnh() {
@@ -4063,13 +4042,13 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
         chonCheDo.widthAnchor.constraint(equalToConstant: 132).isActive = true
 
         chonCheDo.isHidden = false
-        let hangTren = UIStackView(arrangedSubviews: [nutNVTruoc, nutChonNV, nutNVSau, chonCheDo])
+        let hangTren = UIStackView(arrangedSubviews: [nutNVTruoc, nutChonNV, nutNVSau])
         hangTren.axis = .horizontal
         hangTren.spacing = 6
         hangTren.alignment = .center
 
         nutUploadAnhNV.setImage(UIImage(systemName: "photo.badge.plus"), for: .normal)
-        nutUploadAnhNV.setTitle(" Upload ảnh NV (Doanh thu & Thi đua)", for: .normal)
+        nutUploadAnhNV.setTitle(" Nhập ảnh NV", for: .normal)
         nutUploadAnhNV.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .bold)
         nutUploadAnhNV.backgroundColor = BangMauBCTD.xanhChuDao
         nutUploadAnhNV.tintColor = .white
@@ -4092,7 +4071,7 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
         nutXoaDuLieuNV.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutXoaDuLieuNV.addTarget(self, action: #selector(bamXoaDuLieuCuaNV), for: .touchUpInside)
 
-        let hangNutUpload = UIStackView(arrangedSubviews: [nutUploadAnhNV, nutXoaDuLieuNV])
+        let hangNutUpload = UIStackView(arrangedSubviews: [chonCheDo, nutUploadAnhNV, nutXoaDuLieuNV])
         hangNutUpload.axis = .horizontal
         hangNutUpload.spacing = 6
         hangNutUpload.alignment = .fill

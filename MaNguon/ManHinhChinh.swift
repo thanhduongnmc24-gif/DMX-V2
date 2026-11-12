@@ -3720,9 +3720,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         if laNhanVien {
             if cheDoDoanhThu == .luyKe {
                 nutThemAnhMoi.isHidden = false
-                nutThemAnhMoi.setTitle(" Nhập Thi đua NV (Lũy kế)", for: .normal)
+                nutThemAnhMoi.setTitle(" Nhập Thi đua NV", for: .normal)
                 nutNhapDoanhThuNV.isHidden = false
-                nutNhapDoanhThuNV.setTitle(" Nhập Doanh thu NV (Lũy kế)", for: .normal)
+                nutNhapDoanhThuNV.setTitle(" Nhập Doanh thu NV", for: .normal)
                 rangBuocBangRongHaiNutNV?.isActive = true
             } else {
                 nutThemAnhMoi.isHidden = true
