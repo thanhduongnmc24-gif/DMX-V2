@@ -992,16 +992,15 @@ final class DichVuQuetAnhGemini {
             for c in 0..<13 {
                 let hangCoSo = luoiO.coSoTheoCot[c].enumerated().compactMap { $0.element ? "\($0.offset + 1)" : nil }
                 if hangCoSo.isEmpty {
-                    cacDongGoiY.append("  + Cột \(c + 1): tất cả các hàng nhân viên đều là "—" (bắt buộc điền 0 hết).")
+                    cacDongGoiY.append("  + Cột \(c + 1): tất cả các hàng nhân viên đều là \"—\" (bắt buộc điền 0 hết).")
                 } else {
-                    cacDongGoiY.append("  + Cột \(c + 1): chỉ các hàng nhân viên thứ [\(hangCoSo.joined(separator: ", "))] có số (tất cả các hàng còn lại là "—" = 0).")
+                    cacDongGoiY.append("  + Cột \(c + 1): chỉ các hàng nhân viên thứ [\(hangCoSo.joined(separator: ", "))] có số (tất cả các hàng còn lại là \"—\" = 0).")
                 }
             }
             goiYLuoi = """
 
             BẢN ĐỒ TỌA ĐỘ Ô CÓ SỐ TRÊN ẢNH NÀY (tính theo thứ tự hàng nhân viên từ 1 đến \(luoiO.soHangNhanVien) từ trên xuống dưới, sau hàng TỔNG):
-            \(cacDongGoiY.joined(separator: "
-"))
+            \(cacDongGoiY.joined(separator: "\n"))
             BẮT BUỘC tuân thủ đúng bản đồ trên: tại mỗi Cột k (1..13), những hàng nhân viên nằm trong danh sách có số thì PHẢI đọc đúng con số trên ảnh (tuyệt đối không để bằng 0), còn những hàng không nằm trong danh sách thì BẮT BUỘC ghi 0!
             """
         }
