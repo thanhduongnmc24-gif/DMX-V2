@@ -7,12 +7,10 @@ final class DichVuQuetAnhGemini {
     private var cacModelKhongHoTro = Set<String>()
     private init() {}
 
-    /// Danh sách các model Gemini Flash tốc độ cao (luôn tắt thinking để phản hồi trong 2-4 giây, không bao giờ bị treo 25s vì thinking)
-    private func danhSachModelHopLe(modelUuTien: String = "gemini-2.5-flash") -> [(model: String, tatThinking: Bool)] {
+    /// Chỉ dùng Gemini 3.1 Flash-Lite. Khi model/key lỗi, lớp gọi bên ngoài sẽ chuyển sang OCR.
+    private func danhSachModelHopLe(modelUuTien: String = "gemini-3.1-flash-lite") -> [(model: String, tatThinking: Bool)] {
         let ungVien: [(model: String, tatThinking: Bool)] = [
-            ("gemini-2.5-flash", true),
-            ("gemini-2.0-flash", false),
-            ("gemini-2.5-flash-lite", true)
+            ("gemini-3.1-flash-lite", true)
         ]
         khoaModel404.lock()
         let ds404 = cacModelKhongHoTro
@@ -41,17 +39,17 @@ final class DichVuQuetAnhGemini {
             }
         }
         var cacCap: [CauHinhThuGemini] = []
-        // Lần 1: Key chính của ảnh này + model nhanh nhất (gemini-2.5-flash tắt thinking)
+        // Lần 1: Key chính của ảnh này + Gemini 3.1 Flash-Lite.
         if let m0 = cacModel.first, let k0 = keyXoayVong.first {
             cacCap.append(CauHinhThuGemini(key: k0, model: m0.model, tatThinking: m0.tatThinking))
         }
-        // Lần 2: Nếu có Key thứ 2 thì thử Key thứ 2 với model đầu; nếu chỉ có 1 Key thì thử model dự phòng 2 (gemini-2.0-flash)
+        // Lần 2: Nếu có Key thứ 2 thì thử Key thứ 2 với cùng model.
         if keyXoayVong.count >= 2, let m0 = cacModel.first {
             cacCap.append(CauHinhThuGemini(key: keyXoayVong[1], model: m0.model, tatThinking: m0.tatThinking))
         } else if cacModel.count >= 2, let k0 = keyXoayVong.first {
             cacCap.append(CauHinhThuGemini(key: k0, model: cacModel[1].model, tatThinking: cacModel[1].tatThinking))
         }
-        // Lần 3: Thử Key thứ 3 (nếu có) hoặc model dự phòng (gemini-2.0-flash / gemini-2.5-flash-lite)
+        // Lần 3: Nếu có Key thứ 3 thì thử Key thứ 3 với cùng model.
         if keyXoayVong.count >= 3, let m0 = cacModel.first {
             cacCap.append(CauHinhThuGemini(key: keyXoayVong[2], model: m0.model, tatThinking: m0.tatThinking))
         } else if cacModel.count >= 2, let kLast = keyXoayVong.last {
@@ -293,7 +291,7 @@ final class DichVuQuetAnhGemini {
             "responseMimeType": "application/json"
         ]
         if tatThinking {
-            // Tắt hoàn toàn thinking trên gemini-2.5-flash để trả kết quả ngay lập tức (2-4s) và không bị cắt cụt JSON
+            // Tắt thinking để ưu tiên tốc độ và tránh cắt cụt JSON.
             genConfig["thinkingConfig"] = ["thinkingBudget": 0]
         }
         let body: [String: Any] = [
@@ -394,7 +392,7 @@ final class DichVuQuetAnhGemini {
               let content = candidates.first?["content"] as? [String: Any],
               let parts = content["parts"] as? [[String: Any]] else { return nil }
 
-        // Bỏ qua các part suy nghĩ nội bộ (thought == true) của dòng Gemini 2.5
+        // Bỏ qua các part suy nghĩ nội bộ (thought == true) của Gemini.
         let nonThoughtParts = parts.filter { ($0["thought"] as? Bool) != true }
         let useParts = nonThoughtParts.isEmpty ? parts : nonThoughtParts
 

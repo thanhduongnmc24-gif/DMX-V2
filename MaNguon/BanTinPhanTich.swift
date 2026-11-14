@@ -961,11 +961,9 @@ final class DichVuGeminiAI {
     /// Key mặc định do người dùng cung cấp để kiểm tra và dùng thử ngay
     static let khoaMacDinh = "AIzaSyBLV7N_qUxSuiJ3B3FETmj2Ta67CKeVKWo"
 
-    /// Chỉ dùng dòng Gemini 2.5; không tự hạ xuống model đời thấp hơn.
+    /// Chỉ dùng Gemini 3.1 Flash-Lite; không tự hạ xuống model đời thấp hơn.
     static let cacModelMienPhi: [(ma: String, ten: String)] = [
-        ("gemini-2.5-flash", "Gemini 2.5 Flash (Siêu tốc · tắt thinking · 2-4 giây)"),
-        ("gemini-2.0-flash", "Gemini 2.0 Flash (Nhanh & ổn định)"),
-        ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite (Hạn mức cao)")
+        ("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite")
     ]
 
     /// Các gợi ý yêu cầu nhanh để người dùng bấm 1 chạm khi xuất báo cáo / Excel / PowerPoint
@@ -995,7 +993,7 @@ final class DichVuGeminiAI {
     }
 
     var modelHienTai: String {
-        "gemini-2.5-flash"
+        "gemini-3.1-flash-lite"
     }
 
     /// Kiểm tra API Key trực tiếp với máy chủ Google Gemini (tự động thử model dự phòng miễn phí nếu model đầu bận)
@@ -1011,7 +1009,7 @@ final class DichVuGeminiAI {
             return
         }
 
-        let modelUuTien = "gemini-2.5-flash"
+        let modelUuTien = "gemini-3.1-flash-lite"
         var danhSachThu: [String] = [modelUuTien]
         for m in Self.cacModelMienPhi.map(\.ma) where !danhSachThu.contains(m) {
             danhSachThu.append(m)
@@ -1382,7 +1380,7 @@ final class DichVuGeminiAI {
             "temperature": 0.4,
             "maxOutputTokens": maxTokens
         ]
-        if model.hasPrefix("gemini-3") || model.hasPrefix("gemini-2.5-flash") {
+        if model.hasPrefix("gemini-3") {
             genConfig["thinkingConfig"] = ["thinkingBudget": 0]
         }
         if epKieuJSON {

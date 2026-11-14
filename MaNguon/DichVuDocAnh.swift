@@ -844,42 +844,32 @@ final class DichVuDocAnh {
         tienTrinh: @escaping (String) -> Void,
         hoanTat: @escaping (KetQuaQuetTatCaAnh) -> Void
     ) {
-        let phuongPhapChon = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
-        if phuongPhapChon == .gemini || cheDoDangChon == .realtime {
-            DichVuQuetAnhGemini.dungChung.quet(
-                danhSachAnh: danhSachAnh,
-                cheDo: cheDoDangChon,
-                tienTrinh: tienTrinh
-            ) { [weak self] ketQuaGemini in
-                switch ketQuaGemini {
-                case .success(var kq):
-                    if !kq.thiDuaNhanVien.isEmpty {
-                        kq.thiDuaNhanVien = DichVuQuetAnhGemini.dungChung.gopVaLamSachKhoiThiDuaNhanVien(kq.thiDuaNhanVien)
-                    }
-                    if kq.capNhatLuc.isEmpty {
-                        kq.capNhatLuc = TienIchNgay.hienThiGioPhut.string(from: Date())
-                    }
-                    hoanTat(kq)
-                case .failure:
-                    guard let self else { return }
-                    self.quetVaPhanLoaiTatCaAnhOffline(
-                        danhSachAnh: danhSachAnh,
-                        ngay: ngay,
-                        cheDoDangChon: cheDoDangChon,
-                        tienTrinh: tienTrinh,
-                        hoanTat: hoanTat
-                    )
-                }
-            }
-            return
-        }
-        quetVaPhanLoaiTatCaAnhOffline(
+        DichVuQuetAnhGemini.dungChung.quet(
             danhSachAnh: danhSachAnh,
-            ngay: ngay,
-            cheDoDangChon: cheDoDangChon,
-            tienTrinh: tienTrinh,
-            hoanTat: hoanTat
-        )
+            cheDo: cheDoDangChon,
+            tienTrinh: tienTrinh
+        ) { [weak self] ketQuaGemini in
+            switch ketQuaGemini {
+            case .success(var kq):
+                if !kq.thiDuaNhanVien.isEmpty {
+                    kq.thiDuaNhanVien = DichVuQuetAnhGemini.dungChung.gopVaLamSachKhoiThiDuaNhanVien(kq.thiDuaNhanVien)
+                }
+                if kq.capNhatLuc.isEmpty {
+                    kq.capNhatLuc = TienIchNgay.hienThiGioPhut.string(from: Date())
+                }
+                hoanTat(kq)
+            case .failure:
+                guard let self else { return }
+                tienTrinh("⚠️ Gemini 3.1 Flash-Lite lỗi hoặc hết quota. Đang chuyển sang OCR...")
+                self.quetVaPhanLoaiTatCaAnhOffline(
+                    danhSachAnh: danhSachAnh,
+                    ngay: ngay,
+                    cheDoDangChon: cheDoDangChon,
+                    tienTrinh: tienTrinh,
+                    hoanTat: hoanTat
+                )
+            }
+        }
     }
 
     private func quetVaPhanLoaiTatCaAnhOffline(
@@ -1086,53 +1076,42 @@ final class DichVuDocAnh {
         tienTrinh: @escaping (String) -> Void,
         hoanTat: @escaping (KetQuaQuetThiDua) -> Void
     ) {
-        let phuongPhapChon = KhoDuLieu.dungChung.layCaiDatAnToan().phuongPhapQuetThiDua
-        if phuongPhapChon == .gemini {
-            let cheDo: LoaiCheDoDoanhThu = laRealtime ? .realtime : .luyKe
-            DichVuQuetAnhGemini.dungChung.quet(
-                danhSachAnh: danhSachAnh,
-                cheDo: cheDo,
-                tienTrinh: tienTrinh
-            ) { [weak self] ketQuaGemini in
-                switch ketQuaGemini {
-                case .success(let kqG):
-                    if !kqG.danhSachThiDua.isEmpty || (kqG.doanhThu?.coDuLieu ?? false) || !kqG.thiDuaNhanVien.isEmpty {
-                        let dsGop = !danhSachHienCo.isEmpty
-                            ? KhoDuLieu.gopDanhSachThiDua(cu: danhSachHienCo, moi: kqG.danhSachThiDua)
-                            : KhoDuLieu.gopDanhSachThiDua(cu: [], moi: kqG.danhSachThiDua)
-                        let ketQua = KetQuaQuetThiDua(
-                            danhSach: dsGop,
-                            thiDuaNhanVien: kqG.thiDuaNhanVien,
-                            doanhThuQuetDuoc: (kqG.doanhThu?.coDuLieu ?? false) ? kqG.doanhThu : nil,
-                            capNhatLuc: kqG.capNhatLuc.isEmpty ? TienIchNgay.hienThiGioPhut.string(from: Date()) : kqG.capNhatLuc,
-                            thongTinDonVi: kqG.thongTinDonVi
-                        )
-                        hoanTat(ketQua)
-                        return
-                    }
-                    fallthrough
-                case .failure:
-                    guard let self else { return }
-                    self.quetAnhThiDuaOffline(
-                        danhSachAnh: danhSachAnh,
-                        danhSachHienCo: danhSachHienCo,
-                        laRealtime: laRealtime,
-                        tenNganhGoiY: tenNganhGoiY,
-                        tienTrinh: tienTrinh,
-                        hoanTat: hoanTat
-                    )
-                }
-            }
-            return
-        }
-        quetAnhThiDuaOffline(
+        let cheDo: LoaiCheDoDoanhThu = laRealtime ? .realtime : .luyKe
+        DichVuQuetAnhGemini.dungChung.quet(
             danhSachAnh: danhSachAnh,
-            danhSachHienCo: danhSachHienCo,
-            laRealtime: laRealtime,
-            tenNganhGoiY: tenNganhGoiY,
-            tienTrinh: tienTrinh,
-            hoanTat: hoanTat
-        )
+            cheDo: cheDo,
+            tienTrinh: tienTrinh
+        ) { [weak self] ketQuaGemini in
+            switch ketQuaGemini {
+            case .success(let kqG):
+                if !kqG.danhSachThiDua.isEmpty || (kqG.doanhThu?.coDuLieu ?? false) || !kqG.thiDuaNhanVien.isEmpty {
+                    let dsGop = !danhSachHienCo.isEmpty
+                        ? KhoDuLieu.gopDanhSachThiDua(cu: danhSachHienCo, moi: kqG.danhSachThiDua)
+                        : KhoDuLieu.gopDanhSachThiDua(cu: [], moi: kqG.danhSachThiDua)
+                    let ketQua = KetQuaQuetThiDua(
+                        danhSach: dsGop,
+                        thiDuaNhanVien: kqG.thiDuaNhanVien,
+                        doanhThuQuetDuoc: (kqG.doanhThu?.coDuLieu ?? false) ? kqG.doanhThu : nil,
+                        capNhatLuc: kqG.capNhatLuc.isEmpty ? TienIchNgay.hienThiGioPhut.string(from: Date()) : kqG.capNhatLuc,
+                        thongTinDonVi: kqG.thongTinDonVi
+                    )
+                    hoanTat(ketQua)
+                    return
+                }
+                fallthrough
+            case .failure:
+                guard let self else { return }
+                tienTrinh("⚠️ Gemini 3.1 Flash-Lite lỗi hoặc hết quota. Đang chuyển sang OCR...")
+                self.quetAnhThiDuaOffline(
+                    danhSachAnh: danhSachAnh,
+                    danhSachHienCo: danhSachHienCo,
+                    laRealtime: laRealtime,
+                    tenNganhGoiY: tenNganhGoiY,
+                    tienTrinh: tienTrinh,
+                    hoanTat: hoanTat
+                )
+            }
+        }
     }
 
     private func quetAnhThiDuaOffline(
@@ -1509,6 +1488,64 @@ final class DichVuDocAnh {
     func quetAnhDoanhThuNhanVien(
         danhSachAnh: [UIImage],
         maNVGoiY: String? = nil,
+        cheDo: LoaiCheDoDoanhThu = .luyKe,
+        uuTienPhieuSucKhoe: Bool = false,
+        tienTrinh: ((String) -> Void)? = nil,
+        hoanTatSucKhoe: (([String: DuLieuSucKhoeBoSungNV]) -> Void)? = nil,
+        hoanTat: @escaping ([DoanhThuNhanVienItem]) -> Void
+    ) {
+        if uuTienPhieuSucKhoe {
+            tienTrinh?("⚡ Gemini 3.1 Flash-Lite đang quét phiếu Sức khỏe nhân viên...")
+            DichVuQuetAnhGemini.dungChung.quet(
+                danhSachAnh: danhSachAnh,
+                cheDo: cheDo,
+                tienTrinh: { tienTrinh?($0) }
+            ) { [weak self] ketQuaGemini in
+                switch ketQuaGemini {
+                case .success(let kq) where !kq.sucKhoeNhanVien.isEmpty:
+                    hoanTatSucKhoe?(kq.sucKhoeNhanVien)
+                    hoanTat(kq.doanhThuNhanVien)
+                default:
+                    guard let self else { return }
+                    tienTrinh?("⚠️ Gemini 3.1 Flash-Lite lỗi hoặc hết quota. Đang chuyển sang OCR...")
+                    self.quetAnhDoanhThuNhanVienOffline(
+                        danhSachAnh: danhSachAnh,
+                        maNVGoiY: maNVGoiY,
+                        tienTrinh: tienTrinh,
+                        hoanTatSucKhoe: hoanTatSucKhoe,
+                        hoanTat: hoanTat
+                    )
+                }
+            }
+            return
+        }
+
+        tienTrinh?("⚡ Gemini 3.1 Flash-Lite đang quét \(danhSachAnh.count) ảnh Doanh thu NV...")
+        DichVuQuetAnhGemini.dungChung.quetDoanhThuNhanVien(
+            danhSachAnh: danhSachAnh,
+            cheDo: cheDo,
+            tienTrinh: tienTrinh
+        ) { [weak self] ketQuaGemini in
+            switch ketQuaGemini {
+            case .success(let dsGemini) where !dsGemini.isEmpty:
+                hoanTat(dsGemini)
+            default:
+                guard let self else { return }
+                tienTrinh?("⚠️ Gemini 3.1 Flash-Lite lỗi hoặc hết quota. Đang chuyển sang OCR...")
+                self.quetAnhDoanhThuNhanVienOffline(
+                    danhSachAnh: danhSachAnh,
+                    maNVGoiY: maNVGoiY,
+                    tienTrinh: tienTrinh,
+                    hoanTatSucKhoe: hoanTatSucKhoe,
+                    hoanTat: hoanTat
+                )
+            }
+        }
+    }
+
+    private func quetAnhDoanhThuNhanVienOffline(
+        danhSachAnh: [UIImage],
+        maNVGoiY: String? = nil,
         tienTrinh: ((String) -> Void)? = nil,
         hoanTatSucKhoe: (([String: DuLieuSucKhoeBoSungNV]) -> Void)? = nil,
         hoanTat: @escaping ([DoanhThuNhanVienItem]) -> Void
@@ -1518,7 +1555,6 @@ final class DichVuDocAnh {
                 DispatchQueue.main.async { hoanTat([]) }
                 return
             }
-            var anhHopLe: [UIImage] = []
             var dsOffline: [DoanhThuNhanVienItem] = []
             var bangSucKhoe: [String: DuLieuSucKhoeBoSungNV] = [:]
 
@@ -1547,7 +1583,6 @@ final class DichVuDocAnh {
                 }
                 let kqOff = self.phanTichDoanhThuNhanVienOffline(phanTu: phanTu, anh: anh)
                 if !kqOff.isEmpty || self.laAnhBangDoanhThuNhanVien(phanTu: phanTu) {
-                    anhHopLe.append(anh)
                     dsOffline.append(contentsOf: kqOff)
                 }
             }
@@ -1558,71 +1593,10 @@ final class DichVuDocAnh {
                 }
             }
 
-            guard !anhHopLe.isEmpty else {
-                DispatchQueue.main.async {
-                    hoanTat(dsOffline)
-                }
-                return
-            }
-
-            DichVuQuetAnhGemini.dungChung.quetDoanhThuNhanVien(
-                danhSachAnh: anhHopLe,
-                cheDo: .luyKe,
-                tienTrinh: tienTrinh
-            ) { ketQuaGemini in
-                switch ketQuaGemini {
-                case .success(let dsGemini) where !dsGemini.isEmpty:
-                    let gop = Self.gopKetQuaDoanhThuNV(gemini: dsGemini, offline: dsOffline)
-                    DispatchQueue.main.async {
-                        hoanTat(gop)
-                    }
-                default:
-                    DispatchQueue.main.async {
-                        hoanTat(dsOffline)
-                    }
-                }
+            DispatchQueue.main.async {
+                hoanTat(dsOffline)
             }
         }
-    }
-
-    private static func gopKetQuaDoanhThuNV(
-        gemini: [DoanhThuNhanVienItem],
-        offline: [DoanhThuNhanVienItem]
-    ) -> [DoanhThuNhanVienItem] {
-        guard !offline.isEmpty else { return gemini }
-        guard !gemini.isEmpty else { return offline }
-        var mapKQ: [String: DoanhThuNhanVienItem] = [:]
-        var thuTu: [String] = []
-
-        for item in gemini {
-            let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
-            guard !ma.isEmpty else { continue }
-            if mapKQ[ma] == nil { thuTu.append(ma) }
-            mapKQ[ma] = item
-        }
-        for off in offline {
-            let ma = KhoDuLieu.chuanHoaMaNV(off.maNV)
-            guard !ma.isEmpty else { continue }
-            if var cur = mapKQ[ma] {
-                if abs(cur.soLuong) < 0.0001 && abs(off.soLuong) > 0.0001 {
-                    cur.soLuong = off.soLuong
-                }
-                if abs(cur.doanhThuQD) < 0.0001 && abs(off.doanhThuQD) > 0.0001 {
-                    cur.doanhThuQD = off.doanhThuQD
-                }
-                if abs(cur.phanTramQuyDoi) < 0.0001 && abs(off.phanTramQuyDoi) > 0.0001 {
-                    cur.phanTramQuyDoi = off.phanTramQuyDoi
-                }
-                if abs(cur.dtQDKhoanVay) < 0.0001 && abs(off.dtQDKhoanVay) > 0.0001 {
-                    cur.dtQDKhoanVay = off.dtQDKhoanVay
-                }
-                mapKQ[ma] = cur
-            } else {
-                thuTu.append(ma)
-                mapKQ[ma] = off
-            }
-        }
-        return thuTu.compactMap { mapKQ[$0] }
     }
 
     // MARK: - Bước 1: Apple Vision OCR trên iPhone

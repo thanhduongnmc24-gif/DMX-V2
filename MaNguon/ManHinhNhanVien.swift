@@ -4302,6 +4302,8 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
         var skQuetDuoc: [String: DuLieuSucKhoeBoSungNV] = [:]
         DichVuDocAnh.dungChung.quetAnhDoanhThuNhanVien(
             danhSachAnh: cacAnh,
+            cheDo: cheDo,
+            uuTienPhieuSucKhoe: true,
             tienTrinh: nil,
             hoanTatSucKhoe: { bangSK in
                 skQuetDuoc = bangSK

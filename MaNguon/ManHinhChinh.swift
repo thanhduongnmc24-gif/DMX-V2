@@ -4846,6 +4846,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         var skQuetDuoc: [String: DuLieuSucKhoeBoSungNV] = [:]
         DichVuDocAnh.dungChung.quetAnhDoanhThuNhanVien(
             danhSachAnh: cacAnh,
+            cheDo: loai,
             tienTrinh: { [weak self] tt in
                 self?.nhanTienTrinh.text = tt
             },

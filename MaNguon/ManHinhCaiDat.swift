@@ -184,7 +184,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let keyKiemTra = dsKey.first ?? cd.geminiApiKeyHieuLuc
         nutKiemTraGeminiKey.isEnabled = false
         nutKiemTraGeminiKey.setTitle("⏳ Đang kiểm tra...", for: .normal)
-        DichVuGeminiAI.dungChung.kiemTraVaDungThuKey(apiKey: keyKiemTra, model: "gemini-2.5-flash") { [weak self] kq in
+        DichVuGeminiAI.dungChung.kiemTraVaDungThuKey(apiKey: keyKiemTra, model: "gemini-3.1-flash-lite") { [weak self] kq in
             guard let self else { return }
             self.nutKiemTraGeminiKey.isEnabled = true
             self.nutKiemTraGeminiKey.setTitle("⚡ Kiểm tra Key", for: .normal)
