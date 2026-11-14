@@ -963,8 +963,9 @@ final class DichVuGeminiAI {
 
     /// Chỉ dùng dòng Gemini 2.5; không tự hạ xuống model đời thấp hơn.
     static let cacModelMienPhi: [(ma: String, ten: String)] = [
-        ("gemini-2.5-pro", "Gemini 2.5 Pro (Chuyên sâu · chất lượng cao nhất)"),
-        ("gemini-2.5-flash", "Gemini 2.5 Flash (Nhanh · báo cáo chi tiết)")
+        ("gemini-2.5-flash", "Gemini 2.5 Flash (Siêu tốc · tắt thinking · 2-4 giây)"),
+        ("gemini-2.0-flash", "Gemini 2.0 Flash (Nhanh & ổn định)"),
+        ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite (Hạn mức cao)")
     ]
 
     /// Các gợi ý yêu cầu nhanh để người dùng bấm 1 chạm khi xuất báo cáo / Excel / PowerPoint
@@ -990,13 +991,11 @@ final class DichVuGeminiAI {
     }
 
     var apiKeyHienTai: String {
-        let luu = KhoDuLieu.dungChung.caiDat.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        return luu.isEmpty ? Self.khoaMacDinh : luu
+        KhoDuLieu.dungChung.caiDat.geminiApiKeyHieuLuc
     }
 
     var modelHienTai: String {
-        let luu = KhoDuLieu.dungChung.caiDat.geminiModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        return luu.hasPrefix("gemini-2.5-") ? luu : "gemini-2.5-flash"
+        "gemini-2.5-flash"
     }
 
     /// Kiểm tra API Key trực tiếp với máy chủ Google Gemini (tự động thử model dự phòng miễn phí nếu model đầu bận)
@@ -1012,8 +1011,7 @@ final class DichVuGeminiAI {
             return
         }
 
-        let modelYeuCau = (model ?? modelHienTai).trimmingCharacters(in: .whitespacesAndNewlines)
-        let modelUuTien = modelYeuCau.hasPrefix("gemini-2.5-") ? modelYeuCau : "gemini-2.5-flash"
+        let modelUuTien = "gemini-2.5-flash"
         var danhSachThu: [String] = [modelUuTien]
         for m in Self.cacModelMienPhi.map(\.ma) where !danhSachThu.contains(m) {
             danhSachThu.append(m)
@@ -1384,7 +1382,7 @@ final class DichVuGeminiAI {
             "temperature": 0.4,
             "maxOutputTokens": maxTokens
         ]
-        if model.hasPrefix("gemini-2.5-flash") {
+        if model.hasPrefix("gemini-3") || model.hasPrefix("gemini-2.5-flash") {
             genConfig["thinkingConfig"] = ["thinkingBudget": 0]
         }
         if epKieuJSON {
