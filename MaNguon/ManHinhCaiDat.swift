@@ -343,6 +343,8 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             tf.placeholder = ph
             tf.borderStyle = .roundedRect
             tf.font = .systemFont(ofSize: 12.5)
+            tf.isSecureTextEntry = true
+            tf.textContentType = .password
             tf.clearButtonMode = .whileEditing
             tf.autocapitalizationType = .none
             tf.autocorrectionType = .no

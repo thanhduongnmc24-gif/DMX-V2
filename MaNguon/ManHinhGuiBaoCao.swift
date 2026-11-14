@@ -17,6 +17,8 @@ final class BangGuiBaoCaoView: UIView {
     private let nganCauHinhDrive = UIStackView()
     private let nhanTrangThaiKhoAnh = UILabel()
     private let nutChonNhom = UIButton(type: .system)
+    private let congTacNhacPhanHoi = UISwitch()
+    private let nutChonThoiGianNhac = UIButton(type: .system)
     private let chonGio = UIDatePicker()
     private let chonKieuGui = UISegmentedControl(items: ["🖼️ Gửi ảnh", "📝 Gửi văn bản"])
     private let nganThu = UIStackView()
@@ -30,6 +32,7 @@ final class BangGuiBaoCaoView: UIView {
     private var noiDungDangChon = Set(["luyke_du_kien"])
     private var lenhGanNhomHienTai = ""
     private var dangTaiDanhSachSieuThi = false
+    private var soPhutChoPhanHoi = 30
 
     private let cacNoiDung: [(String, String)] = [
         ("luyke_du_kien", "📈 Lũy kế — % dự kiến cuối tháng"),
@@ -138,6 +141,18 @@ final class BangGuiBaoCaoView: UIView {
         cauHinhNutChon(nutChonNhom)
         ngan.addArrangedSubview(nutChonNhom)
 
+        let nhanNhac = taoNhan("Nhắc người được tag chưa phản hồi")
+        nhanNhac.font = .systemFont(ofSize: 13, weight: .semibold)
+        congTacNhacPhanHoi.onTintColor = BangMauBCTD.xanhChuDao
+        let dongBatNhac = UIStackView(arrangedSubviews: [nhanNhac, congTacNhacPhanHoi])
+        dongBatNhac.axis = .horizontal; dongBatNhac.alignment = .center; dongBatNhac.distribution = .equalSpacing
+        ngan.addArrangedSubview(dongBatNhac)
+        ngan.addArrangedSubview(taoNhan("Khi tin nhắn trong nhóm tag người khác, bot sẽ chờ rồi trả lời trích dẫn và tag lại những người chưa phản hồi."))
+        cauHinhNutChon(nutChonThoiGianNhac)
+        ngan.addArrangedSubview(nutChonThoiGianNhac)
+        capNhatMenuThoiGianNhac()
+        ngan.addArrangedSubview(taoNut("💾 Lưu nhắc phản hồi cho nhóm", #selector(luuNhacPhanHoiNhom)))
+
         chonGio.datePickerMode = .time
         chonGio.locale = Locale(identifier: "vi_VN")
         chonGio.preferredDatePickerStyle = .compact
@@ -212,7 +227,7 @@ final class BangGuiBaoCaoView: UIView {
                 if !self.danhSachNhom.contains(where: { $0.lineGroupId == self.groupIdDangChon }) {
                     self.groupIdDangChon = self.danhSachNhom.first?.lineGroupId ?? ""
                 }
-                self.capNhatMenuNhom(); self.veDanhSachLich()
+                self.capNhatMenuNhom(); self.capNhatCauHinhNhacTheoNhom(); self.veDanhSachLich()
                 self.nhanTrangThai.text = self.danhSachNhom.isEmpty ? "Chưa có nhóm. Hãy tạo mã và gắn bot vào nhóm trước." : "Dữ liệu báo cáo được đồng bộ lên Supabase ngay sau khi quét/nhập số."
             case .failure(let loi): self.hienLoi(loi.localizedDescription)
             }
@@ -526,13 +541,70 @@ final class BangGuiBaoCaoView: UIView {
     private func capNhatMenuNhom() {
         let actions = danhSachNhom.map { nhom in
             UIAction(title: nhom.tenNhom, state: nhom.lineGroupId == groupIdDangChon ? .on : .off) { [weak self] _ in
-                self?.groupIdDangChon = nhom.lineGroupId; self?.capNhatMenuNhom()
+                self?.groupIdDangChon = nhom.lineGroupId
+                self?.capNhatMenuNhom()
+                self?.capNhatCauHinhNhacTheoNhom()
             }
         }
         nutChonNhom.menu = UIMenu(title: "Nhóm nhận báo cáo", children: actions)
         nutChonNhom.showsMenuAsPrimaryAction = true
         let ten = danhSachNhom.first(where: { $0.lineGroupId == groupIdDangChon })?.tenNhom ?? "Chưa có nhóm LINE"
         nutChonNhom.setTitle("Nhóm nhận: \(ten) ▾", for: .normal)
+    }
+
+    private func capNhatCauHinhNhacTheoNhom() {
+        guard let nhom = danhSachNhom.first(where: { $0.lineGroupId == groupIdDangChon }) else {
+            congTacNhacPhanHoi.isOn = false
+            soPhutChoPhanHoi = 30
+            capNhatMenuThoiGianNhac()
+            return
+        }
+        congTacNhacPhanHoi.isOn = nhom.batNhacPhanHoi ?? false
+        soPhutChoPhanHoi = nhom.soPhutCho ?? 30
+        capNhatMenuThoiGianNhac()
+    }
+
+    private func capNhatMenuThoiGianNhac() {
+        let cacMoc = [5, 10, 15, 30, 45, 60, 90, 120]
+        let actions = cacMoc.map { phut in
+            UIAction(title: tenThoiGianCho(phut),
+                     state: phut == soPhutChoPhanHoi ? .on : .off) { [weak self] _ in
+                self?.soPhutChoPhanHoi = phut
+                self?.capNhatMenuThoiGianNhac()
+            }
+        }
+        nutChonThoiGianNhac.menu = UIMenu(title: "Thời gian chờ phản hồi", children: actions)
+        nutChonThoiGianNhac.showsMenuAsPrimaryAction = true
+        nutChonThoiGianNhac.setTitle("⏱ Thời gian chờ: \(tenThoiGianCho(soPhutChoPhanHoi)) ▾", for: .normal)
+    }
+
+    private func tenThoiGianCho(_ phut: Int) -> String {
+        guard phut >= 60 else { return "\(phut) phút" }
+        let phutLe = phut % 60
+        return phutLe == 0 ? "\(phut / 60) giờ" : "\(phut / 60) giờ \(phutLe) phút"
+    }
+
+    @objc private func luuNhacPhanHoiNhom() {
+        guard !groupIdDangChon.isEmpty else { hienLoi("Hãy chọn một nhóm LINE trước."); return }
+        let groupId = groupIdDangChon
+        let bat = congTacNhacPhanHoi.isOn
+        let phut = soPhutChoPhanHoi
+        nhanTrangThai.text = "Đang lưu nhắc phản hồi…"
+        DichVuDongBo.dungChung.luuNhacPhanHoiNhom(groupId: groupId, bat: bat, soPhutCho: phut) { [weak self] ketQua in
+            guard let self else { return }
+            switch ketQua {
+            case .success:
+                if let index = self.danhSachNhom.firstIndex(where: { $0.lineGroupId == groupId }) {
+                    self.danhSachNhom[index].batNhacPhanHoi = bat
+                    self.danhSachNhom[index].soPhutCho = phut
+                }
+                self.nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+                self.nhanTrangThai.text = bat
+                    ? "✅ Đã bật nhắc phản hồi sau \(phut) phút cho nhóm này."
+                    : "✅ Đã tắt nhắc phản hồi cho nhóm này."
+            case .failure(let loi): self.hienLoi(loi.localizedDescription)
+            }
+        }
     }
 
     private func veDanhSachLich() {

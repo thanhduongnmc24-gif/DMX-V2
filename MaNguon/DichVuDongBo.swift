@@ -57,10 +57,14 @@ struct NhomLineDMX: Codable, Hashable {
     var lineGroupId: String
     var tenNhom: String
     var dangHoatDong: Bool
+    var batNhacPhanHoi: Bool?
+    var soPhutCho: Int?
     enum CodingKeys: String, CodingKey {
         case lineGroupId = "line_group_id"
         case tenNhom = "ten_nhom"
         case dangHoatDong = "dang_hoat_dong"
+        case batNhacPhanHoi = "bat_nhac_phan_hoi"
+        case soPhutCho = "so_phut_cho"
     }
 }
 
@@ -129,6 +133,8 @@ private struct YeuCauNhomLine: Codable {
     var cacNoiDung: [String]?
     var kieuGui: String?
     var dangHoatDong: Bool?
+    var batNhacPhanHoi: Bool? = nil
+    var soPhutCho: Int? = nil
 }
 
 // MARK: - Phản hồi từ Supabase Auth & Admin REST API trực tiếp
@@ -1535,6 +1541,25 @@ final class DichVuDongBo {
 
     func xoaLichGuiBaoCao(id: String, hoanTat: @escaping (Result<Void, Error>) -> Void) {
         let body = YeuCauNhomLine(hanhDong: "xoa_lich", id: id, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, kieuGui: nil, dangHoatDong: nil)
+        guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiThaoTacNhom, Error>) in
+            switch ketQua {
+            case .success: hoanTat(.success(()))
+            case .failure(let loi): hoanTat(.failure(loi))
+            }
+        }
+    }
+
+    func luuNhacPhanHoiNhom(
+        groupId: String,
+        bat: Bool,
+        soPhutCho: Int,
+        hoanTat: @escaping (Result<Void, Error>) -> Void
+    ) {
+        let body = YeuCauNhomLine(
+            hanhDong: "luu_nhac_nhom", id: nil, lineGroupId: groupId, gio: nil,
+            cacThu: nil, cacNoiDung: nil, kieuGui: nil, dangHoatDong: nil,
+            batNhacPhanHoi: bat, soPhutCho: max(1, min(1440, soPhutCho))
+        )
         guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiThaoTacNhom, Error>) in
             switch ketQua {
             case .success: hoanTat(.success(()))
