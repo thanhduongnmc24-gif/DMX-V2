@@ -125,16 +125,7 @@ jobs:
           TAG="v$(date +'%Y.%m.%d')-${GITHUB_RUN_NUMBER}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Luu IPA vao Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: TongHopDMX-unsigned
-          path: TongHopDMX-unsigned.ipa
-          if-no-files-found: error
-          retention-days: 30
-
       - name: Tao Release va tai IPA len
-        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
@@ -149,3 +140,15 @@ jobs:
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Artifact chỉ là bản tải phụ. Dịch vụ Artifact đôi lúc timeout ở bước
+      # CreateArtifact; không để lỗi hạ tầng đó che mất Release đã tạo thành công.
+      - name: Luu them IPA vao Artifact
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: TongHopDMX-unsigned
+          path: TongHopDMX-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
