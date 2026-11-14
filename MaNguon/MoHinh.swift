@@ -2837,10 +2837,14 @@ final class KhoDuLieu {
             let dl = (khoa == khoaDen) ? duLieu(cho: ngay) : cacNgay[khoa]
             guard let bangNganh = dl?.thiDuaNhanVien else { continue }
             for (khoaNganh, bangNV) in bangNganh {
-                ketQua[khoaNganh, default: [:]].merge(bangNV) { _, moi in moi }
+                ketQua[khoaNganh, default: [:]].merge(bangNV) { cu, moi in
+                    abs(moi) > 0.0001 ? moi : cu
+                }
                 let kLM = Self.chuanHoaKhoaLienMachThiDua(khoaNganh)
                 if !kLM.isEmpty {
-                    ketQua[kLM, default: [:]].merge(bangNV) { _, moi in moi }
+                    ketQua[kLM, default: [:]].merge(bangNV) { cu, moi in
+                        abs(moi) > 0.0001 ? moi : cu
+                    }
                 }
             }
         }
@@ -3042,7 +3046,8 @@ final class KhoDuLieu {
             let soNguoi = max(1, tapMa.count)
             let targetQuetChung = bangTHNganh["__target_ca_nhan__"] ?? 0
             let targetSTGoiY = mh.target > 0.0001 ? mh.target : (bangTHNganh["__target_sieu_thi__"] ?? 0)
-            let thucHienSTGoiY = abs(mh.thucHien) > 0.0001 ? mh.thucHien : (bangTHNganh["__thuc_hien_sieu_thi__"] ?? 0)
+            let thTuMaTranNV = bangTHNganh["__thuc_hien_sieu_thi__"] ?? 0
+            let thucHienSTGoiY = thTuMaTranNV > 0.0001 ? thTuMaTranNV : mh.thucHien
             let targetCaNhanTinh = targetQuetChung > 0.0001 ? targetQuetChung : (targetSTGoiY / Double(soNguoi))
             return ThongTinMatHangTienXuLy(
                 mh: mh,
@@ -3405,11 +3410,14 @@ final class KhoDuLieu {
                 Self.chuanHoaKhoaSoSanh($0.tenNganhHang) == kSoSanh ||
                 Self.chuanHoaKhoaSoSanh($0.tenNganhHangGoc) == kSoSanh
             }) {
-                if dsHienTai[idx].target <= 0 && khoi.targetNganhGoiY > 0 {
+                if khoi.targetNganhGoiY > 0 {
                     dsHienTai[idx].target = khoi.targetNganhGoiY
                 }
-                if dsHienTai[idx].thucHien <= 0 && khoi.thucHienNganhGoiY > 0 {
+                if khoi.thucHienNganhGoiY > 0 {
                     dsHienTai[idx].thucHien = khoi.thucHienNganhGoiY
+                    if dsHienTai[idx].target > 0 {
+                        dsHienTai[idx].phanTramHTGoc = ((dsHienTai[idx].thucHien / dsHienTai[idx].target) * 1000.0).rounded() / 10.0
+                    }
                 }
             } else {
                 let loai = Self.loaiChiTieuMacDinhChoMon(tenChuan)
@@ -3732,6 +3740,160 @@ final class KhoDuLieu {
         return bangAnhXaKhoaLienMachChuanDMX[k] != nil
     }
 
+    static let nhom13DichVuChuan: [String] = [
+        "Vay tiền mặt",
+        "Trả Chậm Điện máy & Gia dụng",
+        "Bảo hiểm Thọ ĐMX",
+        "Ví trả sau",
+        "Bảo hiểm Thọ ICT",
+        "Bảo hiểm Tổng",
+        "Sim ĐMX",
+        "Trả chậm Homecredit",
+        "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT",
+        "Sim",
+        "Nạp rút",
+        "VAS",
+        "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
+    ]
+
+    static let nhom13ICTChuan: [String] = [
+        "Phụ kiện công nghệ",
+        "Điện thoại Vivo",
+        "Điện thoại Realme",
+        "ĐIỆN THOẠI & TABLET ANDROID",
+        "Camera",
+        "Sạc dự phòng",
+        "Cáp sạc",
+        "Đồng hồ & Smartwatch",
+        "Phụ kiện khác IT & Nhóm khác",
+        "Tai nghe",
+        "Laptop",
+        "Loa Phụ Kiện",
+        "Đèn năng lượng mặt trời"
+    ]
+
+    static let nhom13CEChuan: [String] = [
+        "Tivi TCL",
+        "CE LG",
+        "Điện tử Samsung",
+        "Máy Lạnh",
+        "Máy sấy / Máy rửa chén",
+        "Máy nước nóng",
+        "Điện tử",
+        "Máy lọc nước",
+        "Máy giặt",
+        "Máy lọc KK - Hút bụi - Hút ẩm",
+        "Nồi cơm & Nồi chiên",
+        "Quạt gió",
+        "Tủ Lạnh / Đông / Mát"
+    ]
+
+    /// Hoàn thiện chính xác 13 tên cột của một bảng Ma trận Thi đua Nhân viên (DV, ICT hoặc CE):
+    /// Nếu có cột bị mờ do đè watermark hoặc bị trùng tên với cột khác trong cùng ảnh (ví dụ "Điện tử" bị đọc nhầm thành "Điện tử Samsung" hoặc ngược lại),
+    /// tự động đối chiếu với tập 13 ngành chuẩn của bảng đó và dòng TỔNG để khôi phục đúng tên ngành còn thiếu mà không bao giờ làm mất cột.
+    static func hoanThien13CotMaTran(tenCacCotTho: [String], hangTong: [Double] = [], tienToThang: String = "T11") -> [String] {
+        guard !tenCacCotTho.isEmpty else { return [] }
+        var ketQua = tenCacCotTho.map { raw -> String in
+            let chuan = chuanHoaTenMonThiDuaChuan(raw, tienToThangMacDinh: tienToThang)
+            return laTenMonThiDuaChuanDMX(chuan) ? chuan : ""
+        }
+        guard tenCacCotTho.count == 13 else { return ketQua }
+
+        let cacNhom = [nhom13DichVuChuan, nhom13ICTChuan, nhom13CEChuan]
+        var nhomTotNhat: [String]? = nil
+        var diemMax = 0
+        for nhom in cacNhom {
+            let tapKLM = Set(nhom.map { chuanHoaKhoaLienMachThiDua($0) })
+            let diem = ketQua.filter { !$0.isEmpty && tapKLM.contains(chuanHoaKhoaLienMachThiDua($0)) }.count
+            if diem > diemMax {
+                diemMax = diem
+                nhomTotNhat = nhom
+            }
+        }
+        guard let nhomChuan = nhomTotNhat, diemMax >= 7 else { return ketQua }
+
+        let tapKLMNhom = Set(nhomChuan.map { chuanHoaKhoaLienMachThiDua($0) })
+        // Loại bỏ tên thuộc nhóm khác nếu bị nhận diện nhầm
+        for i in 0..<13 {
+            if !ketQua[i].isEmpty && !tapKLMNhom.contains(chuanHoaKhoaLienMachThiDua(ketQua[i])) {
+                ketQua[i] = ""
+            }
+        }
+
+        // Xử lý trường hợp 2 cột trong cùng 1 bảng 13 cột bị gán trùng khóa kLM (ví dụ cả Cột 3 và Cột 7 đều bị gán là "Điện tử Samsung" hoặc "Điện tử")
+        var viTriTheoKLM: [String: [Int]] = [:]
+        for i in 0..<13 where !ketQua[i].isEmpty {
+            let k = chuanHoaKhoaLienMachThiDua(ketQua[i])
+            viTriTheoKLM[k, default: []].append(i)
+        }
+        for (k, idxs) in viTriTheoKLM where idxs.count > 1 {
+            // Nếu trùng giữa "Điện tử Samsung" và "Điện tử": cột có ngôi sao hoặc đứng trước / có tổng nhỏ hơn (~209.15 vs ~342.47) là "Điện tử Samsung", cột kia là "Điện tử"
+            if k == "DIENTUSAMSUNG" || k == "DIENTU" {
+                let idx0 = idxs[0]
+                let idx1 = idxs[1]
+                let raw0 = tenCacCotTho[idx0].uppercased()
+                let raw1 = tenCacCotTho[idx1].uppercased()
+                if raw0.contains("SAMSUNG") && !raw1.contains("SAMSUNG") {
+                    ketQua[idx0] = "\(tienToThang) - Điện tử Samsung"
+                    ketQua[idx1] = "\(tienToThang) - Điện tử"
+                } else if raw1.contains("SAMSUNG") && !raw0.contains("SAMSUNG") {
+                    ketQua[idx1] = "\(tienToThang) - Điện tử Samsung"
+                    ketQua[idx0] = "\(tienToThang) - Điện tử"
+                } else if idx0 < hangTong.count && idx1 < hangTong.count && abs(hangTong[idx0] - hangTong[idx1]) > 0.1 {
+                    if hangTong[idx0] < hangTong[idx1] {
+                        ketQua[idx0] = "\(tienToThang) - Điện tử Samsung"
+                        ketQua[idx1] = "\(tienToThang) - Điện tử"
+                    } else {
+                        ketQua[idx1] = "\(tienToThang) - Điện tử Samsung"
+                        ketQua[idx0] = "\(tienToThang) - Điện tử"
+                    }
+                } else {
+                    ketQua[idx0] = "\(tienToThang) - Điện tử Samsung"
+                    ketQua[idx1] = "\(tienToThang) - Điện tử"
+                }
+            } else {
+                // Giữ cột đầu tiên, đánh dấu các cột trùng phía sau là trống để điền từ tập ngành còn thiếu
+                for dupIdx in idxs.dropFirst() {
+                    ketQua[dupIdx] = ""
+                }
+            }
+        }
+
+        // Tìm các ngành còn thiếu trong tập 13 ngành của bảng này
+        var daCoKLM = Set(ketQua.filter { !$0.isEmpty }.map { chuanHoaKhoaLienMachThiDua($0) })
+        var conThieu = nhomChuan.filter { !daCoKLM.contains(chuanHoaKhoaLienMachThiDua($0)) }
+
+        for i in 0..<13 where ketQua[i].isEmpty {
+            guard !conThieu.isEmpty else { break }
+            if conThieu.count == 1 {
+                let bu = conThieu.removeFirst()
+                ketQua[i] = "\(tienToThang) - \(bu)"
+                daCoKLM.insert(chuanHoaKhoaLienMachThiDua(bu))
+            } else {
+                // Ưu tiên khớp theo chữ cái gợi ý trong tiêu đề gốc hoặc vị trí tương đối
+                let rawKLM = taoKhoaLienMachKhongThang(tenCacCotTho[i])
+                if let matchIdx = conThieu.firstIndex(where: {
+                    let kMau = taoKhoaLienMachKhongThang($0)
+                    return !rawKLM.isEmpty && (kMau.contains(rawKLM) || rawKLM.contains(kMau))
+                }) {
+                    let bu = conThieu.remove(at: matchIdx)
+                    ketQua[i] = "\(tienToThang) - \(bu)"
+                    daCoKLM.insert(chuanHoaKhoaLienMachThiDua(bu))
+                } else if i < nhomChuan.count && !daCoKLM.contains(chuanHoaKhoaLienMachThiDua(nhomChuan[i])) {
+                    let bu = nhomChuan[i]
+                    conThieu.removeAll { chuanHoaKhoaLienMachThiDua($0) == chuanHoaKhoaLienMachThiDua(bu) }
+                    ketQua[i] = "\(tienToThang) - \(bu)"
+                    daCoKLM.insert(chuanHoaKhoaLienMachThiDua(bu))
+                } else {
+                    let bu = conThieu.removeFirst()
+                    ketQua[i] = "\(tienToThang) - \(bu)"
+                    daCoKLM.insert(chuanHoaKhoaLienMachThiDua(bu))
+                }
+            }
+        }
+        return ketQua
+    }
+
     private static func khoangCachLevenshtein(_ a: String, _ b: String) -> Int {
         let s1 = Array(a.utf8)
         let s2 = Array(b.utf8)
@@ -3789,10 +3951,14 @@ final class KhoDuLieu {
         khongDau = khongDau.replacingOccurrences(of: "^(?:T\\d{1,2}|711|111|I11|1I1|11)\\s+", with: "", options: .regularExpression)
 
         var boHauTo = khongDau
+            .replacingOccurrences(of: "DUNG\\s*NGUYEN\\s*THANH", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "NGUYEN\\s*THANH", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "DUNG\\s*NGUYEN", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\b(54453|5445|4453|453|544)\\b", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "CHAY\\s*THEO\\s*THUONG\\s*HIEU", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\s*\\(\\s*(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\s*\\)\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\b\\s*$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\s*\\(\\s*(DTLK|SLLK|DTRT|SLRT|DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\s*\\)\\s*$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DTLK|SLLK|DTRT|SLRT|DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\b\\s*$", with: "", options: .regularExpression)
         let laBaoHiem = boHauTo.contains("BAO HIEM") || boHauTo.contains("BAOHIEM")
         if laBaoHiem {
             if boHauTo.contains("ICT") || boHauTo.contains("1CT") || boHauTo.contains("LCT") || boHauTo.contains("IC7") {
@@ -3936,13 +4102,18 @@ final class KhoDuLieu {
             }
         }
 
-        // Bỏ hậu tố đánh số (#2), đơn vị (DT/SL), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối (giữ nguyên ICT cho "Bảo hiểm Thọ ICT")
+        // Bỏ chữ chìm watermark, hậu tố đánh số (#2), đơn vị (DT/SL/DTLK/SLLK), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối
         s = s
+            .replacingOccurrences(of: "(?i)d[uũ]ng\\s*nguy[eễ]n\\s*thanh", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "(?i)nguy[eễ]n\\s*thanh", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "(?i)d[uũ]ng\\s*nguy[eễ]n", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\b(54453|5445|4453|453|544)\\b", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "[★☆⭐]+", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "(?i)chạy\\s*theo\\s*thương\\s*hiệu", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "(?i)chay\\s*theo\\s*thuong\\s*hieu", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "\\s*(?:\\(\\s*#?\\d+\\s*\\)|#\\d+)\\s*$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\s*\\(\\s*(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\s*\\)\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
-            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "\\s*\\(\\s*(DTLK|SLLK|DTRT|SLRT|DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\s*\\)\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "(?:\\s+|\\s*[\\|¦_]\\s*)\\b(DTLK|SLLK|DTRT|SLRT|DT|SL|5L|0T|OT|SI|ST|PR|PRT|PT|OR|OX|SE|RI|BT|07|D7|DI|DL|SV|S1|51|DY|D1|OI)\\b\\s*$", with: "", options: [.regularExpression, .caseInsensitive])
         let sCheckKhongDau = s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
         let laBaoHiemCheck = sCheckKhongDau.contains("BAO HIEM") || sCheckKhongDau.contains("BAOHIEM")
         if !laBaoHiemCheck && !sCheckKhongDau.contains("THO ICT") && !sCheckKhongDau.contains("THO 1CT") && !sCheckKhongDau.contains("THO LCT") {

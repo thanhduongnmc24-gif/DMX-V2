@@ -2497,8 +2497,8 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
         // ==================== 2. TỔNG HỢP NHANH KẾT QUẢ THI ĐUA CÁ NHÂN ====================
         let tongMon = tongHop.tongMonGiao
         let soMonDat = tongHop.soMonDat
-        let soMonChua = max(0, tongMon - soMonDat)
         let soMonGanDat = tongHop.cacMonGiao.filter { !$0.daDat && $0.phanTramHT >= 70.0 }.count
+        let soMonChua = max(0, tongMon - soMonDat - soMonGanDat)
         let tyLeMon = tongMon > 0 ? Int(round(Double(soMonDat) / Double(tongMon) * 100.0)) : 0
 
         let the2 = taoTheKPISucKhoe(

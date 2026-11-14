@@ -2788,7 +2788,7 @@ final class DichVuDocAnh {
             }
             vals.sort()
             let med = vals[vals.count / 2]
-            if med <= 249 {
+            if med <= 251 {
                 vRaw.append(x)
             }
         }
@@ -2823,6 +2823,18 @@ final class DichVuDocAnh {
         var colBounds: [(x0: Int, x1: Int)] = []
         for i in 0..<(colEdges.count - 1) {
             colBounds.append((colEdges[i], colEdges[i + 1]))
+        }
+        if colBounds.count == 13 {
+            let dataWidths = colBounds.dropFirst().map { $0.x1 - $0.x0 }.sorted()
+            let medW = dataWidths[dataWidths.count / 2]
+            for i in 1..<colBounds.count {
+                let wCol = colBounds[i].x1 - colBounds[i].x0
+                if Double(wCol) > Double(medW) * 1.65 {
+                    let mid = (colBounds[i].x0 + colBounds[i].x1) / 2
+                    colBounds.replaceSubrange(i...i, with: [(colBounds[i].x0, mid), (mid, colBounds[i].x1)])
+                    break
+                }
+            }
         }
 
         // 2. Dò các đường kẻ ngang phân tách Header, hàng TỔNG và 20 hàng Nhân viên (dùng phân vị 80% để miễn nhiễm hoàn toàn với watermark nghiêng)
@@ -2907,52 +2919,10 @@ final class DichVuDocAnh {
 
         let tongBand: (y0: Int, y1: Int) = (yHeaderBot, yDataStart)
 
-        // 3. Nhận diện chính xác 3 bộ 13 cột chuẩn ĐMX (DV, CE, ICT) theo đúng thứ tự từ trái sang phải
-        let nhomDV13 = [
-            "Vay tiền mặt",
-            "Trả Chậm Điện máy & Gia dụng",
-            "Ví trả sau",
-            "Bảo hiểm Thọ ICT",
-            "Bảo hiểm Thọ ĐMX",
-            "Sim ĐMX",
-            "Nạp rút",
-            "Bảo hiểm Tổng",
-            "Sim",
-            "Trả chậm Homecredit",
-            "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT",
-            "VAS",
-            "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
-        ]
-        let nhomCE13 = [
-            "Tivi TCL",
-            "CE LG",
-            "Điện tử Samsung",
-            "Máy Lạnh",
-            "Máy sấy / Máy rửa chén",
-            "Máy lọc KK - Hút bụi - Hút ẩm",
-            "Máy nước nóng",
-            "Điện tử",
-            "Máy lọc nước",
-            "Máy giặt",
-            "Nồi cơm & Nồi chiên",
-            "Quạt gió",
-            "Tủ Lạnh / Đông / Mát"
-        ]
-        let nhomICT13 = [
-            "Điện thoại Vivo",
-            "Phụ kiện công nghệ",
-            "ĐIỆN THOẠI & TABLET ANDROID",
-            "Điện thoại Realme",
-            "Camera",
-            "Sạc dự phòng",
-            "Đồng hồ & Smartwatch",
-            "Phụ kiện khác IT & Nhóm khác",
-            "Laptop",
-            "Cáp sạc",
-            "Tai nghe",
-            "Đèn năng lượng mặt trời",
-            "Loa Phụ Kiện"
-        ]
+        // 3. Nhận diện chính xác 3 bộ 13 cột chuẩn ĐMX (DV, CE, ICT)
+        let nhomDV13 = KhoDuLieu.nhom13DichVuChuan
+        let nhomCE13 = KhoDuLieu.nhom13CEChuan
+        let nhomICT13 = KhoDuLieu.nhom13ICTChuan
 
         var diemDV = 0
         var diemCE = 0
@@ -3239,6 +3209,8 @@ final class DichVuDocAnh {
         let allValueBands = [tongBand] + rowBounds
         var ketQua: [KetQuaThiDuaNhanVienKhoi] = []
 
+        // Đọc và làm sạch tiêu đề tất cả các cột (loại bỏ hoàn toàn chữ chìm watermark "54453 Dũng Nguyễn Thanh" đè lên cột "Điện tử (DT)")
+        var cacTenHeaderTho: [String] = []
         for colIdx in 1..<colBounds.count {
             let cb = colBounds[colIdx]
             let xLeftNorm = CGFloat(cb.x0) / CGFloat(max(1, w0))
@@ -3246,6 +3218,10 @@ final class DichVuDocAnh {
             let yTopNorm = CGFloat(yHeaderTop) / CGFloat(max(1, h0))
             let yBotNorm = CGFloat(yHeaderBot) / CGFloat(max(1, h0))
             let ptTrongCot = phanTu.filter { pt in
+                let u = boDau(pt.chu)
+                if u.contains("54453") || u.contains("4453") || u.contains("5445") || u.contains("DUNG NGUYEN") || u.contains("NGUYEN THANH") {
+                    return false
+                }
                 let xm = pt.x + pt.rong / 2.0
                 let ym = pt.y + pt.cao / 2.0
                 return xm >= xLeftNorm - 0.005 && xm <= xRightNorm + 0.005 && ym >= yTopNorm - 0.02 && ym <= yBotNorm + 0.02
@@ -3253,15 +3229,28 @@ final class DichVuDocAnh {
                 if abs($0.y - $1.y) < 0.015 { return $0.x < $1.x }
                 return $0.y < $1.y
             }
-            let rawHeader = ptTrongCot.map(\.chu).joined(separator: " ")
-            let tenTuOCR = KhoDuLieu.chuanHoaTenMonThiDuaChuan(rawHeader, tienToThangMacDinh: "T11")
+            var rawHeader = ptTrongCot.map(\.chu).joined(separator: " ")
+            let tenThu = KhoDuLieu.chuanHoaTenMonThiDuaChuan(rawHeader, tienToThangMacDinh: "T11")
+            if tenThu.isEmpty || !KhoDuLieu.laTenMonThiDuaChuanDMX(tenThu) {
+                let headerOCR = ocrCacO(x0: cb.x0, x1: cb.x1, bands: [(yHeaderTop, yHeaderBot)], laVanBan: true)
+                let ocrStr = (headerOCR[0] ?? []).joined(separator: " ")
+                if !ocrStr.isEmpty { rawHeader = ocrStr }
+            }
+            cacTenHeaderTho.append(rawHeader)
+        }
+
+        let cacTenCotChuan = KhoDuLieu.hoanThien13CotMaTran(tenCacCotTho: cacTenHeaderTho, hangTong: [], tienToThang: "T11")
+
+        for colIdx in 1..<colBounds.count {
+            let cb = colBounds[colIdx]
+            let idxCot = colIdx - 1
             let tenMon: String
-            if !tenTuOCR.isEmpty && KhoDuLieu.laTenMonThiDuaChuanDMX(tenTuOCR) {
-                tenMon = tenTuOCR
-            } else if let ds13 = danhSach13CotChuan, colIdx - 1 < ds13.count {
-                tenMon = KhoDuLieu.chuanHoaTenMonThiDuaChuan(ds13[colIdx - 1], tienToThangMacDinh: "T11")
+            if idxCot < cacTenCotChuan.count && !cacTenCotChuan[idxCot].isEmpty && KhoDuLieu.laTenMonThiDuaChuanDMX(cacTenCotChuan[idxCot]) {
+                tenMon = cacTenCotChuan[idxCot]
+            } else if let ds13 = danhSach13CotChuan, idxCot < ds13.count {
+                tenMon = KhoDuLieu.chuanHoaTenMonThiDuaChuan(ds13[idxCot], tienToThangMacDinh: "T11")
             } else {
-                tenMon = tenTuOCR
+                tenMon = KhoDuLieu.chuanHoaTenMonThiDuaChuan(cacTenHeaderTho[idxCot], tienToThangMacDinh: "T11")
             }
             guard !tenMon.isEmpty, KhoDuLieu.laTenMonThiDuaChuanDMX(tenMon) else { continue }
 
