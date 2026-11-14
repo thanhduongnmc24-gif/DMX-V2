@@ -108,7 +108,15 @@ private struct PhanHoiImgBB: Decodable {
         var url: String?
         var display_url: String?
     }
+    struct LoiImgBB: Decodable {
+        var message: String?
+        var code: Int?
+    }
     var success: Bool?
+    var status: Int?
+    var status_code: Int?
+    var status_txt: String?
+    var error: LoiImgBB?
     var data: DuLieuImgBB?
 }
 
@@ -164,8 +172,19 @@ final class DichVuAnhBaoCaoBot {
                         DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, urlDrive: url) { kq in
                             hoanTat?(kq.map { "API Key (ImgBB)" })
                         }
-                    case .failure:
-                        self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+                    case .failure(let loiImgBB):
+                        // Vẫn giữ bản dự phòng để bot không mất ảnh, nhưng không được
+                        // che lỗi ImgBB như trước đây.
+                        self.taiLenSupabase(jpeg, loai: loai, ngay: ngay) { ketQuaDuPhong in
+                            switch ketQuaDuPhong {
+                            case .success:
+                                hoanTat?(.success("Supabase dự phòng — ImgBB lỗi: \(loiImgBB.localizedDescription)"))
+                            case .failure(let loiSupabase):
+                                hoanTat?(.failure(NSError.dmx(
+                                    "ImgBB lỗi: \(loiImgBB.localizedDescription). Supabase dự phòng cũng lỗi: \(loiSupabase.localizedDescription)"
+                                )))
+                            }
+                        }
                     }
                 }
             } else if cauHinh.kho == .googleDrive && cauHinh.driveTrucTiepDaSanSang {
@@ -291,14 +310,48 @@ final class DichVuAnhBaoCaoBot {
         request.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
 
         phienMang.dataTask(with: request) { data, response, error in
-            if let error { hoanTat(.failure(error)); return }
+            if let error {
+                hoanTat(.failure(NSError.dmx("Không kết nối được ImgBB: \(error.localizedDescription)")))
+                return
+            }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            guard (200..<300).contains(status), let data,
-                  let kq = try? JSONDecoder().decode(PhanHoiImgBB.self, from: data),
-                  kq.success == true,
-                  let urlAnh = kq.data?.url ?? kq.data?.display_url,
+            guard let data, !data.isEmpty else {
+                hoanTat(.failure(NSError.dmx("ImgBB không trả về dữ liệu (HTTP \(status)).")))
+                return
+            }
+
+            let kq: PhanHoiImgBB
+            do {
+                kq = try JSONDecoder().decode(PhanHoiImgBB.self, from: data)
+            } catch {
+                let noiDung = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .prefix(300) ?? ""
+                let chiTiet = noiDung.isEmpty ? error.localizedDescription : String(noiDung)
+                hoanTat(.failure(NSError.dmx("ImgBB trả về phản hồi không hợp lệ (HTTP \(status)): \(chiTiet)")))
+                return
+            }
+
+            guard (200..<300).contains(status), kq.success == true else {
+                var cacChiTiet: [String] = []
+                if let ma = kq.error?.code { cacChiTiet.append("mã \(ma)") }
+                if let message = kq.error?.message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty {
+                    cacChiTiet.append(message)
+                }
+                if let statusText = kq.status_txt?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !statusText.isEmpty,
+                   !cacChiTiet.contains(statusText) {
+                    cacChiTiet.append(statusText)
+                }
+                let maHTTP = status > 0 ? status : (kq.status_code ?? kq.status ?? 0)
+                let noiDung = cacChiTiet.isEmpty ? "ImgBB từ chối yêu cầu nhưng không cung cấp chi tiết" : cacChiTiet.joined(separator: " — ")
+                hoanTat(.failure(NSError.dmx("\(noiDung) (HTTP \(maHTTP)).")))
+                return
+            }
+
+            guard let urlAnh = kq.data?.url ?? kq.data?.display_url,
                   URL(string: urlAnh)?.scheme == "https" else {
-                hoanTat(.failure(NSError.dmx("API Key ImgBB từ chối ảnh hoặc không hợp lệ.")))
+                hoanTat(.failure(NSError.dmx("ImgBB báo thành công nhưng không trả về URL ảnh HTTPS (HTTP \(status)).")))
                 return
             }
             hoanTat(.success(urlAnh))
