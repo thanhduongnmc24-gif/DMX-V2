@@ -3707,7 +3707,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         nutNgay.isHidden = !hienNutTrenNav
         nutNhapTatCa.isHidden = (mucMenuChinh != .doSoXemSo)
         nutXuatNav.isHidden = (mucMenuChinh != .doSoXemSo && mucMenuChinh != .nhanVien)
-        nutXoaNav.isHidden = (mucMenuChinh != .doSoXemSo && mucMenuChinh != .nhanVien)
+        // Tab Nhân viên đã có nút xoá riêng theo đúng ngữ cảnh dữ liệu,
+        // không hiện thêm nút xoá tổng trên thanh điều hướng.
+        nutXoaNav.isHidden = (mucMenuChinh != .doSoXemSo)
         nutCopyTongQuanNav.isHidden = (mucMenuChinh != .tongQuan)
         nutQuanLyNhanVienNav.isHidden = (mucMenuChinh != .nhanVien)
         nutXuatAnhTonKhoNav.isHidden = (mucMenuChinh != .tonKho)
@@ -5205,8 +5207,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .tenAZ, cheDo: cheDoNV)
 
         let cacMuc: [MucChonDMX] = [
-            MucChonDMX(tieuDe: "☁️ Tải ảnh báo cáo chung lên kho đã chọn") { [weak self] in
-                self?.xuatTatCaAnhLenServerSupabase()
+            MucChonDMX(tieuDe: "☁️ Tải ảnh từng nhân viên lên kho đã chọn") { [weak self] in
+                self?.xuatTatCaAnhLenServerSupabase(chiAnhNhanVien: true)
             },
             MucChonDMX(tieuDe: "📊 Ảnh Bảng Xếp Hạng Nhân Viên — Lũy kế") { [weak self] in
                 guard let self = self,
@@ -5394,6 +5396,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         var cacNut: [(tieuDe: String, hanhDong: () -> Void)] = [
             (tieuDe: "☁️ Tải ảnh báo cáo chung lên kho đã chọn", hanhDong: { [weak self] in
                 self?.xuatTatCaAnhLenServerSupabase()
+            }),
+            (tieuDe: "❤️‍🩹 Tải riêng ảnh từng nhân viên lên kho", hanhDong: { [weak self] in
+                self?.xuatTatCaAnhLenServerSupabase(chiAnhNhanVien: true)
             })
         ]
         cacNut.append(contentsOf: LoaiBaoCaoXuatAnh.allCases.map { loai in
