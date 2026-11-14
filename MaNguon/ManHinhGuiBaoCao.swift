@@ -147,7 +147,7 @@ final class BangGuiBaoCaoView: UIView {
         let dongBatNhac = UIStackView(arrangedSubviews: [nhanNhac, congTacNhacPhanHoi])
         dongBatNhac.axis = .horizontal; dongBatNhac.alignment = .center; dongBatNhac.distribution = .equalSpacing
         ngan.addArrangedSubview(dongBatNhac)
-        ngan.addArrangedSubview(taoNhan("Khi tin nhắn trong nhóm tag người khác, bot sẽ chờ rồi trả lời trích dẫn và tag lại những người chưa phản hồi."))
+        ngan.addArrangedSubview(taoNhan("Khi tin nhắn trong nhóm tag người khác, bot sẽ chờ hết thời gian cài đặt rồi gửi tin nhắn riêng báo những người chưa phản hồi."))
         cauHinhNutChon(nutChonThoiGianNhac)
         ngan.addArrangedSubview(nutChonThoiGianNhac)
         capNhatMenuThoiGianNhac()
@@ -565,7 +565,7 @@ final class BangGuiBaoCaoView: UIView {
     }
 
     private func capNhatMenuThoiGianNhac() {
-        let cacMoc = [5, 10, 15, 30, 45, 60, 90, 120]
+        let cacMoc = [1, 5, 10, 15, 30, 45, 60, 90, 120]
         let actions = cacMoc.map { phut in
             UIAction(title: tenThoiGianCho(phut),
                      state: phut == soPhutChoPhanHoi ? .on : .off) { [weak self] _ in
