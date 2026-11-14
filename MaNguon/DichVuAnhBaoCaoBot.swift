@@ -133,6 +133,10 @@ final class DichVuAnhBaoCaoBot {
     static let dungChung = DichVuAnhBaoCaoBot()
     private let khoaKeychain = "com.thanhduong.tonghopdmx.kho-anh-bao-cao-bot-v1"
     private let hangDoi = DispatchQueue(label: "com.thanhduong.tonghopdmx.anh-bot", qos: .utility)
+    /// Chỉ được đọc/ghi trên `hangDoi`. Mỗi yêu cầu ImgBB bắt đầu cách nhau ít nhất 2 giây
+    /// để tránh lỗi API code 100 "Rate limit reached" khi xuất hàng loạt.
+    private var thoiDiemTaiImgBBTiepTheo = Date.distantPast
+    private let khoangCachTaiImgBB: TimeInterval = 2
     private let phienMang: URLSession = {
         let cfg = URLSessionConfiguration.default
         cfg.timeoutIntervalForRequest = 45
@@ -166,23 +170,31 @@ final class DichVuAnhBaoCaoBot {
             if buocDungSupabase || cauHinh.kho == .supabase {
                 self.taiLenSupabase(jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
             } else if cauHinh.kho == .apiKey && cauHinh.apiKeyDaSanSang {
-                self.taiLenImgBB(jpeg, loai: loai, ngay: ngay, apiKey: cauHinh.apiKeyImgBB) { ketQua in
-                    switch ketQua {
-                    case .success(let url):
-                        DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, urlDrive: url) { kq in
-                            hoanTat?(kq.map { "API Key (ImgBB)" })
-                        }
-                    case .failure(let loiImgBB):
-                        // Vẫn giữ bản dự phòng để bot không mất ảnh, nhưng không được
-                        // che lỗi ImgBB như trước đây.
-                        self.taiLenSupabase(jpeg, loai: loai, ngay: ngay) { ketQuaDuPhong in
-                            switch ketQuaDuPhong {
-                            case .success:
-                                hoanTat?(.success("Supabase dự phòng — ImgBB lỗi: \(loiImgBB.localizedDescription)"))
-                            case .failure(let loiSupabase):
-                                hoanTat?(.failure(NSError.dmx(
-                                    "ImgBB lỗi: \(loiImgBB.localizedDescription). Supabase dự phòng cũng lỗi: \(loiSupabase.localizedDescription)"
-                                )))
+                let bayGio = Date()
+                let thoiDiemBatDau = max(bayGio, self.thoiDiemTaiImgBBTiepTheo)
+                self.thoiDiemTaiImgBBTiepTheo = thoiDiemBatDau.addingTimeInterval(self.khoangCachTaiImgBB)
+                let doTre = max(0, thoiDiemBatDau.timeIntervalSince(bayGio))
+
+                self.hangDoi.asyncAfter(deadline: .now() + doTre) { [weak self] in
+                    guard let self else { return }
+                    self.taiLenImgBB(jpeg, loai: loai, ngay: ngay, apiKey: cauHinh.apiKeyImgBB) { ketQua in
+                        switch ketQua {
+                        case .success(let url):
+                            DichVuDongBo.dungChung.luuAnhBaoCaoBot(loai: loai, ngay: ngay, urlDrive: url) { kq in
+                                hoanTat?(kq.map { "API Key (ImgBB)" })
+                            }
+                        case .failure(let loiImgBB):
+                            // Vẫn giữ bản dự phòng để bot không mất ảnh, nhưng không được
+                            // che lỗi ImgBB như trước đây.
+                            self.taiLenSupabase(jpeg, loai: loai, ngay: ngay) { ketQuaDuPhong in
+                                switch ketQuaDuPhong {
+                                case .success:
+                                    hoanTat?(.success("Supabase dự phòng — ImgBB lỗi: \(loiImgBB.localizedDescription)"))
+                                case .failure(let loiSupabase):
+                                    hoanTat?(.failure(NSError.dmx(
+                                        "ImgBB lỗi: \(loiImgBB.localizedDescription). Supabase dự phòng cũng lỗi: \(loiSupabase.localizedDescription)"
+                                    )))
+                                }
                             }
                         }
                     }
