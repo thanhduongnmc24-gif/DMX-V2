@@ -1093,6 +1093,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         bangRealtimeThang.khiChiaSeAnhSucKhoe = { [weak self] anh in
             self?.chiaSe([anh])
         }
+        bangRealtimeThang.khiXuatTatCaAnhSucKhoeNV = { [weak self] in
+            self?.moChonNhanVienChiaSeAnh(cheDo: .luyKe)
+        }
         khungTonKho.khiXuatAnh = { [weak self] anh in
             self?.chiaSe([anh])
         }
@@ -1750,7 +1753,19 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         nutXuatTatCaLenServer.contentEdgeInsets = UIEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
         nutXuatTatCaLenServer.addTarget(self, action: #selector(bamXuatTatCaAnhLenServerSupabase), for: .touchUpInside)
 
-        let nganVB = UIStackView(arrangedSubviews: [nutXuatAnhThat, nutXuatTatCaLenServer])
+        let nutXuatTatCaSucKhoeNV = UIButton(type: .system)
+        nutXuatTatCaSucKhoeNV.setTitle("❤️‍🩹 XUẤT ẢNH SỨC KHỎE TẤT CẢ NV ĐANG QUẢN LÝ", for: .normal)
+        nutXuatTatCaSucKhoeNV.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .heavy)
+        nutXuatTatCaSucKhoeNV.titleLabel?.numberOfLines = 0
+        nutXuatTatCaSucKhoeNV.titleLabel?.lineBreakMode = .byWordWrapping
+        nutXuatTatCaSucKhoeNV.titleLabel?.textAlignment = .center
+        nutXuatTatCaSucKhoeNV.backgroundColor = UIColor(red: 0.05, green: 0.52, blue: 0.36, alpha: 1)
+        nutXuatTatCaSucKhoeNV.setTitleColor(.white, for: .normal)
+        nutXuatTatCaSucKhoeNV.layer.cornerRadius = 12
+        nutXuatTatCaSucKhoeNV.contentEdgeInsets = UIEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
+        nutXuatTatCaSucKhoeNV.addTarget(self, action: #selector(bamXuatTatCaAnhSucKhoeTuKhungXuatAnh), for: .touchUpInside)
+
+        let nganVB = UIStackView(arrangedSubviews: [nutXuatAnhThat, nutXuatTatCaLenServer, nutXuatTatCaSucKhoeNV])
         nganVB.axis = .vertical
         nganVB.spacing = 10
         nganVB.translatesAutoresizingMaskIntoConstraints = false
@@ -3117,7 +3132,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         let congViec = DispatchWorkItem { [weak self] in
             guard let self, self.maLanTaoAnhBot == maLanTao else { return }
             // Luôn tạo đủ 7 mẫu ảnh tổng hợp/biểu đồ mà app hỗ trợ (đã bỏ ảnh gộp chi tiết nhân viên theo yêu cầu để tăng tốc tải lên server).
-            let cacLoai: Set<String> = [
+            var cacLoai: Set<String> = [
                 "luyke_du_kien",
                 "doanhthu_thidua_luyke",
                 "doanhthu_thidua_realtime",
@@ -3126,6 +3141,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 "bieu_do_realtime_thang",
                 "bieu_do_suc_khoe_nv"
             ]
+            let dsNVSK = KhoDuLieu.dungChung.tongHopNhanVien(den: ngay, sapXep: .tenAZ, cheDo: .luyKe).prefix(43)
+            for itemNV in dsNVSK {
+                let maSach = itemNV.nhanVien.maNV.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if !maSach.isEmpty { cacLoai.insert("sk_\(maSach)") }
+            }
             self.taoVaTaiAnhBaoCaoBot(cacLoai: cacLoai, dl: dl, ngayBaoCao: ngay, maLanTao: maLanTao) { [weak self] thanhCong in
                 guard let self, self.maLanTaoAnhBot == maLanTao else { return }
                 if thanhCong { self.khoaAnhBotDaTai = khoa }
@@ -3203,6 +3223,13 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
             case "chi_tiet_nhan_vien":
                 return ManHinhChiTietNhanVien.taoAnhGopTatCaSucKhoe(cho: ngayBaoCao, cheDo: .luyKe)
             default:
+                if loai.hasPrefix("sk_") {
+                    let maNV = String(loai.dropFirst(3)).lowercased()
+                    let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayBaoCao, sapXep: .tenAZ, cheDo: .luyKe)
+                    if let chon = dsNV.first(where: { $0.nhanVien.maNV.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == maNV }) {
+                        return BangThongSoSucKhoeNhanVienView.taoAnhBaoCao(cho: chon, ngay: ngayBaoCao, cheDo: .luyKe)
+                    }
+                }
                 return nil
             }
         }
@@ -3262,7 +3289,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         let bangNhanVienXuat = BangNhanVienView()
         let bangRealtimeXuat = BangTongHopRealtimeThangView()
 
-        let danhSachMuc: [(ma: String, ten: String)] = [
+        var danhSachMuc: [(ma: String, ten: String)] = [
             ("doanhthu_thidua_luyke", "Bảng Thi đua Lũy kế"),
             ("luyke_du_kien", "Bảng Thi đua Lũy kế (% Dự kiến)"),
             ("doanhthu_thidua_realtime", "Bảng Thi đua Realtime"),
@@ -3271,6 +3298,13 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
             ("bieu_do_suc_khoe_nv", "Biểu đồ Sức khỏe NV"),
             ("bieu_do_realtime_thang", "Biểu đồ Realtime Tháng")
         ]
+        let dsNVQuanLy = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayBaoCao, sapXep: .tenAZ, cheDo: .luyKe).prefix(43)
+        for itemNV in dsNVQuanLy {
+            let maSach = itemNV.nhanVien.maNV.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if !maSach.isEmpty {
+                danhSachMuc.append(("sk_\(maSach)", "Sức khỏe NV \(itemNV.nhanVien.hoTen) (\(itemNV.nhanVien.maNV))"))
+            }
+        }
 
         func taoAnh(_ loai: String) -> UIImage? {
             switch loai {
@@ -3317,6 +3351,13 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
             case "chi_tiet_nhan_vien":
                 return ManHinhChiTietNhanVien.taoAnhGopTatCaSucKhoe(cho: ngayBaoCao, cheDo: .luyKe)
             default:
+                if loai.hasPrefix("sk_") {
+                    let maNV = String(loai.dropFirst(3)).lowercased()
+                    let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayBaoCao, sapXep: .tenAZ, cheDo: .luyKe)
+                    if let chon = dsNV.first(where: { $0.nhanVien.maNV.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == maNV }) {
+                        return BangThongSoSucKhoeNhanVienView.taoAnhBaoCao(cho: chon, ngay: ngayBaoCao, cheDo: .luyKe)
+                    }
+                }
                 return nil
             }
         }
@@ -4448,7 +4489,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         cheDoQuet = cheDo
         var cauHinh = PHPickerConfiguration()
         cauHinh.filter = .images
-        cauHinh.selectionLimit = gioiHan
+        cauHinh.selectionLimit = (gioiHan <= 0 || gioiHan == 10) ? 50 : max(gioiHan, 50)
         if #available(iOS 15.0, *) {
             cauHinh.selection = .ordered
         }
@@ -5429,6 +5470,21 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         saoChepGoiJSONXuatFile()
     }
 
+    @objc private func bamXuatTatCaAnhSucKhoeTuKhungXuatAnh() {
+        moChonNhanVienChiaSeAnh(cheDo: .luyKe)
+    }
+
+    private func dongBoAnhSucKhoeTatCaNVNgam(dsNV: [TongHopNhanVien], ngay: Date, cheDo: LoaiCheDoDoanhThu) {
+        guard DichVuDongBo.dungChung.daDangNhap else { return }
+        let khoaNgay = KhoDuLieu.dungChung.duLieu(cho: ngay).khoaNgay
+        for item in dsNV.prefix(50) {
+            let maSach = item.nhanVien.maNV.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !maSach.isEmpty,
+                  let anh = ManHinhChiTietNhanVien.taoAnhSucKhoe(cho: item, ngay: ngay, cheDo: cheDo) else { continue }
+            DichVuAnhBaoCaoBot.dungChung.taiAnh(anh, loai: "sk_\(maSach)", ngay: khoaNgay)
+        }
+    }
+
     private func moChonNhanVienChiaSeAnh(cheDo: LoaiCheDoDoanhThu) {
         let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .tenAZ, cheDo: cheDo)
         guard !dsNV.isEmpty else { return }
@@ -5438,7 +5494,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 guard let self = self else { return }
                 let cacAnh = ManHinhChiTietNhanVien.taoTatCaAnhSucKhoe(cho: self.ngayHienTai, cheDo: cheDo)
                 guard !cacAnh.isEmpty else { return }
+                self.dongBoAnhSucKhoeTatCaNVNgam(dsNV: dsNV, ngay: self.ngayHienTai, cheDo: cheDo)
                 self.chiaSe(cacAnh)
+            },
+            MucChonDMX(tieuDe: "☁️ Tải ảnh Sức khỏe tất cả \(dsNV.count) NV lên Kho đã chọn (cho lệnh Bot sk mã_NV)") { [weak self] in
+                guard let self = self else { return }
+                self.xuatTatCaAnhLenServerSupabase()
             },
             MucChonDMX(tieuDe: "🖼️ Xuất TẤT CẢ \(dsNV.count) NV đang quản lý (Gộp 1 ảnh tổng hợp)") { [weak self] in
                 guard let self = self,

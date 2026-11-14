@@ -337,7 +337,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
                     guard let self else { return }
                     var cauHinh = PHPickerConfiguration()
                     cauHinh.filter = .images
-                    cauHinh.selectionLimit = 0
+                    cauHinh.selectionLimit = 50
                     if #available(iOS 15.0, *) {
                         cauHinh.selection = .ordered
                     }
@@ -4230,7 +4230,7 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
                     guard let self else { return }
                     var cauHinh = PHPickerConfiguration()
                     cauHinh.filter = .images
-                    cauHinh.selectionLimit = 0
+                    cauHinh.selectionLimit = 50
                     if #available(iOS 15.0, *) {
                         cauHinh.selection = .ordered
                     }

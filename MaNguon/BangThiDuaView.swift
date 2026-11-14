@@ -2444,6 +2444,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     var khiChonNgayRealtime: ((DuLieuRealtimeNgayTrongThang) -> Void)?
     var khiChonNhanVienSucKhoe: ((TongHopNhanVien, LoaiCheDoDoanhThu) -> Void)?
     var khiChiaSeAnhSucKhoe: ((UIImage) -> Void)?
+    var khiXuatTatCaAnhSucKhoeNV: (() -> Void)?
 
     private var ngayHienTai: Date = Date()
     private(set) var loaiBieuDoDangXem: LoaiBieuDoThang = .realtime
@@ -2495,6 +2496,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
     private let chonCheDoSK = UISegmentedControl(items: ["Theo Lũy kế", "Theo Realtime"])
     private let nutSapXepSK = UIButton(type: .system)
     private let nutXuatAnhSK = UIButton(type: .system)
+    private let nutXuatTatCaAnhSK = UIButton(type: .system)
 
     private let theSKKhoe = TheDoanhThuView(
         tieuDe: "💪 KHỎE MẠNH",
@@ -2862,6 +2864,18 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         nutXuatAnhSK.heightAnchor.constraint(greaterThanOrEqualToConstant: 46).isActive = true
         nutXuatAnhSK.addTarget(self, action: #selector(bamXuatAnhSucKhoe), for: .touchUpInside)
 
+        nutXuatTatCaAnhSK.setTitle("📚 XUẤT ẢNH SỨC KHỎE TẤT CẢ NV ĐANG QUẢN LÝ", for: .normal)
+        nutXuatTatCaAnhSK.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutXuatTatCaAnhSK.titleLabel?.numberOfLines = 0
+        nutXuatTatCaAnhSK.titleLabel?.lineBreakMode = .byWordWrapping
+        nutXuatTatCaAnhSK.titleLabel?.textAlignment = .center
+        nutXuatTatCaAnhSK.backgroundColor = BangMauBCTD.xanhChuDao
+        nutXuatTatCaAnhSK.setTitleColor(.white, for: .normal)
+        nutXuatTatCaAnhSK.layer.cornerRadius = 8
+        nutXuatTatCaAnhSK.contentEdgeInsets = UIEdgeInsets(top: 11, left: 12, bottom: 11, right: 12)
+        nutXuatTatCaAnhSK.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        nutXuatTatCaAnhSK.addTarget(self, action: #selector(bamXuatTatCaAnhSucKhoe), for: .touchUpInside)
+
         chonCheDoSK.heightAnchor.constraint(equalToConstant: 32).isActive = true
 
         // 2. Cụm 4 thẻ chỉ số sức khỏe đội ngũ
@@ -3100,7 +3114,7 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         }
         nganBieuDoDoiNguSK.isHidden = true
 
-        [chonKieuXemSK, chonCheDoSK, khungChonNVSucKhoe, nutXuatAnhSK, bangCaNhan, nganBieuDoDoiNguSK].forEach {
+        [chonKieuXemSK, chonCheDoSK, khungChonNVSucKhoe, nutXuatAnhSK, nutXuatTatCaAnhSK, bangCaNhan, nganBieuDoDoiNguSK].forEach {
             nganSucKhoeNV.addArrangedSubview($0)
         }
     }
@@ -3244,6 +3258,21 @@ final class BangTongHopRealtimeThangView: UIView, UITableViewDataSource, UITable
         }
         cacMuc.append(MucChonDMX(tieuDe: "Đóng", kieu: .huy))
         vc.hienMenuChon(tieuDe: "Chọn nhân viên xem Bảng thông số Sức khỏe", cacMuc: cacMuc)
+    }
+
+    @objc private func bamXuatTatCaAnhSucKhoe() {
+        if let khiXuatTatCaAnhSucKhoeNV {
+            khiXuatTatCaAnhSucKhoeNV()
+            return
+        }
+        let cacAnh = ManHinhChiTietNhanVien.taoTatCaAnhSucKhoe(cho: ngayHienTai, cheDo: cheDoSucKhoe)
+        guard !cacAnh.isEmpty, let vc = timViewControllerCha() else { return }
+        let hd = UIActivityViewController(activityItems: cacAnh, applicationActivities: nil)
+        if let pop = hd.popoverPresentationController {
+            pop.sourceView = nutXuatTatCaAnhSK
+            pop.sourceRect = nutXuatTatCaAnhSK.bounds
+        }
+        vc.present(hd, animated: true)
     }
 
     @objc private func bamXuatAnhSucKhoe() {
