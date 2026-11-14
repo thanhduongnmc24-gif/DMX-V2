@@ -964,7 +964,7 @@ final class DichVuGeminiAI {
     /// Chỉ dùng dòng Gemini 2.5; không tự hạ xuống model đời thấp hơn.
     static let cacModelMienPhi: [(ma: String, ten: String)] = [
         ("gemini-3.1-flash", "Gemini 3.1 Flash (Thế hệ mới · siêu tốc & chính xác)"),
-        ("gemini-2.5-pro", "Gemini 2.5 Pro (Chuyên sâu · chất lượng cao nhất)"),
+        ("gemini-3-flash-preview", "Gemini 3 Flash Preview (Nhanh & chính xác)"),
         ("gemini-2.5-flash", "Gemini 2.5 Flash (Nhanh · báo cáo chi tiết)")
     ]
 
@@ -991,8 +991,7 @@ final class DichVuGeminiAI {
     }
 
     var apiKeyHienTai: String {
-        let luu = KhoDuLieu.dungChung.caiDat.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        return luu.isEmpty ? Self.khoaMacDinh : luu
+        KhoDuLieu.dungChung.caiDat.geminiApiKeyHieuLuc
     }
 
     var modelHienTai: String {

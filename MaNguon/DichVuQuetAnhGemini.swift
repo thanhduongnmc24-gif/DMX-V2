@@ -38,6 +38,28 @@ final class DichVuQuetAnhGemini {
         let tatThinking: Bool
     }
 
+    /// Tạo danh sách cấu hình thử theo đúng số Key người dùng nhập:
+    /// - Nhập 1 Key -> chỉ dùng đúng 1 Key đó
+    /// - Nhập 2 Key -> phân bổ Ảnh 1 dùng Key 1, Ảnh 2 dùng Key 2 (xoay vòng dự phòng giữa 2 Key)
+    /// - Nhập 3 Key -> phân bổ Ảnh 1 dùng Key 1, Ảnh 2 dùng Key 2, Ảnh 3 dùng Key 3 (xoay vòng dự phòng giữa 3 Key)
+    private func taoDanhSachCapThu(chiSoAnh: Int, danhSachKey: [String], cacModel: [(model: String, tatThinking: Bool)]) -> [CauHinhThuGemini] {
+        guard !danhSachKey.isEmpty else { return [] }
+        var keyXoayVong: [String] = []
+        for offset in 0..<danhSachKey.count {
+            let k = danhSachKey[(chiSoAnh + offset) % danhSachKey.count]
+            if !keyXoayVong.contains(k) {
+                keyXoayVong.append(k)
+            }
+        }
+        var cacCap: [CauHinhThuGemini] = []
+        for m in cacModel {
+            for k in keyXoayVong {
+                cacCap.append(CauHinhThuGemini(key: k, model: m.model, tatThinking: m.tatThinking))
+            }
+        }
+        return cacCap
+    }
+
     func quet(
         danhSachAnh: [UIImage],
         cheDo: LoaiCheDoDoanhThu,
@@ -45,28 +67,7 @@ final class DichVuQuetAnhGemini {
         hoanTat: @escaping (Result<KetQuaQuetTatCaAnh, Error>) -> Void
     ) {
         let cd = KhoDuLieu.dungChung.layCaiDatAnToan()
-        let keyUD = (UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey") ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let keyCD = cd.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let keyNguoiDung: String
-        if !keyUD.isEmpty && keyUD != CaiDatDMX.geminiKeyMacDinh {
-            keyNguoiDung = keyUD
-        } else if !keyCD.isEmpty && keyCD != CaiDatDMX.geminiKeyMacDinh {
-            keyNguoiDung = keyCD
-        } else {
-            keyNguoiDung = ""
-        }
-
-        let keyChinh = keyNguoiDung.isEmpty ? CaiDatDMX.geminiKeyMacDinh : keyNguoiDung
-
-        var danhSachKey: [String] = []
-        if !keyChinh.isEmpty {
-            danhSachKey.append(keyChinh)
-        }
-        if !CaiDatDMX.geminiKeyMacDinh.isEmpty && !danhSachKey.contains(CaiDatDMX.geminiKeyMacDinh) {
-            danhSachKey.append(CaiDatDMX.geminiKeyMacDinh)
-        }
+        let danhSachKey = cd.danhSachGeminiApiKeyHieuLuc
 
         guard !danhSachKey.isEmpty else {
             hoanTat(.failure(NSError(domain: "GeminiVision", code: 400, userInfo: [NSLocalizedDescriptionKey: "Chưa có Gemini API Key."])))
@@ -88,22 +89,11 @@ final class DichVuQuetAnhGemini {
             return
         }
 
-        let modelLuu = cd.geminiModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let modelUuTien = (modelLuu.hasPrefix("gemini-") && modelLuu.contains("flash")) ? modelLuu : "gemini-3.1-flash"
-
-        let cacModel = danhSachModelHopLe(modelUuTien: modelUuTien)
-
-        var cacCapThu: [CauHinhThuGemini] = []
-        for k in danhSachKey {
-            for m in cacModel {
-                cacCapThu.append(CauHinhThuGemini(key: k, model: m.model, tatThinking: m.tatThinking))
-            }
-        }
-
-        // Quét từng ảnh độc lập (tối đa 2 ảnh song song) để tốc độ phản hồi chỉ 2-4 giây/ảnh và không bao giờ bị tràn maxOutputTokens
+        let cacModel = danhSachModelHopLe(modelUuTien: "gemini-3.1-flash")
         let tongAnh = cacDuLieuAnh.count
+        let soLuongKey = max(1, min(3, danhSachKey.count))
         DispatchQueue.main.async {
-            tienTrinh("Gemini Flash đang đọc \(tongAnh) ảnh (\(cheDo.tieuDe))...")
+            tienTrinh("Gemini Flash đang đọc \(tongAnh) ảnh bằng \(soLuongKey) Key (\(cheDo.tieuDe))...")
         }
 
         let khoaKetQua = NSLock()
@@ -112,17 +102,20 @@ final class DichVuQuetAnhGemini {
         var soAnhDaXong = 0
 
         let nhom = DispatchGroup()
-        let semaphore = DispatchSemaphore(value: 2)
+        // Nhập 1 key chạy 1 luồng, 2 key chạy 2 luồng song song, 3 key chạy 3 luồng song song
+        let semaphore = DispatchSemaphore(value: soLuongKey)
 
         DispatchQueue.global(qos: .userInitiated).async {
             for (idx, imgData) in cacDuLieuAnh.enumerated() {
                 semaphore.wait()
                 nhom.enter()
+                let cacCapAnh = self.taoDanhSachCapThu(chiSoAnh: idx, danhSachKey: danhSachKey, cacModel: cacModel)
+                let chiSoKeyHienThi = (idx % soLuongKey) + 1
                 DispatchQueue.main.async {
-                    tienTrinh("Gemini Flash đang phân tích ảnh \(idx + 1)/\(tongAnh) (\(cheDo.tieuDe))...")
+                    tienTrinh("Gemini Flash (Key \(chiSoKeyHienThi)/\(soLuongKey)) đang phân tích ảnh \(idx + 1)/\(tongAnh)...")
                 }
                 self.goiGeminiChoMotAnh(
-                    cacCap: cacCapThu,
+                    cacCap: cacCapAnh,
                     chiSo: 0,
                     cheDo: cheDo,
                     imageData: imgData
@@ -172,7 +165,7 @@ final class DichVuQuetAnhGemini {
                     kqTong.soAnhDoanhThuNV += max(1, kq.soAnhDoanhThuNV)
                 }
                 if !kq.thiDuaNhanVien.isEmpty {
-                    kqTong.thiDuaNhanVien.append(contentsOf: kq.thiDuaNhanVien)
+                    kqTong.thiDuaNhanVien = self.gopVaLamSachKhoiThiDuaNhanVien(kqTong.thiDuaNhanVien + kq.thiDuaNhanVien)
                     kqTong.soAnhThiDuaNV += max(1, kq.soAnhThiDuaNV)
                 }
                 if !kq.sucKhoeNhanVien.isEmpty {
@@ -211,60 +204,7 @@ final class DichVuQuetAnhGemini {
         let h = anh.size.height
         guard w > 10, h > 10 else { return anh.jpegData(compressionQuality: 0.84) }
 
-        // Nếu là ảnh Ma trận Thi đua Nhân viên (3.0 < width/height <= 11.5): cắt thành 4 dải cột nhân viên nhưng luôn ghép kèm cột Tên chương trình + TỔNG (x: 0..0.11) ở bên trái mỗi dải
-        if w > h * 3.0 && w <= h * 11.5, let cg = anh.cgImage {
-            let cw = CGFloat(cg.width)
-            let ch = CGFloat(cg.height)
-            let wTrai = max(1, (cw * 0.112).rounded())
-            let rectTrai = CGRect(x: 0, y: 0, width: wTrai, height: ch)
-            let cacDaiPhai: [(CGFloat, CGFloat)] = [
-                (0.108, 0.340),
-                (0.328, 0.560),
-                (0.548, 0.780),
-                (0.768, 1.000)
-            ]
-            let rongDich: CGFloat = 2200
-            let demDoc: CGFloat = 24
-            if let cgTrai = cg.cropping(to: rectTrai) {
-                var cacDaiGhep: [(trai: CGImage, phai: CGImage, caoVe: CGFloat, tyLeTrai: CGFloat)] = []
-                for (x0, x1) in cacDaiPhai {
-                    let rectP = CGRect(
-                        x: (cw * x0).rounded(),
-                        y: 0,
-                        width: max(1, (cw * (x1 - x0)).rounded()),
-                        height: ch
-                    )
-                    if let cgPhai = cg.cropping(to: rectP) {
-                        let tongRongGoc = CGFloat(cgTrai.width + cgPhai.width)
-                        let tyLe = rongDich / tongRongGoc
-                        let caoVe = max(160, (ch * tyLe).rounded())
-                        let tyLeTrai = CGFloat(cgTrai.width) / tongRongGoc
-                        cacDaiGhep.append((cgTrai, cgPhai, caoVe, tyLeTrai))
-                    }
-                }
-                if !cacDaiGhep.isEmpty {
-                    let tongCao = cacDaiGhep.reduce(CGFloat(0)) { $0 + $1.caoVe } + CGFloat(cacDaiGhep.count + 1) * demDoc
-                    let dinhDang = UIGraphicsImageRendererFormat.default()
-                    dinhDang.scale = 1.0
-                    dinhDang.opaque = true
-                    let boVe = UIGraphicsImageRenderer(size: CGSize(width: rongDich, height: tongCao), format: dinhDang)
-                    let anhGhep = boVe.image { ctx in
-                        UIColor.white.setFill()
-                        ctx.fill(CGRect(x: 0, y: 0, width: rongDich, height: tongCao))
-                        var yHienTai = demDoc
-                        for item in cacDaiGhep {
-                            let wVeTrai = (rongDich * item.tyLeTrai).rounded()
-                            UIImage(cgImage: item.trai, scale: 1.0, orientation: anh.imageOrientation)
-                                .draw(in: CGRect(x: 0, y: yHienTai, width: wVeTrai, height: item.caoVe))
-                            UIImage(cgImage: item.phai, scale: 1.0, orientation: anh.imageOrientation)
-                                .draw(in: CGRect(x: wVeTrai, y: yHienTai, width: rongDich - wVeTrai, height: item.caoVe))
-                            yHienTai += item.caoVe + demDoc
-                        }
-                    }
-                    return anhGhep.jpegData(compressionQuality: 0.86)
-                }
-            }
-        }
+        // Giữ nguyên toàn bộ khung ảnh bảng 13 cột (không cắt thành 4 dải dọc làm đứt đôi các cột ở vị trí nối)
 
         // Nếu là ảnh Bảng ngang siêu rộng của Siêu thị (width > height * 11.5): cắt thành 4 dải ngang có chồng lấp 3% và xếp dọc trên 1 khung ảnh rộng 2200px
         if w > h * 11.5, let cg = anh.cgImage {
@@ -312,9 +252,9 @@ final class DichVuQuetAnhGemini {
             }
         }
 
-        let gioiHan: CGFloat = 2048
+        let gioiHan: CGFloat = 2560
         let canhLon = max(w, h)
-        guard canhLon > gioiHan else { return anh.jpegData(compressionQuality: 0.84) }
+        guard canhLon > gioiHan else { return anh.jpegData(compressionQuality: 0.88) }
         let tiLe = gioiHan / canhLon
         let kichThuoc = CGSize(width: (w * tiLe).rounded(), height: (h * tiLe).rounded())
         let dinhDang = UIGraphicsImageRendererFormat.default()
@@ -324,7 +264,7 @@ final class DichVuQuetAnhGemini {
         let anhGon = boVe.image { _ in
             anh.draw(in: CGRect(origin: .zero, size: kichThuoc))
         }
-        return anhGon.jpegData(compressionQuality: 0.84)
+        return anhGon.jpegData(compressionQuality: 0.88)
     }
 
     private func taoBodyData(imageData: Data, cheDo: LoaiCheDoDoanhThu, tatThinking: Bool, promptTuChon: String? = nil) -> Data? {
@@ -384,7 +324,7 @@ final class DichVuQuetAnhGemini {
         URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
             guard let self else { return }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            if status == 404 || status == 400 {
+            if status == 404 {
                 self.khoaModel404.lock()
                 self.cacModelKhongHoTro.insert(cap.model)
                 self.khoaModel404.unlock()
@@ -648,7 +588,7 @@ final class DichVuQuetAnhGemini {
         }
         if let arr = json["thiDuaNhanVien"] as? [[String: Any]] {
             kq.thiDuaNhanVien = arr.compactMap { khoi in
-                let nganh = KhoDuLieu.chuanHoaTenMonThiDuaChuan((khoi["tenNganhHang"] as? String) ?? "")
+                let nganh = KhoDuLieu.chuanHoaTenMonThiDuaChuan((khoi["tenNganhHang"] as? String) ?? "", tienToThangMacDinh: "T11")
                 let thucHienGoiY = so(khoi, "thucHienNganhGoiY")
                 let targetGoiY = so(khoi, "targetNganhGoiY")
                 let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
@@ -677,6 +617,7 @@ final class DichVuQuetAnhGemini {
                 }
                 return ds.isEmpty ? nil : KetQuaThiDuaNhanVienKhoi(tenNganhHang: nganh, danhSach: ds, thucHienNganhGoiY: thucHienGoiY, targetNganhGoiY: targetGoiY)
             }
+            kq.thiDuaNhanVien = gopVaLamSachKhoiThiDuaNhanVien(kq.thiDuaNhanVien)
             kq.soAnhThiDuaNV = kq.thiDuaNhanVien.count
         }
         if let arrSK = json["sucKhoeNhanVien"] as? [[String: Any]] {
@@ -810,34 +751,39 @@ final class DichVuQuetAnhGemini {
         return kq
     }
 
-    /// Câu lệnh chuyên biệt đã tối ưu cho Gemini để quét ảnh Ma trận Thi đua Nhân viên (cả cột DT và cột SL như VAS, Nạp rút, Máy nước nóng...)
+    /// Câu lệnh chuyên biệt đã tối ưu cho Gemini Flash để quét ảnh Ma trận Thi đua Nhân viên:
+    /// Đọc theo đúng thứ tự cột thực tế trên ảnh (không ép cứng thứ tự cột), giữ đúng vị trí mọi ô "—" = 0 để không bao giờ nhảy số sang cột kế bên, và đối chiếu tổng từng cột với dòng "TỔNG".
     private var promptThiDuaNhanVien: String {
         """
         Đây là ảnh bảng thực hiện thi đua (gồm cả ngành hàng tính theo Doanh thu DT và ngành hàng tính theo Số lượng SL) của nhân viên ứng với từng ngành hàng:
-        - Cột đầu tiên bên trái ("NHÂN VIÊN"): hàng đầu tiên là "TỔNG", 20 hàng tiếp theo là từng nhân viên theo dạng "<Mã NV> - <Họ tên>" (nếu tên nhân viên xuống 2 dòng như "201962 - Nguyễn Thị Kim\nLoan" thì ghép lại thành 1 dòng).
-        - 13 cột tiếp theo từ trái sang phải (Cột 1 đến Cột 13) là 13 ngành hàng thi đua.
+        - Cột đầu tiên bên trái ("NHÂN VIÊN"): hàng đầu tiên là "TỔNG", các hàng tiếp theo là từng nhân viên theo dạng "<Mã NV> - <Họ tên>" (nếu tên nhân viên xuống 2 dòng như "201962 - Nguyễn Thị Kim\nLoan" thì ghép lại thành 1 dòng).
+        - Các cột tiếp theo từ trái sang phải (thường là 13 cột: Cột 1 đến Cột 13) là các ngành hàng thi đua.
         Hãy lọc chính xác toàn bộ bảng thành một đoạn JSON.
 
-        QUY TẮC BẮT BUỘC ĐỂ ĐỌC ĐỦ 13 NGÀNH HÀNG (KHÔNG BỎ SÓT VAS, NẠP RÚT, MÁY NƯỚC NÓNG) VÀ KHÔNG LỆCH CỘT:
+        QUY TẮC BẮT BUỘC ĐỂ KHÔNG BỊ TRÙNG NGÀNH HÀNG VÀ KHÔNG BAO GIỜ NHẢY SỐ / LẤY NHẦM KẾT QUẢ GIỮA CÁC CỘT KẾ NHAU:
         1. Bỏ qua hoàn toàn chữ chìm watermark nghiêng màu xám ("54453", "Dũng Nguyễn Thanh").
-        2. Bảng luôn có đúng 13 cột ngành hàng từ trái sang phải, thuộc 1 trong 3 nhóm chuẩn ĐMX sau:
-           - Nhóm Dịch Vụ (13 cột theo đúng thứ tự từ trái sang phải):
-             ["Vay tiền mặt", "Trả Chậm Điện máy & Gia dụng", "Ví trả sau", "Bảo hiểm Thọ ICT", "Bảo hiểm Thọ ĐMX", "Sim ĐMX", "Nạp rút", "Bảo hiểm Tổng", "Sim", "Trả chậm Homecredit", "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT", "VAS", "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"]
-           - Nhóm Điện Tử / Điện Lạnh / Gia Dụng (13 cột theo đúng thứ tự từ trái sang phải):
-             ["Tivi TCL", "CE LG", "Điện tử Samsung", "Máy Lạnh", "Máy sấy / Máy rửa chén", "Máy lọc KK - Hút bụi - Hút ẩm", "Máy nước nóng", "Điện tử", "Máy lọc nước", "Máy giặt", "Nồi cơm & Nồi chiên", "Quạt gió", "Tủ Lạnh / Đông / Mát"]
-           - Nhóm ICT / Phụ Kiện (13 cột theo đúng thứ tự từ trái sang phải):
-             ["Điện thoại Vivo", "Phụ kiện công nghệ", "ĐIỆN THOẠI & TABLET ANDROID", "Điện thoại Realme", "Camera", "Sạc dự phòng", "Đồng hồ & Smartwatch", "Phụ kiện khác IT & Nhóm khác", "Laptop", "Cáp sạc", "Tai nghe", "Đèn năng lượng mặt trời", "Loa Phụ Kiện"]
-        3. Với hàng "TỔNG" và từng hàng nhân viên, phải đọc ĐỦ 13 GIÁ TRỊ tương ứng với 13 cột từ trái sang phải:
-           - Phải đọc đầy đủ cả các cột đơn vị (DT) lẫn các cột đơn vị (SL) như: "Máy Lạnh", "Máy nước nóng", "Sim ĐMX", "Nạp rút", "Sim", "VAS", "Đèn năng lượng mặt trời", "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO". Tuyệt đối không bỏ qua cột (SL).
-           - Ô nào có dấu gạch ngang "—", "-" hoặc trống thì ghi số 0.
-           - Ô nào có số âm (ví dụ -1.25 ở cột Đồng hồ & Smartwatch) thì giữ nguyên dấu âm (-1.25).
-           - Tuyệt đối không bỏ qua ô "—" làm dồn dịch số của cột sau sang cột trước.
-        4. Trả về DUY NHẤT 1 đối tượng JSON theo đúng cấu trúc:
+        2. ĐỌC ĐÚNG THỨ TỰ CỘT THỰC TẾ TRÊN ẢNH TỪ TRÁI SANG PHẢI:
+           - Thứ tự các cột trên ảnh thay đổi theo từng ngày/siêu thị, vì vậy PHẢI đọc tiêu đề của từng cột trực tiếp trên ảnh từ trái sang phải (Cột 1 -> Cột 13), tuyệt đối không tự ý đảo thứ tự cột.
+           - Chuẩn hóa tên mỗi cột (bỏ tiền tố "T11 -", bỏ ký hiệu "(DT)", "(SL)") về đúng tên chuẩn trong 39 ngành hàng ĐMX thuộc 3 nhóm sau:
+             + Nhóm Dịch Vụ (13 ngành): "Vay tiền mặt", "Trả Chậm Điện máy & Gia dụng", "Ví trả sau", "Bảo hiểm Thọ ICT", "Bảo hiểm Thọ ĐMX", "Sim ĐMX", "Nạp rút", "Bảo hiểm Tổng", "Sim", "Trả chậm Homecredit", "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT", "VAS", "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO".
+             + Nhóm Điện Tử / Điện Lạnh / Gia Dụng (13 ngành): "Tivi TCL", "CE LG", "Điện tử Samsung", "Máy Lạnh", "Máy sấy / Máy rửa chén", "Máy lọc KK - Hút bụi - Hút ẩm", "Máy nước nóng", "Điện tử", "Máy lọc nước", "Máy giặt", "Nồi cơm & Nồi chiên", "Quạt gió", "Tủ Lạnh / Đông / Mát".
+             + Nhóm ICT / Phụ Kiện (13 ngành): "Điện thoại Vivo", "Phụ kiện công nghệ", "ĐIỆN THOẠI & TABLET ANDROID", "Điện thoại Realme", "Camera", "Sạc dự phòng", "Đồng hồ & Smartwatch", "Phụ kiện khác IT & Nhóm khác", "Laptop", "Cáp sạc", "Tai nghe", "Đèn năng lượng mặt trời", "Loa Phụ Kiện".
+           - Mỗi cột trên ảnh là 1 ngành hàng riêng biệt, không được đặt trùng tên 2 cột giống nhau.
+        3. GIỮ ĐÚNG CỘT DỌC & KHÔNG LẤY NHẦM SỐ CỦA CỘT BÊN CẠNH:
+           - Bám sát đường kẻ dọc của từng cột từ trên xuống dưới.
+           - Ô nào có dấu gạch ngang "—", "-" hoặc trống thì BẮT BUỘC ghi đúng số 0 tại vị trí cột đó.
+           - TUYỆT ĐỐI KHÔNG lấy số của cột bên trái hoặc bên phải đắp vào ô có dấu "—" (ví dụ: không được lấy số của cột kế bên có nhiều số liệu chép sang cột ít số liệu nằm cạnh nó).
+           - TUYỆT ĐỐI KHÔNG bỏ qua ô "—" làm dồn dịch vị trí các cột phía sau.
+           - Phải đọc đầy đủ cả các cột đơn vị (DT) lẫn các cột đơn vị (SL) như: "Máy Lạnh", "Máy nước nóng", "Sim ĐMX", "Nạp rút", "Sim", "VAS", "Đèn năng lượng mặt trời", "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO".
+           - Ô nào có số âm (ví dụ -1.25) thì giữ nguyên dấu âm (-1.25).
+        4. KIỂM TRA CHÉO VỚI HÀNG "TỔNG":
+           - Tại mỗi cột thứ k (từ 1 đến 13), tổng các số của nhân viên trong cột k phải xấp xỉ bằng giá trị ở hàng "TỔNG" (`hangTong[k-1]`) của chính cột k đó. Nếu một cột có `hangTong` nhỏ (hoặc bằng 0) thì chỉ đúng những nhân viên thực sự có số trong cột đó mới khác 0.
+        5. Trả về DUY NHẤT 1 đối tượng JSON theo đúng cấu trúc:
         {"cotNganhHang":["Tên cột 1","Tên cột 2","...","Tên cột 13"],"hangTong":[0,0,0,0,0,0,0,0,0,0,0,0,0],"nhanVien":[{"maNV":"285688","hoTen":"Lê Tuấn","soLieu":[0,0,0,0,0,0,0,0,0,0,0,0,0]}]}
         """
     }
 
-    /// Quét danh sách ảnh Thi đua Nhân viên bằng Gemini 3.1 Flash với câu lệnh chuyên biệt và lọc kết quả JSON vào ứng dụng
+    /// Quét danh sách ảnh Thi đua Nhân viên bằng Gemini Flash (1 key chạy 1 key, 2 key chạy 2 key, 3 key chạy 3 key song song)
     func quetThiDuaNhanVien(
         danhSachAnh: [UIImage],
         cheDo: LoaiCheDoDoanhThu = .luyKe,
@@ -845,25 +791,7 @@ final class DichVuQuetAnhGemini {
         hoanTat: @escaping (Result<[KetQuaThiDuaNhanVienKhoi], Error>) -> Void
     ) {
         let cd = KhoDuLieu.dungChung.layCaiDatAnToan()
-        let keyUD = (UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey") ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let keyCD = cd.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let keyNguoiDung: String
-        if !keyUD.isEmpty && keyUD != CaiDatDMX.geminiKeyMacDinh {
-            keyNguoiDung = keyUD
-        } else if !keyCD.isEmpty && keyCD != CaiDatDMX.geminiKeyMacDinh {
-            keyNguoiDung = keyCD
-        } else {
-            keyNguoiDung = ""
-        }
-
-        let keyChinh = keyNguoiDung.isEmpty ? CaiDatDMX.geminiKeyMacDinh : keyNguoiDung
-        var danhSachKey: [String] = []
-        if !keyChinh.isEmpty { danhSachKey.append(keyChinh) }
-        if !CaiDatDMX.geminiKeyMacDinh.isEmpty && !danhSachKey.contains(CaiDatDMX.geminiKeyMacDinh) {
-            danhSachKey.append(CaiDatDMX.geminiKeyMacDinh)
-        }
+        let danhSachKey = cd.danhSachGeminiApiKeyHieuLuc
 
         guard !danhSachKey.isEmpty, !danhSachAnh.isEmpty else {
             hoanTat(.failure(NSError(domain: "GeminiVision", code: 400, userInfo: [NSLocalizedDescriptionKey: "Chưa có ảnh hoặc API Key."])))
@@ -881,33 +809,27 @@ final class DichVuQuetAnhGemini {
             return
         }
 
-        let modelLuu = cd.geminiModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let modelUuTien = (modelLuu.hasPrefix("gemini-") && modelLuu.contains("flash")) ? modelLuu : "gemini-3.1-flash"
-        let cacModel = danhSachModelHopLe(modelUuTien: modelUuTien)
-
-        var cacCapThu: [CauHinhThuGemini] = []
-        for k in danhSachKey {
-            for m in cacModel {
-                cacCapThu.append(CauHinhThuGemini(key: k, model: m.model, tatThinking: m.tatThinking))
-            }
-        }
-
+        let cacModel = danhSachModelHopLe(modelUuTien: "gemini-3.1-flash")
         let tongAnh = cacDuLieuAnh.count
+        let soLuongKey = max(1, min(3, danhSachKey.count))
         let khoa = NSLock()
         var ketQuaTungAnh = Array<[KetQuaThiDuaNhanVienKhoi]>(repeating: [], count: tongAnh)
         var loiCuoi: Error?
         let nhom = DispatchGroup()
-        let semaphore = DispatchSemaphore(value: 2)
+        // Nhập 1 key dùng 1 luồng, 2 key dùng 2 luồng, 3 key dùng 3 luồng song song
+        let semaphore = DispatchSemaphore(value: soLuongKey)
 
         DispatchQueue.global(qos: .userInitiated).async {
             for (idx, imgData) in cacDuLieuAnh.enumerated() {
                 semaphore.wait()
                 nhom.enter()
+                let cacCapAnh = self.taoDanhSachCapThu(chiSoAnh: idx, danhSachKey: danhSachKey, cacModel: cacModel)
+                let chiSoKeyHienThi = (idx % soLuongKey) + 1
                 DispatchQueue.main.async {
-                    tienTrinh?("Gemini 3.1 Flash đang quét ảnh Thi đua NV \(idx + 1)/\(tongAnh)...")
+                    tienTrinh?("Gemini Flash (Key \(chiSoKeyHienThi)/\(soLuongKey)) đang quét ảnh Thi đua NV \(idx + 1)/\(tongAnh)...")
                 }
                 self.goiGeminiChoMotAnh(
-                    cacCap: cacCapThu,
+                    cacCap: cacCapAnh,
                     chiSo: 0,
                     cheDo: cheDo,
                     imageData: imgData,
@@ -927,7 +849,7 @@ final class DichVuQuetAnhGemini {
             }
             nhom.wait()
 
-            let tatCaKhoi = ketQuaTungAnh.flatMap { $0 }
+            let tatCaKhoi = self.gopVaLamSachKhoiThiDuaNhanVien(ketQuaTungAnh.flatMap { $0 })
             DispatchQueue.main.async {
                 if !tatCaKhoi.isEmpty {
                     hoanTat(.success(tatCaKhoi))
@@ -1239,7 +1161,141 @@ final class DichVuQuetAnhGemini {
                 targetNganhGoiY: 0
             ))
         }
-        return ketQua
+        return gopVaLamSachKhoiThiDuaNhanVien(ketQua)
+    }
+
+    /// Gộp trùng các ngành hàng thi đua nhân viên theo khóa liền mạch và tự động khử lỗi nhảy số / sao chép nhầm giữa BẤT KỲ 2 cột nào bằng đối chiếu dòng TỔNG của từng cột
+    func gopVaLamSachKhoiThiDuaNhanVien(_ danhSach: [KetQuaThiDuaNhanVienKhoi]) -> [KetQuaThiDuaNhanVienKhoi] {
+        guard !danhSach.isEmpty else { return [] }
+        var mapKhoi: [String: (tenChuan: String, tong: Double, target: Double, mapNV: [String: DongThiDuaNhanVienQuet], thuTuNV: [String])] = [:]
+        var thuTuKhoi: [String] = []
+
+        for khoi in danhSach {
+            let tenChuan = KhoDuLieu.chuanHoaTenMonThiDuaChuan(khoi.tenNganhHang, tienToThangMacDinh: "T11")
+            let kLM = KhoDuLieu.chuanHoaKhoaLienMachThiDua(tenChuan.isEmpty ? khoi.tenNganhHang : tenChuan)
+            guard !kLM.isEmpty else { continue }
+
+            if mapKhoi[kLM] == nil {
+                mapKhoi[kLM] = (
+                    tenChuan: tenChuan.isEmpty ? khoi.tenNganhHang : tenChuan,
+                    tong: khoi.thucHienNganhGoiY,
+                    target: khoi.targetNganhGoiY,
+                    mapNV: [:],
+                    thuTuNV: []
+                )
+                thuTuKhoi.append(kLM)
+            } else {
+                // Nếu 2 cột trong cùng lần quét bị gán trùng tên ngành hàng, giữ bản có tổng nhân viên khớp với dòng TỔNG hơn
+                let tongNVCu = mapKhoi[kLM]?.mapNV.values.reduce(0.0, { $0 + $1.thucHien }) ?? 0
+                let tongNVMoi = khoi.danhSach.reduce(0.0, { $0 + $1.thucHien })
+                let saiSoCu = mapKhoi[kLM]!.tong > 0.0001 ? abs(tongNVCu - mapKhoi[kLM]!.tong) : Double.greatestFiniteMagnitude
+                let saiSoMoi = khoi.thucHienNganhGoiY > 0.0001 ? abs(tongNVMoi - khoi.thucHienNganhGoiY) : Double.greatestFiniteMagnitude
+                if saiSoMoi < saiSoCu {
+                    mapKhoi[kLM]?.tong = khoi.thucHienNganhGoiY
+                    if khoi.targetNganhGoiY > 0.0001 { mapKhoi[kLM]?.target = khoi.targetNganhGoiY }
+                    mapKhoi[kLM]?.mapNV.removeAll()
+                    mapKhoi[kLM]?.thuTuNV.removeAll()
+                } else {
+                    if mapKhoi[kLM]!.tong <= 0.0001 && khoi.thucHienNganhGoiY > 0.0001 {
+                        mapKhoi[kLM]?.tong = khoi.thucHienNganhGoiY
+                    }
+                    if mapKhoi[kLM]!.target <= 0.0001 && khoi.targetNganhGoiY > 0.0001 {
+                        mapKhoi[kLM]?.target = khoi.targetNganhGoiY
+                    }
+                }
+            }
+
+            for item in khoi.danhSach {
+                let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
+                let khoaNV = !ma.isEmpty ? ma : item.hoTen.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !khoaNV.isEmpty else { continue }
+                if let daCo = mapKhoi[kLM]?.mapNV[khoaNV] {
+                    if abs(item.thucHien) > 0.0001 && abs(daCo.thucHien) <= 0.0001 {
+                        mapKhoi[kLM]?.mapNV[khoaNV] = item
+                    }
+                } else {
+                    mapKhoi[kLM]?.thuTuNV.append(khoaNV)
+                    mapKhoi[kLM]?.mapNV[khoaNV] = item
+                }
+            }
+        }
+
+        // Hậu kiểm tổng quát cho TẤT CẢ các cột:
+        // Nếu bất kỳ cột B nào có tổng nhân viên vượt quá dòng TỔNG của chính cột B (do bị nhảy/lặp số từ cột A khác sang các ô "—" của cột B),
+        // hoặc cột B sao chép nguyên mảng số lẻ của cột A, tự động loại bỏ các ô bị nhảy số để tổng nhân viên khớp chính xác với dòng TỔNG của cột B.
+        for i in 0..<thuTuKhoi.count {
+            let kB = thuTuKhoi[i]
+            guard var infoB = mapKhoi[kB] else { continue }
+            let tongGoiYB = infoB.tong
+            var tongNVB = infoB.mapNV.values.reduce(0.0) { $0 + $1.thucHien }
+
+            // Kiểm tra 1: Cột B có tổng nhân viên vượt dòng TỔNG (tongGoiYB) do nhảy số từ cột lân cận
+            if tongGoiYB >= 0 && tongNVB > tongGoiYB + max(0.15, tongGoiYB * 0.06) {
+                let cacKhoaKhac = thuTuKhoi.enumerated()
+                    .filter { $0.offset != i }
+                    .sorted { abs($0.offset - i) < abs($1.offset - i) }
+                    .map(\.element)
+
+                for kA in cacKhoaKhac {
+                    guard let infoA = mapKhoi[kA] else { continue }
+                    for (ma, var nvB) in infoB.mapNV where abs(nvB.thucHien) > 0.0001 {
+                        guard let nvA = infoA.mapNV[ma],
+                              abs(nvA.thucHien) > 0.0001,
+                              abs(nvB.thucHien - nvA.thucHien) < 0.005 else { continue }
+                        let saiSoHienTai = abs(tongNVB - tongGoiYB)
+                        let saiSoNeuBo = abs((tongNVB - nvB.thucHien) - tongGoiYB)
+                        if saiSoNeuBo + 0.01 < saiSoHienTai {
+                            tongNVB -= nvB.thucHien
+                            nvB.thucHien = 0
+                            infoB.mapNV[ma] = nvB
+                        }
+                    }
+                }
+                mapKhoi[kB] = infoB
+            }
+
+            // Kiểm tra 2: Cả cột B (gồm cả dòng TỔNG) bị sao chép y hệt từ một cột A đứng trước
+            let nvCoSoB = infoB.mapNV.filter { abs($0.value.thucHien) > 0.0001 }
+            if nvCoSoB.count >= 3 && i > 0 {
+                for j in 0..<i {
+                    let kA = thuTuKhoi[j]
+                    guard let infoA = mapKhoi[kA] else { continue }
+                    var soTrungLe = 0
+                    var tongTrung: Double = 0
+                    for (ma, nvB) in nvCoSoB {
+                        if let nvA = infoA.mapNV[ma],
+                           abs(nvA.thucHien - nvB.thucHien) < 0.005,
+                           (abs(nvB.thucHien - nvB.thucHien.rounded()) > 0.005 || nvB.thucHien >= 3.0) {
+                            soTrungLe += 1
+                            tongTrung += abs(nvB.thucHien)
+                        }
+                    }
+                    if soTrungLe >= 3 && soTrungLe * 2 >= nvCoSoB.count && tongTrung >= 5.0 && abs(infoB.tong - infoA.tong) < 0.01 {
+                        for (ma, var nvB) in infoB.mapNV {
+                            if let nvA = infoA.mapNV[ma], abs(nvA.thucHien - nvB.thucHien) < 0.005 {
+                                nvB.thucHien = 0
+                                infoB.mapNV[ma] = nvB
+                            }
+                        }
+                        infoB.tong = infoB.mapNV.values.reduce(0.0) { $0 + $1.thucHien }
+                        mapKhoi[kB] = infoB
+                        break
+                    }
+                }
+            }
+        }
+
+        return thuTuKhoi.compactMap { kLM in
+            guard let info = mapKhoi[kLM] else { return nil }
+            let ds = info.thuTuNV.compactMap { info.mapNV[$0] }
+            guard !ds.isEmpty else { return nil }
+            return KetQuaThiDuaNhanVienKhoi(
+                tenNganhHang: info.tenChuan,
+                danhSach: ds,
+                thucHienNganhGoiY: info.tong,
+                targetNganhGoiY: info.target
+            )
+        }
     }
 
     /// Câu lệnh chuyên biệt đã tối ưu cho Gemini để quét bảng Doanh thu hợp nhất theo Nhân viên 5 cột
@@ -1265,25 +1321,7 @@ final class DichVuQuetAnhGemini {
         hoanTat: @escaping (Result<[DoanhThuNhanVienItem], Error>) -> Void
     ) {
         let cd = KhoDuLieu.dungChung.layCaiDatAnToan()
-        let keyUD = (UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey") ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let keyCD = cd.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let keyNguoiDung: String
-        if !keyUD.isEmpty && keyUD != CaiDatDMX.geminiKeyMacDinh {
-            keyNguoiDung = keyUD
-        } else if !keyCD.isEmpty && keyCD != CaiDatDMX.geminiKeyMacDinh {
-            keyNguoiDung = keyCD
-        } else {
-            keyNguoiDung = ""
-        }
-
-        let keyChinh = keyNguoiDung.isEmpty ? CaiDatDMX.geminiKeyMacDinh : keyNguoiDung
-        var danhSachKey: [String] = []
-        if !keyChinh.isEmpty { danhSachKey.append(keyChinh) }
-        if !CaiDatDMX.geminiKeyMacDinh.isEmpty && !danhSachKey.contains(CaiDatDMX.geminiKeyMacDinh) {
-            danhSachKey.append(CaiDatDMX.geminiKeyMacDinh)
-        }
+        let danhSachKey = cd.danhSachGeminiApiKeyHieuLuc
 
         guard !danhSachKey.isEmpty, !danhSachAnh.isEmpty else {
             hoanTat(.failure(NSError(domain: "GeminiVision", code: 400, userInfo: [NSLocalizedDescriptionKey: "Chưa có ảnh hoặc API Key."])))
@@ -1301,33 +1339,26 @@ final class DichVuQuetAnhGemini {
             return
         }
 
-        let modelLuu = cd.geminiModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let modelUuTien = (modelLuu.hasPrefix("gemini-") && modelLuu.contains("flash")) ? modelLuu : "gemini-3.1-flash"
-        let cacModel = danhSachModelHopLe(modelUuTien: modelUuTien)
-
-        var cacCapThu: [CauHinhThuGemini] = []
-        for k in danhSachKey {
-            for m in cacModel {
-                cacCapThu.append(CauHinhThuGemini(key: k, model: m.model, tatThinking: m.tatThinking))
-            }
-        }
-
+        let cacModel = danhSachModelHopLe(modelUuTien: "gemini-3.1-flash")
         let tongAnh = cacDuLieuAnh.count
+        let soLuongKey = max(1, min(3, danhSachKey.count))
         let khoa = NSLock()
         var ketQuaTungAnh = Array<[DoanhThuNhanVienItem]>(repeating: [], count: tongAnh)
         var loiCuoi: Error?
         let nhom = DispatchGroup()
-        let semaphore = DispatchSemaphore(value: 2)
+        let semaphore = DispatchSemaphore(value: soLuongKey)
 
         DispatchQueue.global(qos: .userInitiated).async {
             for (idx, imgData) in cacDuLieuAnh.enumerated() {
                 semaphore.wait()
                 nhom.enter()
+                let cacCapAnh = self.taoDanhSachCapThu(chiSoAnh: idx, danhSachKey: danhSachKey, cacModel: cacModel)
+                let chiSoKeyHienThi = (idx % soLuongKey) + 1
                 DispatchQueue.main.async {
-                    tienTrinh?("Gemini 3.1 Flash đang quét ảnh Doanh thu NV \(idx + 1)/\(tongAnh)...")
+                    tienTrinh?("Gemini Flash (Key \(chiSoKeyHienThi)/\(soLuongKey)) đang quét ảnh Doanh thu NV \(idx + 1)/\(tongAnh)...")
                 }
                 self.goiGeminiChoMotAnh(
-                    cacCap: cacCapThu,
+                    cacCap: cacCapAnh,
                     chiSo: 0,
                     cheDo: cheDo,
                     imageData: imgData,

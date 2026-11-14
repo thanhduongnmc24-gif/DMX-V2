@@ -391,7 +391,21 @@ struct NhanVienQuanLy: Codable, Hashable, Identifiable {
     }
 
     static func sapXepAZ(_ danhSach: [NhanVienQuanLy]) -> [NhanVienQuanLy] {
-        danhSach.sorted(by: soSanhAZ)
+        var mapDuyNhat: [String: NhanVienQuanLy] = [:]
+        for nv in danhSach {
+            let ma = KhoDuLieu.chuanHoaMaNV(nv.maNV)
+            let ten = nv.hoTen.trimmingCharacters(in: .whitespacesAndNewlines)
+            let khoa = !ma.isEmpty ? ma : ten.uppercased()
+            guard !khoa.isEmpty else { continue }
+            if let cu = mapDuyNhat[khoa] {
+                if ten.count > cu.hoTen.count {
+                    mapDuyNhat[khoa] = NhanVienQuanLy(maNV: !ma.isEmpty ? ma : cu.maNV, hoTen: ten)
+                }
+            } else {
+                mapDuyNhat[khoa] = NhanVienQuanLy(maNV: !ma.isEmpty ? ma : nv.maNV, hoTen: ten)
+            }
+        }
+        return Array(mapDuyNhat.values).sorted(by: soSanhAZ)
     }
 }
 
@@ -1227,6 +1241,8 @@ struct CaiDatDMX: Codable {
     var monThiDuaTheoDoiLuyKe: [String] = []
     var monThiDuaTheoDoiRealtime: [String] = []
     var geminiApiKey: String = CaiDatDMX.geminiKeyMacDinh
+    var geminiApiKey2: String = ""
+    var geminiApiKey3: String = ""
     var geminiModel: String = CaiDatDMX.geminiModelMacDinh
     var dungGeminiQuetAnh: Bool = false
     var hienThiNangSuatNhanVien: Bool = true
@@ -1244,6 +1260,8 @@ struct CaiDatDMX: Codable {
         case monThiDuaTheoDoiLuyKe
         case monThiDuaTheoDoiRealtime
         case geminiApiKey
+        case geminiApiKey2
+        case geminiApiKey3
         case geminiModel
         case dungGeminiQuetAnh
         case hienThiNangSuatNhanVien
@@ -1282,6 +1300,8 @@ struct CaiDatDMX: Codable {
         monThiDuaTheoDoiLuyKe: [String] = [],
         monThiDuaTheoDoiRealtime: [String] = [],
         geminiApiKey: String = CaiDatDMX.geminiKeyMacDinh,
+        geminiApiKey2: String = "",
+        geminiApiKey3: String = "",
         geminiModel: String = CaiDatDMX.geminiModelMacDinh,
         dungGeminiQuetAnh: Bool = false,
         hienThiNangSuatNhanVien: Bool = true
@@ -1307,7 +1327,9 @@ struct CaiDatDMX: Codable {
         self.monThiDuaTheoDoiLuyKe = monThiDuaTheoDoiLuyKe
         self.monThiDuaTheoDoiRealtime = monThiDuaTheoDoiRealtime
         self.geminiApiKey = geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Self.geminiKeyMacDinh : geminiApiKey
-        self.geminiModel = geminiModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Self.geminiModelMacDinh : geminiModel
+        self.geminiApiKey2 = geminiApiKey2.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.geminiApiKey3 = geminiApiKey3.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.geminiModel = Self.geminiModelMacDinh
         self.dungGeminiQuetAnh = dungGeminiQuetAnh
         self.hienThiNangSuatNhanVien = hienThiNangSuatNhanVien
     }
@@ -1351,8 +1373,15 @@ struct CaiDatDMX: Codable {
         } else {
             geminiApiKey = Self.geminiKeyMacDinh
         }
-        let rawModel = (try? c.decode(String.self, forKey: .geminiModel))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        geminiModel = rawModel.isEmpty ? Self.geminiModelMacDinh : rawModel
+        let rawKey2 = (try? c.decode(String.self, forKey: .geminiApiKey2))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let luuKey2UD = UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey2")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        geminiApiKey2 = !luuKey2UD.isEmpty ? luuKey2UD : rawKey2
+
+        let rawKey3 = (try? c.decode(String.self, forKey: .geminiApiKey3))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let luuKey3UD = UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey3")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        geminiApiKey3 = !luuKey3UD.isEmpty ? luuKey3UD : rawKey3
+
+        geminiModel = Self.geminiModelMacDinh
         dungGeminiQuetAnh = (try? c.decode(Bool.self, forKey: .dungGeminiQuetAnh)) ?? (phuongPhapQuetThiDua == .gemini)
         if let hienNS = try? c.decode(Bool.self, forKey: .hienThiNangSuatNhanVien) {
             hienThiNangSuatNhanVien = hienNS
@@ -1363,9 +1392,36 @@ struct CaiDatDMX: Codable {
         }
     }
 
+    /// Danh sách các Key do người dùng tự nhập ở 3 ô (nếu nhập 1 có 1, nhập 2 có 2, nhập 3 có 3)
+    var danhSachKeyNguoiDungNhap: [String] {
+        let k1UD = (UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let k2UD = (UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey2") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let k3UD = (UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey3") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let k1Raw = (!k1UD.isEmpty && k1UD != Self.geminiKeyMacDinh) ? k1UD : geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let k1 = (k1Raw == Self.geminiKeyMacDinh) ? "" : k1Raw
+        let k2 = !k2UD.isEmpty ? k2UD : geminiApiKey2.trimmingCharacters(in: .whitespacesAndNewlines)
+        let k3 = !k3UD.isEmpty ? k3UD : geminiApiKey3.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var ds: [String] = []
+        for k in [k1, k2, k3] where !k.isEmpty && !ds.contains(k) {
+            ds.append(k)
+        }
+        return ds
+    }
+
+    /// Nếu người dùng nhập 1 key thì dùng đúng 1 key đó; nhập 2 key thì dùng 2 key; nhập 3 key thì dùng 3 key.
+    /// Chỉ khi cả 3 ô đều trống mới dùng 1 key mặc định tích hợp sẵn.
+    var danhSachGeminiApiKeyHieuLuc: [String] {
+        let dsNhap = danhSachKeyNguoiDungNhap
+        if !dsNhap.isEmpty {
+            return dsNhap
+        }
+        return Self.geminiKeyMacDinh.isEmpty ? [] : [Self.geminiKeyMacDinh]
+    }
+
     var geminiApiKeyHieuLuc: String {
-        let k = geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        return k.isEmpty ? Self.geminiKeyMacDinh : k
+        danhSachGeminiApiKeyHieuLuc.first ?? Self.geminiKeyMacDinh
     }
 
     func phanTramTarget(cho cheDo: LoaiCheDoDoanhThu) -> Double {
@@ -2522,6 +2578,8 @@ final class KhoDuLieu {
         UserDefaults.standard.set(moi.phuongPhapQuetThiDua.rawValue, forKey: "dmx.caiDat.phuongPhapQuetThiDua.v2")
         UserDefaults.standard.set(moi.phuongPhapQuetThiDua.rawValue, forKey: "dmx.caiDat.phuongPhapQuetThiDua")
         UserDefaults.standard.set(moi.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "dmx.caiDat.geminiApiKey")
+        UserDefaults.standard.set(moi.geminiApiKey2.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "dmx.caiDat.geminiApiKey2")
+        UserDefaults.standard.set(moi.geminiApiKey3.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "dmx.caiDat.geminiApiKey3")
         UserDefaults.standard.set(moi.hienThiNangSuatNhanVien, forKey: "dmx.caiDat.hienThiNangSuatNhanVien")
         caiDat = moi
         xoaBoNhoDem(xoaonLocTen: doiCumTu)
@@ -2568,6 +2626,14 @@ final class KhoDuLieu {
                 if luuKey != CaiDatDMX.geminiKeyMacDinh || moi.geminiApiKey.isEmpty {
                     moi.geminiApiKey = luuKey
                 }
+            }
+            if let luuKey2 = UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey2")?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !luuKey2.isEmpty {
+                moi.geminiApiKey2 = luuKey2
+            }
+            if let luuKey3 = UserDefaults.standard.string(forKey: "dmx.caiDat.geminiApiKey3")?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !luuKey3.isEmpty {
+                moi.geminiApiKey3 = luuKey3
             }
             caiDat = moi
         }
@@ -2947,7 +3013,17 @@ final class KhoDuLieu {
             let phanTramSieuThi: Double
             let bangTHNganh: [String: Double]
         }
-        let danhSachMHTienXuLy: [ThongTinMatHangTienXuLy] = matHangSuDung.map { mh in
+        // Khử trùng lặp tuyệt đối danh sách môn thi đua theo khóa liền mạch kLM trước khi tổng hợp cho nhân viên
+        var tapKLMDaXuLy = Set<String>()
+        var matHangDuyNhat: [DongThiDua] = []
+        for mh in matHangSuDung {
+            let kLM = Self.chuanHoaKhoaLienMachThiDua(mh.tenNganhHangGoc.isEmpty ? mh.tenNganhHang : mh.tenNganhHangGoc)
+            let khoaCheck = !kLM.isEmpty ? kLM : Self.chuanHoaKhoaSoSanh(mh.tenNganhHang)
+            guard !khoaCheck.isEmpty, !tapKLMDaXuLy.contains(khoaCheck) else { continue }
+            tapKLMDaXuLy.insert(khoaCheck)
+            matHangDuyNhat.append(mh)
+        }
+        let danhSachMHTienXuLy: [ThongTinMatHangTienXuLy] = matHangDuyNhat.map { mh in
             let k1 = Self.chuanHoaKhoaSoSanh(mh.tenNganhHang)
             let k2 = Self.chuanHoaKhoaSoSanh(mh.tenNganhHangGoc)
             let kLM = Self.chuanHoaKhoaLienMachThiDua(mh.tenNganhHangGoc)
@@ -3223,7 +3299,24 @@ final class KhoDuLieu {
                 thucHienMon = dongMon?.thucHien ?? 0
             }
 
+            // Gom mọi khóa cũ có cùng khóa liền mạch kLMKhoi về 1 khóa duy nhất để không bao giờ bị trùng ngành hàng
             var bangCu = ketQua[khoaNganh] ?? [:]
+            if !kLMKhoi.isEmpty {
+                let cacKhoaTrung = ketQua.keys.filter { $0 != khoaNganh && Self.chuanHoaKhoaLienMachThiDua($0) == kLMKhoi }
+                for kTrung in cacKhoaTrung {
+                    if let duLieuCu = ketQua.removeValue(forKey: kTrung) {
+                        for (kNV, vNV) in duLieuCu where bangCu[kNV] == nil {
+                            bangCu[kNV] = vNV
+                        }
+                    }
+                }
+            }
+            // Nếu là quét bảng ma trận nhiều nhân viên (>= 5 NV, không phải quét lẻ 1 phiếu sức khỏe), đặt lại số thực hiện cũ về 0 trước khi ghi số mới để các ô "—" không bị lưu số cũ
+            if khoi.danhSach.count >= 5 && !khoi.danhSach.contains(where: { $0.laPhanTramTargetCaNhan }) {
+                for k in Array(bangCu.keys) where !k.hasPrefix("__") {
+                    bangCu[k] = 0
+                }
+            }
             if khoi.thucHienNganhGoiY > 0 {
                 bangCu["__thuc_hien_sieu_thi__"] = khoi.thucHienNganhGoiY
             }
@@ -3306,7 +3399,9 @@ final class KhoDuLieu {
             let tenChuan = Self.chuanHoaTenMonThiDuaChuan(khoi.tenNganhHang, tienToThangMacDinh: "T11")
             guard !tenChuan.isEmpty, tenChuan != "Ngành hàng" else { continue }
             let kSoSanh = Self.chuanHoaKhoaSoSanh(tenChuan)
+            let kLM = Self.chuanHoaKhoaLienMachThiDua(tenChuan)
             if let idx = dsHienTai.firstIndex(where: {
+                (!kLM.isEmpty && (Self.chuanHoaKhoaLienMachThiDua($0.tenNganhHang) == kLM || Self.chuanHoaKhoaLienMachThiDua($0.tenNganhHangGoc) == kLM)) ||
                 Self.chuanHoaKhoaSoSanh($0.tenNganhHang) == kSoSanh ||
                 Self.chuanHoaKhoaSoSanh($0.tenNganhHangGoc) == kSoSanh
             }) {
@@ -3585,15 +3680,30 @@ final class KhoDuLieu {
         map["PHUKIENITNHOMKHAC"] = "Phụ kiện khác IT & Nhóm khác"
         map["PHUKIENIT"] = "Phụ kiện khác IT & Nhóm khác"
         map["TRACHAMDIENMAYGIADUNG"] = "Trả Chậm Điện máy & Gia dụng"
+        map["TRACHAMDIENMAYVAGIADUNG"] = "Trả Chậm Điện máy & Gia dụng"
         map["TRACHAMDIENMAY"] = "Trả Chậm Điện máy & Gia dụng"
         map["DIENTHOAITABLETANDROID"] = "ĐIỆN THOẠI & TABLET ANDROID"
+        map["DIENTHOAIVATABLETANDROID"] = "ĐIỆN THOẠI & TABLET ANDROID"
+        map["DIENTHOAIANDROID"] = "ĐIỆN THOẠI & TABLET ANDROID"
+        map["TABLETANDROID"] = "ĐIỆN THOẠI & TABLET ANDROID"
         map["DIENTHOAITABLET"] = "ĐIỆN THOẠI & TABLET ANDROID"
+        map["DIENTHOAIREALME"] = "Điện thoại Realme"
+        map["DTREALME"] = "Điện thoại Realme"
+        map["REALME"] = "Điện thoại Realme"
+        map["DIENTHOAIVIVO"] = "Điện thoại Vivo"
+        map["DTVIVO"] = "Điện thoại Vivo"
+        map["VIVO"] = "Điện thoại Vivo"
         map["MAYLOCKKHUTBUIHUTAM"] = "Máy lọc KK - Hút bụi - Hút ẩm"
         map["MAYLOCKKHUTBUI"] = "Máy lọc KK - Hút bụi - Hút ẩm"
         map["MAYSAYMAYRUACHEN"] = "Máy sấy / Máy rửa chén"
+        map["MAYSAYVAMAYRUACHEN"] = "Máy sấy / Máy rửa chén"
         map["NOICOMNOICHIEN"] = "Nồi cơm & Nồi chiên"
+        map["NOICOMVANOICHIEN"] = "Nồi cơm & Nồi chiên"
         map["DONGHOSMARTWATCH"] = "Đồng hồ & Smartwatch"
+        map["DONGHOVASMARTWATCH"] = "Đồng hồ & Smartwatch"
+        map["PHUKIENKHACITVANHOMKHAC"] = "Phụ kiện khác IT & Nhóm khác"
         map["TULANHDONGMAT"] = "Tủ Lạnh / Đông / Mát"
+        map["TULANHDONGVAMAT"] = "Tủ Lạnh / Đông / Mát"
         map["DENNANGLUONGMATTROI"] = "Đèn năng lượng mặt trời"
         map["CELG"] = "CE LG"
         map["CEL6"] = "CE LG"
@@ -3728,6 +3838,28 @@ final class KhoDuLieu {
             ketQua = "NAPRUT"
         } else if ketQua == "MAYNUOCNONGSL" || ketQua == "MAYNUOCNONG5L" {
             ketQua = "MAYNUOCNONG"
+        } else if ketQua.contains("ANDROID") || ketQua.hasPrefix("DIENTHOAITABLET") || ketQua.hasPrefix("DIENTHOAIVATABLET") {
+            ketQua = "DIENTHOAITABLETANDROID"
+        } else if ketQua.contains("REALME") {
+            ketQua = "DIENTHOAIREALME"
+        } else if ketQua.contains("VIVO") {
+            ketQua = "DIENTHOAIVIVO"
+        } else if ketQua.hasPrefix("TRACHAMDIENMAY") {
+            ketQua = "TRACHAMDIENMAYGIADUNG"
+        } else if ketQua.hasPrefix("MAYLOCKK") || ketQua.contains("HUTBUI") || ketQua.contains("HUTAM") {
+            ketQua = "MAYLOCKKHUTBUIHUTAM"
+        } else if ketQua.hasPrefix("MAYSAY") || ketQua.contains("RUACHEN") {
+            ketQua = "MAYSAYMAYRUACHEN"
+        } else if ketQua.hasPrefix("NOICOM") || ketQua.contains("NOICHIEN") {
+            ketQua = "NOICOMNOICHIEN"
+        } else if ketQua.hasPrefix("DONGHO") || ketQua.contains("SMARTWATCH") {
+            ketQua = "DONGHOSMARTWATCH"
+        } else if ketQua.hasPrefix("TULANH") || ketQua.contains("DONGMAT") {
+            ketQua = "TULANHDONGMAT"
+        } else if ketQua.hasPrefix("DENNANGLUONG") {
+            ketQua = "DENNANGLUONGMATTROI"
+        } else if ketQua.contains("HOMECREDIT") {
+            ketQua = "TRACHAMHOMECREDIT"
         }
 
         khoaBoNhoDemTinh.lock()

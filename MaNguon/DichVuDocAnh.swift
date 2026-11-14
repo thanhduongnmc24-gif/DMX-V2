@@ -853,18 +853,8 @@ final class DichVuDocAnh {
             ) { [weak self] ketQuaGemini in
                 switch ketQuaGemini {
                 case .success(var kq):
-                    if let self = self {
-                        for anh in danhSachAnh where self.laAnhMaTranThiDuaNhanVien(phanTu: [], anh: anh) {
-                            let khoiMT = self.phanTichMaTranThiDuaNhanVien(phanTu: [], anh: anh, watermark: nil)
-                            if !khoiMT.isEmpty {
-                                let tapDaCo = Set(kq.thiDuaNhanVien.map { KhoDuLieu.chuanHoaKhoaSoSanh($0.tenNganhHang) })
-                                let moi = khoiMT.filter { !tapDaCo.contains(KhoDuLieu.chuanHoaKhoaSoSanh($0.tenNganhHang)) }
-                                if !moi.isEmpty {
-                                    kq.thiDuaNhanVien.append(contentsOf: moi)
-                                    kq.soAnhThiDuaNV += 1
-                                }
-                            }
-                        }
+                    if !kq.thiDuaNhanVien.isEmpty {
+                        kq.thiDuaNhanVien = DichVuQuetAnhGemini.dungChung.gopVaLamSachKhoiThiDuaNhanVien(kq.thiDuaNhanVien)
                     }
                     if kq.capNhatLuc.isEmpty {
                         kq.capNhatLuc = TienIchNgay.hienThiGioPhut.string(from: Date())
@@ -1405,19 +1395,9 @@ final class DichVuDocAnh {
             }
             switch ketQuaGemini {
             case .success(let cacKhoiGemini) where !cacKhoiGemini.isEmpty:
-                DispatchQueue.global(qos: .userInitiated).async {
-                    var cacKhoiOffline: [KetQuaThiDuaNhanVienKhoi] = []
-                    for anh in danhSachAnh {
-                        let phanTu = self.thucHienOCR(anh: anh)
-                        let wm = self.timMaWatermarkAnToan(phanTu: phanTu, yGioiHan: 0.16)
-                        if self.laAnhMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh) {
-                            cacKhoiOffline.append(contentsOf: self.phanTichMaTranThiDuaNhanVien(phanTu: phanTu, anh: anh, watermark: wm))
-                        }
-                    }
-                    let ketQuaGop = self.gopKetQuaGeminiVaGridMaTran(gemini: cacKhoiGemini, offline: cacKhoiOffline)
-                    DispatchQueue.main.async {
-                        hoanTat(ketQuaGop)
-                    }
+                let ketQuaSach = DichVuQuetAnhGemini.dungChung.gopVaLamSachKhoiThiDuaNhanVien(cacKhoiGemini)
+                DispatchQueue.main.async {
+                    hoanTat(ketQuaSach)
                 }
             default:
                 self.quetAnhThiDuaNhanVienOffline(
@@ -3291,13 +3271,16 @@ final class DichVuDocAnh {
 
         for colIdx in 1..<colBounds.count {
             let cb = colBounds[colIdx]
+            let headerOCR = ocrCacO(x0: cb.x0, x1: cb.x1, bands: [(yHeaderTop, yHeaderBot)], laVanBan: true)
+            let rawHeader = (headerOCR[0] ?? []).joined(separator: " ")
+            let tenTuOCR = KhoDuLieu.chuanHoaTenMonThiDuaChuan(rawHeader, tienToThangMacDinh: "T11")
             let tenMon: String
-            if let ds13 = danhSach13CotChuan, colIdx - 1 < ds13.count {
+            if !tenTuOCR.isEmpty && KhoDuLieu.laTenMonThiDuaChuanDMX(tenTuOCR) {
+                tenMon = tenTuOCR
+            } else if let ds13 = danhSach13CotChuan, colIdx - 1 < ds13.count {
                 tenMon = KhoDuLieu.chuanHoaTenMonThiDuaChuan(ds13[colIdx - 1], tienToThangMacDinh: "T11")
             } else {
-                let headerOCR = ocrCacO(x0: cb.x0, x1: cb.x1, bands: [(yHeaderTop, yHeaderBot)], laVanBan: true)
-                let rawHeader = (headerOCR[0] ?? []).joined(separator: " ")
-                tenMon = KhoDuLieu.chuanHoaTenMonThiDuaChuan(rawHeader, tienToThangMacDinh: "T11")
+                tenMon = tenTuOCR
             }
             guard !tenMon.isEmpty, KhoDuLieu.laTenMonThiDuaChuanDMX(tenMon) else { continue }
 

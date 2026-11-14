@@ -15,9 +15,11 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     private let chonKieuHienThi = UISegmentedControl(items: ["Bảng 8 cột (Chi tiết)", "Thẻ tiến độ (Gọn)"])
     private let chonSoCotXuat = UISegmentedControl(items: ["1 cột", "2 cột", "3 cột", "4 cột"])
 
-    // Cấu hình Gemini Flash API Key cho Phương pháp 3
+    // Cấu hình 3 ô nhập Gemini Flash API Key (nhập 1 dùng 1, nhập 2 dùng 2, nhập 3 dùng 3)
     private let nhanTrangThaiGeminiKey = UILabel()
     private let oNhapGeminiKey = UITextField()
+    private let oNhapGeminiKey2 = UITextField()
+    private let oNhapGeminiKey3 = UITextField()
     private let nutLuuGeminiKey = UIButton(type: .system)
     private let nutDungKeyCoSan = UIButton(type: .system)
     private let nutKiemTraGeminiKey = UIButton(type: .system)
@@ -55,8 +57,10 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         chonPhuongPhapQuetThiDua.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
         chonKieuHienThi.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
         chonSoCotXuat.addTarget(self, action: #selector(thayDoiTuyChonHienThi), for: .valueChanged)
-        oNhapGeminiKey.addTarget(self, action: #selector(dangGoGeminiKey), for: .editingChanged)
-        oNhapGeminiKey.addTarget(self, action: #selector(thayDoiGeminiKey), for: .editingDidEnd)
+        [oNhapGeminiKey, oNhapGeminiKey2, oNhapGeminiKey3].forEach { tf in
+            tf.addTarget(self, action: #selector(dangGoGeminiKey), for: .editingChanged)
+            tf.addTarget(self, action: #selector(thayDoiGeminiKey), for: .editingDidEnd)
+        }
 
         let nutLuu = UIBarButtonItem(
             title: "Lưu",
@@ -85,20 +89,30 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     }
 
     private func capNhatHienThiGeminiKey(tu cd: CaiDatDMX, giuNguyenONhap: Bool = false) {
-        let keyLuu = cd.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if keyLuu.isEmpty || keyLuu == CaiDatDMX.geminiKeyMacDinh {
-            if !giuNguyenONhap && !oNhapGeminiKey.isFirstResponder {
-                oNhapGeminiKey.text = ""
+        let key1 = cd.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key2 = cd.geminiApiKey2.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key3 = cd.geminiApiKey3.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !giuNguyenONhap {
+            if !oNhapGeminiKey.isFirstResponder {
+                oNhapGeminiKey.text = (key1.isEmpty || key1 == CaiDatDMX.geminiKeyMacDinh) ? "" : key1
             }
+            if !oNhapGeminiKey2.isFirstResponder {
+                oNhapGeminiKey2.text = key2
+            }
+            if !oNhapGeminiKey3.isFirstResponder {
+                oNhapGeminiKey3.text = key3
+            }
+        }
+
+        let dsKeyNhap = cd.danhSachKeyNguoiDungNhap
+        if dsKeyNhap.isEmpty {
             let duoi = String(CaiDatDMX.geminiKeyMacDinh.suffix(6))
-            nhanTrangThaiGeminiKey.text = "🔑 Đang dùng: Key Gemini Flash tích hợp sẵn trong app (...\(duoi))"
+            nhanTrangThaiGeminiKey.text = "🔑 Đang dùng: 1 Key Gemini Flash tích hợp sẵn trong app (...\(duoi))"
             nhanTrangThaiGeminiKey.textColor = BangMauBCTD.xanhLaDam
         } else {
-            if !giuNguyenONhap && !oNhapGeminiKey.isFirstResponder {
-                oNhapGeminiKey.text = keyLuu
-            }
-            let duoi = String(keyLuu.suffix(6))
-            nhanTrangThaiGeminiKey.text = "🔑 Đang dùng: Key Gemini Flash nhập mới tại Cài đặt (...\(duoi))"
+            let tomTat = dsKeyNhap.enumerated().map { "Key \($0.offset + 1) (...\(String($0.element.suffix(4))))" }.joined(separator: " · ")
+            nhanTrangThaiGeminiKey.text = "🔑 Đang dùng đúng \(dsKeyNhap.count) Key Gemini Flash: \(tomTat)"
             nhanTrangThaiGeminiKey.textColor = BangMauBCTD.xanhChuDaoDam
         }
     }
@@ -126,44 +140,48 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     }
 
     @objc private func bamLuuGeminiKey() {
-        oNhapGeminiKey.resignFirstResponder()
+        [oNhapGeminiKey, oNhapGeminiKey2, oNhapGeminiKey3].forEach { $0.resignFirstResponder() }
         dongBoTamCaiDat()
         let cd = KhoDuLieu.dungChung.caiDat
         capNhatHienThiGeminiKey(tu: cd)
         khiThayDoiCaiDat?()
-        let keyHieuLuc = cd.geminiApiKeyHieuLuc
-        let duoi = String(keyHieuLuc.suffix(6))
-        if keyHieuLuc == CaiDatDMX.geminiKeyMacDinh {
+        let dsKeyNhap = cd.danhSachKeyNguoiDungNhap
+        if dsKeyNhap.isEmpty {
+            let duoi = String(CaiDatDMX.geminiKeyMacDinh.suffix(6))
             hienThongBao(
                 tieuDe: "✅ Đã lưu cài đặt Key",
-                noiDung: "Đang sử dụng API Key Gemini Flash tích hợp sẵn trong ứng dụng (...\(duoi))."
+                noiDung: "Đang sử dụng 1 API Key Gemini Flash tích hợp sẵn trong ứng dụng (...\(duoi))."
             )
         } else {
+            let chiTiet = dsKeyNhap.enumerated().map { "• Key \($0.offset + 1): ...\(String($0.element.suffix(6)))" }.joined(separator: "\n")
             hienThongBao(
-                tieuDe: "✅ Đã lưu API Key mới",
-                noiDung: "Đã lưu API Key Gemini Flash mới (...\(duoi)) cho Phương pháp 3."
+                tieuDe: "✅ Đã lưu \(dsKeyNhap.count) API Key Gemini Flash",
+                noiDung: "Hệ thống sẽ chạy đúng \(dsKeyNhap.count) Key đã nhập:\n\(chiTiet)"
             )
         }
     }
 
     @objc private func bamDungKeyCoSan() {
-        oNhapGeminiKey.text = ""
-        oNhapGeminiKey.resignFirstResponder()
+        [oNhapGeminiKey, oNhapGeminiKey2, oNhapGeminiKey3].forEach {
+            $0.text = ""
+            $0.resignFirstResponder()
+        }
         dongBoTamCaiDat()
         capNhatHienThiGeminiKey(tu: KhoDuLieu.dungChung.caiDat)
         khiThayDoiCaiDat?()
         hienThongBao(
             tieuDe: "✅ Đã chuyển về Key có sẵn",
-            noiDung: "Phương pháp 3 (Gemini Flash) đang sử dụng API Key tích hợp sẵn trong ứng dụng."
+            noiDung: "Đã xóa các ô nhập tay và sử dụng 1 API Key Gemini Flash tích hợp sẵn trong ứng dụng."
         )
     }
 
     @objc private func bamKiemTraGeminiKey() {
-        oNhapGeminiKey.resignFirstResponder()
+        [oNhapGeminiKey, oNhapGeminiKey2, oNhapGeminiKey3].forEach { $0.resignFirstResponder() }
         dongBoTamCaiDat()
         let cd = KhoDuLieu.dungChung.caiDat
         capNhatHienThiGeminiKey(tu: cd)
-        let keyKiemTra = cd.geminiApiKeyHieuLuc
+        let dsKey = cd.danhSachGeminiApiKeyHieuLuc
+        let keyKiemTra = dsKey.first ?? cd.geminiApiKeyHieuLuc
         nutKiemTraGeminiKey.isEnabled = false
         nutKiemTraGeminiKey.setTitle("⏳ Đang kiểm tra...", for: .normal)
         DichVuGeminiAI.dungChung.kiemTraVaDungThuKey(apiKey: keyKiemTra, model: "gemini-3.1-flash") { [weak self] kq in
@@ -174,7 +192,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             case .success(let info):
                 self.hienThongBao(
                     tieuDe: "✅ Kết nối Gemini Flash thành công",
-                    noiDung: "Model: \(info.modelThanhCong)\nPhản hồi: \(info.phanHoiMau)"
+                    noiDung: "Số Key đang kích hoạt: \(dsKey.count) Key\nModel: \(info.modelThanhCong)\nPhản hồi: \(info.phanHoiMau)"
                 )
             case .failure(let loi):
                 self.hienThongBao(
@@ -207,14 +225,19 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let phuongPhap = PhuongPhapQuetThiDua(rawValue: chonPhuongPhapQuetThiDua.selectedSegmentIndex) ?? .bangDoc
         let kieu = KieuHienThiBaoCao(rawValue: chonKieuHienThi.selectedSegmentIndex) ?? .bangChiTiet
         let soCot = chonSoCotXuat.selectedSegmentIndex + 1
-        let keyNhap = (oNhapGeminiKey.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyNhap1 = (oNhapGeminiKey.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyNhap2 = (oNhapGeminiKey2.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyNhap3 = (oNhapGeminiKey3.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
         var moi = KhoDuLieu.dungChung.caiDat
         moi.phuongPhapQuetThiDua = phuongPhap
         moi.kieuHienThi = kieu
         moi.danhSachCumTuLocBo = danhSachCumTu
         moi.soCotXuatAnh = soCot
-        moi.geminiApiKey = keyNhap.isEmpty ? CaiDatDMX.geminiKeyMacDinh : keyNhap
+        moi.geminiApiKey = keyNhap1.isEmpty ? CaiDatDMX.geminiKeyMacDinh : keyNhap1
+        moi.geminiApiKey2 = keyNhap2
+        moi.geminiApiKey3 = keyNhap3
+        moi.geminiModel = CaiDatDMX.geminiModelMacDinh
         moi.dungGeminiQuetAnh = (phuongPhap == .gemini)
         KhoDuLieu.dungChung.luuCaiDat(moi)
     }
@@ -303,7 +326,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         khungGemini.layer.borderColor = BangMauBCTD.vienThe.cgColor
 
         let nhanTieuDeGemini = UILabel()
-        nhanTieuDeGemini.text = "🤖 Cài đặt API Key cho Phương pháp 4 (Gemini Flash):"
+        nhanTieuDeGemini.text = "🤖 Cài đặt 3 API Key cho Gemini Flash (Nhập 1 dùng 1 · Nhập 2 dùng 2 · Nhập 3 dùng 3):"
         nhanTieuDeGemini.font = .systemFont(ofSize: 12.5, weight: .bold)
         nhanTieuDeGemini.textColor = BangMauBCTD.chuChinh
         nhanTieuDeGemini.numberOfLines = 0
@@ -311,14 +334,21 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         nhanTrangThaiGeminiKey.font = .systemFont(ofSize: 12, weight: .semibold)
         nhanTrangThaiGeminiKey.numberOfLines = 0
 
-        oNhapGeminiKey.placeholder = "Nhập Gemini API Key mới (để trống = dùng Key có sẵn trong app)"
-        oNhapGeminiKey.borderStyle = .roundedRect
-        oNhapGeminiKey.font = .systemFont(ofSize: 13)
-        oNhapGeminiKey.clearButtonMode = .whileEditing
-        oNhapGeminiKey.autocapitalizationType = .none
-        oNhapGeminiKey.autocorrectionType = .no
-        oNhapGeminiKey.returnKeyType = .done
-        oNhapGeminiKey.delegate = self
+        let cacONhap: [(UITextField, String)] = [
+            (oNhapGeminiKey, "🔑 Key 1: Nhập Gemini API Key 1 (trống cả 3 ô = dùng Key có sẵn)"),
+            (oNhapGeminiKey2, "🔑 Key 2: Nhập Gemini API Key 2 (tùy chọn)"),
+            (oNhapGeminiKey3, "🔑 Key 3: Nhập Gemini API Key 3 (tùy chọn)")
+        ]
+        for (tf, ph) in cacONhap {
+            tf.placeholder = ph
+            tf.borderStyle = .roundedRect
+            tf.font = .systemFont(ofSize: 12.5)
+            tf.clearButtonMode = .whileEditing
+            tf.autocapitalizationType = .none
+            tf.autocorrectionType = .no
+            tf.returnKeyType = .done
+            tf.delegate = self
+        }
 
         nutLuuGeminiKey.setTitle("💾 Lưu Key", for: .normal)
         nutLuuGeminiKey.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
@@ -353,6 +383,8 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
             nhanTieuDeGemini,
             nhanTrangThaiGeminiKey,
             oNhapGeminiKey,
+            oNhapGeminiKey2,
+            oNhapGeminiKey3,
             hangNutGemini
         ])
         nganGemini.axis = .vertical
@@ -509,7 +541,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        if textField === oNhapGeminiKey {
+        if textField === oNhapGeminiKey || textField === oNhapGeminiKey2 || textField === oNhapGeminiKey3 {
             textField.resignFirstResponder()
             thayDoiGeminiKey()
             return true
