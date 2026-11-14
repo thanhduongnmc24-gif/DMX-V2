@@ -961,8 +961,9 @@ final class DichVuGeminiAI {
     /// Key mặc định do người dùng cung cấp để kiểm tra và dùng thử ngay
     static let khoaMacDinh = "AIzaSyBLV7N_qUxSuiJ3B3FETmj2Ta67CKeVKWo"
 
-    /// Chỉ dùng Gemini 3.1 Flash-Lite; không tự hạ xuống model đời thấp hơn.
+    /// Ưu tiên Gemini 3.5 Flash-Lite; 3.1 Flash-Lite là model dự phòng.
     static let cacModelMienPhi: [(ma: String, ten: String)] = [
+        ("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite"),
         ("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite")
     ]
 
@@ -993,7 +994,7 @@ final class DichVuGeminiAI {
     }
 
     var modelHienTai: String {
-        "gemini-3.1-flash-lite"
+        "gemini-3.5-flash-lite"
     }
 
     /// Kiểm tra API Key trực tiếp với máy chủ Google Gemini (tự động thử model dự phòng miễn phí nếu model đầu bận)
@@ -1009,7 +1010,7 @@ final class DichVuGeminiAI {
             return
         }
 
-        let modelUuTien = "gemini-3.1-flash-lite"
+        let modelUuTien = "gemini-3.5-flash-lite"
         var danhSachThu: [String] = [modelUuTien]
         for m in Self.cacModelMienPhi.map(\.ma) where !danhSachThu.contains(m) {
             danhSachThu.append(m)

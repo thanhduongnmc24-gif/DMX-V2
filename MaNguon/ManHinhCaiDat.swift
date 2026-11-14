@@ -184,7 +184,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         let keyKiemTra = dsKey.first ?? cd.geminiApiKeyHieuLuc
         nutKiemTraGeminiKey.isEnabled = false
         nutKiemTraGeminiKey.setTitle("⏳ Đang kiểm tra...", for: .normal)
-        DichVuGeminiAI.dungChung.kiemTraVaDungThuKey(apiKey: keyKiemTra, model: "gemini-3.1-flash-lite") { [weak self] kq in
+        DichVuGeminiAI.dungChung.kiemTraVaDungThuKey(apiKey: keyKiemTra, model: "gemini-3.5-flash-lite") { [weak self] kq in
             guard let self else { return }
             self.nutKiemTraGeminiKey.isEnabled = true
             self.nutKiemTraGeminiKey.setTitle("⚡ Kiểm tra Key", for: .normal)
@@ -326,7 +326,7 @@ final class ManHinhCaiDat: UIViewController, UITableViewDataSource, UITableViewD
         khungGemini.layer.borderColor = BangMauBCTD.vienThe.cgColor
 
         let nhanTieuDeGemini = UILabel()
-        nhanTieuDeGemini.text = "🤖 Cài đặt 3 API Key cho Gemini Flash (Nhập 1 dùng 1 · Nhập 2 dùng 2 · Nhập 3 dùng 3):"
+        nhanTieuDeGemini.text = "🤖 3 API Key Gemini (nên thuộc 3 project khác nhau):"
         nhanTieuDeGemini.font = .systemFont(ofSize: 12.5, weight: .bold)
         nhanTieuDeGemini.textColor = BangMauBCTD.chuChinh
         nhanTieuDeGemini.numberOfLines = 0

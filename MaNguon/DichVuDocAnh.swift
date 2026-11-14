@@ -860,7 +860,7 @@ final class DichVuDocAnh {
                 hoanTat(kq)
             case .failure:
                 guard let self else { return }
-                tienTrinh("⚠️ Gemini 3.1 Flash-Lite lỗi hoặc hết quota. Đang chuyển sang OCR...")
+                tienTrinh("⚠️ Gemini 3.5/3.1 Flash-Lite đều lỗi hoặc hết quota. Đang chuyển sang OCR...")
                 self.quetVaPhanLoaiTatCaAnhOffline(
                     danhSachAnh: danhSachAnh,
                     ngay: ngay,
@@ -1101,7 +1101,7 @@ final class DichVuDocAnh {
                 fallthrough
             case .failure:
                 guard let self else { return }
-                tienTrinh("⚠️ Gemini 3.1 Flash-Lite lỗi hoặc hết quota. Đang chuyển sang OCR...")
+                tienTrinh("⚠️ Gemini 3.5/3.1 Flash-Lite đều lỗi hoặc hết quota. Đang chuyển sang OCR...")
                 self.quetAnhThiDuaOffline(
                     danhSachAnh: danhSachAnh,
                     danhSachHienCo: danhSachHienCo,
@@ -1332,7 +1332,7 @@ final class DichVuDocAnh {
         hoanTatSucKhoe: (([String: DuLieuSucKhoeBoSungNV]) -> Void)? = nil,
         hoanTat: @escaping ([KetQuaThiDuaNhanVienKhoi]) -> Void
     ) {
-        // Thử trước với Gemini 3.1 Flash bằng câu lệnh chuyên biệt lọc bảng nhân viên × ngành hàng ra JSON, đồng thời đối chiếu lưới cột để không bao giờ sót các môn (SL) như VAS, Nạp rút, Máy nước nóng
+        // Thử Gemini 3.5 Flash-Lite, sau đó 3.1 Flash-Lite; cuối cùng mới dùng OCR.
         DichVuQuetAnhGemini.dungChung.quetThiDuaNhanVien(
             danhSachAnh: danhSachAnh,
             cheDo: .luyKe,
@@ -1495,7 +1495,7 @@ final class DichVuDocAnh {
         hoanTat: @escaping ([DoanhThuNhanVienItem]) -> Void
     ) {
         if uuTienPhieuSucKhoe {
-            tienTrinh?("⚡ Gemini 3.1 Flash-Lite đang quét phiếu Sức khỏe nhân viên...")
+            tienTrinh?("⚡ Gemini 3.5 Flash-Lite đang quét phiếu Sức khỏe nhân viên...")
             DichVuQuetAnhGemini.dungChung.quet(
                 danhSachAnh: danhSachAnh,
                 cheDo: cheDo,
@@ -1507,7 +1507,7 @@ final class DichVuDocAnh {
                     hoanTat(kq.doanhThuNhanVien)
                 default:
                     guard let self else { return }
-                    tienTrinh?("⚠️ Gemini 3.1 Flash-Lite lỗi hoặc hết quota. Đang chuyển sang OCR...")
+                    tienTrinh?("⚠️ Gemini 3.5/3.1 Flash-Lite đều lỗi hoặc hết quota. Đang chuyển sang OCR...")
                     self.quetAnhDoanhThuNhanVienOffline(
                         danhSachAnh: danhSachAnh,
                         maNVGoiY: maNVGoiY,
@@ -1520,7 +1520,7 @@ final class DichVuDocAnh {
             return
         }
 
-        tienTrinh?("⚡ Gemini 3.1 Flash-Lite đang quét \(danhSachAnh.count) ảnh Doanh thu NV...")
+        tienTrinh?("⚡ Gemini 3.5 Flash-Lite đang quét \(danhSachAnh.count) ảnh Doanh thu NV...")
         DichVuQuetAnhGemini.dungChung.quetDoanhThuNhanVien(
             danhSachAnh: danhSachAnh,
             cheDo: cheDo,
@@ -1531,7 +1531,7 @@ final class DichVuDocAnh {
                 hoanTat(dsGemini)
             default:
                 guard let self else { return }
-                tienTrinh?("⚠️ Gemini 3.1 Flash-Lite lỗi hoặc hết quota. Đang chuyển sang OCR...")
+                tienTrinh?("⚠️ Gemini 3.5/3.1 Flash-Lite đều lỗi hoặc hết quota. Đang chuyển sang OCR...")
                 self.quetAnhDoanhThuNhanVienOffline(
                     danhSachAnh: danhSachAnh,
                     maNVGoiY: maNVGoiY,

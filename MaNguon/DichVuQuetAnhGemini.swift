@@ -7,9 +7,10 @@ final class DichVuQuetAnhGemini {
     private var cacModelKhongHoTro = Set<String>()
     private init() {}
 
-    /// Chỉ dùng Gemini 3.1 Flash-Lite. Khi model/key lỗi, lớp gọi bên ngoài sẽ chuyển sang OCR.
-    private func danhSachModelHopLe(modelUuTien: String = "gemini-3.1-flash-lite") -> [(model: String, tatThinking: Bool)] {
+    /// Ưu tiên Gemini 3.5 Flash-Lite, sau đó 3.1 Flash-Lite. Khi cả hai model/key đều lỗi, lớp gọi bên ngoài chuyển sang OCR.
+    private func danhSachModelHopLe() -> [(model: String, tatThinking: Bool)] {
         let ungVien: [(model: String, tatThinking: Bool)] = [
+            ("gemini-3.5-flash-lite", true),
             ("gemini-3.1-flash-lite", true)
         ]
         khoaModel404.lock()
@@ -25,10 +26,7 @@ final class DichVuQuetAnhGemini {
         let tatThinking: Bool
     }
 
-    /// Tạo danh sách cấu hình thử gọn nhẹ (tối đa 3 lần thử nhanh/ảnh) để không bao giờ bị lặp 18 lần gây treo 5 phút:
-    /// - Nhập 1 Key -> chỉ dùng đúng 1 Key đó
-    /// - Nhập 2 Key -> Ảnh 1 dùng Key 1, Ảnh 2 dùng Key 2
-    /// - Nhập 3 Key -> Ảnh 1 dùng Key 1, Ảnh 2 dùng Key 2, Ảnh 3 dùng Key 3
+    /// Thử theo thứ tự model rồi đến key: 3.5 với tối đa 3 project, sau đó 3.1 với cùng các project.
     private func taoDanhSachCapThu(chiSoAnh: Int, danhSachKey: [String], cacModel: [(model: String, tatThinking: Bool)]) -> [CauHinhThuGemini] {
         guard !danhSachKey.isEmpty else { return [] }
         var keyXoayVong: [String] = []
@@ -39,22 +37,10 @@ final class DichVuQuetAnhGemini {
             }
         }
         var cacCap: [CauHinhThuGemini] = []
-        // Lần 1: Key chính của ảnh này + Gemini 3.1 Flash-Lite.
-        if let m0 = cacModel.first, let k0 = keyXoayVong.first {
-            cacCap.append(CauHinhThuGemini(key: k0, model: m0.model, tatThinking: m0.tatThinking))
-        }
-        // Lần 2: Nếu có Key thứ 2 thì thử Key thứ 2 với cùng model.
-        if keyXoayVong.count >= 2, let m0 = cacModel.first {
-            cacCap.append(CauHinhThuGemini(key: keyXoayVong[1], model: m0.model, tatThinking: m0.tatThinking))
-        } else if cacModel.count >= 2, let k0 = keyXoayVong.first {
-            cacCap.append(CauHinhThuGemini(key: k0, model: cacModel[1].model, tatThinking: cacModel[1].tatThinking))
-        }
-        // Lần 3: Nếu có Key thứ 3 thì thử Key thứ 3 với cùng model.
-        if keyXoayVong.count >= 3, let m0 = cacModel.first {
-            cacCap.append(CauHinhThuGemini(key: keyXoayVong[2], model: m0.model, tatThinking: m0.tatThinking))
-        } else if cacModel.count >= 2, let kLast = keyXoayVong.last {
-            let mBackup = cacModel[min(1, cacModel.count - 1)]
-            cacCap.append(CauHinhThuGemini(key: kLast, model: mBackup.model, tatThinking: mBackup.tatThinking))
+        for model in cacModel {
+            for key in keyXoayVong.prefix(3) {
+                cacCap.append(CauHinhThuGemini(key: key, model: model.model, tatThinking: model.tatThinking))
+            }
         }
         return cacCap
     }
@@ -95,7 +81,7 @@ final class DichVuQuetAnhGemini {
             let tongAnh = cacMucAnh.count
             let soLuongKey = max(1, min(3, danhSachKey.count))
             DispatchQueue.main.async {
-                tienTrinh("⚡ Gemini Flash đang quét đồng thời \(tongAnh) ảnh (\(soLuongKey) Key · 0/\(tongAnh))...")
+                tienTrinh("⚡ Gemini 3.5 Flash-Lite đang quét đồng thời \(tongAnh) ảnh (\(soLuongKey) project · 0/\(tongAnh))...")
             }
 
             let khoaKetQua = NSLock()
@@ -346,8 +332,19 @@ final class DichVuQuetAnhGemini {
             if error != nil || status != 200 {
                 if chiSo + 1 < cacCap.count {
                     let delay: TimeInterval = (status == 429 || status == 503) ? 0.4 : 0.05
+                    let chiSoTiep: Int
+                    if status == 404 {
+                        chiSoTiep = cacCap[(chiSo + 1)...].firstIndex(where: { $0.model != cap.model }) ?? cacCap.count
+                    } else {
+                        chiSoTiep = chiSo + 1
+                    }
+                    guard chiSoTiep < cacCap.count else {
+                        let loi = data.map { self.thongDiepLoi(tu: $0, status: status) } ?? (error?.localizedDescription ?? "Gemini Flash-Lite không phản hồi.")
+                        hoanTat(.failure(NSError(domain: "GeminiVision", code: status, userInfo: [NSLocalizedDescriptionKey: loi])))
+                        return
+                    }
                     DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) {
-                        self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, hoanTat: hoanTat)
+                        self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSoTiep, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, hoanTat: hoanTat)
                     }
                     return
                 }
@@ -1072,7 +1069,7 @@ final class DichVuQuetAnhGemini {
             var daHoanTat = false
 
             DispatchQueue.main.async {
-                tienTrinh?("⚡ Gemini Flash đang quét đồng thời \(tongAnh) ảnh Thi đua NV (\(soLuongKey) Key · 0/\(tongAnh))...")
+                tienTrinh?("⚡ Gemini 3.5 Flash-Lite đang quét đồng thời \(tongAnh) ảnh Thi đua NV (\(soLuongKey) project · 0/\(tongAnh))...")
             }
 
             func ketThucTDNVNeuCan(doTimeout: Bool = false) {
@@ -1647,7 +1644,7 @@ final class DichVuQuetAnhGemini {
         """
     }
 
-    /// Quét danh sách ảnh Bảng Doanh thu Nhân viên bằng Gemini 3.1 Flash
+    /// Quét danh sách ảnh Bảng Doanh thu Nhân viên bằng Gemini 3.5, dự phòng 3.1 Flash-Lite.
     func quetDoanhThuNhanVien(
         danhSachAnh: [UIImage],
         cheDo: LoaiCheDoDoanhThu = .luyKe,
