@@ -463,7 +463,7 @@ final class CumChiSoChinhView: UIControl {
         capNhatMauNutCheDo()
 
         if !dt.coDuLieu {
-            theDTThuc.capNhatNoiDung(chinh: coLon ? "0,00" : "Chạm quét", phu: "TARGET: --", coLon: coLon)
+            theDTThuc.capNhatNoiDung(chinh: "-", phu: "TARGET: --", coLon: coLon)
             theDTQD.capNhatNoiDung(chinh: coLon ? "0,00" : "Chạm quét", phu: "TARGET: --", coLon: coLon)
         } else {
             let phuThuc: String
@@ -473,7 +473,7 @@ final class CumChiSoChinhView: UIControl {
                 phuThuc = "TARGET: \(dt.targetThuc.chuoiSoGonVN)"
             }
             theDTThuc.capNhatNoiDung(
-                chinh: dt.doanhThuThuc.chuoiSoGonVN,
+                chinh: "-",
                 phu: phuThuc,
                 coLon: coLon
             )

@@ -4331,6 +4331,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 MucChonDMX(tieuDe: "🎚️ Target hiển thị: \(Int(ptTarget))%") { [weak self] in
                     self?.moDieuChinhPhanTramTarget()
                 },
+                MucChonDMX(tieuDe: "🎯 Tùy chỉnh target các môn thi đua") { [weak self] in
+                    self?.moDieuChinhTargetMonThiDua()
+                },
                 MucChonDMX(tieuDe: "📥 Nhập tất cả ảnh \(tenCheDo)") { [weak self] in
                     self?.moChonAnh(cheDo: .tatCaAnhTheoTab(cheDo), gioiHan: 0)
                 },
@@ -4375,6 +4378,45 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         }
         let nav = UINavigationController(rootViewController: vc)
         if let sheet = nav.sheetPresentationController { sheet.detents = [.medium()] }
+        present(nav, animated: true)
+    }
+
+    private func moDieuChinhTargetMonThiDua() {
+        let cheDo = cheDoDoanhThu
+        let dl = KhoDuLieu.dungChung.duLieu(cho: ngayHienTai)
+        let danhSach = dl.danhSachThiDua(theo: cheDo)
+        guard !danhSach.isEmpty else {
+            let hop = UIAlertController(
+                title: "Chưa có môn thi đua",
+                message: "Hãy quét hoặc nhập bảng thi đua trước khi điều chỉnh target.",
+                preferredStyle: .alert
+            )
+            hop.addAction(UIAlertAction(title: "Đóng", style: .default))
+            present(hop, animated: true)
+            return
+        }
+
+        let vc = ManHinhDieuChinhTargetThiDua(cheDo: cheDo, danhSach: danhSach)
+        vc.khiLuu = { [weak self] tyLeTheoId in
+            guard let self else { return }
+            var duLieu = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
+            var danhSachMoi = duLieu.danhSachThiDua(theo: cheDo)
+            for index in danhSachMoi.indices {
+                guard let tyLe = tyLeTheoId[danhSachMoi[index].id] else { continue }
+                danhSachMoi[index].target *= min(2, max(0.5, tyLe / 100))
+                // Target đã đổi nên các tỷ lệ OCR cũ không còn đúng; để model tự tính lại.
+                danhSachMoi[index].phanTramHTGoc = nil
+                danhSachMoi[index].phanTramDuBaoGoc = nil
+            }
+            duLieu.ganDanhSachThiDua(danhSachMoi, theo: cheDo)
+            KhoDuLieu.dungChung.luu(duLieu)
+            self.dsThiDuaDaNapUI = nil
+            self.khoaCumChiSoDaNapUI = ""
+            NotificationCenter.default.post(name: .yeuCauTaoLaiAnhBaoCaoBot, object: nil)
+            self.napDuLieu()
+        }
+        let nav = UINavigationController(rootViewController: vc)
+        if let sheet = nav.sheetPresentationController { sheet.detents = [.large()] }
         present(nav, animated: true)
     }
 
