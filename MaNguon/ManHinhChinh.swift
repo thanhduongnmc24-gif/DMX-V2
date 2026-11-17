@@ -4761,9 +4761,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                             skNV.doanhThuQDSucKhoe = capNhat.doanhThuQD
                             skNV.soLuotBillBanHang = capNhat.soLuong
                             skNV.phanTramQuyDoi = capNhat.phanTramQuyDoi
-                            if capNhat.phanTramTraGop > 0.0001 {
-                                skNV.phanTramTraCham = capNhat.phanTramTraGop
-                            }
                             dl.sucKhoeBoSungNhanVien[ma] = skNV
                         }
                     }
@@ -4980,11 +4977,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
                 let dsQuanLy = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
                 var mapDTNV: [String: DoanhThuNhanVienItem] = [:]
-                if dsQuet.count < 5 {
-                    for item in KhoDuLieu.locSachDanhSachDTNV(dl.doanhThuNhanVien(theo: loai)) {
-                        let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
-                        if !ma.isEmpty { mapDTNV[ma] = item }
-                    }
+                for item in KhoDuLieu.locSachDanhSachDTNV(dl.doanhThuNhanVien(theo: loai)) {
+                    let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
+                    if !ma.isEmpty { mapDTNV[ma] = item }
                 }
                 var daQuetTrongDot = Set<String>()
                 for item in dsQuet {
@@ -5016,9 +5011,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                         var skNV = dl.sucKhoeBoSungNhanVien[ma] ?? DuLieuSucKhoeBoSungNV()
                         skNV.doanhThuQDSucKhoe = capNhat.doanhThuQD
                         skNV.soLuotBillBanHang = capNhat.soLuong
-                        skNV.phanTramQuyDoi = capNhat.phanTramQuyDoi
-                        if capNhat.phanTramTraGop > 0.0001 {
-                            skNV.phanTramTraCham = capNhat.phanTramTraGop
+                        if abs(capNhat.phanTramQuyDoi) > 0.0001 {
+                            skNV.phanTramQuyDoi = capNhat.phanTramQuyDoi
                         }
                         dl.sucKhoeBoSungNhanVien[ma] = skNV
                     }

@@ -4343,9 +4343,8 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
                             var skNV = dl.sucKhoeBoSungNhanVien[ma] ?? DuLieuSucKhoeBoSungNV()
                             skNV.doanhThuQDSucKhoe = capNhat.doanhThuQD
                             skNV.soLuotBillBanHang = capNhat.soLuong
-                            skNV.phanTramQuyDoi = capNhat.phanTramQuyDoi
-                            if capNhat.phanTramTraGop > 0.0001 {
-                                skNV.phanTramTraCham = capNhat.phanTramTraGop
+                            if abs(capNhat.phanTramQuyDoi) > 0.0001 {
+                                skNV.phanTramQuyDoi = capNhat.phanTramQuyDoi
                             }
                             dl.sucKhoeBoSungNhanVien[ma] = skNV
                         }
