@@ -1987,21 +1987,34 @@ final class KhoDuLieu {
         return ketQua
     }
 
-    /// Kiểm tra và loại bỏ dữ liệu Doanh thu NV bị nhiễm từ bảng Ma trận Thi đua Nhân viên (ví dụ SỐ LƯỢNG có số lẻ thập phân 5.24, 16.43 hoặc % TỈ TRỌNG = 71.4% của Tủ Lạnh)
+    /// Kiểm tra và loại bỏ dữ liệu Doanh thu NV bị nhiễm từ bảng Ma trận Thi đua Nhân viên (ví dụ SỐ LƯỢNG có số lẻ thập phân 5.24, 16.43). Tuyệt đối giữ nguyên nhân viên có ít đơn nhưng tỉ trọng cao (như Nguyễn Ngọc Đẩu 23986: SL=2, DTQĐ=117, Tỉ trọng=62.5%)
     static func laItemDTNVBiNhiemMaTran(_ it: DoanhThuNhanVienItem) -> Bool {
         if abs(it.soLuong - it.soLuong.rounded()) > 0.01 { return true }
-        if it.phanTramQuyDoi > 45.0 && it.soLuong <= 10.0 { return true }
         return false
     }
 
     static func locSachDanhSachDTNV(_ ds: [DoanhThuNhanVienItem]) -> [DoanhThuNhanVienItem] {
         guard !ds.isEmpty else { return [] }
-        let soItemLeSL = ds.filter { abs($0.soLuong - $0.soLuong.rounded()) > 0.01 }.count
-        let tongTiTrong = ds.reduce(0.0) { $0 + max(0, $1.phanTramQuyDoi) }
-        if soItemLeSL >= 1 || tongTiTrong > 130.0 {
-            return []
+        let dsHopLe = ds.filter { !laItemDTNVBiNhiemMaTran($0) }
+        guard !dsHopLe.isEmpty else { return [] }
+        var mapTheoMa: [String: DoanhThuNhanVienItem] = [:]
+        var thuTu: [String] = []
+        for it in dsHopLe {
+            let ma = chuanHoaMaNV(it.maNV)
+            let khoa = ma.isEmpty ? it.hoTen : ma
+            guard !khoa.isEmpty else { continue }
+            if let cu = mapTheoMa[khoa] {
+                let diemCu = abs(cu.doanhThuQD) * 1000 + abs(cu.soLuong) * 10 + abs(cu.phanTramQuyDoi)
+                let diemMoi = abs(it.doanhThuQD) * 1000 + abs(it.soLuong) * 10 + abs(it.phanTramQuyDoi)
+                if diemMoi >= diemCu {
+                    mapTheoMa[khoa] = it
+                }
+            } else {
+                mapTheoMa[khoa] = it
+                thuTu.append(khoa)
+            }
         }
-        return ds.filter { !laItemDTNVBiNhiemMaTran($0) }
+        return thuTu.compactMap { mapTheoMa[$0] }
     }
 
     /// Lấy Doanh thu Lũy kế Nhân viên của tháng (khi nhập mới sẽ thay thế dữ liệu cũ)
@@ -3171,9 +3184,7 @@ final class KhoDuLieu {
             let skBiNhiemMaTran: Bool = {
                 guard let sk = boSungNV else { return false }
                 let sl = sk.soLuotBillBanHang ?? 0
-                let pt = sk.phanTramQuyDoi ?? 0
                 if abs(sl - sl.rounded()) > 0.01 { return true }
-                if pt > 45.0 && sl <= 10.0 { return true }
                 return false
             }()
             let boSungHopLe = skBiNhiemMaTran ? nil : boSungNV

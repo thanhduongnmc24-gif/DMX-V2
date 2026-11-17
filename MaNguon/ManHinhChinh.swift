@@ -4724,7 +4724,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 if !kq.doanhThuNhanVien.isEmpty {
                     let dsQuanLy = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
                     var mapDTNV: [String: DoanhThuNhanVienItem] = [:]
-                    // Giữ lại dữ liệu nhân viên đã quét trước đó nếu lần quét này là ảnh chụp một phần bảng (< 15 nhân viên), tránh mất nửa bảng đầu khi quét tiếp nửa bảng sau
                     if cheDoTab == .realtime || kq.doanhThuNhanVien.count < max(15, dsQuanLy.count - 1) {
                         for item in KhoDuLieu.locSachDanhSachDTNV(dl.doanhThuNhanVien(theo: cheDoTab)) {
                             let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)

@@ -3225,8 +3225,7 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
         let sk: DuLieuSucKhoeBoSungNV? = {
             guard var s = skRaw else { return nil }
             let sl = s.soLuotBillBanHang ?? 0
-            let pt = s.phanTramQuyDoi ?? 0
-            if abs(sl - sl.rounded()) > 0.01 || (pt > 45.0 && sl <= 10.0) {
+            if abs(sl - sl.rounded()) > 0.01 {
                 s.doanhThuQDSucKhoe = nil
                 s.soLuotBillBanHang = nil
                 s.phanTramQuyDoi = nil
