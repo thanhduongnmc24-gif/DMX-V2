@@ -1987,10 +1987,10 @@ final class KhoDuLieu {
         return ketQua
     }
 
-    /// Kiểm tra và loại bỏ dữ liệu Doanh thu NV bị nhiễm từ bảng Ma trận Thi đua Nhân viên (ví dụ SỐ LƯỢNG có số lẻ thập phân 5.24, 16.43 hoặc % TỈ TRỌNG = 71.4% của Tủ Lạnh)
+    /// Kiểm tra và loại bỏ dữ liệu Doanh thu NV bị nhiễm từ bảng Ma trận Thi đua Nhân viên (ví dụ SỐ LƯỢNG có số lẻ thập phân 5.24, 16.43 hoặc % TỈ TRỌNG > 100%)
     static func laItemDTNVBiNhiemMaTran(_ it: DoanhThuNhanVienItem) -> Bool {
         if abs(it.soLuong - it.soLuong.rounded()) > 0.01 { return true }
-        if it.phanTramQuyDoi > 45.0 && it.soLuong <= 10.0 { return true }
+        if it.phanTramQuyDoi > 100.01 { return true }
         return false
     }
 
@@ -1998,7 +1998,7 @@ final class KhoDuLieu {
         guard !ds.isEmpty else { return [] }
         let soItemLeSL = ds.filter { abs($0.soLuong - $0.soLuong.rounded()) > 0.01 }.count
         let tongTiTrong = ds.reduce(0.0) { $0 + max(0, $1.phanTramQuyDoi) }
-        if soItemLeSL >= 1 || tongTiTrong > 130.0 {
+        if soItemLeSL >= 2 || tongTiTrong > 135.0 {
             return []
         }
         return ds.filter { !laItemDTNVBiNhiemMaTran($0) }
@@ -3158,28 +3158,35 @@ final class KhoDuLieu {
             let tongMonGiao = cacMonGiao.count
             let phanTramHTTB = tongMonGiao > 0 ? cacMonGiao.map(\.phanTramHT).reduce(0, +) / Double(tongMonGiao) : 0
             let dtCaNhan = mapDTCaNhan[nv.maNV]
+            let daCoBangDTNV = !mapDTCaNhan.isEmpty
             let skBiNhiemMaTran: Bool = {
                 guard let sk = boSungNV else { return false }
                 let sl = sk.soLuotBillBanHang ?? 0
                 let pt = sk.phanTramQuyDoi ?? 0
                 if abs(sl - sl.rounded()) > 0.01 { return true }
-                if pt > 45.0 && sl <= 10.0 { return true }
+                if pt > 100.01 { return true }
                 return false
             }()
             let boSungHopLe = skBiNhiemMaTran ? nil : boSungNV
 
             let dtQDCuoi: Double = {
-                if let dt = dtCaNhan?.doanhThuQD, abs(dt) > 0.0001 { return dt }
+                if let dtCaNhan {
+                    if abs(dtCaNhan.doanhThuQD) > 0.0001 || daCoBangDTNV { return dtCaNhan.doanhThuQD }
+                }
                 if let skDT = boSungHopLe?.doanhThuQDSucKhoe, abs(skDT) > 0.0001 { return skDT }
                 return dtCaNhan?.doanhThuQD ?? 0
             }()
             let soDonCuoi: Double = {
-                if let sl = dtCaNhan?.soLuong, abs(sl) > 0.0001 { return sl }
+                if let dtCaNhan {
+                    if abs(dtCaNhan.soLuong) > 0.0001 || daCoBangDTNV { return dtCaNhan.soLuong }
+                }
                 if let skSL = boSungHopLe?.soLuotBillBanHang, abs(skSL) > 0.0001 { return skSL }
                 return dtCaNhan?.soLuong ?? 0
             }()
             let tiTrongCuoi: Double = {
-                if let dtCaNhan, abs(dtCaNhan.phanTramQuyDoi) > 0.0001 { return dtCaNhan.phanTramQuyDoi }
+                if let dtCaNhan {
+                    if abs(dtCaNhan.phanTramQuyDoi) > 0.0001 || daCoBangDTNV { return dtCaNhan.phanTramQuyDoi }
+                }
                 if let skQD = boSungHopLe?.phanTramQuyDoi, abs(skQD) > 0.0001, abs(skQD - soDonCuoi) > 0.1 { return skQD }
                 if let dtCaNhan, abs(dtCaNhan.dtTraThangQD) > 0.0001, abs(dtCaNhan.dtTraThangQD - soDonCuoi) > 0.1 { return dtCaNhan.dtTraThangQD }
                 return 0
@@ -4511,20 +4518,36 @@ final class KhoDuLieu {
                     return khop
                 }
             }
-            // Nếu đã có mã NV 4-7 chữ số rõ ràng nhưng hoàn toàn khác mã với mọi NV trong danh sách (ví dụ NV mới 65257),
-            // tuyệt đối không ghép bừa theo họ phổ biến (như "Nguyễn", "Huỳnh", "Đỗ Thị", "Phan") để tránh ghi đè nhầm NV khác
+            // Nếu đã có mã NV 4-7 chữ số rõ ràng nhưng bị nhiễu watermark làm sai số, ưu tiên kiểm tra khớp trọn vẹn họ tên đầy đủ
             if !tenChuan.isEmpty {
                 if let khopHoTenDayDu = dsQuanLy.first(where: { chuanHoaKhoaSoSanh($0.hoTen) == tenChuan }) {
                     return khopHoTenDayDu
+                }
+                if let khopChuaHoTen = dsQuanLy.first(where: {
+                    let nvChuan = chuanHoaKhoaSoSanh($0.hoTen)
+                    return nvChuan.count >= 7 && nvChuan.split(separator: " ").count >= 2 && tenChuan.contains(nvChuan)
+                }) {
+                    return khopChuaHoTen
                 }
             }
             return nil
         }
 
         guard !tenChuan.isEmpty else { return nil }
+        if let khopChinhXac = dsQuanLy.first(where: { chuanHoaKhoaSoSanh($0.hoTen) == tenChuan }) {
+            return khopChinhXac
+        }
+        if let khopChuaDayDu = dsQuanLy.first(where: {
+            let nvChuan = chuanHoaKhoaSoSanh($0.hoTen)
+            return nvChuan.count >= 7 && nvChuan.split(separator: " ").count >= 2 && tenChuan.contains(nvChuan)
+        }) {
+            return khopChuaDayDu
+        }
+        let soTuTen = tenChuan.split(separator: " ").count
+        guard soTuTen >= 2 else { return nil }
         for nv in dsQuanLy {
             let nvChuan = chuanHoaKhoaSoSanh(nv.hoTen)
-            if nvChuan == tenChuan || nvChuan.hasSuffix(tenChuan) || tenChuan.hasSuffix(nvChuan) || nvChuan.contains(tenChuan) {
+            if nvChuan.hasSuffix(tenChuan) || tenChuan.hasSuffix(nvChuan) || nvChuan.contains(tenChuan) {
                 return nv
             }
         }

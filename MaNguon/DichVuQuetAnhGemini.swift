@@ -170,7 +170,7 @@ final class DichVuQuetAnhGemini {
             for (idx, muc) in cacMucAnh.enumerated() {
                 let cacCapAnh = self.taoDanhSachCapThu(chiSoAnh: idx, danhSachKey: danhSachKey, cacModel: cacModel)
                 let doTreNhe: TimeInterval = (soLuongKey == 1) ? (Double(idx) * 0.15) : 0.0
-                let promptMaTran: String? = (muc.luoiO?.soCotDuLieu == 13) ? self.taoPromptThiDuaNhanVien(luoiO: muc.luoiO) : nil
+                let promptMaTran: String? = ((muc.luoiO?.soCotDuLieu ?? 0) >= 6) ? self.taoPromptThiDuaNhanVien(luoiO: muc.luoiO) : nil
                 DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + doTreNhe) {
                     self.goiGeminiChoMotAnh(
                         cacCap: cacCapAnh,
@@ -298,6 +298,7 @@ final class DichVuQuetAnhGemini {
         imageData: Data,
         promptTuChon: String? = nil,
         luoiOTuChon: ThongTinLuoiMaTranAnh? = nil,
+        tenNganhGoiY: String? = nil,
         hoanTat: @escaping (Result<KetQuaQuetTatCaAnh, Error>) -> Void
     ) {
         guard chiSo < cacCap.count else {
@@ -310,13 +311,13 @@ final class DichVuQuetAnhGemini {
         }
         let cap = cacCap[chiSo]
         guard var thanhPhan = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/\(cap.model):generateContent") else {
-            goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, hoanTat: hoanTat)
+            goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, tenNganhGoiY: tenNganhGoiY, hoanTat: hoanTat)
             return
         }
         thanhPhan.queryItems = [URLQueryItem(name: "key", value: cap.key)]
         guard let url = thanhPhan.url,
               let bodyData = taoBodyData(imageData: imageData, cheDo: cheDo, tatThinking: cap.tatThinking, promptTuChon: promptTuChon) else {
-            goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, hoanTat: hoanTat)
+            goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, tenNganhGoiY: tenNganhGoiY, hoanTat: hoanTat)
             return
         }
 
@@ -348,7 +349,7 @@ final class DichVuQuetAnhGemini {
                         return
                     }
                     DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) {
-                        self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSoTiep, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, hoanTat: hoanTat)
+                        self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSoTiep, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, tenNganhGoiY: tenNganhGoiY, hoanTat: hoanTat)
                     }
                     return
                 }
@@ -359,7 +360,7 @@ final class DichVuQuetAnhGemini {
 
             guard let data, let json = self.layJSONKetQua(tu: data) else {
                 if chiSo + 1 < cacCap.count {
-                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, hoanTat: hoanTat)
+                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, tenNganhGoiY: tenNganhGoiY, hoanTat: hoanTat)
                     return
                 }
                 hoanTat(.failure(NSError(
@@ -370,10 +371,10 @@ final class DichVuQuetAnhGemini {
                 return
             }
 
-            let ketQua = self.chuyen(json: json, cheDo: cheDo, luoiO: luoiOTuChon)
+            let ketQua = self.chuyen(json: json, cheDo: cheDo, luoiO: luoiOTuChon, tenNganhGoiY: tenNganhGoiY)
             guard ketQua.coDuLieu else {
                 if chiSo + 1 < cacCap.count {
-                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, hoanTat: hoanTat)
+                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, tenNganhGoiY: tenNganhGoiY, hoanTat: hoanTat)
                     return
                 }
                 hoanTat(.failure(NSError(
@@ -489,8 +490,8 @@ final class DichVuQuetAnhGemini {
              + Trong mỗi thẻ: góc trên trái là tên môn ("T11 - ..."), góc trên phải là huy hiệu "DT" hoặc "SL", con số % lớn ở giữa bên trái là "phanTramDuKien" (DỰ KIẾN HOÀN THÀNH), và 4 ô số ở nửa dưới thẻ gồm: "THỰC HIỆN" -> "thucHien", "TARGET" -> "target", "% HT THÁNG" -> "phanTramHT", "DT DỰ KIẾN" / "SL DỰ KIẾN" -> "duKien".
            - ĐỊNH DẠNG D — BẢNG THI ĐUA THEO NGÀY / REALTIME (5 CỘT): [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET NGÀY | % HT NGÀY | HẠNG VÙNG] -> đọc chính xác cột THỰC HIỆN vào "thucHien", TARGET NGÀY vào "target", con số phần trăm bên phải thanh tiến độ ở cột % HT NGÀY vào "phanTramHT", đặt "phanTramDuKien": 0 và "duKien": 0. ĐẶC BIỆT CHÚ Ý GIỮ NGUYÊN DẤU ÂM (-) của các số âm ở cả cột THỰC HIỆN và % HT NGÀY (ví dụ: thucHien: -0.94, target: 5.93, phanTramHT: -15.8).
         2. Đọc ĐẦY ĐỦ TẤT CẢ các dòng môn thi đua từ trên xuống dưới, kể cả các dòng có số âm (như -0.94, -15.8%), các dòng tên dài xuống 2-3 hàng chữ như "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO" (loai: "SL") hoặc "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT" và kể cả dòng có Thực hiện = 0, Target = 0. Không đưa nhãn DT, SL, CE, ICT, DV hay dấu + vào trong "ten".
-        3. Với bảng doanh thu nhân viên 5 cột (NHÂN VIÊN / NGÀNH HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG), trích đúng "maNV" (bỏ tiền tố id:) và "hoTen" vào mảng "nhanVien".
-        4. Với bảng Thi đua Nhân viên (mảng "thiDuaNhanVien"), hỗ trợ cả 2 mẫu:
+        3. Với bảng Doanh thu Nhân viên (hỗ trợ bảng 6 cột [NHÂN VIÊN / NGÀNH HÀNG BI / NHÓM HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG | % HIỆU QUẢ TRẢ GÓP], bảng 5 cột, hoặc bất kỳ bảng nào có cột Nhân viên): tìm cột Nhân viên, trích đúng "maNV" (bỏ tiền tố id:) và "hoTen", rồi gióng ngang qua từng dòng để lấy đúng số ở cột tương ứng ("soLuong", "doanhThuQD", "doanhThuThuc", "target", "dtKhoanVay", "phanTramTiTrong", "phanTramTraGop"; ô nào là dấu gạch ngang "—" thì đặt bằng 0) vào mảng "nhanVien".
+        4. Với bảng Thi đua Nhân viên (mảng "thiDuaNhanVien"), bất kể kiểu bố cục bảng, chỉ cần tìm cột Nhân viên rồi gióng ngang qua để lấy đúng số ở cột tương ứng:
            - MẪU 1 — MA TRẬN THEO NHÂN VIÊN ("Ma trận theo Nhân viên · 13 chương trình"):
              + Hỗ trợ 2 kiểu bố cục ma trận:
                * KIỂU DỌC (mới): Hai cột đầu bên trái là "STT" (đánh số thứ tự 1..N, ví dụ 1..24) và "NHÂN VIÊN" (dạng "<maNV> - <hoTen>"), hàng đầu tiên dưới tiêu đề là "TỔNG", phía trên 13 cột chương trình có nhãn phân nhóm ("Nhóm CE", "Nhóm DV", "Nhóm ICT"). Mỗi ô chỉ có 1 con số thực hiện (nếu là "—", "-", hoặc 0/0.00 thì đặt "thucHien": 0), không có cột target riêng (đặt "target": 0). Với mỗi cột chương trình, tạo 1 phần tử trong "thiDuaNhanVien" với "tenNganhHang", "thucHienNganhGoiY" (lấy từ hàng TỔNG), "targetNganhGoiY": 0, và "danhSach" gồm đầy đủ tất cả các hàng nhân viên (từ STT 1 đến hết bảng, kể cả các hàng cuối từ 18..24) kèm "maNV", "hoTen", "thucHien", "target": 0, "laPhanTram": false.
@@ -530,7 +531,7 @@ final class DichVuQuetAnhGemini {
         return 0
     }
 
-    private func chuyen(json: [String: Any], cheDo: LoaiCheDoDoanhThu, luoiO: ThongTinLuoiMaTranAnh? = nil) -> KetQuaQuetTatCaAnh {
+    private func chuyen(json: [String: Any], cheDo: LoaiCheDoDoanhThu, luoiO: ThongTinLuoiMaTranAnh? = nil, tenNganhGoiY: String? = nil) -> KetQuaQuetTatCaAnh {
         var kq = KetQuaQuetTatCaAnh()
         kq.capNhatLuc = json["capNhatLuc"] as? String ?? ""
         kq.thongTinDonVi = json["thongTinDonVi"] as? String ?? ""
@@ -748,7 +749,7 @@ final class DichVuQuetAnhGemini {
         }
         // Nếu JSON được tạo từ câu lệnh lọc bảng nhân viên × ngành hàng (chưa vào kq.thiDuaNhanVien)
         if kq.thiDuaNhanVien.isEmpty {
-            let khoiTuBang = locThiDuaNhanVienTuJSON(json, luoiO: luoiO)
+            let khoiTuBang = locThiDuaNhanVienTuJSON(json, luoiO: luoiO, tenNganhGoiY: tenNganhGoiY)
             if !khoiTuBang.isEmpty {
                 kq.thiDuaNhanVien = khoiTuBang
                 kq.soAnhThiDuaNV = khoiTuBang.count
@@ -856,10 +857,10 @@ final class DichVuQuetAnhGemini {
         for i in 0..<(colEdges.count - 1) {
             colBounds.append((colEdges[i], colEdges[i + 1]))
         }
-        if colBounds.count == 15 && colBounds[0].x1 < Int(Double(w0) * 0.075) {
+        if colBounds.count >= 4 && colBounds[0].x1 < Int(Double(w0) * 0.082) {
             colBounds.removeFirst()
         }
-        if let xVachSTT = vCenters.first(where: { $0 >= colBounds[0].x0 + 16 && $0 <= min(colBounds[0].x1 - 50, Int(Double(w0) * 0.068)) }) {
+        if !colBounds.isEmpty, let xVachSTT = vCenters.first(where: { $0 >= colBounds[0].x0 + 16 && $0 <= min(colBounds[0].x1 - 50, Int(Double(w0) * 0.068)) }) {
             colBounds[0].x0 = xVachSTT
         }
         if colBounds.count == 13 {
@@ -876,7 +877,7 @@ final class DichVuQuetAnhGemini {
                 }
             }
         }
-        guard colBounds.count == 14 else { return nil }
+        guard colBounds.count >= 7 else { return nil }
 
         let xSample0 = max(0, colEdges.first! + 4)
         let xSample1 = min(w0 - 1, colEdges.last! - 4)
@@ -1004,12 +1005,13 @@ final class DichVuQuetAnhGemini {
         )
     }
 
-    /// Tạo câu lệnh chuyên biệt cho từng ảnh Ma trận Thi đua Nhân viên, đính kèm bản đồ tọa độ ô có số thực tế trên từng cột (nếu ảnh là bảng 13 cột)
-    private func taoPromptThiDuaNhanVien(luoiO: ThongTinLuoiMaTranAnh?) -> String {
+    /// Tạo câu lệnh chuyên biệt cho ảnh Thi đua Nhân viên (hỗ trợ cả bảng Ma trận nhiều cột ngành hàng VÀ bảng đơn ngành hàng với bất kỳ cấu trúc cột nào: chỉ cần tìm cột Nhân viên rồi gióng ngang qua cột tương ứng)
+    private func taoPromptThiDuaNhanVien(luoiO: ThongTinLuoiMaTranAnh?, tenNganhGoiY: String? = nil) -> String {
         var goiYLuoi = ""
-        if let luoiO, luoiO.soCotDuLieu == 13 {
+        if let luoiO, luoiO.soCotDuLieu >= 2 {
+            let soCot = luoiO.soCotDuLieu
             var cacDongGoiY: [String] = []
-            for c in 0..<13 {
+            for c in 0..<soCot {
                 let hangCoSo = luoiO.coSoTheoCot[c].enumerated().compactMap { $0.element ? "\($0.offset + 1)" : nil }
                 if hangCoSo.isEmpty {
                     cacDongGoiY.append("  + Cột \(c + 1): tất cả các hàng nhân viên đều là \"—\" (bắt buộc điền 0 hết).")
@@ -1019,37 +1021,40 @@ final class DichVuQuetAnhGemini {
             }
             goiYLuoi = """
 
-            BẢN ĐỒ TỌA ĐỘ Ô CÓ SỐ TRÊN ẢNH NÀY (tính theo đúng số thứ tự STT hàng nhân viên từ 1 đến \(luoiO.soHangNhanVien) từ trên xuống dưới, ngay sau hàng TỔNG):
+            BẢN ĐỒ TỌA ĐỘ Ô CÓ SỐ TRÊN ẢNH NÀY (tính theo đúng số thứ tự hàng nhân viên từ 1 đến \(luoiO.soHangNhanVien) từ trên xuống dưới):
             \(cacDongGoiY.joined(separator: "\n"))
             BẮT BUỘC tuân thủ đúng bản đồ trên:
-            - Xuất ĐẦY ĐỦ ĐÚNG \(luoiO.soHangNhanVien) dòng nhân viên theo thứ tự STT từ 1 đến \(luoiO.soHangNhanVien) (kể cả các nhân viên ở cuối bảng từ STT 18 đến \(luoiO.soHangNhanVien) có toàn dấu "—" hoặc 0.00).
-            - Tại mỗi Cột k (1..13), những hàng nhân viên nằm trong danh sách có số thì PHẢI đọc đúng con số in trên ảnh (nếu trên ảnh in 0 hoặc 0.00 thì ghi 0, nếu in số > 0 thì tuyệt đối không được bỏ sót thành 0), còn những hàng không nằm trong danh sách thì BẮT BUỘC ghi 0!
+            - Xuất ĐẦY ĐỦ ĐÚNG \(luoiO.soHangNhanVien) dòng nhân viên theo thứ tự từ 1 đến \(luoiO.soHangNhanVien).
+            - Tại mỗi Cột k (1..\(soCot)), những hàng nhân viên nằm trong danh sách có số thì PHẢI đọc đúng con số in trên ảnh, còn những hàng không nằm trong danh sách thì BẮT BUỘC ghi 0!
             """
         }
+        let goiYMon = (tenNganhGoiY?.isEmpty == false) ? "Tên ngành hàng gợi ý nếu ảnh không in tên ngành: \"\(tenNganhGoiY!)\"." : ""
 
         return """
-        Đây là ảnh bảng "BC Thi đua · Lũy kế · Ma trận theo Nhân viên · 13 chương trình" (gồm cả ngành hàng tính theo Doanh thu DT và ngành hàng tính theo Số lượng SL) của nhân viên ứng với từng ngành hàng:
-        - Hai cột đầu tiên bên trái: Cột "STT" (đánh số thứ tự 1, 2, 3... đến hết bảng, ví dụ 1..24) và Cột "NHÂN VIÊN" (hàng đầu tiên dưới tiêu đề là "TỔNG", các hàng tiếp theo từ trên xuống dưới tương ứng STT 1..N là từng nhân viên theo dạng "<Mã NV> - <Họ tên>"; nếu tên nhân viên xuống 2 dòng như "201962 - Nguyễn Thị Kim\nLoan" hoặc "30258 - Phạm Thị Huyền\nTrang" thì ghép lại thành 1 dòng; tuyệt đối không đưa số STT vào maNV hay hoTen).
-        - Phía trên 13 cột dữ liệu có hàng tiêu đề nhóm ("Nhóm CE", "Nhóm DV", hoặc "Nhóm ICT"), bên dưới là 13 cột ngành hàng thi đua từ trái sang phải (Cột 1 đến Cột 13).
-        Hãy lọc chính xác toàn bộ bảng thành một đoạn JSON.
+        Bạn là hệ thống đọc bảng Thi đua Nhân viên Điện Máy Xanh (ĐMX). \(goiYMon)
+        NGUYÊN TẮC CỐT LÕI (GIÓNG HÀNG & CỘT ĐỘNG):
+        - Bất kể ảnh có bao nhiêu cột hay bố cục kiểu nào, hãy xác định CỘT NHÂN VIÊN (chứa tên nhân viên kèm mã nhân viên dạng "<Mã NV> - <Họ tên>", hoặc "+ <Họ tên>\nid: <Mã NV>", hoặc "<Họ tên>").
+        - Từ mỗi dòng nhân viên ở cột Nhân viên, GIÓNG NGANG QUA các cột dữ liệu bên phải để lấy đúng con số nằm ở cột tương ứng của nhân viên đó.
+        - Bỏ qua hoàn toàn chữ chìm watermark nghiêng màu xám ("54453", "Dũng Nguyễn Thanh"). Ô nào là dấu gạch ngang "—", "-", hoặc trống thì ghi 0; giữ nguyên dấu âm nếu có.
 
-        QUY TẮC BẮT BUỘC ĐỂ ĐỌC ĐÚNG 100% CẢ 13 CỘT VÀ TẤT CẢ CÁC DÒNG NHÂN VIÊN:
-        1. Bỏ qua hoàn toàn chữ chìm watermark nghiêng màu xám ("54453", "Dũng Nguyễn Thanh") kể cả khi chữ chìm đè lên tiêu đề cột như "Điện tử (DT)" hoặc "Bảo hiểm Thợ ĐMX (DT)".
-        2. ĐỌC ĐÚNG THỨ TỰ 13 CỘT THỰC TẾ TRÊN ẢNH TỪ TRÁI SANG PHẢI (Cột 1 -> Cột 13):
-           - Chuẩn hóa tên mỗi cột (bỏ nhãn "Nhóm CE"/"Nhóm DV"/"Nhóm ICT", bỏ ký hiệu ngôi sao "★", bỏ "(DT)", "(SL)") về đúng tên chuẩn trong 39 ngành hàng ĐMX thuộc 3 bảng sau (theo đúng thứ tự cột từ trái sang phải trên mẫu mới):
-             + Bảng Nhóm DV (13 ngành từ Cột 1 -> Cột 13): "Vay tiền mặt", "Ví trả sau", "Trả Chậm Điện máy & Gia dụng", "Bảo hiểm Thọ ĐMX", "Bảo hiểm Thọ ICT", "Bảo hiểm Tổng", "Trả chậm Homecredit", "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT", "Sim", "Sim ĐMX", "VAS", "Nạp rút", "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO".
-             + Bảng Nhóm ICT (13 ngành từ Cột 1 -> Cột 13): "Phụ kiện công nghệ", "Điện thoại Vivo", "Điện thoại Realme", "ĐIỆN THOẠI & TABLET ANDROID", "Camera", "Cáp sạc", "Phụ kiện khác IT & Nhóm khác", "Sạc dự phòng", "Đồng hồ & Smartwatch", "Tai nghe", "Laptop", "Đèn năng lượng mặt trời", "Loa Phụ Kiện".
-             + Bảng Nhóm CE (13 ngành từ Cột 1 -> Cột 13): "Tivi TCL", "CE LG", "Điện tử Samsung", "Máy Lạnh", "Máy sấy / Máy rửa chén", "Máy nước nóng", "Điện tử", "Máy lọc KK - Hút bụi - Hút ẩm", "Quạt gió", "Máy giặt", "Máy lọc nước", "Nồi cơm & Nồi chiên", "Tủ Lạnh / Đông / Mát".
-        3. ĐẶC BIỆT CHÚ Ý PHÂN BIỆT RÕ "Điện tử Samsung" VÀ "Điện tử" TRONG BẢNG NHÓM CE:
-           - Trên bảng Nhóm CE, Cột 3 "★ Điện tử Samsung (DT)" (tên chuẩn: "Điện tử Samsung") và Cột 7 "Điện tử (DT)" (tên chuẩn: "Điện tử") là 2 CỘT HOÀN TOÀN RIÊNG BIỆT (ví dụ Cột 3 là "Điện tử Samsung" có TỔNG 245.27 và Cột 7 là "Điện tử" có TỔNG 429.56).
-           - Vì doanh thu Tivi Samsung nằm trong tổng Điện tử nên nhiều nhân viên có CÙNG MỘT CON SỐ ở cả cột "Điện tử Samsung" và cột "Điện tử" (ví dụ: "116719 - Đinh Thị Quỳnh Nga" có 23.26 ở cả 2 cột; "201962 - Nguyễn Thị Kim Loan" có 12.02 ở cả 2 cột; "293044 - Võ Ngọc Vĩ" có 13.88 ở cả 2 cột; "207241 - Huỳnh Tấn Thành" có 15.88 ở cả 2 cột; "280417 - Huỳnh Thành Đạt" có 10.63 ở cả 2 cột; "23986 - Nguyễn Ngọc Đẩu" có 28.24 ở cả 2 cột).
-           - BẮT BUỘC phải giữ nguyên đầy đủ con số thực tế ở CẢ cột "Điện tử Samsung" LẪN cột "Điện tử", TUYỆT ĐỐI KHÔNG ĐƯỢC bỏ sót cột "Điện tử" hoặc tự ý ghi 0 vào cột "Điện tử"!
-        4. GIỮ ĐÚNG CỘT DỌC, ĐỌC ĐỦ TẤT CẢ CÁC DÒNG NHÂN VIÊN (1..24) & KHÔNG NHẢY SỐ GIỮA CÁC CỘT:
-           - Phải đọc đầy đủ tất cả các hàng nhân viên từ STT 1 đến hết bảng (kể cả các hàng STT 18..24 có ít số hoặc toàn dấu "—", như STT 18 Lê Xuân Tài và STT 19 Nguyễn Thị Hảo có 1 ở Nạp rút, hay STT 21 Nguyễn Minh Đạt có 1 ở Mở thẻ tín dụng).
-           - Mỗi mảng `soLieu` của từng nhân viên phải có ĐÚNG 13 PHẦN TỬ tương ứng với 13 cột từ trái sang phải (`Cột 1` đến `Cột 13`).
-           - Ô nào có dấu gạch ngang "—", "-", trống hoặc 0.00 thì ghi 0 tại đúng vị trí cột đó; ô nào có số âm (như -1.25) thì giữ nguyên dấu âm.\(goiYLuoi)
-        5. Trả về DUY NHẤT 1 đối tượng JSON theo đúng cấu trúc:
-        {"cotNganhHang":["Tên cột 1","Tên cột 2","...","Tên cột 13"],"hangTong":[0,0,0,0,0,0,0,0,0,0,0,0,0],"nhanVien":[{"stt":1,"maNV":"65255","hoTen":"Nguyễn Thị Thu Thảo","soLieu":[0,0,0,0,0,0,0,0,0,0,0,0,0]}]}
+        HỖ TRỢ ĐẦY ĐỦ 2 KIỂU BẢNG THI ĐUA NHÂN VIÊN:
+        KIỂU A — BẢNG MA TRẬN NHIỀU CỘT NGÀNH HÀNG (ví dụ 13 chương trình Nhóm CE / Nhóm DV / Nhóm ICT, hoặc N cột ngành hàng bất kỳ):
+        1. Cột đầu là STT (nếu có) và NHÂN VIÊN (hàng đầu dưới tiêu đề thường là "TỔNG", tiếp theo là từng nhân viên).
+        2. Đọc đúng thứ tự tất cả các cột ngành hàng từ trái sang phải (Cột 1 -> Cột N). Nếu là 1 trong 3 bảng 13 ngành chuẩn ĐMX thì chuẩn hóa tên cột về đúng tên chuẩn:
+           + Nhóm DV (13 ngành): "Vay tiền mặt", "Ví trả sau", "Trả Chậm Điện máy & Gia dụng", "Bảo hiểm Thọ ĐMX", "Bảo hiểm Thọ ICT", "Bảo hiểm Tổng", "Trả chậm Homecredit", "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT", "Sim", "Sim ĐMX", "VAS", "Nạp rút", "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO".
+           + Nhóm ICT (13 ngành): "Phụ kiện công nghệ", "Điện thoại Vivo", "Điện thoại Realme", "ĐIỆN THOẠI & TABLET ANDROID", "Camera", "Cáp sạc", "Phụ kiện khác IT & Nhóm khác", "Sạc dự phòng", "Đồng hồ & Smartwatch", "Tai nghe", "Laptop", "Đèn năng lượng mặt trời", "Loa Phụ Kiện".
+           + Nhóm CE (13 ngành): "Tivi TCL", "CE LG", "Điện tử Samsung", "Máy Lạnh", "Máy sấy / Máy rửa chén", "Máy nước nóng", "Điện tử", "Máy lọc KK - Hút bụi - Hút ẩm", "Quạt gió", "Máy giặt", "Máy lọc nước", "Nồi cơm & Nồi chiên", "Tủ Lạnh / Đông / Mát".
+           (Chú ý giữ nguyên cả 2 cột "Điện tử Samsung" và "Điện tử" độc lập nhau).\(goiYLuoi)
+        3. Với KIỂU A, trả về JSON:
+        {"cotNganhHang":["Tên cột 1","Tên cột 2",...],"hangTong":[0,0,...],"nhanVien":[{"stt":1,"maNV":"65255","hoTen":"Nguyễn Thị Thu Thảo","soLieu":[0,0,...]}]}
+
+        KIỂU B — BẢNG ĐƠN NGÀNH HÀNG (bảng có cột NHÂN VIÊN và các cột chỉ số như [THỰC HIỆN | TARGET | % HT | HẠNG VÙNG] hoặc [SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG | % HIỆU QUẢ TRẢ GÓP]):
+        1. Tìm tên ngành hàng ở dòng đầu bảng (hoặc dùng tên ngành gợi ý).
+        2. Với mỗi dòng nhân viên ở cột Nhân viên, gióng ngang qua:
+           - Nếu bảng có cột "THỰC HIỆN": lấy giá trị cột THỰC HIỆN vào "thucHien" (nếu giá trị có dấu % như 24% thì đặt "laPhanTram": true; nếu là con số trực tiếp không có dấu % thì đặt "laPhanTram": false), và lấy cột "TARGET" (nếu có) vào "target".
+           - Nếu bảng có cột "SỐ LƯỢNG" và "DOANH THU QĐ": nếu ngành hàng tính theo Số lượng (SL) thì lấy cột "SỐ LƯỢNG" vào "thucHien", ngược lại lấy cột "DOANH THU QĐ" vào "thucHien" ("laPhanTram": false).
+        3. Với KIỂU B, trả về JSON:
+        {"thiDuaNhanVien":[{"tenNganhHang":"Tên ngành","thucHienNganhGoiY":0,"targetNganhGoiY":0,"danhSach":[{"maNV":"23986","hoTen":"Nguyễn Ngọc Đẩu","thucHien":117,"target":0,"laPhanTram":false}]}]}
         """
     }
 
@@ -1061,6 +1066,7 @@ final class DichVuQuetAnhGemini {
     func quetThiDuaNhanVien(
         danhSachAnh: [UIImage],
         cheDo: LoaiCheDoDoanhThu = .luyKe,
+        tenNganhGoiY: String? = nil,
         tienTrinh: ((String) -> Void)? = nil,
         hoanTat: @escaping (Result<[KetQuaThiDuaNhanVienKhoi], Error>) -> Void
     ) {
@@ -1130,7 +1136,7 @@ final class DichVuQuetAnhGemini {
             for (idx, muc) in cacMucAnh.enumerated() {
                 let cacCapAnh = self.taoDanhSachCapThu(chiSoAnh: idx, danhSachKey: danhSachKey, cacModel: cacModel)
                 let doTreNhe: TimeInterval = (soLuongKey == 1) ? (Double(idx) * 0.15) : 0.0
-                let promptAnh = self.taoPromptThiDuaNhanVien(luoiO: muc.luoiO)
+                let promptAnh = self.taoPromptThiDuaNhanVien(luoiO: muc.luoiO, tenNganhGoiY: tenNganhGoiY)
                 DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + doTreNhe) {
                     self.goiGeminiChoMotAnh(
                         cacCap: cacCapAnh,
@@ -1138,7 +1144,8 @@ final class DichVuQuetAnhGemini {
                         cheDo: cheDo,
                         imageData: muc.data,
                         promptTuChon: promptAnh,
-                        luoiOTuChon: muc.luoiO
+                        luoiOTuChon: muc.luoiO,
+                        tenNganhGoiY: tenNganhGoiY
                     ) { kqAnh in
                         khoa.lock()
                         soAnhDaXong += 1
@@ -1162,7 +1169,7 @@ final class DichVuQuetAnhGemini {
 
     /// Bộ lọc đa năng chuyển đổi kết quả JSON từ Gemini sang danh sách KetQuaThiDuaNhanVienKhoi của ứng dụng
     /// (tự động khôi phục tên cột bị đè watermark theo tập 13 ngành chuẩn và đối chiếu bản đồ pixel ô có số để không bao giờ mất cột "Điện tử" hoặc nhảy số sang cột "—")
-    func locThiDuaNhanVienTuJSON(_ json: [String: Any], luoiO: ThongTinLuoiMaTranAnh? = nil) -> [KetQuaThiDuaNhanVienKhoi] {
+    func locThiDuaNhanVienTuJSON(_ json: [String: Any], luoiO: ThongTinLuoiMaTranAnh? = nil, tenNganhGoiY: String? = nil) -> [KetQuaThiDuaNhanVienKhoi] {
         let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
 
         func docGiaTriSo(_ anyVal: Any?) -> Double {
@@ -1292,17 +1299,9 @@ final class DichVuQuetAnhGemini {
             // Ánh xạ từng nhân viên theo đúng mã NV vào hàng thực tế trên bảng 24 NV (tránh lệch hàng khi tên NV xuống 2 dòng như dòng 6 "201962 - Nguyễn Thị Kim Loan").
             if let luoiO, luoiO.soCotDuLieu == soCot,
                (abs(dsNhanVienDong.count - luoiO.soHangNhanVien) <= 1 || (dsNhanVienDong.count >= 15 && dsNhanVienDong.count <= luoiO.soHangNhanVien)) {
-                let ds24 = KhoDuLieu.danhSach24NVBMaTranChuan
                 for c in 0..<soCot {
                     for r in dsNhanVienDong.indices {
-                        let rAnh: Int
-                        if luoiO.soHangNhanVien == ds24.count,
-                           let idxChuan = ds24.firstIndex(where: { $0.maNV == dsNhanVienDong[r].maNV }) {
-                            rAnh = idxChuan
-                        } else {
-                            rAnh = r
-                        }
-                        if rAnh < luoiO.soHangNhanVien && !luoiO.coSoTheoCot[c][rAnh] {
+                        if r < luoiO.soHangNhanVien && !luoiO.coSoTheoCot[c][r] {
                             dsNhanVienDong[r].soLieu[c] = 0
                         }
                     }
@@ -1313,14 +1312,7 @@ final class DichVuQuetAnhGemini {
                         var cacHangThieu: [Int] = []
                         var tongDaCo: Double = 0
                         for r in 0..<soHangKhop {
-                            let rAnh: Int
-                            if luoiO.soHangNhanVien == ds24.count,
-                               let idxChuan = ds24.firstIndex(where: { $0.maNV == dsNhanVienDong[r].maNV }) {
-                                rAnh = idxChuan
-                            } else {
-                                rAnh = r
-                            }
-                            if rAnh < luoiO.soHangNhanVien && luoiO.coSoTheoCot[c][rAnh] {
+                            if r < luoiO.soHangNhanVien && luoiO.coSoTheoCot[c][r] {
                                 let v = dsNhanVienDong[r].soLieu[c]
                                 if abs(v) <= 0.0001 {
                                     cacHangThieu.append(r)
@@ -1361,11 +1353,71 @@ final class DichVuQuetAnhGemini {
                 }
             }
 
+            // Kiểm tra xem các cột có phải là chỉ số của 1 môn đơn lẻ (THỰC HIỆN, SỐ LƯỢNG, DOANH THU QĐ, TARGET, % HT, % TỈ TRỌNG) không
+            let cacKhoaChiSoDon: Set<String> = [
+                "thuc_hien", "thuchien", "so_luong", "soluong", "doanh_thu", "doanhthu",
+                "doanh_thu_qd", "doanhthuqd", "dt_qd", "target", "muc_tieu", "muctieu",
+                "phan_tram", "phantram", "ht", "phan_tram_ht", "ti_trong", "titrong",
+                "ty_trong", "tytrong", "hang_vung", "hangvung", "con_vuot", "dt_qd_khoan_vay",
+                "hieu_qua_tra_gop"
+            ]
+            let soCotLaChiSoDon = cotNganhTho.filter { k in
+                let kn = chuanHoaKhoaJSON(k)
+                return cacKhoaChiSoDon.contains(kn) || kn.contains("thuc_hien") || kn.contains("doanh_thu_qd") || kn.contains("ti_trong") || kn.contains("ty_trong") || kn.contains("khoan_vay") || kn == "target"
+            }.count
+
+            if soCotLaChiSoDon >= max(1, (soCot + 1) / 2) && !dsNhanVienDong.isEmpty {
+                let tenMonDon = KhoDuLieu.chuanHoaTenMonThiDuaChuan(
+                    (json["tenNganhHang"] as? String) ?? (json["chuongTrinh"] as? String) ?? tenNganhGoiY ?? "Ngành hàng",
+                    tienToThangMacDinh: "T11"
+                )
+                let laMonSL = (KhoDuLieu.loaiChiTieuMacDinhChoMon(tenMonDon) == .soLuong)
+                var idxSL: Int?
+                var idxDT: Int?
+                var idxTH: Int?
+                var idxTG: Int?
+                var idxPT: Int?
+                for (i, rawName) in cotNganhTho.enumerated() {
+                    let kn = chuanHoaKhoaJSON(rawName)
+                    if kn.contains("thuc_hien") || kn == "thuchien" {
+                        if idxTH == nil { idxTH = i }
+                    } else if kn == "so_luong" || kn == "soluong" || kn == "sl" {
+                        if idxSL == nil { idxSL = i }
+                    } else if (kn.contains("doanh_thu") || kn.contains("dt_qd")) && !kn.contains("khoan_vay") && !kn.contains("du_kien") {
+                        if idxDT == nil { idxDT = i }
+                    } else if kn.contains("target") || kn.contains("muc_tieu") {
+                        if idxTG == nil { idxTG = i }
+                    } else if kn.contains("ti_trong") || kn.contains("ty_trong") || kn.contains("phan_tram") || rawName.contains("%") {
+                        if idxPT == nil { idxPT = i }
+                    }
+                }
+                let cotChonTH: Int? = idxTH ?? (laMonSL ? (idxSL ?? idxDT) : (idxDT ?? idxSL)) ?? idxPT ?? (soCot > 0 ? 0 : nil)
+                if let cTH = cotChonTH {
+                    let laPT = (cotChonTH == idxPT && idxTH == nil && idxSL == nil && idxDT == nil) || cotNganhTho[cTH].contains("%")
+                    let dsQuet = dsNhanVienDong.map { nv in
+                        DongThiDuaNhanVienQuet(
+                            maNV: nv.maNV,
+                            hoTen: nv.hoTen,
+                            thucHien: cTH < nv.soLieu.count ? nv.soLieu[cTH] : 0,
+                            target: (idxTG != nil && idxTG! < nv.soLieu.count) ? nv.soLieu[idxTG!] : 0,
+                            laPhanTram: laPT,
+                            laPhanTramTargetCaNhan: false
+                        )
+                    }
+                    return [KetQuaThiDuaNhanVienKhoi(
+                        tenNganhHang: tenMonDon.isEmpty ? "Ngành hàng" : tenMonDon,
+                        danhSach: dsQuet,
+                        thucHienNganhGoiY: cTH < mangTong.count ? mangTong[cTH] : 0,
+                        targetNganhGoiY: (idxTG != nil && idxTG! < mangTong.count) ? mangTong[idxTG!] : 0
+                    )]
+                }
+            }
+
             var ketQuaCot: [KetQuaThiDuaNhanVienKhoi] = []
             for i in 0..<soCot {
                 let tenChuan = cotNganhChuan[i]
                 guard !tenChuan.isEmpty,
-                      KhoDuLieu.laTenMonThiDuaChuanDMX(tenChuan),
+                      (KhoDuLieu.laTenMonThiDuaChuanDMX(tenChuan) || tenChuan.count >= 2),
                       !KhoDuLieu.laTenDongNhanVienBiQuetNham(tenChuan) else { continue }
                 let dsQuet = dsNhanVienDong.map { nv in
                     DongThiDuaNhanVienQuet(
@@ -1673,75 +1725,8 @@ final class DichVuQuetAnhGemini {
             }
         }
 
-        // Kiểm tra xem đợt quét này có phải bảng Ma trận 24 nhân viên chuẩn không
-        let tapMa24Chuan = Set(KhoDuLieu.danhSach24NVBMaTranChuan.map(\.maNV))
-        let laBangMaTran24NV = mapKhoi.values.contains { info in
-            let soNVKhop24 = info.mapNV.keys.filter { tapMa24Chuan.contains($0) }.count
-            return soNVKhop24 >= 8
-        }
-
-        if laBangMaTran24NV {
-            // Nếu quét 1 trong 3 bảng nhóm (CE, DV, ICT) mà Gemini làm rơi/bỏ sót bất kỳ cột nào trong 13 cột của nhóm đó, tự động khôi phục đủ 13 cột của nhóm đó
-            let baNhom13: [[String]] = [
-                KhoDuLieu.nhom13CEChuan,
-                KhoDuLieu.nhom13DichVuChuan,
-                KhoDuLieu.nhom13ICTChuan
-            ]
-            for nhom in baNhom13 {
-                let khoaNhom = nhom.map { KhoDuLieu.chuanHoaKhoaLienMachThiDua($0) }
-                let soCotDaCoTrongNhom = khoaNhom.filter { mapKhoi[$0] != nil }.count
-                if soCotDaCoTrongNhom >= 6 {
-                    for (idxMon, kLMNhom) in khoaNhom.enumerated() where mapKhoi[kLMNhom] == nil {
-                        if let mauChuan = KhoDuLieu.duLieuChuan39MonMaTran24NV[kLMNhom] {
-                            let tenChuan = KhoDuLieu.chuanHoaTenMonThiDuaChuan(nhom[idxMon], tienToThangMacDinh: "T11")
-                            mapKhoi[kLMNhom] = (
-                                tenChuan: tenChuan.isEmpty ? nhom[idxMon] : tenChuan,
-                                tong: mauChuan.tong,
-                                target: 0,
-                                mapNV: [:],
-                                thuTuNV: []
-                            )
-                            thuTuKhoi.append(kLMNhom)
-                        }
-                    }
-                }
-            }
-        }
-
         return thuTuKhoi.compactMap { kLM in
-            guard var info = mapKhoi[kLM] else { return nil }
-            // Hậu kiểm đối chiếu từng nhân viên (lechCaNhan) và tổng cột (lechTong) với bảng chuẩn 24 NV để không bao giờ sót bất kỳ môn nào (như Máy nước nóng = 3 của Trần Nam Tùng)
-            if laBangMaTran24NV, let mauChuan = KhoDuLieu.duLieuChuan39MonMaTran24NV[kLM] {
-                let tongNVHienTai = info.mapNV.values.reduce(0.0) { $0 + $1.thucHien }
-                let lechTong = abs(tongNVHienTai - mauChuan.tong) > 0.05 || abs(info.tong - mauChuan.tong) > 0.05
-                let lechCaNhan = KhoDuLieu.danhSach24NVBMaTranChuan.enumerated().contains { (idx, nvMau) in
-                    let valChuan = mauChuan.nv[idx + 1] ?? 0.0
-                    let valHienTai = info.mapNV[nvMau.maNV]?.thucHien ?? -1.0
-                    return abs(valHienTai - valChuan) > 0.005
-                }
-                if lechTong || lechCaNhan {
-                    info.tong = mauChuan.tong
-                    for (idx1Based, nvMau) in KhoDuLieu.danhSach24NVBMaTranChuan.enumerated() {
-                        let stt = idx1Based + 1
-                        let valChuan = mauChuan.nv[stt] ?? 0.0
-                        let ma = nvMau.maNV
-                        if var cur = info.mapNV[ma] {
-                            cur.thucHien = valChuan
-                            info.mapNV[ma] = cur
-                        } else {
-                            info.thuTuNV.append(ma)
-                            info.mapNV[ma] = DongThiDuaNhanVienQuet(
-                                maNV: ma,
-                                hoTen: nvMau.hoTen,
-                                thucHien: valChuan,
-                                target: 0,
-                                laPhanTram: false,
-                                laPhanTramTargetCaNhan: false
-                            )
-                        }
-                    }
-                }
-            }
+            guard let info = mapKhoi[kLM] else { return nil }
             let ds = info.thuTuNV.compactMap { info.mapNV[$0] }
             guard !ds.isEmpty else { return nil }
             return KetQuaThiDuaNhanVienKhoi(
@@ -1753,18 +1738,24 @@ final class DichVuQuetAnhGemini {
         }
     }
 
-    /// Câu lệnh chuyên biệt đã tối ưu cho Gemini để quét bảng Doanh thu hợp nhất theo Nhân viên 5 cột
+    /// Câu lệnh chuyên biệt đã tối ưu cho Gemini để quét bảng Doanh thu Nhân viên (hỗ trợ bảng 6 cột, 5 cột và bất kỳ bảng nào có cột Nhân viên bằng cách gióng ngang qua từng cột tương ứng)
     private var promptDoanhThuNhanVien: String {
         """
-        Đây là ảnh bảng "Doanh thu hợp nhất" theo Nhân viên gồm đúng 5 cột từ trái sang phải:
-        - Cột 1 (NHÂN VIÊN / NGÀNH HÀNG BI / NHÓM HÀNG BI): Tên nhân viên ở dòng trên và mã nhân viên "id: <mã số>" ở dòng dưới (ví dụ: "Lê Tuấn", "id: 285688").
-        - Cột 2 (SỐ LƯỢNG): Số lượng đơn / lượt bill bán hàng (số nguyên như 77, 64, 62, 85, 55, 43, 98, 73, 51, 75, 65, 84, 59, 85, 53, 52, 50, 2).
-        - Cột 3 (DOANH THU QĐ): Doanh thu quy đổi (đơn vị triệu đồng, như 439, 433, 403, 381, 365, 339, 319, 314, 297, 264, 262, 258, 241, 204, 191, 171, 147, 0).
-        - Cột 4 (DT QĐ KHOẢN VAY): Doanh thu quy đổi khoản vay (như 0).
-        - Cột 5 (% TỈ TRỌNG): Phần trăm tỉ trọng đóng góp có dấu % ở cột ngoài cùng bên phải (như 8.7%, 8.6%, 8.0%, 7.6%, 7.3%, 6.8%, 6.4%, 6.2%, 5.9%, 5.3%, 5.2%, 5.1%, 4.8%, 4.1%, 3.8%, 3.4%, 2.9%, 0.0%).
-        Bỏ qua hoàn toàn chữ chìm watermark nghiêng ("54453", "Dũng Nguyễn Thanh"). Tuyệt đối không gán cột SỐ LƯỢNG (cột 2) vào % TỈ TRỌNG (cột 5).
+        Bạn là hệ thống đọc bảng Doanh thu Nhân viên Điện Máy Xanh (ĐMX).
+        NGUYÊN TẮC CỐT LÕI (GIÓNG HÀNG & CỘT ĐỘNG):
+        - Bất kể bảng trên ảnh có bao nhiêu cột (ví dụ: bảng 6 cột [NHÂN VIÊN / NGÀNH HÀNG BI / NHÓM HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG | % HIỆU QUẢ TRẢ GÓP], bảng 5 cột, hay bảng nhiều cột gồm DT THỰC, TARGET, % HT, GIỜ CÔNG, NĂNG SUẤT), hãy tìm CỘT NHÂN VIÊN trước tiên.
+        - Tại mỗi dòng nhân viên (có dạng "+ <Họ tên>\nid: <Mã NV>" hoặc "<Mã NV> - <Họ tên>" hoặc "<Họ tên>"), hãy GIÓNG NGANG QUA các cột bên phải theo đúng tiêu đề của từng cột để lấy con số tương ứng:
+          + Cột "SỐ LƯỢNG" (hoặc "SL", "SỐ LƯỢT BILL") -> "soLuong" (ví dụ: 2, 3, 0, 4, 6, 1, 3, 0).
+          + Cột "DOANH THU QĐ" (hoặc "DT QĐ", "DT QUY ĐỔI", "DTLK", "DOANH THU") -> "doanhThuQD" (ví dụ: 117, 31, 13, 12, 6, 6, 2, 0).
+          + Cột "DOANH THU THỰC" (hoặc "DT THỰC", nếu có) -> "doanhThuThuc".
+          + Cột "TARGET" (hoặc "MỤC TIÊU", nếu có) -> "target".
+          + Cột "DT QĐ KHOẢN VAY" (hoặc "KHOẢN VAY", nếu có) -> "dtKhoanVay" (ví dụ: 0).
+          + Cột "% TỈ TRỌNG" (hoặc "% TỶ TRỌNG", "% QUY ĐỔI") -> "phanTramTiTrong" (bỏ dấu %, ví dụ: 62.5, 16.7, 6.8, 6.3, 3.4, 3.1, 1.2, 0.0).
+          + Cột "% HIỆU QUẢ TRẢ GÓP" (hoặc "% TRẢ GÓP", "% TRẢ CHẬM", nếu có) -> "phanTramTraGop" (nếu là dấu gạch ngang "—" thì đặt bằng 0).
+          + Cột "% HT" (hoặc "% TARGET", nếu có) -> "phanTramHT".
+        - Bỏ qua hoàn toàn chữ chìm watermark nghiêng màu xám ("54453", "Dũng Nguyễn Thanh"). Tuyệt đối không lấy nhầm số giữa các cột. Ô nào là dấu gạch ngang "—" hoặc "-" thì ghi 0.
         Trả về DUY NHẤT 1 đối tượng JSON theo đúng cấu trúc:
-        {"nhanVien":[{"maNV":"285688","hoTen":"Lê Tuấn","soLuong":77,"doanhThuQD":439,"dtKhoanVay":0,"phanTramTiTrong":8.7}]}
+        {"nhanVien":[{"maNV":"23986","hoTen":"Nguyễn Ngọc Đẩu","soLuong":2,"doanhThuQD":117,"doanhThuThuc":0,"target":0,"dtKhoanVay":0,"phanTramTiTrong":62.5,"phanTramTraGop":0,"phanTramHT":0}]}
         """
     }
 
@@ -1887,25 +1878,49 @@ final class DichVuQuetAnhGemini {
             var maTho = ""
             var tenTho = ""
             var sl: Double = 0
+            var dtThuc: Double = 0
             var dtQD: Double = 0
+            var tg: Double = 0
             var vay: Double = 0
+            var dtTG: Double = 0
+            var ht: Double = 0
             var tt: Double = 0
+            var ptTraGop: Double = 0
+            var gioCongVal: Double = 0
+            var ngayNghiVal: Double = 0
+            var nangSuatVal: Double = 0
 
             for (k, v) in item {
                 let kn = chuanKhoa(k)
-                if kn == "manv" || kn == "ma_nv" || kn == "id" || kn == "ma_nhan_vien" {
+                if kn == "manv" || kn == "ma_nv" || kn == "id" || kn == "ma_nhan_vien" || kn == "ma" {
                     if let s = v as? String { maTho = s }
                     else if let n = v as? NSNumber { maTho = n.stringValue }
-                } else if kn == "hoten" || kn == "ho_ten" || kn == "ten" || kn.hasPrefix("nhan_vien") || kn == "nhanvien" {
+                } else if kn == "hoten" || kn == "ho_ten" || kn == "ten" || kn.hasPrefix("nhan_vien") || kn == "nhanvien" || kn == "ho_va_ten" {
                     if let s = v as? String { tenTho = s }
-                } else if kn == "soluong" || kn == "so_luong" || kn == "so_luot_bill" || kn == "bill" {
+                } else if kn == "soluong" || kn == "so_luong" || kn == "so_luot_bill" || kn == "bill" || kn == "so_don" || kn == "sl" {
                     sl = so(item, k)
-                } else if kn == "doanhthuqd" || kn == "doanh_thu_qd" || kn == "doanhthu" || kn == "doanh_thu" {
+                } else if kn == "doanhthuthuc" || kn == "doanh_thu_thuc" || kn == "dt_thuc" || kn == "dtthuc" {
+                    dtThuc = so(item, k)
+                } else if kn == "doanhthuqd" || kn == "doanh_thu_qd" || kn == "dt_qd" || kn == "dtqd" || kn == "doanh_thu_quy_doi" || kn == "doanhthu" || kn == "doanh_thu" || kn == "dtlk" {
                     dtQD = so(item, k)
-                } else if kn.contains("khoan_vay") || kn.contains("khoanvay") || kn == "vay" {
+                } else if kn == "target" || kn == "muc_tieu" || kn == "muctieu" || kn == "dinh_muc" {
+                    tg = so(item, k)
+                } else if kn.contains("khoan_vay") || kn.contains("khoanvay") || kn == "vay" || kn == "dt_vay" {
                     vay = so(item, k)
-                } else if kn.contains("ti_trong") || kn.contains("titrong") || kn.contains("ty_trong") || kn.contains("tytrong") || kn == "phan_tram" {
+                } else if kn == "dt_tra_gop" || kn == "doanh_thu_tra_gop" || kn == "dt_tra_cham" {
+                    dtTG = so(item, k)
+                } else if kn == "phantramht" || kn == "phan_tram_ht" || kn == "ht_target" || kn == "phan_tram_target" {
+                    ht = so(item, k)
+                } else if kn.contains("ti_trong") || kn.contains("titrong") || kn.contains("ty_trong") || kn.contains("tytrong") || kn == "phan_tram_quy_doi" || kn == "phantramquydoi" || kn == "phan_tram" {
                     tt = so(item, k)
+                } else if kn.contains("tra_gop") || kn.contains("tragop") || kn.contains("tra_cham") || kn.contains("tracham") {
+                    ptTraGop = so(item, k)
+                } else if kn.contains("gio_cong") || kn.contains("giocong") {
+                    gioCongVal = so(item, k)
+                } else if kn.contains("ngay_nghi") || kn.contains("ngaynghi") {
+                    ngayNghiVal = so(item, k)
+                } else if kn.contains("nang_suat") || kn.contains("nangsuat") {
+                    nangSuatVal = so(item, k)
                 }
             }
 
@@ -1926,13 +1941,18 @@ final class DichVuQuetAnhGemini {
                 maNV: ma,
                 hoTen: ten,
                 soLuong: sl,
-                doanhThuThuc: 0,
+                doanhThuThuc: dtThuc,
                 doanhThuQD: dtQD,
-                target: 0,
+                target: tg,
                 dtQDKhoanVay: vay,
-                dtTraThangQD: 0,
-                phanTramHT: 0,
-                phanTramQuyDoi: tt
+                dtTraThangQD: dtThuc > 0 ? dtThuc : 0,
+                dtTraGop: dtTG,
+                phanTramHT: ht,
+                phanTramQuyDoi: tt,
+                phanTramTraGop: ptTraGop,
+                gioCong: gioCongVal,
+                soNgayNghi: ngayNghiVal,
+                nangSuat: nangSuatVal
             ))
         }
         return ketQua
