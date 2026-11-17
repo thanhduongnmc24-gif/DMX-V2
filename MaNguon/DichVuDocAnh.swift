@@ -2246,7 +2246,8 @@ final class DichVuDocAnh {
         }
 
         let coHeaderNhanVien = phanTu.contains { pt in
-            pt.x < 0.22 && pt.y < 0.25 && boDau(pt.chu) == "NHAN VIEN"
+            let u = boDau(pt.chu)
+            return pt.x < 0.24 && pt.y < 0.25 && (u == "NHAN VIEN" || u.contains("NHAN VIEN"))
         }
         let soDongMaNV = phanTu.filter { pt in
             pt.x < 0.22 && pt.y > 0.14 && pt.chu.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) != nil
@@ -2292,9 +2293,13 @@ final class DichVuDocAnh {
         let h0 = cgGoc.height
 
         let ptThucTe = phanTu.isEmpty ? thucHienOCR(anh: anhGoc) : phanTu
-        let coHeaderNVDoc = ptThucTe.contains { $0.x < 0.22 && $0.y < 0.25 && boDau($0.chu) == "NHAN VIEN" }
+        let coHeaderNVDoc = ptThucTe.contains {
+            let u = boDau($0.chu)
+            return ($0.x < 0.24 && $0.y < 0.25 && u.contains("NHAN VIEN")) ||
+                   ($0.y < 0.20 && (u.contains("NHOM CE") || u.contains("NHOM DV") || u.contains("NHOM ICT")))
+        }
         let coHeaderChuongTrinh = ptThucTe.contains { $0.x < 0.25 && $0.y < 0.25 && boDau($0.chu).contains("CHUONG TRINH THI DUA") }
-        let soMaNVDoc = ptThucTe.filter { $0.x < 0.22 && $0.y > 0.14 && $0.chu.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) != nil }.count
+        let soMaNVDoc = ptThucTe.filter { $0.x < 0.24 && $0.y > 0.14 && $0.chu.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) != nil }.count
         if (coHeaderNVDoc && !coHeaderChuongTrinh) || (soMaNVDoc >= 3 && !coHeaderChuongTrinh) {
             let kqDoc = phanTichMaTranNhanVienDoc(phanTu: ptThucTe, anh: anhGoc, watermark: watermark)
             if !kqDoc.isEmpty {
@@ -2798,6 +2803,12 @@ final class DichVuDocAnh {
         for i in 0..<(colEdges.count - 1) {
             colBounds.append((colEdges[i], colEdges[i + 1]))
         }
+        if colBounds.count == 15 && colBounds[0].x1 < Int(Double(w0) * 0.075) {
+            colBounds.removeFirst()
+        }
+        if let xVachSTT = vCenters.first(where: { $0 >= colBounds[0].x0 + 16 && $0 <= min(colBounds[0].x1 - 50, Int(Double(w0) * 0.068)) }) {
+            colBounds[0].x0 = xVachSTT
+        }
         if colBounds.count == 13 {
             let dataWidths = colBounds.dropFirst().map { $0.x1 - $0.x0 }.sorted()
             let medW = dataWidths[dataWidths.count / 2]
@@ -2889,7 +2900,48 @@ final class DichVuDocAnh {
                 rowBounds.append((rowEdges[i], rowEdges[i + 1]))
             }
         }
+        let nvX0Check = max(0, colBounds[0].x0 + 4)
+        let nvX1Check = min(w0 - 1, colBounds[0].x1 - 4)
+        if nvX1Check > nvX0Check {
+            rowBounds = rowBounds.filter { rb in
+                let ry0 = max(0, rb.y0 + 3)
+                let ry1 = min(h0 - 1, rb.y1 - 3)
+                guard ry1 > ry0 else { return false }
+                var dpNV = 0
+                for y in ry0...ry1 {
+                    let gOff = y * w0
+                    for x in nvX0Check...nvX1Check {
+                        if gray[gOff + x] < 178 {
+                            dpNV += 1
+                        }
+                    }
+                }
+                return dpNV >= 20
+            }
+        }
         guard !rowBounds.isEmpty else { return [] }
+
+        // Dò đường kẻ ngang phân tách dòng tiêu đề nhóm ("Nhóm CE", "Nhóm DV", "Nhóm ICT") với 13 tiêu đề cột bên dưới
+        var ySubHeaderTop = yHeaderTop
+        if colBounds.count > 1 {
+            let xData0 = max(0, colBounds[1].x0 + 4)
+            let xData1 = min(w0 - 1, colBounds.last!.x1 - 4)
+            let xDataStep = max(1, (xData1 - xData0) / 180)
+            let yTimMax = min(yHeaderBot - 15, yHeaderTop + max(28, Int(Double(h0) * 0.055)))
+            if xData1 > xData0 && yTimMax > yHeaderTop + 14 {
+                for y in (yHeaderTop + 14)...yTimMax {
+                    var vals: [Int] = []
+                    let gOff = y * w0
+                    for x in stride(from: xData0, through: xData1, by: xDataStep) {
+                        vals.append(gray[gOff + x])
+                    }
+                    vals.sort()
+                    if vals[vals.count / 2] <= 232 {
+                        ySubHeaderTop = y + 1
+                    }
+                }
+            }
+        }
 
         let tongBand: (y0: Int, y1: Int) = (yHeaderBot, yDataStart)
 
@@ -2903,6 +2955,9 @@ final class DichVuDocAnh {
         var diemICT = 0
         for pt in phanTu where pt.y < 0.28 {
             let u = boDau(pt.chu)
+            if u.contains("NHOM DV") { diemDV += 15 }
+            if u.contains("NHOM CE") { diemCE += 15 }
+            if u.contains("NHOM ICT") || u.contains("NHOM 1CT") || u.contains("NHOM LCT") { diemICT += 15 }
             if u.contains("VAY TIEN MAT") || u.contains("VI TRA SAU") || u.contains("NAP RUT") ||
                u.contains("BAO HIEM") || u.contains("HOMECREDIT") || u.contains("FECREDIT") ||
                u.contains("VAS") || u.contains("VPBANK") {
@@ -2945,7 +3000,7 @@ final class DichVuDocAnh {
                     }
                 }
             }
-            guard darkPixels >= 5 else { return (false, false) }
+            guard darkPixels >= 4 else { return (false, false) }
 
             // Kiểm tra dấu trừ (-) nằm ngay bên trái chữ số đầu tiên
             var coAm = false
@@ -3140,16 +3195,40 @@ final class DichVuDocAnh {
         let nvOCR = ocrCacO(x0: colBounds[0].x0, x1: colBounds[0].x1, bands: rowBounds, laVanBan: true)
         var dsNhanVien: [(rowIdx: Int, maNV: String, hoTen: String)] = []
         for rIdx in rowBounds.indices {
-            let text = (nvOCR[rIdx] ?? []).joined(separator: " ")
+            var text = (nvOCR[rIdx] ?? []).joined(separator: " ")
                 .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) == nil {
+                let rb = rowBounds[rIdx]
+                let yTopN = CGFloat(rb.y0) / CGFloat(max(1, h0))
+                let yBotN = CGFloat(rb.y1) / CGFloat(max(1, h0))
+                let xLeftN = CGFloat(colBounds[0].x0) / CGFloat(max(1, w0))
+                let xRightN = CGFloat(colBounds[0].x1) / CGFloat(max(1, w0))
+                let ptDong = phanTu.filter { pt in
+                    let xm = pt.x + pt.rong / 2.0
+                    let ym = pt.y + pt.cao / 2.0
+                    return xm >= xLeftN - 0.005 && xm <= xRightN + 0.005 && ym >= yTopN - 0.008 && ym <= yBotN + 0.008
+                }.sorted {
+                    if abs($0.y - $1.y) < 0.012 { return $0.x < $1.x }
+                    return $0.y < $1.y
+                }
+                let textDuPhong = ptDong.map(\.chu).joined(separator: " ")
+                    .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !textDuPhong.isEmpty {
+                    text = textDuPhong
+                }
+            }
             guard !text.isEmpty else { continue }
             var maNV = ""
+            var phanTen = text
             if let range = text.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) {
                 maNV = String(text[range])
+                phanTen = String(text[range.upperBound...])
             }
-            let hoTen = text
-                .replacingOccurrences(of: maNV, with: "")
+            let hoTen = phanTen
+                .replacingOccurrences(of: "^(?:\\d{1,2}\\s*[.\\-–—:|]\\s*)+", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "^\\d{1,2}\\s+", with: "", options: .regularExpression)
                 .replacingOccurrences(of: "[-–—]", with: " ", options: .regularExpression)
                 .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3189,16 +3268,17 @@ final class DichVuDocAnh {
             let cb = colBounds[colIdx]
             let xLeftNorm = CGFloat(cb.x0) / CGFloat(max(1, w0))
             let xRightNorm = CGFloat(cb.x1) / CGFloat(max(1, w0))
-            let yTopNorm = CGFloat(yHeaderTop) / CGFloat(max(1, h0))
+            let yTopNorm = CGFloat(ySubHeaderTop) / CGFloat(max(1, h0))
             let yBotNorm = CGFloat(yHeaderBot) / CGFloat(max(1, h0))
             let ptTrongCot = phanTu.filter { pt in
                 let u = boDau(pt.chu)
-                if u.contains("54453") || u.contains("4453") || u.contains("5445") || u.contains("DUNG NGUYEN") || u.contains("NGUYEN THANH") {
+                if u.contains("54453") || u.contains("4453") || u.contains("5445") || u.contains("DUNG NGUYEN") || u.contains("NGUYEN THANH") ||
+                   u == "NHOM CE" || u == "NHOM DV" || u == "NHOM ICT" || u == "NHOM 1CT" || u == "NHOM LCT" {
                     return false
                 }
                 let xm = pt.x + pt.rong / 2.0
                 let ym = pt.y + pt.cao / 2.0
-                return xm >= xLeftNorm - 0.005 && xm <= xRightNorm + 0.005 && ym >= yTopNorm - 0.02 && ym <= yBotNorm + 0.02
+                return xm >= xLeftNorm - 0.005 && xm <= xRightNorm + 0.005 && ym >= yTopNorm - 0.01 && ym <= yBotNorm + 0.02
             }.sorted {
                 if abs($0.y - $1.y) < 0.015 { return $0.x < $1.x }
                 return $0.y < $1.y
@@ -3206,7 +3286,7 @@ final class DichVuDocAnh {
             var rawHeader = ptTrongCot.map(\.chu).joined(separator: " ")
             let tenThu = KhoDuLieu.chuanHoaTenMonThiDuaChuan(rawHeader, tienToThangMacDinh: "T11")
             if tenThu.isEmpty || !KhoDuLieu.laTenMonThiDuaChuanDMX(tenThu) {
-                let headerOCR = ocrCacO(x0: cb.x0, x1: cb.x1, bands: [(yHeaderTop, yHeaderBot)], laVanBan: true)
+                let headerOCR = ocrCacO(x0: cb.x0, x1: cb.x1, bands: [(ySubHeaderTop, yHeaderBot)], laVanBan: true)
                 let ocrStr = (headerOCR[0] ?? []).joined(separator: " ")
                 if !ocrStr.isEmpty { rawHeader = ocrStr }
             }

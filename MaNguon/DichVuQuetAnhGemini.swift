@@ -489,7 +489,7 @@ final class DichVuQuetAnhGemini {
         4. Với bảng Thi đua Nhân viên (mảng "thiDuaNhanVien"), hỗ trợ cả 2 mẫu:
            - MẪU 1 — MA TRẬN THEO NHÂN VIÊN ("Ma trận theo Nhân viên · 13 chương trình"):
              + Hỗ trợ 2 kiểu bố cục ma trận:
-               * KIỂU DỌC (mới): Cột đầu tiên là "NHÂN VIÊN" (dạng "<maNV> - <hoTen>"), hàng đầu tiên là "TỔNG", các cột tiếp theo là từng chương trình thi đua. Mỗi ô chỉ có 1 con số thực hiện (nếu là "—", "-", hoặc 0 thì đặt "thucHien": 0), không có cột target riêng (đặt "target": 0). Với mỗi cột chương trình, tạo 1 phần tử trong "thiDuaNhanVien" với "tenNganhHang", "thucHienNganhGoiY" (lấy từ hàng TỔNG), "targetNganhGoiY": 0, và "danhSach" gồm các nhân viên kèm "maNV", "hoTen", "thucHien", "target": 0, "laPhanTram": false.
+               * KIỂU DỌC (mới): Hai cột đầu bên trái là "STT" (đánh số thứ tự 1..N, ví dụ 1..24) và "NHÂN VIÊN" (dạng "<maNV> - <hoTen>"), hàng đầu tiên dưới tiêu đề là "TỔNG", phía trên 13 cột chương trình có nhãn phân nhóm ("Nhóm CE", "Nhóm DV", "Nhóm ICT"). Mỗi ô chỉ có 1 con số thực hiện (nếu là "—", "-", hoặc 0/0.00 thì đặt "thucHien": 0), không có cột target riêng (đặt "target": 0). Với mỗi cột chương trình, tạo 1 phần tử trong "thiDuaNhanVien" với "tenNganhHang", "thucHienNganhGoiY" (lấy từ hàng TỔNG), "targetNganhGoiY": 0, và "danhSach" gồm đầy đủ tất cả các hàng nhân viên (từ STT 1 đến hết bảng, kể cả các hàng cuối từ 18..24) kèm "maNV", "hoTen", "thucHien", "target": 0, "laPhanTram": false.
                * KIỂU NGANG (cũ): Các hàng là danh sách chương trình thi đua, các cột là từng nhân viên với 2 cột con [THỰC HIỆN | TARGET].
            - MẪU 2 — BẢNG MỞ RỘNG 1 MÔN THI ĐUA (có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % đóng góp): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien", đặt "laPhanTram": true, "thucHien" là con số phần trăm, kèm "thucHienNganhGoiY" và "targetNganhGoiY".
         5. Nếu ảnh là PHIẾU SỨC KHỎE & THI ĐUA CÁ NHÂN NHÂN VIÊN 27 ĐIỂM (có tên nhân viên, mã NV 6 số, khối DOANH THU 6 mục, khối NĂNG SUẤT 3 mục, khối THI ĐUA gồm lưới thẻ % các môn): hãy trả thêm trường "sucKhoeNhanVien": [{"maNV":"293044","hoTen":"Võ Ngọc Vĩ","doanhThuQD":97.1,"tbDoanhThuQD":228.7,"phanTramTarget":46,"tbPhanTramTarget":108,"mucTieuTargetQD":703.7,"soLuotBill":33,"tbSoLuotBill":35,"phanTramQuyDoi":64,"tbPhanTramQuyDoi":43,"phanTramTraCham":45,"tbPhanTramTraCham":53,"phanTramBanKem":100,"tbPhanTramBanKem":61,"diemThuongERP":1254937,"tbDiemThuongERP":1496937,"diemThuongGioCong":17317,"tbDiemThuongGioCong":20855,"dtqdGioCong":1.34,"tbDtqdGioCong":3.20,"thiDua":[{"ten":"Phụ kiện công nghệ","phanTram":107}]}] (các môn nằm ở phần "Chưa có số liệu" đặt phanTram: 0).
@@ -852,6 +852,14 @@ final class DichVuQuetAnhGemini {
         for i in 0..<(colEdges.count - 1) {
             colBounds.append((colEdges[i], colEdges[i + 1]))
         }
+        // Nếu cột STT ở ngoài cùng bên trái tách thành cột riêng (colBounds.count == 15: STT + NHÂN VIÊN + 13 cột ngành hàng), gộp/bỏ cột STT để colBounds[0] luôn là cột NHÂN VIÊN
+        if colBounds.count == 15 && colBounds[0].x1 < Int(Double(w0) * 0.075) {
+            colBounds.removeFirst()
+        }
+        // Nếu colBounds[0] đang bao gồm cả cột STT (ví dụ x0=5..169) và có đường kẻ dọc phân cách STT | NHÂN VIÊN quanh x ~ 0.025..0.065*w0 thì thu hẹp colBounds[0].x0 về sau cột STT
+        if let xVachSTT = vCenters.first(where: { $0 >= colBounds[0].x0 + 16 && $0 <= min(colBounds[0].x1 - 50, Int(Double(w0) * 0.068)) }) {
+            colBounds[0].x0 = xVachSTT
+        }
         // Nếu 1 đường kẻ dọc mờ khiến 2 cột gộp làm 1 (colBounds.count == 13 thay vì 14), tự động tách đôi cột rộng gấp đôi
         if colBounds.count == 13 {
             let dataWidths = colBounds.dropFirst().map { $0.x1 - $0.x0 }.sorted()
@@ -942,8 +950,25 @@ final class DichVuQuetAnhGemini {
                 rowBounds.append((rowEdges[i], rowEdges[i + 1]))
             }
         }
-        if rowBounds.count > 20 {
-            rowBounds = Array(rowBounds.prefix(20))
+        // Chỉ giữ các hàng thực sự có chữ mã/tên nhân viên ở cột NHÂN VIÊN (hỗ trợ đầy đủ bảng 20, 24 hoặc nhiều nhân viên mà không cắt cụt ở 20)
+        let nvX0 = max(0, colBounds[0].x0 + 4)
+        let nvX1 = min(w0 - 1, colBounds[0].x1 - 4)
+        if nvX1 > nvX0 {
+            rowBounds = rowBounds.filter { rb in
+                let ry0 = max(0, rb.y0 + 3)
+                let ry1 = min(h0 - 1, rb.y1 - 3)
+                guard ry1 > ry0 else { return false }
+                var dpNV = 0
+                for y in ry0...ry1 {
+                    let gOff = y * w0
+                    for x in nvX0...nvX1 {
+                        if gray[gOff + x] < 178 {
+                            dpNV += 1
+                        }
+                    }
+                }
+                return dpNV >= 20
+            }
         }
         guard rowBounds.count >= 5 else { return nil }
 
@@ -994,34 +1019,37 @@ final class DichVuQuetAnhGemini {
             }
             goiYLuoi = """
 
-            BẢN ĐỒ TỌA ĐỘ Ô CÓ SỐ TRÊN ẢNH NÀY (tính theo thứ tự hàng nhân viên từ 1 đến \(luoiO.soHangNhanVien) từ trên xuống dưới, sau hàng TỔNG):
+            BẢN ĐỒ TỌA ĐỘ Ô CÓ SỐ TRÊN ẢNH NÀY (tính theo đúng số thứ tự STT hàng nhân viên từ 1 đến \(luoiO.soHangNhanVien) từ trên xuống dưới, ngay sau hàng TỔNG):
             \(cacDongGoiY.joined(separator: "\n"))
-            BẮT BUỘC tuân thủ đúng bản đồ trên: tại mỗi Cột k (1..13), những hàng nhân viên nằm trong danh sách có số thì PHẢI đọc đúng con số trên ảnh (tuyệt đối không để bằng 0), còn những hàng không nằm trong danh sách thì BẮT BUỘC ghi 0!
+            BẮT BUỘC tuân thủ đúng bản đồ trên:
+            - Xuất ĐẦY ĐỦ ĐÚNG \(luoiO.soHangNhanVien) dòng nhân viên theo thứ tự STT từ 1 đến \(luoiO.soHangNhanVien) (kể cả các nhân viên ở cuối bảng từ STT 18 đến \(luoiO.soHangNhanVien) có toàn dấu "—" hoặc 0.00).
+            - Tại mỗi Cột k (1..13), những hàng nhân viên nằm trong danh sách có số thì PHẢI đọc đúng con số in trên ảnh (nếu trên ảnh in 0 hoặc 0.00 thì ghi 0, nếu in số > 0 thì tuyệt đối không được bỏ sót thành 0), còn những hàng không nằm trong danh sách thì BẮT BUỘC ghi 0!
             """
         }
 
         return """
-        Đây là ảnh bảng thực hiện thi đua (gồm cả ngành hàng tính theo Doanh thu DT và ngành hàng tính theo Số lượng SL) của nhân viên ứng với từng ngành hàng:
-        - Cột đầu tiên bên trái ("NHÂN VIÊN"): hàng đầu tiên là "TỔNG", các hàng tiếp theo từ trên xuống dưới là từng nhân viên theo dạng "<Mã NV> - <Họ tên>" (nếu tên nhân viên xuống 2 dòng như "201962 - Nguyễn Thị Kim\nLoan" thì ghép lại thành 1 dòng).
-        - 13 cột tiếp theo từ trái sang phải (Cột 1 đến Cột 13) là 13 ngành hàng thi đua.
+        Đây là ảnh bảng "BC Thi đua · Lũy kế · Ma trận theo Nhân viên · 13 chương trình" (gồm cả ngành hàng tính theo Doanh thu DT và ngành hàng tính theo Số lượng SL) của nhân viên ứng với từng ngành hàng:
+        - Hai cột đầu tiên bên trái: Cột "STT" (đánh số thứ tự 1, 2, 3... đến hết bảng, ví dụ 1..24) và Cột "NHÂN VIÊN" (hàng đầu tiên dưới tiêu đề là "TỔNG", các hàng tiếp theo từ trên xuống dưới tương ứng STT 1..N là từng nhân viên theo dạng "<Mã NV> - <Họ tên>"; nếu tên nhân viên xuống 2 dòng như "201962 - Nguyễn Thị Kim\nLoan" hoặc "30258 - Phạm Thị Huyền\nTrang" thì ghép lại thành 1 dòng; tuyệt đối không đưa số STT vào maNV hay hoTen).
+        - Phía trên 13 cột dữ liệu có hàng tiêu đề nhóm ("Nhóm CE", "Nhóm DV", hoặc "Nhóm ICT"), bên dưới là 13 cột ngành hàng thi đua từ trái sang phải (Cột 1 đến Cột 13).
         Hãy lọc chính xác toàn bộ bảng thành một đoạn JSON.
 
-        QUY TẮC BẮT BUỘC ĐỂ ĐỌC ĐÚNG 100% CẢ 13 CỘT VÀ TỪNG NHÂN VIÊN:
+        QUY TẮC BẮT BUỘC ĐỂ ĐỌC ĐÚNG 100% CẢ 13 CỘT VÀ TẤT CẢ CÁC DÒNG NHÂN VIÊN:
         1. Bỏ qua hoàn toàn chữ chìm watermark nghiêng màu xám ("54453", "Dũng Nguyễn Thanh") kể cả khi chữ chìm đè lên tiêu đề cột như "Điện tử (DT)" hoặc "Bảo hiểm Thợ ĐMX (DT)".
         2. ĐỌC ĐÚNG THỨ TỰ 13 CỘT THỰC TẾ TRÊN ẢNH TỪ TRÁI SANG PHẢI (Cột 1 -> Cột 13):
-           - Chuẩn hóa tên mỗi cột (bỏ ký hiệu ngôi sao "★", bỏ "(DT)", "(SL)") về đúng tên chuẩn trong 39 ngành hàng ĐMX thuộc 3 bảng sau:
-             + Bảng Dịch Vụ (13 ngành): "Vay tiền mặt", "Trả Chậm Điện máy & Gia dụng", "Bảo hiểm Thọ ĐMX", "Ví trả sau", "Bảo hiểm Thọ ICT", "Bảo hiểm Tổng", "Sim ĐMX", "Trả chậm Homecredit", "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT", "Sim", "Nạp rút", "VAS", "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO".
-             + Bảng ICT / Phụ Kiện (13 ngành): "Phụ kiện công nghệ", "Điện thoại Vivo", "Điện thoại Realme", "ĐIỆN THOẠI & TABLET ANDROID", "Camera", "Sạc dự phòng", "Cáp sạc", "Đồng hồ & Smartwatch", "Phụ kiện khác IT & Nhóm khác", "Tai nghe", "Laptop", "Loa Phụ Kiện", "Đèn năng lượng mặt trời".
-             + Bảng Điện Tử / Điện Lạnh / Gia Dụng (13 ngành): "Tivi TCL", "CE LG", "Điện tử Samsung", "Máy Lạnh", "Máy sấy / Máy rửa chén", "Máy nước nóng", "Điện tử", "Máy lọc nước", "Máy giặt", "Máy lọc KK - Hút bụi - Hút ẩm", "Nồi cơm & Nồi chiên", "Quạt gió", "Tủ Lạnh / Đông / Mát".
-        3. ĐẶC BIỆT CHÚ Ý PHÂN BIỆT RÕ "Điện tử Samsung" VÀ "Điện tử" TRONG BẢNG ĐIỆN TỬ (CE):
-           - Trên bảng Điện tử (CE), Cột "★ Điện tử Samsung (DT)" (tên chuẩn: "Điện tử Samsung") và Cột "Điện tử (DT)" (tên chuẩn: "Điện tử") là 2 CỘT HOÀN TOÀN RIÊNG BIỆT (thường Cột 3 là "Điện tử Samsung" có TỔNG 209.15 và Cột 7 là "Điện tử" có TỔNG 342.47).
-           - Vì doanh thu Tivi Samsung nằm trong tổng Điện tử nên rất nhiều nhân viên có CÙNG MỘT CON SỐ ở cả cột "Điện tử Samsung" và cột "Điện tử" (ví dụ: nhân viên hàng 1 "285688 - Lê Tuấn" có 5.57 ở "Điện tử Samsung" VÀ cũng có 5.57 ở "Điện tử"; "116719 - Đinh Thị Quỳnh Nga" có 23.26 ở cả 2 cột; "201962 - Nguyễn Thị Kim Loan" có 12.02 ở cả 2 cột; "207241 - Huỳnh Tấn Thành" có 15.88 ở cả 2 cột).
-           - BẮT BUỘC phải giữ nguyên đầy đủ con số thực tế (ví dụ 5.57 của Lê Tuấn) ở CẢ cột "Điện tử Samsung" LẪN cột "Điện tử", TUYỆT ĐỐI KHÔNG ĐƯỢC bỏ sót cột "Điện tử" hoặc tự ý ghi 0 vào cột "Điện tử"!
-        4. GIỮ ĐÚNG CỘT DỌC & KHÔNG NHẢY SỐ GIỮA CÁC CỘT:
+           - Chuẩn hóa tên mỗi cột (bỏ nhãn "Nhóm CE"/"Nhóm DV"/"Nhóm ICT", bỏ ký hiệu ngôi sao "★", bỏ "(DT)", "(SL)") về đúng tên chuẩn trong 39 ngành hàng ĐMX thuộc 3 bảng sau (theo đúng thứ tự cột từ trái sang phải trên mẫu mới):
+             + Bảng Nhóm DV (13 ngành từ Cột 1 -> Cột 13): "Vay tiền mặt", "Ví trả sau", "Trả Chậm Điện máy & Gia dụng", "Bảo hiểm Thọ ĐMX", "Bảo hiểm Thọ ICT", "Bảo hiểm Tổng", "Trả chậm Homecredit", "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT", "Sim", "Sim ĐMX", "VAS", "Nạp rút", "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO".
+             + Bảng Nhóm ICT (13 ngành từ Cột 1 -> Cột 13): "Phụ kiện công nghệ", "Điện thoại Vivo", "Điện thoại Realme", "ĐIỆN THOẠI & TABLET ANDROID", "Camera", "Cáp sạc", "Phụ kiện khác IT & Nhóm khác", "Sạc dự phòng", "Đồng hồ & Smartwatch", "Tai nghe", "Laptop", "Đèn năng lượng mặt trời", "Loa Phụ Kiện".
+             + Bảng Nhóm CE (13 ngành từ Cột 1 -> Cột 13): "Tivi TCL", "CE LG", "Điện tử Samsung", "Máy Lạnh", "Máy sấy / Máy rửa chén", "Máy nước nóng", "Điện tử", "Máy lọc KK - Hút bụi - Hút ẩm", "Quạt gió", "Máy giặt", "Máy lọc nước", "Nồi cơm & Nồi chiên", "Tủ Lạnh / Đông / Mát".
+        3. ĐẶC BIỆT CHÚ Ý PHÂN BIỆT RÕ "Điện tử Samsung" VÀ "Điện tử" TRONG BẢNG NHÓM CE:
+           - Trên bảng Nhóm CE, Cột 3 "★ Điện tử Samsung (DT)" (tên chuẩn: "Điện tử Samsung") và Cột 7 "Điện tử (DT)" (tên chuẩn: "Điện tử") là 2 CỘT HOÀN TOÀN RIÊNG BIỆT (ví dụ Cột 3 là "Điện tử Samsung" có TỔNG 245.27 và Cột 7 là "Điện tử" có TỔNG 429.56).
+           - Vì doanh thu Tivi Samsung nằm trong tổng Điện tử nên nhiều nhân viên có CÙNG MỘT CON SỐ ở cả cột "Điện tử Samsung" và cột "Điện tử" (ví dụ: "116719 - Đinh Thị Quỳnh Nga" có 23.26 ở cả 2 cột; "201962 - Nguyễn Thị Kim Loan" có 12.02 ở cả 2 cột; "293044 - Võ Ngọc Vĩ" có 13.88 ở cả 2 cột; "207241 - Huỳnh Tấn Thành" có 15.88 ở cả 2 cột; "280417 - Huỳnh Thành Đạt" có 10.63 ở cả 2 cột; "23986 - Nguyễn Ngọc Đẩu" có 28.24 ở cả 2 cột).
+           - BẮT BUỘC phải giữ nguyên đầy đủ con số thực tế ở CẢ cột "Điện tử Samsung" LẪN cột "Điện tử", TUYỆT ĐỐI KHÔNG ĐƯỢC bỏ sót cột "Điện tử" hoặc tự ý ghi 0 vào cột "Điện tử"!
+        4. GIỮ ĐÚNG CỘT DỌC, ĐỌC ĐỦ TẤT CẢ CÁC DÒNG NHÂN VIÊN (1..24) & KHÔNG NHẢY SỐ GIỮA CÁC CỘT:
+           - Phải đọc đầy đủ tất cả các hàng nhân viên từ STT 1 đến hết bảng (kể cả các hàng STT 18..24 có ít số hoặc toàn dấu "—", như STT 18 Lê Xuân Tài và STT 19 Nguyễn Thị Hảo có 1 ở Nạp rút, hay STT 21 Nguyễn Minh Đạt có 1 ở Mở thẻ tín dụng).
            - Mỗi mảng `soLieu` của từng nhân viên phải có ĐÚNG 13 PHẦN TỬ tương ứng với 13 cột từ trái sang phải (`Cột 1` đến `Cột 13`).
-           - Ô nào có dấu gạch ngang "—", "-" hoặc trống thì ghi 0 tại đúng vị trí cột đó; ô nào có số âm (như -1.25) thì giữ nguyên dấu âm.\(goiYLuoi)
+           - Ô nào có dấu gạch ngang "—", "-", trống hoặc 0.00 thì ghi 0 tại đúng vị trí cột đó; ô nào có số âm (như -1.25) thì giữ nguyên dấu âm.\(goiYLuoi)
         5. Trả về DUY NHẤT 1 đối tượng JSON theo đúng cấu trúc:
-        {"cotNganhHang":["Tên cột 1","Tên cột 2","...","Tên cột 13"],"hangTong":[0,0,0,0,0,0,0,0,0,0,0,0,0],"nhanVien":[{"maNV":"285688","hoTen":"Lê Tuấn","soLieu":[0,0,0,0,0,0,0,0,0,0,0,0,0]}]}
+        {"cotNganhHang":["Tên cột 1","Tên cột 2","...","Tên cột 13"],"hangTong":[0,0,0,0,0,0,0,0,0,0,0,0,0],"nhanVien":[{"stt":1,"maNV":"65255","hoTen":"Nguyễn Thị Thu Thảo","soLieu":[0,0,0,0,0,0,0,0,0,0,0,0,0]}]}
         """
     }
 
@@ -1170,15 +1198,25 @@ final class DichVuQuetAnhGemini {
                 .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let u = clean.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN")).uppercased()
-            if u == "TONG" || u == "TONG CONG" || u == "NHAN VIEN" || u == "TOTAL" {
+            if u == "TONG" || u == "TONG CONG" || u == "NHAN VIEN" || u == "TOTAL" || u == "STT" {
                 return nil
             }
-            var ma = maPhu.trimmingCharacters(in: .whitespacesAndNewlines)
-            if ma.isEmpty, let r = clean.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) {
-                ma = String(clean[r])
+            var ma = ""
+            if let rMaPhu = maPhu.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) {
+                ma = String(maPhu[rMaPhu])
             }
-            let ten = clean
-                .replacingOccurrences(of: ma, with: "")
+            var phanTen = clean
+            if let rMaTrongChuoi = clean.range(of: "\\b\\d{4,7}\\b", options: .regularExpression) {
+                if ma.isEmpty {
+                    ma = String(clean[rMaTrongChuoi])
+                }
+                phanTen = String(clean[rMaTrongChuoi.upperBound...])
+            } else if !ma.isEmpty {
+                phanTen = clean.replacingOccurrences(of: ma, with: "")
+            }
+            let ten = phanTen
+                .replacingOccurrences(of: "^(?:\\d{1,2}\\s*[.\\-–—:|]\\s*)+", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "^\\d{1,2}\\s+", with: "", options: .regularExpression)
                 .replacingOccurrences(of: "^[\\s\\-–—:|_]+|[\\s\\-–—:|_]+$", with: "", options: .regularExpression)
                 .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1249,8 +1287,9 @@ final class DichVuQuetAnhGemini {
 
             // Đối chiếu với bản đồ pixel thực tế của ảnh (luoiO):
             // 1. Ô nào trên ảnh là dấu "—" (coSo == false) thì bắt buộc bằng 0 (chặn đứng 100% lỗi nhảy số từ cột Android sang cột Realme hoặc giữa bất kỳ 2 cột nào).
-            // 2. Ô nào trên ảnh thực sự có chữ số (coSo == true) mà bị trả về 0 thì khôi phục chính xác từ hiệu số dòng TỔNG của cột đó (hoặc từ cột thương hiệu tương ứng).
-            if let luoiO, luoiO.soCotDuLieu == soCot, abs(dsNhanVienDong.count - luoiO.soHangNhanVien) <= 1 {
+            // 2. Ô nào trên ảnh thực sự có chữ số (coSo == true) mà bị trả về 0 thì khôi phục chính xác từ hiệu số dòng TỔNG của cột đó (bỏ qua sai số làm tròn <= 0.09 trên các ô in 0.00).
+            if let luoiO, luoiO.soCotDuLieu == soCot,
+               (abs(dsNhanVienDong.count - luoiO.soHangNhanVien) <= 1 || (dsNhanVienDong.count >= 15 && dsNhanVienDong.count <= luoiO.soHangNhanVien)) {
                 let soHangKhop = min(dsNhanVienDong.count, luoiO.soHangNhanVien)
                 for c in 0..<soCot {
                     for r in 0..<soHangKhop {
@@ -1259,25 +1298,27 @@ final class DichVuQuetAnhGemini {
                         }
                     }
                 }
-                // Khôi phục nếu có đúng 1 ô có số thực tế trên ảnh (coSo == true) bị Gemini bỏ sót thành 0 trong cột c
-                for c in 0..<soCot where mangTong[c] > 0.01 {
-                    var cacHangThieu: [Int] = []
-                    var tongDaCo: Double = 0
-                    for r in 0..<soHangKhop {
-                        if luoiO.coSoTheoCot[c][r] {
-                            let v = dsNhanVienDong[r].soLieu[c]
-                            if abs(v) <= 0.0001 {
-                                cacHangThieu.append(r)
-                            } else {
-                                tongDaCo += v
+                // Khôi phục nếu có đúng 1 ô có số thực tế trên ảnh (coSo == true) bị Gemini bỏ sót thành 0 trong cột c (chỉ bù khi hiệu số >= 0.10 để không ghi đè các ô in "0.00")
+                if abs(dsNhanVienDong.count - luoiO.soHangNhanVien) <= 1 {
+                    for c in 0..<soCot where mangTong[c] > 0.01 {
+                        var cacHangThieu: [Int] = []
+                        var tongDaCo: Double = 0
+                        for r in 0..<soHangKhop {
+                            if luoiO.coSoTheoCot[c][r] {
+                                let v = dsNhanVienDong[r].soLieu[c]
+                                if abs(v) <= 0.0001 {
+                                    cacHangThieu.append(r)
+                                } else {
+                                    tongDaCo += v
+                                }
                             }
                         }
-                    }
-                    if cacHangThieu.count == 1 {
-                        let rThieu = cacHangThieu[0]
-                        let phanConThieu = ((mangTong[c] - tongDaCo) * 100.0).rounded() / 100.0
-                        if phanConThieu > 0.01 {
-                            dsNhanVienDong[rThieu].soLieu[c] = phanConThieu
+                        if cacHangThieu.count == 1 {
+                            let rThieu = cacHangThieu[0]
+                            let phanConThieu = ((mangTong[c] - tongDaCo) * 100.0).rounded() / 100.0
+                            if phanConThieu >= 0.10 {
+                                dsNhanVienDong[rThieu].soLieu[c] = phanConThieu
+                            }
                         }
                     }
                 }

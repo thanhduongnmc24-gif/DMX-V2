@@ -3742,17 +3742,17 @@ final class KhoDuLieu {
 
     static let nhom13DichVuChuan: [String] = [
         "Vay tiền mặt",
+        "Ví trả sau",
         "Trả Chậm Điện máy & Gia dụng",
         "Bảo hiểm Thọ ĐMX",
-        "Ví trả sau",
         "Bảo hiểm Thọ ICT",
         "Bảo hiểm Tổng",
-        "Sim ĐMX",
         "Trả chậm Homecredit",
         "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT",
         "Sim",
-        "Nạp rút",
+        "Sim ĐMX",
         "VAS",
+        "Nạp rút",
         "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO"
     ]
 
@@ -3762,14 +3762,14 @@ final class KhoDuLieu {
         "Điện thoại Realme",
         "ĐIỆN THOẠI & TABLET ANDROID",
         "Camera",
-        "Sạc dự phòng",
         "Cáp sạc",
-        "Đồng hồ & Smartwatch",
         "Phụ kiện khác IT & Nhóm khác",
+        "Sạc dự phòng",
+        "Đồng hồ & Smartwatch",
         "Tai nghe",
         "Laptop",
-        "Loa Phụ Kiện",
-        "Đèn năng lượng mặt trời"
+        "Đèn năng lượng mặt trời",
+        "Loa Phụ Kiện"
     ]
 
     static let nhom13CEChuan: [String] = [
@@ -3780,11 +3780,11 @@ final class KhoDuLieu {
         "Máy sấy / Máy rửa chén",
         "Máy nước nóng",
         "Điện tử",
-        "Máy lọc nước",
-        "Máy giặt",
         "Máy lọc KK - Hút bụi - Hút ẩm",
-        "Nồi cơm & Nồi chiên",
         "Quạt gió",
+        "Máy giặt",
+        "Máy lọc nước",
+        "Nồi cơm & Nồi chiên",
         "Tủ Lạnh / Đông / Mát"
     ]
 
@@ -3951,6 +3951,7 @@ final class KhoDuLieu {
         khongDau = khongDau.replacingOccurrences(of: "^(?:T\\d{1,2}|711|111|I11|1I1|11)\\s+", with: "", options: .regularExpression)
 
         var boHauTo = khongDau
+            .replacingOccurrences(of: "\\bNHOM\\s*(?:CE|DV|ICT|1CT|LCT|0V|BV)\\b", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "DUNG\\s*NGUYEN\\s*THANH", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "NGUYEN\\s*THANH", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "DUNG\\s*NGUYEN", with: " ", options: .regularExpression)
@@ -4104,6 +4105,7 @@ final class KhoDuLieu {
 
         // Bỏ chữ chìm watermark, hậu tố đánh số (#2), đơn vị (DT/SL/DTLK/SLLK), nhãn phân nhóm (CE/ICT/DV) và số 11 thừa bị dính ở cuối
         s = s
+            .replacingOccurrences(of: "(?i)\\bnh[oóòỏõọôốồổỗộơớờởỡợ]m\\s*(?:ce|dv|ict|1ct|lct|0v|bv)\\b", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "(?i)d[uũ]ng\\s*nguy[eễ]n\\s*thanh", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "(?i)nguy[eễ]n\\s*thanh", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "(?i)d[uũ]ng\\s*nguy[eễ]n", with: " ", options: .regularExpression)
