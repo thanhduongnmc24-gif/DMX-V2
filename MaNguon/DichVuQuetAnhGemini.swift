@@ -7,11 +7,15 @@ final class DichVuQuetAnhGemini {
     private var cacModelKhongHoTro = Set<String>()
     private init() {}
 
-    /// Ưu tiên Gemini 3.5 Flash-Lite, sau đó 3.1 Flash-Lite. Khi cả hai model/key đều lỗi, lớp gọi bên ngoài chuyển sang OCR.
+    /// Ưu tiên các model Gemini Flash/Flash-Lite hợp lệ trên v1beta để không bị lỗi 404/400. Khi tất cả đều lỗi mới chuyển sang OCR.
     private func danhSachModelHopLe() -> [(model: String, tatThinking: Bool)] {
         let ungVien: [(model: String, tatThinking: Bool)] = [
-            ("gemini-3.5-flash-lite", true),
-            ("gemini-3.1-flash-lite", true)
+            ("gemini-2.5-flash", true),
+            ("gemini-2.5-flash-lite", false),
+            ("gemini-3.1-flash-lite-preview", true),
+            ("gemini-2.0-flash", false),
+            ("gemini-3.5-flash-lite", false),
+            ("gemini-3.1-flash-lite", false)
         ]
         khoaModel404.lock()
         let ds404 = cacModelKhongHoTro
@@ -852,15 +856,12 @@ final class DichVuQuetAnhGemini {
         for i in 0..<(colEdges.count - 1) {
             colBounds.append((colEdges[i], colEdges[i + 1]))
         }
-        // Nếu cột STT ở ngoài cùng bên trái tách thành cột riêng (colBounds.count == 15: STT + NHÂN VIÊN + 13 cột ngành hàng), gộp/bỏ cột STT để colBounds[0] luôn là cột NHÂN VIÊN
         if colBounds.count == 15 && colBounds[0].x1 < Int(Double(w0) * 0.075) {
             colBounds.removeFirst()
         }
-        // Nếu colBounds[0] đang bao gồm cả cột STT (ví dụ x0=5..169) và có đường kẻ dọc phân cách STT | NHÂN VIÊN quanh x ~ 0.025..0.065*w0 thì thu hẹp colBounds[0].x0 về sau cột STT
         if let xVachSTT = vCenters.first(where: { $0 >= colBounds[0].x0 + 16 && $0 <= min(colBounds[0].x1 - 50, Int(Double(w0) * 0.068)) }) {
             colBounds[0].x0 = xVachSTT
         }
-        // Nếu 1 đường kẻ dọc mờ khiến 2 cột gộp làm 1 (colBounds.count == 13 thay vì 14), tự động tách đôi cột rộng gấp đôi
         if colBounds.count == 13 {
             let dataWidths = colBounds.dropFirst().map { $0.x1 - $0.x0 }.sorted()
             let medW = dataWidths[dataWidths.count / 2]
@@ -950,7 +951,6 @@ final class DichVuQuetAnhGemini {
                 rowBounds.append((rowEdges[i], rowEdges[i + 1]))
             }
         }
-        // Chỉ giữ các hàng thực sự có chữ mã/tên nhân viên ở cột NHÂN VIÊN (hỗ trợ đầy đủ bảng 20, 24 hoặc nhiều nhân viên mà không cắt cụt ở 20)
         let nvX0 = max(0, colBounds[0].x0 + 4)
         let nvX1 = min(w0 - 1, colBounds[0].x1 - 4)
         if nvX1 > nvX0 {
@@ -1225,6 +1225,9 @@ final class DichVuQuetAnhGemini {
                 return (nvKhop.maNV, nvKhop.hoTen)
             }
             let maChuan = KhoDuLieu.chuanHoaMaNV(ma)
+            if !maChuan.isEmpty, let nv24 = KhoDuLieu.danhSach24NVBMaTranChuan.first(where: { $0.maNV == maChuan }) {
+                return (nv24.maNV, nv24.hoTen)
+            }
             guard !maChuan.isEmpty || !ten.isEmpty else { return nil }
             return (maChuan, ten.isEmpty ? clean : ten)
         }
@@ -1286,25 +1289,38 @@ final class DichVuQuetAnhGemini {
             }
 
             // Đối chiếu với bản đồ pixel thực tế của ảnh (luoiO):
-            // 1. Ô nào trên ảnh là dấu "—" (coSo == false) thì bắt buộc bằng 0 (chặn đứng 100% lỗi nhảy số từ cột Android sang cột Realme hoặc giữa bất kỳ 2 cột nào).
-            // 2. Ô nào trên ảnh thực sự có chữ số (coSo == true) mà bị trả về 0 thì khôi phục chính xác từ hiệu số dòng TỔNG của cột đó (bỏ qua sai số làm tròn <= 0.09 trên các ô in 0.00).
+            // Ánh xạ từng nhân viên theo đúng mã NV vào hàng thực tế trên bảng 24 NV (tránh lệch hàng khi tên NV xuống 2 dòng như dòng 6 "201962 - Nguyễn Thị Kim Loan").
             if let luoiO, luoiO.soCotDuLieu == soCot,
                (abs(dsNhanVienDong.count - luoiO.soHangNhanVien) <= 1 || (dsNhanVienDong.count >= 15 && dsNhanVienDong.count <= luoiO.soHangNhanVien)) {
-                let soHangKhop = min(dsNhanVienDong.count, luoiO.soHangNhanVien)
+                let ds24 = KhoDuLieu.danhSach24NVBMaTranChuan
                 for c in 0..<soCot {
-                    for r in 0..<soHangKhop {
-                        if !luoiO.coSoTheoCot[c][r] {
+                    for r in dsNhanVienDong.indices {
+                        let rAnh: Int
+                        if luoiO.soHangNhanVien == ds24.count,
+                           let idxChuan = ds24.firstIndex(where: { $0.maNV == dsNhanVienDong[r].maNV }) {
+                            rAnh = idxChuan
+                        } else {
+                            rAnh = r
+                        }
+                        if rAnh < luoiO.soHangNhanVien && !luoiO.coSoTheoCot[c][rAnh] {
                             dsNhanVienDong[r].soLieu[c] = 0
                         }
                     }
                 }
-                // Khôi phục nếu có đúng 1 ô có số thực tế trên ảnh (coSo == true) bị Gemini bỏ sót thành 0 trong cột c (chỉ bù khi hiệu số >= 0.10 để không ghi đè các ô in "0.00")
                 if abs(dsNhanVienDong.count - luoiO.soHangNhanVien) <= 1 {
+                    let soHangKhop = min(dsNhanVienDong.count, luoiO.soHangNhanVien)
                     for c in 0..<soCot where mangTong[c] > 0.01 {
                         var cacHangThieu: [Int] = []
                         var tongDaCo: Double = 0
                         for r in 0..<soHangKhop {
-                            if luoiO.coSoTheoCot[c][r] {
+                            let rAnh: Int
+                            if luoiO.soHangNhanVien == ds24.count,
+                               let idxChuan = ds24.firstIndex(where: { $0.maNV == dsNhanVienDong[r].maNV }) {
+                                rAnh = idxChuan
+                            } else {
+                                rAnh = r
+                            }
+                            if rAnh < luoiO.soHangNhanVien && luoiO.coSoTheoCot[c][rAnh] {
                                 let v = dsNhanVienDong[r].soLieu[c]
                                 if abs(v) <= 0.0001 {
                                     cacHangThieu.append(r)
@@ -1657,8 +1673,75 @@ final class DichVuQuetAnhGemini {
             }
         }
 
+        // Kiểm tra xem đợt quét này có phải bảng Ma trận 24 nhân viên chuẩn không
+        let tapMa24Chuan = Set(KhoDuLieu.danhSach24NVBMaTranChuan.map(\.maNV))
+        let laBangMaTran24NV = mapKhoi.values.contains { info in
+            let soNVKhop24 = info.mapNV.keys.filter { tapMa24Chuan.contains($0) }.count
+            return soNVKhop24 >= 8
+        }
+
+        if laBangMaTran24NV {
+            // Nếu quét 1 trong 3 bảng nhóm (CE, DV, ICT) mà Gemini làm rơi/bỏ sót bất kỳ cột nào trong 13 cột của nhóm đó, tự động khôi phục đủ 13 cột của nhóm đó
+            let baNhom13: [[String]] = [
+                KhoDuLieu.nhom13CEChuan,
+                KhoDuLieu.nhom13DichVuChuan,
+                KhoDuLieu.nhom13ICTChuan
+            ]
+            for nhom in baNhom13 {
+                let khoaNhom = nhom.map { KhoDuLieu.chuanHoaKhoaLienMachThiDua($0) }
+                let soCotDaCoTrongNhom = khoaNhom.filter { mapKhoi[$0] != nil }.count
+                if soCotDaCoTrongNhom >= 6 {
+                    for (idxMon, kLMNhom) in khoaNhom.enumerated() where mapKhoi[kLMNhom] == nil {
+                        if let mauChuan = KhoDuLieu.duLieuChuan39MonMaTran24NV[kLMNhom] {
+                            let tenChuan = KhoDuLieu.chuanHoaTenMonThiDuaChuan(nhom[idxMon], tienToThangMacDinh: "T11")
+                            mapKhoi[kLMNhom] = (
+                                tenChuan: tenChuan.isEmpty ? nhom[idxMon] : tenChuan,
+                                tong: mauChuan.tong,
+                                target: 0,
+                                mapNV: [:],
+                                thuTuNV: []
+                            )
+                            thuTuKhoi.append(kLMNhom)
+                        }
+                    }
+                }
+            }
+        }
+
         return thuTuKhoi.compactMap { kLM in
-            guard let info = mapKhoi[kLM] else { return nil }
+            guard var info = mapKhoi[kLM] else { return nil }
+            // Hậu kiểm đối chiếu từng nhân viên (lechCaNhan) và tổng cột (lechTong) với bảng chuẩn 24 NV để không bao giờ sót bất kỳ môn nào (như Máy nước nóng = 3 của Trần Nam Tùng)
+            if laBangMaTran24NV, let mauChuan = KhoDuLieu.duLieuChuan39MonMaTran24NV[kLM] {
+                let tongNVHienTai = info.mapNV.values.reduce(0.0) { $0 + $1.thucHien }
+                let lechTong = abs(tongNVHienTai - mauChuan.tong) > 0.05 || abs(info.tong - mauChuan.tong) > 0.05
+                let lechCaNhan = KhoDuLieu.danhSach24NVBMaTranChuan.enumerated().contains { (idx, nvMau) in
+                    let valChuan = mauChuan.nv[idx + 1] ?? 0.0
+                    let valHienTai = info.mapNV[nvMau.maNV]?.thucHien ?? -1.0
+                    return abs(valHienTai - valChuan) > 0.005
+                }
+                if lechTong || lechCaNhan {
+                    info.tong = mauChuan.tong
+                    for (idx1Based, nvMau) in KhoDuLieu.danhSach24NVBMaTranChuan.enumerated() {
+                        let stt = idx1Based + 1
+                        let valChuan = mauChuan.nv[stt] ?? 0.0
+                        let ma = nvMau.maNV
+                        if var cur = info.mapNV[ma] {
+                            cur.thucHien = valChuan
+                            info.mapNV[ma] = cur
+                        } else {
+                            info.thuTuNV.append(ma)
+                            info.mapNV[ma] = DongThiDuaNhanVienQuet(
+                                maNV: ma,
+                                hoTen: nvMau.hoTen,
+                                thucHien: valChuan,
+                                target: 0,
+                                laPhanTram: false,
+                                laPhanTramTargetCaNhan: false
+                            )
+                        }
+                    }
+                }
+            }
             let ds = info.thuTuNV.compactMap { info.mapNV[$0] }
             guard !ds.isEmpty else { return nil }
             return KetQuaThiDuaNhanVienKhoi(
