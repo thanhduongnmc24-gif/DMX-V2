@@ -3084,18 +3084,28 @@ final class KhoDuLieu {
             return it
         }
 
-        // Tiền ánh xạ doanh thu cá nhân theo mã NV 1 lần duy nhất
+        // Tiền ánh xạ doanh thu cá nhân theo mã NV 1 lần duy nhất (ưu tiên bản ghi có số liệu > 0 nếu trùng mã giữa 2 ảnh chụp giao nhau)
         var mapDTCaNhan: [String: DoanhThuNhanVienItem] = [:]
         for rawItem in dtNVList {
             let item = chuanHoaItemDTNV(rawItem)
             let maChuan = Self.chuanHoaMaNV(item.maNV)
+            let maDich: String?
             if tatCaMaSet.contains(maChuan) {
-                if mapDTCaNhan[maChuan] == nil {
-                    mapDTCaNhan[maChuan] = item
-                }
+                maDich = maChuan
             } else if let khop = Self.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsNV) {
-                if mapDTCaNhan[khop.maNV] == nil {
-                    mapDTCaNhan[khop.maNV] = item
+                maDich = khop.maNV
+            } else {
+                maDich = nil
+            }
+            if let ma = maDich {
+                if let cu = mapDTCaNhan[ma] {
+                    let diemCu = abs(cu.doanhThuQD) * 1000 + abs(cu.soLuong) * 10 + abs(cu.phanTramQuyDoi)
+                    let diemMoi = abs(item.doanhThuQD) * 1000 + abs(item.soLuong) * 10 + abs(item.phanTramQuyDoi)
+                    if diemMoi >= diemCu {
+                        mapDTCaNhan[ma] = item
+                    }
+                } else {
+                    mapDTCaNhan[ma] = item
                 }
             }
         }

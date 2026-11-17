@@ -489,7 +489,7 @@ final class DichVuQuetAnhGemini {
              + Trong mỗi thẻ: góc trên trái là tên môn ("T11 - ..."), góc trên phải là huy hiệu "DT" hoặc "SL", con số % lớn ở giữa bên trái là "phanTramDuKien" (DỰ KIẾN HOÀN THÀNH), và 4 ô số ở nửa dưới thẻ gồm: "THỰC HIỆN" -> "thucHien", "TARGET" -> "target", "% HT THÁNG" -> "phanTramHT", "DT DỰ KIẾN" / "SL DỰ KIẾN" -> "duKien".
            - ĐỊNH DẠNG D — BẢNG THI ĐUA THEO NGÀY / REALTIME (5 CỘT): [CHƯƠNG TRÌNH | THỰC HIỆN | TARGET NGÀY | % HT NGÀY | HẠNG VÙNG] -> đọc chính xác cột THỰC HIỆN vào "thucHien", TARGET NGÀY vào "target", con số phần trăm bên phải thanh tiến độ ở cột % HT NGÀY vào "phanTramHT", đặt "phanTramDuKien": 0 và "duKien": 0. ĐẶC BIỆT CHÚ Ý GIỮ NGUYÊN DẤU ÂM (-) của các số âm ở cả cột THỰC HIỆN và % HT NGÀY (ví dụ: thucHien: -0.94, target: 5.93, phanTramHT: -15.8).
         2. Đọc ĐẦY ĐỦ TẤT CẢ các dòng môn thi đua từ trên xuống dưới, kể cả các dòng có số âm (như -0.94, -15.8%), các dòng tên dài xuống 2-3 hàng chữ như "MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO" (loai: "SL") hoặc "Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT" và kể cả dòng có Thực hiện = 0, Target = 0. Không đưa nhãn DT, SL, CE, ICT, DV hay dấu + vào trong "ten".
-        3. Với bảng doanh thu nhân viên 5 cột (NHÂN VIÊN / NGÀNH HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG), trích đúng "maNV" (bỏ tiền tố id:) và "hoTen" vào mảng "nhanVien".
+        3. Với bảng Doanh thu Nhân viên (hỗ trợ cả bảng 6 cột [NHÂN VIÊN / NGÀNH HÀNG BI / NHÓM HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG | % HIỆU QUẢ TRẢ GÓP] và bảng 5 cột): đọc ĐẦY ĐỦ TẤT CẢ các dòng nhân viên bắt đầu từ DÒNG NHÂN VIÊN ĐẦU TIÊN ngay sát dưới thanh tiêu đề bảng (tuyệt đối không bỏ sót nhân viên đầu tiên ở đầu bảng như Nguyễn Ngọc Đẩu id: 23986 hay Hồ Ngọc Châu Ánh id: 285681) đến dòng cuối cùng của ảnh; trích đúng "maNV" (bỏ tiền tố id:), "hoTen", "soLuong", "doanhThuQD", "dtKhoanVay", "phanTramTiTrong" vào mảng "nhanVien".
         4. Với bảng Thi đua Nhân viên (mảng "thiDuaNhanVien"), hỗ trợ cả 2 mẫu:
            - MẪU 1 — MA TRẬN THEO NHÂN VIÊN ("Ma trận theo Nhân viên · 13 chương trình"):
              + Hỗ trợ 2 kiểu bố cục ma trận:
@@ -1753,18 +1753,21 @@ final class DichVuQuetAnhGemini {
         }
     }
 
-    /// Câu lệnh chuyên biệt đã tối ưu cho Gemini để quét bảng Doanh thu hợp nhất theo Nhân viên 5 cột
+    /// Câu lệnh chuyên biệt đã tối ưu cho Gemini để quét bảng Doanh thu hợp nhất theo Nhân viên (hỗ trợ cả bảng 6 cột và bảng 5 cột)
     private var promptDoanhThuNhanVien: String {
         """
-        Đây là ảnh bảng "Doanh thu hợp nhất" theo Nhân viên gồm đúng 5 cột từ trái sang phải:
-        - Cột 1 (NHÂN VIÊN / NGÀNH HÀNG BI / NHÓM HÀNG BI): Tên nhân viên ở dòng trên và mã nhân viên "id: <mã số>" ở dòng dưới (ví dụ: "Lê Tuấn", "id: 285688").
-        - Cột 2 (SỐ LƯỢNG): Số lượng đơn / lượt bill bán hàng (số nguyên như 77, 64, 62, 85, 55, 43, 98, 73, 51, 75, 65, 84, 59, 85, 53, 52, 50, 2).
-        - Cột 3 (DOANH THU QĐ): Doanh thu quy đổi (đơn vị triệu đồng, như 439, 433, 403, 381, 365, 339, 319, 314, 297, 264, 262, 258, 241, 204, 191, 171, 147, 0).
+        Đây là ảnh bảng "Doanh thu hợp nhất" theo Nhân viên (gồm 6 cột [NHÂN VIÊN / NGÀNH HÀNG BI / NHÓM HÀNG BI | SỐ LƯỢNG | DOANH THU QĐ | DT QĐ KHOẢN VAY | % TỈ TRỌNG | % HIỆU QUẢ TRẢ GÓP] hoặc 5 cột):
+        - Cột 1 (NHÂN VIÊN / NGÀNH HÀNG BI / NHÓM HÀNG BI): Tên nhân viên ở dòng trên (có dấu + ở đầu dòng) và mã nhân viên "id: <mã số>" ở dòng dưới (ví dụ: "+ Nguyễn Ngọc Đầu / id: 23986", "+ Hồ Ngọc Châu Ánh / id: 285681", "+ Lê Tuấn / id: 285688").
+        - Cột 2 (SỐ LƯỢNG): Số lượng đơn / lượt bill bán hàng (như 2, 3, 0, 4, 6, 1, 77, 64...).
+        - Cột 3 (DOANH THU QĐ): Doanh thu quy đổi (đơn vị triệu đồng, như 117, 31, 13, 12, 6, 2, 0, 439, 433...).
         - Cột 4 (DT QĐ KHOẢN VAY): Doanh thu quy đổi khoản vay (như 0).
-        - Cột 5 (% TỈ TRỌNG): Phần trăm tỉ trọng đóng góp có dấu % ở cột ngoài cùng bên phải (như 8.7%, 8.6%, 8.0%, 7.6%, 7.3%, 6.8%, 6.4%, 6.2%, 5.9%, 5.3%, 5.2%, 5.1%, 4.8%, 4.1%, 3.8%, 3.4%, 2.9%, 0.0%).
-        Bỏ qua hoàn toàn chữ chìm watermark nghiêng ("54453", "Dũng Nguyễn Thanh"). Tuyệt đối không gán cột SỐ LƯỢNG (cột 2) vào % TỈ TRỌNG (cột 5).
+        - Cột 5 (% TỈ TRỌNG): Phần trăm tỉ trọng đóng góp có dấu % (như 62.5%, 16.7%, 6.8%, 6.3%, 3.4%, 3.1%, 1.2%, 0.0%).
+        - Cột 6 (% HIỆU QUẢ TRẢ GÓP, nếu có): Nếu là dấu gạch ngang "—" hoặc "-" thì bỏ qua hoặc đặt bằng 0.
+        QUY TẮC BẮT BUỘC:
+        1. ĐẶC BIỆT CHÚ Ý: Phải đọc ĐẦY ĐỦ TẤT CẢ các dòng nhân viên bắt đầu từ DÒNG NHÂN VIÊN ĐẦU TIÊN ngay sát dưới thanh tiêu đề bảng (tuyệt đối không được bỏ sót bạn đầu tiên ở đầu bảng như "Nguyễn Ngọc Đầu / id: 23986" hay "Hồ Ngọc Châu Ánh / id: 285681") cho đến dòng cuối cùng của ảnh.
+        2. Bỏ qua hoàn toàn chữ chìm watermark nghiêng ("54453", "Dũng Nguyễn Thanh"). Tuyệt đối không lấy nhầm số giữa các cột.
         Trả về DUY NHẤT 1 đối tượng JSON theo đúng cấu trúc:
-        {"nhanVien":[{"maNV":"285688","hoTen":"Lê Tuấn","soLuong":77,"doanhThuQD":439,"dtKhoanVay":0,"phanTramTiTrong":8.7}]}
+        {"nhanVien":[{"maNV":"23986","hoTen":"Nguyễn Ngọc Đẩu","soLuong":2,"doanhThuQD":117,"dtKhoanVay":0,"phanTramTiTrong":62.5}]}
         """
     }
 
