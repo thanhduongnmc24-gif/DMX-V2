@@ -23,14 +23,53 @@ async function sendText(chat, text) {
   }
 }
 
+async function acceptInvitations() {
+  const all = await base.talk.getAllChatMids({
+    request: { withMemberChats: true, withInvitedChats: true },
+    syncReason: "INTERNAL",
+  });
+  for (const chatMid of all.invitedChatMids || []) {
+    await base.talk.acceptChatInvitation({
+      request: { reqSeq: await base.getReqseq(), chatMid },
+    });
+    console.log(`ACCEPTED_GROUP=${chatMid}`);
+  }
+}
+
+const { base, client } = await createLineClient();
+await acceptInvitations();
+const chats = await client.fetchJoinedChats();
+
+// Nhóm LINE cá nhân được gắn vào đúng tài khoản DMX bằng cùng lệnh mà app
+// đang hướng dẫn. Vì mã dùng một lần, việc đọc lại tin cũ không thể gắn trùng.
+for (const chat of chats) {
+  try {
+    const messages = await chat.fetchMessages(10);
+    for (const message of messages) {
+      if (message.isMyMessage) continue;
+      const match = String(message.text || "").trim().match(/^\/gannhom\s+(\d{6})$/i);
+      if (!match) continue;
+      try {
+        await api("/api/dmx/bot/nhom", { body: {
+          hanhDong: "gan_nhom", ma: match[1], lineGroupId: chat.mid, tenNhom: chat.name,
+        } });
+        await sendText(chat, "✅ Đã gắn nhóm với ứng dụng DMX. Bây giờ có thể chọn nhóm này và lưu lịch gửi trong app.");
+        console.log(`LINKED_GROUP=${chat.mid}`);
+      } catch {
+        // Mã đã dùng/hết hạn hoặc tin nhắn cũ: bỏ qua để không làm phiền nhóm.
+      }
+    }
+  } catch (error) {
+    console.error(`GROUP_SCAN_FAILED=${chat.mid}`, error);
+  }
+}
+
 const due = await api("/api/dmx/bot/nhom", { body: { hanhDong: "lich_den_han" } });
 if (!Array.isArray(due.lich) || due.lich.length === 0) {
   console.log("NO_DUE_REPORTS");
   process.exit(0);
 }
 
-const { base, client } = await createLineClient();
-const chats = await client.fetchJoinedChats();
 const chatByMid = new Map(chats.map((chat) => [chat.mid.toLowerCase(), chat]));
 const chatsByName = new Map();
 for (const chat of chats) {
