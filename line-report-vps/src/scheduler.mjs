@@ -23,12 +23,25 @@ if (!Array.isArray(due.lich) || due.lich.length === 0) {
 const { base, client } = await createLineClient();
 const chats = await client.fetchJoinedChats();
 const chatByMid = new Map(chats.map((chat) => [chat.mid.toLowerCase(), chat]));
+const chatsByName = new Map();
+for (const chat of chats) {
+  const key = chat.name.trim().toLocaleLowerCase("vi-VN");
+  chatsByName.set(key, [...(chatsByName.get(key) || []), chat]);
+}
 
 for (const schedule of due.lich) {
   try {
     if (!await stillActive(schedule.id)) continue;
     const groupKey = String(schedule.line_group_id || "").toLowerCase();
-    const chat = chatByMid.get(groupKey);
+    let chat = chatByMid.get(groupKey);
+    if (!chat) {
+      const relation = Array.isArray(schedule.dmx_line_nhom)
+        ? schedule.dmx_line_nhom[0]
+        : schedule.dmx_line_nhom;
+      const groupName = String(relation?.ten_nhom || "").trim().toLocaleLowerCase("vi-VN");
+      const matches = chatsByName.get(groupName) || [];
+      if (matches.length === 1) chat = matches[0];
+    }
     if (!chat) throw new Error(`Tài khoản BOT chưa ở trong nhóm ${schedule.line_group_id}`);
 
     let success = true;
