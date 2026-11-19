@@ -127,16 +127,14 @@ for (const schedule of due.lich) {
           await sendText(chat, `⚠️ Ảnh báo cáo không còn trên kho, gửi nội dung thay thế:\n\n${fallback}`.slice(0, 5000));
           continue;
         }
+        const imageBlob = await imageResponse.blob();
         try {
           await base.obs.uploadMediaByE2EE({
-            data: await imageResponse.blob(), oType: "image", to: chat.mid, filename: `${type}.jpg`,
+            data: imageBlob, oType: "image", to: chat.mid, filename: `${type}.jpg`,
           });
         } catch (error) {
           if (error?.data?.code !== "E2EE_RETRY_PLAIN") throw error;
-          const fallback = String(report.fullText || report.noiDung || report.text || "").trim();
-          if (!fallback) throw error;
-          await sendText(chat, `⚠️ Nhóm đang tắt Letter Sealing nên không gửi được ảnh mã hóa. Nội dung thay thế:\n\n${fallback}`.slice(0, 5000));
-          continue;
+          await base.obs.uploadObjTalk(chat.mid, "image", imageBlob, undefined, `${type}.jpg`);
         }
         await api("/api/dmx/bot/nhom", { body: {
           hanhDong: "danh_dau_anh_da_gui", lineGroupId: schedule.line_group_id,
