@@ -14,6 +14,15 @@ async function mark(id) {
   await api("/api/dmx/bot/nhom", { body: { hanhDong: "da_gui", id } });
 }
 
+async function sendText(chat, text) {
+  try {
+    return await chat.sendMessage(text);
+  } catch (error) {
+    if (error?.data?.code !== "E2EE_RETRY_PLAIN") throw error;
+    await base.talk.sendMessage({ to: chat.mid, text, e2ee: false });
+  }
+}
+
 const due = await api("/api/dmx/bot/nhom", { body: { hanhDong: "lich_den_han" } });
 if (!Array.isArray(due.lich) || due.lich.length === 0) {
   console.log("NO_DUE_REPORTS");
@@ -34,15 +43,16 @@ for (const schedule of due.lich) {
     if (!await stillActive(schedule.id)) continue;
     const groupKey = String(schedule.line_group_id || "").toLowerCase();
     let chat = chatByMid.get(groupKey);
+    let savedGroupName = "";
     if (!chat) {
       const relation = Array.isArray(schedule.dmx_line_nhom)
         ? schedule.dmx_line_nhom[0]
         : schedule.dmx_line_nhom;
-      const groupName = String(relation?.ten_nhom || "").trim().toLocaleLowerCase("vi-VN");
-      const matches = chatsByName.get(groupName) || [];
+      savedGroupName = String(relation?.ten_nhom || "").trim();
+      const matches = chatsByName.get(savedGroupName.toLocaleLowerCase("vi-VN")) || [];
       if (matches.length === 1) chat = matches[0];
     }
-    if (!chat) throw new Error(`Tài khoản BOT chưa ở trong nhóm ${schedule.line_group_id}`);
+    if (!chat) throw new Error(`Tài khoản BOT chưa ở trong nhóm "${savedGroupName || schedule.line_group_id}"`);
 
     let success = true;
     for (const rawType of schedule.cac_noi_dung || []) {
@@ -58,7 +68,7 @@ for (const schedule of due.lich) {
       });
 
       if (schedule.kieu_gui === "text") {
-        await chat.sendMessage(String(report.fullText || report.noiDung || report.text || "Báo cáo chưa có nội dung.").slice(0, 5000));
+        await sendText(chat, String(report.fullText || report.noiDung || report.text || "Báo cáo chưa có nội dung.").slice(0, 5000));
         continue;
       }
 
@@ -72,10 +82,23 @@ for (const schedule of due.lich) {
         } });
         if (check.canGui === false) continue;
         const imageResponse = await fetch(imageUrl);
-        if (!imageResponse.ok) throw new Error(`Không tải được ảnh ${type}: HTTP ${imageResponse.status}`);
-        await base.obs.uploadMediaByE2EE({
-          data: await imageResponse.blob(), oType: "image", to: chat.mid, filename: `${type}.jpg`,
-        });
+        if (!imageResponse.ok) {
+          const fallback = String(report.fullText || report.noiDung || report.text || "").trim();
+          if (!fallback) throw new Error(`Không tải được ảnh ${type}: HTTP ${imageResponse.status} (${imageUrl})`);
+          await sendText(chat, `⚠️ Ảnh báo cáo không còn trên kho, gửi nội dung thay thế:\n\n${fallback}`.slice(0, 5000));
+          continue;
+        }
+        try {
+          await base.obs.uploadMediaByE2EE({
+            data: await imageResponse.blob(), oType: "image", to: chat.mid, filename: `${type}.jpg`,
+          });
+        } catch (error) {
+          if (error?.data?.code !== "E2EE_RETRY_PLAIN") throw error;
+          const fallback = String(report.fullText || report.noiDung || report.text || "").trim();
+          if (!fallback) throw error;
+          await sendText(chat, `⚠️ Nhóm đang tắt Letter Sealing nên không gửi được ảnh mã hóa. Nội dung thay thế:\n\n${fallback}`.slice(0, 5000));
+          continue;
+        }
         await api("/api/dmx/bot/nhom", { body: {
           hanhDong: "danh_dau_anh_da_gui", lineGroupId: schedule.line_group_id,
           nguoiDungId: schedule.nguoi_dung_id, sieuThiId: schedule.sieu_thi_id,
@@ -83,12 +106,11 @@ for (const schedule of due.lich) {
         } });
       }
       const title = String(report.text || report.noiDung || "").trim();
-      if (title) await chat.sendMessage(title.slice(0, 5000));
+      if (title) await sendText(chat, title.slice(0, 5000));
     }
     if (success) await mark(schedule.id);
     console.log(`SENT_SCHEDULE=${schedule.id}`);
   } catch (error) {
     console.error(`SCHEDULE_FAILED=${schedule.id}`, error);
-    process.exitCode = 1;
   }
 }
