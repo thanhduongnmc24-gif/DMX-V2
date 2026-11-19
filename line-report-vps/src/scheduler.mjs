@@ -151,3 +151,7 @@ for (const schedule of due.lich) {
     console.error(`SCHEDULE_FAILED=${schedule.id}`, error);
   }
 }
+
+// Một số kết nối LINE giữ event loop mở sau khi đã gửi xong. Kết thúc tiến
+// trình để systemd có thể chạy nhịp kế tiếp mà không bị kẹt ở trạng thái chạy.
+process.exit(0);
