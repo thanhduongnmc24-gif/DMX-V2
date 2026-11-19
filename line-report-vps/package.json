@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "login": "node src/login.mjs"
+    "login": "node src/login.mjs",
+    "list-chats": "node src/list-chats.mjs",
+    "run-once": "node src/scheduler.mjs"
   },
   "dependencies": {
     "@evex-dev/linejs": "3.6.5"
