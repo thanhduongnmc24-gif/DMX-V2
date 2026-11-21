@@ -601,10 +601,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         nutNhapTatCa.setImage(UIImage(systemName: "photo.stack.fill", withConfiguration: cfgPhoto), for: .normal)
         nutNhapTatCa.setTitle(" Nhập tất cả", for: .normal)
         nutNhapTatCa.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
-        nutNhapTatCa.titleLabel?.numberOfLines = 0
-        nutNhapTatCa.titleLabel?.lineBreakMode = .byWordWrapping
+        nutNhapTatCa.titleLabel?.numberOfLines = 1
+        nutNhapTatCa.titleLabel?.lineBreakMode = .byTruncatingTail
         nutNhapTatCa.titleLabel?.textAlignment = .center
-        nutNhapTatCa.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutNhapTatCa.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutNhapTatCa.titleLabel?.minimumScaleFactor = 0.75
         nutNhapTatCa.backgroundColor = BangMauBCTD.xanhChuDao
         nutNhapTatCa.tintColor = .white
         nutNhapTatCa.setTitleColor(.white, for: .normal)
@@ -935,25 +936,27 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         // 3. Thanh nút Quét & Xoá
         nutThemAnhMoi.setImage(UIImage(systemName: "camera.viewfinder"), for: .normal)
         nutThemAnhMoi.setTitle(" Thêm ảnh", for: .normal)
-        nutThemAnhMoi.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
-        nutThemAnhMoi.titleLabel?.numberOfLines = 0
-        nutThemAnhMoi.titleLabel?.lineBreakMode = .byWordWrapping
+        nutThemAnhMoi.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .bold)
+        nutThemAnhMoi.titleLabel?.numberOfLines = 1
+        nutThemAnhMoi.titleLabel?.lineBreakMode = .byTruncatingTail
         nutThemAnhMoi.titleLabel?.textAlignment = .center
-        nutThemAnhMoi.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutThemAnhMoi.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutThemAnhMoi.titleLabel?.minimumScaleFactor = 0.75
         nutThemAnhMoi.backgroundColor = BangMauBCTD.xanhChuDao
         nutThemAnhMoi.tintColor = .white
         nutThemAnhMoi.setTitleColor(.white, for: .normal)
         nutThemAnhMoi.layer.cornerRadius = 9
-        nutThemAnhMoi.contentEdgeInsets = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
+        nutThemAnhMoi.contentEdgeInsets = UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
         nutThemAnhMoi.addTarget(self, action: #selector(bamThemAnhMoi), for: .touchUpInside)
 
         nutNhapDoanhThuNV.setImage(UIImage(systemName: "camera.fill"), for: .normal)
         nutNhapDoanhThuNV.setTitle(" Nhập ảnh Doanh thu", for: .normal)
         nutNhapDoanhThuNV.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
-        nutNhapDoanhThuNV.titleLabel?.numberOfLines = 0
-        nutNhapDoanhThuNV.titleLabel?.lineBreakMode = .byWordWrapping
+        nutNhapDoanhThuNV.titleLabel?.numberOfLines = 1
+        nutNhapDoanhThuNV.titleLabel?.lineBreakMode = .byTruncatingTail
         nutNhapDoanhThuNV.titleLabel?.textAlignment = .center
-        nutNhapDoanhThuNV.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutNhapDoanhThuNV.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutNhapDoanhThuNV.titleLabel?.minimumScaleFactor = 0.72
         nutNhapDoanhThuNV.backgroundColor = BangMauBCTD.indigoNhatNen
         nutNhapDoanhThuNV.tintColor = BangMauBCTD.indigoDam
         nutNhapDoanhThuNV.setTitleColor(BangMauBCTD.indigoDam, for: .normal)
@@ -966,10 +969,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         nutNhapGioCongNV.setImage(UIImage(systemName: "clock.fill"), for: .normal)
         nutNhapGioCongNV.setTitle(" Quét Giờ công", for: .normal)
         nutNhapGioCongNV.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
-        nutNhapGioCongNV.titleLabel?.numberOfLines = 0
-        nutNhapGioCongNV.titleLabel?.lineBreakMode = .byWordWrapping
+        nutNhapGioCongNV.titleLabel?.numberOfLines = 1
+        nutNhapGioCongNV.titleLabel?.lineBreakMode = .byTruncatingTail
         nutNhapGioCongNV.titleLabel?.textAlignment = .center
-        nutNhapGioCongNV.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutNhapGioCongNV.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutNhapGioCongNV.titleLabel?.minimumScaleFactor = 0.72
         nutNhapGioCongNV.backgroundColor = UIColor(red: 0.90, green: 0.97, blue: 0.94, alpha: 1)
         nutNhapGioCongNV.tintColor = UIColor(red: 0.05, green: 0.48, blue: 0.30, alpha: 1)
         nutNhapGioCongNV.setTitleColor(UIColor(red: 0.05, green: 0.48, blue: 0.30, alpha: 1), for: .normal)
@@ -982,26 +986,28 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         nutXoaQuetLai.setTitle(" Xoá", for: .normal)
         nutXoaQuetLai.setImage(UIImage(systemName: "trash.fill"), for: .normal)
         nutXoaQuetLai.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
-        nutXoaQuetLai.titleLabel?.numberOfLines = 0
-        nutXoaQuetLai.titleLabel?.lineBreakMode = .byWordWrapping
+        nutXoaQuetLai.titleLabel?.numberOfLines = 1
+        nutXoaQuetLai.titleLabel?.lineBreakMode = .byTruncatingTail
         nutXoaQuetLai.titleLabel?.textAlignment = .center
-        nutXoaQuetLai.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutXoaQuetLai.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutXoaQuetLai.titleLabel?.minimumScaleFactor = 0.75
         nutXoaQuetLai.backgroundColor = BangMauBCTD.doYeuPill
         nutXoaQuetLai.tintColor = BangMauBCTD.doYeuChu
         nutXoaQuetLai.setTitleColor(BangMauBCTD.doYeuChu, for: .normal)
         nutXoaQuetLai.layer.cornerRadius = 9
         nutXoaQuetLai.layer.borderWidth = 1
         nutXoaQuetLai.layer.borderColor = BangMauBCTD.doYeuVach.withAlphaComponent(0.3).cgColor
-        nutXoaQuetLai.contentEdgeInsets = UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
+        nutXoaQuetLai.contentEdgeInsets = UIEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
         nutXoaQuetLai.addTarget(self, action: #selector(bamXoaQuetLai), for: .touchUpInside)
 
         nutThemThuCong.setImage(UIImage(systemName: "plus.circle.fill"), for: .normal)
         nutThemThuCong.setTitle(" Nhập/Mẫu", for: .normal)
         nutThemThuCong.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
-        nutThemThuCong.titleLabel?.numberOfLines = 0
-        nutThemThuCong.titleLabel?.lineBreakMode = .byWordWrapping
+        nutThemThuCong.titleLabel?.numberOfLines = 1
+        nutThemThuCong.titleLabel?.lineBreakMode = .byTruncatingTail
         nutThemThuCong.titleLabel?.textAlignment = .center
-        nutThemThuCong.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutThemThuCong.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutThemThuCong.titleLabel?.minimumScaleFactor = 0.75
         nutThemThuCong.backgroundColor = BangMauBCTD.nenThePhu
         nutThemThuCong.tintColor = BangMauBCTD.chuChinh
         nutThemThuCong.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
@@ -1014,7 +1020,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         nutXuatAnhTrongXemSo.setImage(UIImage(systemName: "square.and.arrow.up"), for: .normal)
         nutXuatAnhTrongXemSo.setTitle(" Xuất ảnh", for: .normal)
         nutXuatAnhTrongXemSo.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
-        nutXuatAnhTrongXemSo.titleLabel?.numberOfLines = 0
+        nutXuatAnhTrongXemSo.titleLabel?.numberOfLines = 1
+        nutXuatAnhTrongXemSo.titleLabel?.lineBreakMode = .byTruncatingTail
+        nutXuatAnhTrongXemSo.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutXuatAnhTrongXemSo.titleLabel?.minimumScaleFactor = 0.75
         nutXuatAnhTrongXemSo.backgroundColor = BangMauBCTD.xanhDatVach
         nutXuatAnhTrongXemSo.tintColor = .white
         nutXuatAnhTrongXemSo.setTitleColor(.white, for: .normal)
@@ -1448,10 +1457,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
             let nut = UIButton(type: .system)
             nut.setTitle(ten + " ▸", for: .normal)
             nut.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
-            nut.titleLabel?.numberOfLines = 0
-            nut.titleLabel?.lineBreakMode = .byWordWrapping
+            nut.titleLabel?.numberOfLines = 1
+            nut.titleLabel?.lineBreakMode = .byTruncatingTail
             nut.titleLabel?.textAlignment = .left
-            nut.titleLabel?.adjustsFontSizeToFitWidth = false
+            nut.titleLabel?.adjustsFontSizeToFitWidth = true
+            nut.titleLabel?.minimumScaleFactor = 0.75
             nut.contentHorizontalAlignment = .left
             nut.backgroundColor = BangMauBCTD.nenHeaderPhu
             nut.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
@@ -1601,30 +1611,23 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
 
         cacNutLoaiXuatAnh.removeAll()
         let tatCaLoai = LoaiBaoCaoXuatAnh.allCases
-        var hangHienTai: UIStackView?
-        for (i, loai) in tatCaLoai.enumerated() {
-            if i % 2 == 0 {
-                let h = UIStackView()
-                h.axis = .horizontal
-                h.spacing = 8
-                h.distribution = .fillEqually
-                nganLuoiLoai.addArrangedSubview(h)
-                hangHienTai = h
-            }
+        for loai in tatCaLoai {
             let nut = UIButton(type: .custom)
             nut.tag = loai.rawValue
             nut.setTitle(loai.tieuDeNgan, for: .normal)
-            nut.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
-            nut.titleLabel?.numberOfLines = 0
-            nut.titleLabel?.lineBreakMode = .byWordWrapping
-            nut.titleLabel?.textAlignment = .center
-            nut.titleLabel?.adjustsFontSizeToFitWidth = false
+            nut.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+            nut.titleLabel?.numberOfLines = 1
+            nut.titleLabel?.lineBreakMode = .byTruncatingTail
+            nut.titleLabel?.textAlignment = .left
+            nut.titleLabel?.adjustsFontSizeToFitWidth = true
+            nut.titleLabel?.minimumScaleFactor = 0.75
+            nut.contentHorizontalAlignment = .left
             nut.layer.cornerRadius = 10
             nut.layer.borderWidth = 1.2
-            nut.contentEdgeInsets = UIEdgeInsets(top: 10, left: 8, bottom: 10, right: 8)
+            nut.contentEdgeInsets = UIEdgeInsets(top: 11, left: 12, bottom: 11, right: 12)
             nut.addTarget(self, action: #selector(bamChonLoaiBaoCaoXuatAnh(_:)), for: .touchUpInside)
             cacNutLoaiXuatAnh.append(nut)
-            hangHienTai?.addArrangedSubview(nut)
+            nganLuoiLoai.addArrangedSubview(nut)
         }
 
         NSLayoutConstraint.activate([
@@ -3836,21 +3839,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
 
         let nhanCheDo = cheDoDoanhThu.tieuDe
         if laNhanVien {
-            if cheDoDoanhThu == .luyKe {
-                nutThemAnhMoi.isHidden = false
-                nutThemAnhMoi.setTitle(" Nhập Thi đua NV", for: .normal)
-                nutNhapDoanhThuNV.isHidden = false
-                nutNhapDoanhThuNV.setTitle(" Nhập Doanh thu NV", for: .normal)
-                nutNhapGioCongNV.isHidden = false
-                nutNhapGioCongNV.setTitle(" Quét Giờ công", for: .normal)
-                rangBuocBangRongHaiNutNV?.isActive = true
-            } else {
-                nutThemAnhMoi.isHidden = true
-                nutNhapDoanhThuNV.isHidden = false
-                nutNhapDoanhThuNV.setTitle(" Nhập Doanh thu NV (Realtime)", for: .normal)
-                nutNhapGioCongNV.isHidden = true
-                rangBuocBangRongHaiNutNV?.isActive = false
-            }
+            nutThemAnhMoi.isHidden = false
+            nutThemAnhMoi.setTitle(" Nhập dữ liệu Nhân viên (\(nhanCheDo))", for: .normal)
+            nutNhapDoanhThuNV.isHidden = true
+            nutNhapGioCongNV.isHidden = true
+            rangBuocBangRongHaiNutNV?.isActive = false
         } else {
             nutThemAnhMoi.isHidden = false
             nutThemAnhMoi.setTitle(" Thêm ảnh Thi đua (\(nhanCheDo))", for: .normal)
@@ -4117,16 +4110,49 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         case .luyKe, .realtime:
             moHuongDanQuetAnhThiDua()
         case .nhanVien:
-            if cheDoDoanhThu == .realtime {
-                moChonAnh(cheDo: .doanhThuNhanVien(.realtime), gioiHan: 0)
-            } else {
-                moChonAnh(cheDo: .thiDuaNhanVien(.luyKe), gioiHan: 0)
-            }
+            moMenuNhapDuLieuNhanVien()
         case .bieuDo:
             moChonAnh(cheDo: .doanhThu(.realtime), gioiHan: 2)
         case .tonKho:
             khungTonKho.kichHoatNeuCan()
         }
+    }
+
+    private func moMenuNhapDuLieuNhanVien() {
+        let cheDo = cheDoDoanhThu
+        let tenCheDo = cheDo.tieuDe
+        var cacMuc: [MucChonDMX] = [
+            MucChonDMX(tieuDe: "📥 Nhập tất cả ảnh \(tenCheDo)") { [weak self] in
+                self?.moChonAnh(cheDo: .tatCaAnhTheoTab(cheDo), gioiHan: 0)
+            }
+        ]
+        if cheDo == .luyKe {
+            cacMuc.append(MucChonDMX(tieuDe: "👥 Ảnh Ma trận Thi đua Nhân viên") { [weak self] in
+                self?.moChonAnh(cheDo: .thiDuaNhanVien(.luyKe), gioiHan: 0)
+            })
+            cacMuc.append(MucChonDMX(tieuDe: "💰 Ảnh Bảng Doanh thu Nhân viên") { [weak self] in
+                self?.moChonAnh(cheDo: .doanhThuNhanVien(.luyKe), gioiHan: 0)
+            })
+            cacMuc.append(MucChonDMX(tieuDe: "⏱️ Ảnh Bảng Giờ công Nhân viên") { [weak self] in
+                self?.moChonAnh(cheDo: .gioCongNhanVien(.luyKe), gioiHan: 0)
+            })
+            cacMuc.append(MucChonDMX(tieuDe: "🎯 Chia target mặt hàng cho nhân viên") { [weak self] in
+                self?.moNhanhChiaTarget()
+            })
+        } else {
+            cacMuc.append(MucChonDMX(tieuDe: "💰 Ảnh Bảng Doanh thu Nhân viên Realtime") { [weak self] in
+                self?.moChonAnh(cheDo: .doanhThuNhanVien(.realtime), gioiHan: 0)
+            })
+        }
+        cacMuc.append(MucChonDMX(tieuDe: "👤 Danh sách nhân viên quản lý") { [weak self] in
+            self?.moNhanhQuanLyNV()
+        })
+        cacMuc.append(MucChonDMX(tieuDe: "Đóng", kieu: .huy))
+
+        hienMenuChon(
+            tieuDe: "Nhập dữ liệu Nhân viên \(tenCheDo)",
+            cacMuc: cacMuc
+        )
     }
 
     @objc private func bamNhapAnhDoanhThuNV() {
@@ -4166,14 +4192,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                     self?.thayTheBangThiDuaKhiQuet = false
                     self?.moChonTepAnh(cheDo: .thiDua(cheDoMucTieu), gioiHan: 0)
                 },
-                MucChonDMX(tieuDe: "🔄 Quét mới Thi đua \(tenCheDo) (Thay thế bảng \(tenCheDo))", kieu: .nguyHiem) { [weak self] in
+                MucChonDMX(tieuDe: "🔄 Quét mới & thay thế bảng \(tenCheDo)", kieu: .nguyHiem) { [weak self] in
                     self?.thayTheBangThiDuaKhiQuet = true
                     self?.moChonAnh(cheDo: .thiDua(cheDoMucTieu), gioiHan: 0)
                 },
                 MucChonDMX(tieuDe: "\(bieuTuongKhac) Chuyển sang nhập Thi đua \(cheDoKhac.tieuDe)") { [weak self] in
                     self?.moHuongDanQuetAnhThiDua(cheDo: cheDoKhac)
                 },
-                MucChonDMX(tieuDe: "Huỷ", kieu: .huy)
+                MucChonDMX(tieuDe: "Đóng", kieu: .huy)
             ]
         )
     }
@@ -4359,39 +4385,46 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         let tenCheDo = cheDo.tieuDe
         let ptTarget = KhoDuLieu.dungChung.caiDat.phanTramTarget(cho: cheDo)
 
+        var cacMuc: [MucChonDMX] = [
+            MucChonDMX(tieuDe: "🎚️ Target hiển thị: \(Int(ptTarget))%") { [weak self] in
+                self?.moDieuChinhPhanTramTarget()
+            },
+            MucChonDMX(tieuDe: "🎯 Tùy chỉnh target các môn thi đua") { [weak self] in
+                self?.moDieuChinhTargetMonThiDua()
+            },
+            MucChonDMX(tieuDe: "📥 Nhập tất cả ảnh \(tenCheDo)") { [weak self] in
+                self?.moChonAnh(cheDo: .tatCaAnhTheoTab(cheDo), gioiHan: 0)
+            },
+            MucChonDMX(tieuDe: "📷 Ảnh doanh thu (Thực / Quy đổi)") { [weak self] in
+                self?.moChonAnh(cheDo: .doanhThu(cheDo), gioiHan: 2)
+            },
+            MucChonDMX(tieuDe: "📋 Ảnh thi đua ngành hàng") { [weak self] in
+                self?.moHuongDanQuetAnhThiDua(cheDo: cheDo)
+            }
+        ]
+        if cheDo == .realtime {
+            cacMuc.append(MucChonDMX(tieuDe: "👥 Ảnh Bảng Doanh thu Nhân viên") { [weak self] in
+                self?.moChonAnh(cheDo: .doanhThuNhanVien(.realtime), gioiHan: 0)
+            })
+        } else {
+            cacMuc.append(MucChonDMX(tieuDe: "👥 Ảnh Ma trận Thi đua Nhân viên") { [weak self] in
+                self?.moChonAnh(cheDo: .thiDuaNhanVien(.luyKe), gioiHan: 0)
+            })
+            cacMuc.append(MucChonDMX(tieuDe: "💰 Ảnh Bảng Doanh thu Nhân viên") { [weak self] in
+                self?.moChonAnh(cheDo: .doanhThuNhanVien(.luyKe), gioiHan: 0)
+            })
+            cacMuc.append(MucChonDMX(tieuDe: "⏱️ Ảnh Bảng Giờ công Nhân viên") { [weak self] in
+                self?.moChonAnh(cheDo: .gioCongNhanVien(.luyKe), gioiHan: 0)
+            })
+        }
+        cacMuc.append(MucChonDMX(tieuDe: "✏️ Nhập / Sửa tay Doanh thu & Lượt khách") { [weak self] in
+            self?.moHopThoaiNhapDoanhThu()
+        })
+        cacMuc.append(MucChonDMX(tieuDe: "Đóng", kieu: .huy))
+
         hienMenuChon(
             tieuDe: "Nhập dữ liệu \(tenCheDo)",
-            cacMuc: [
-                MucChonDMX(tieuDe: "🎚️ Target hiển thị: \(Int(ptTarget))%") { [weak self] in
-                    self?.moDieuChinhPhanTramTarget()
-                },
-                MucChonDMX(tieuDe: "🎯 Tùy chỉnh target các môn thi đua") { [weak self] in
-                    self?.moDieuChinhTargetMonThiDua()
-                },
-                MucChonDMX(tieuDe: "📥 Nhập tất cả ảnh \(tenCheDo)") { [weak self] in
-                    self?.moChonAnh(cheDo: .tatCaAnhTheoTab(cheDo), gioiHan: 0)
-                },
-                MucChonDMX(tieuDe: "📷 Ảnh doanh thu (Thực / Quy đổi)") { [weak self] in
-                    self?.moChonAnh(cheDo: .doanhThu(cheDo), gioiHan: 2)
-                },
-                MucChonDMX(tieuDe: "📋 Ảnh thi đua ngành hàng") { [weak self] in
-                    self?.moHuongDanQuetAnhThiDua(cheDo: cheDo)
-                },
-                MucChonDMX(tieuDe: cheDo == .realtime ? "👥 Ảnh bảng Doanh thu Nhân viên (Realtime)" : "👥 Ảnh Ma trận Thi đua Nhân viên Lũy kế (7 ảnh)") { [weak self] in
-                    if cheDo == .realtime {
-                        self?.moChonAnh(cheDo: .doanhThuNhanVien(.realtime), gioiHan: 0)
-                    } else {
-                        self?.moChonAnh(cheDo: .thiDuaNhanVien(.luyKe), gioiHan: 0)
-                    }
-                },
-                MucChonDMX(tieuDe: "⏱️ Ảnh Bảng Giờ công Nhân viên Lũy kế (2 mục giờ công)") { [weak self] in
-                    self?.moChonAnh(cheDo: .gioCongNhanVien(.luyKe), gioiHan: 0)
-                },
-                MucChonDMX(tieuDe: "✏️ Nhập / Sửa tay Doanh thu \(tenCheDo) (& Lượt khách)") { [weak self] in
-                    self?.moHopThoaiNhapDoanhThu()
-                },
-                MucChonDMX(tieuDe: "Đóng", kieu: .huy)
-            ]
+            cacMuc: cacMuc
         )
     }
 
@@ -4575,7 +4608,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
 
         hienMenuChon(
             tieuDe: "Chọn nguồn nhập ảnh",
-            thongDiep: "Chọn ảnh từ Thư viện Ảnh hoặc mở ứng dụng Tệp (Files) để chọn tệp ảnh gốc:",
             cacMuc: [
                 MucChonDMX(tieuDe: "🖼️ Chọn ảnh từ Thư viện Ảnh") { [weak self] in
                     self?.moThuVienAnh(cheDo: cheDo, gioiHan: gioiHan)
@@ -4583,7 +4615,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 MucChonDMX(tieuDe: "📁 Nhập ảnh từ Tệp (Files)") { [weak self] in
                     self?.moChonTepAnh(cheDo: cheDo, gioiHan: gioiHan)
                 },
-                MucChonDMX(tieuDe: "Huỷ", kieu: .huy)
+                MucChonDMX(tieuDe: "Đóng", kieu: .huy)
             ]
         )
     }
@@ -5377,10 +5409,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         let dsNV = KhoDuLieu.dungChung.tongHopNhanVien(den: ngayHienTai, sapXep: .tenAZ, cheDo: cheDoNV)
 
         let cacMuc: [MucChonDMX] = [
-            MucChonDMX(tieuDe: "☁️ Tải ảnh từng nhân viên lên kho đã chọn") { [weak self] in
+            MucChonDMX(tieuDe: "☁️ Tải ảnh từng nhân viên lên kho") { [weak self] in
                 self?.xuatTatCaAnhLenServerSupabase(chiAnhNhanVien: true)
             },
-            MucChonDMX(tieuDe: "📊 Ảnh Bảng Xếp Hạng Nhân Viên — Lũy kế") { [weak self] in
+            MucChonDMX(tieuDe: "📊 Bảng xếp hạng Nhân viên — Lũy kế") { [weak self] in
                 guard let self = self,
                       let anh = self.bangNhanVien.taoAnhBaoCaoNhanVien(
                           ngay: self.ngayHienTai,
@@ -5390,7 +5422,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                       ) else { return }
                 self.chiaSe([anh])
             },
-            MucChonDMX(tieuDe: "⚡ Ảnh Bảng Xếp Hạng Nhân Viên — Realtime") { [weak self] in
+            MucChonDMX(tieuDe: "⚡ Bảng xếp hạng Nhân viên — Realtime") { [weak self] in
                 guard let self = self,
                       let anh = self.bangNhanVien.taoAnhBaoCaoNhanVien(
                           ngay: self.ngayHienTai,
@@ -5400,7 +5432,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                       ) else { return }
                 self.chiaSe([anh])
             },
-            MucChonDMX(tieuDe: "❤️‍🩹 Ảnh Biểu Đồ Sức Khỏe \(dsNV.count) NV & Cảnh Báo Top 5 Yếu") { [weak self] in
+            MucChonDMX(tieuDe: "❤️‍🩹 Biểu đồ sức khỏe \(dsNV.count) NV & Top 5 yếu") { [weak self] in
                 guard let self = self,
                       let anh = self.bangRealtimeThang.taoAnhBaoCaoSucKhoeNhanVien(
                           ngay: self.ngayHienTai,
@@ -5409,26 +5441,25 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                       ) else { return }
                 self.chiaSe([anh])
             },
-            MucChonDMX(tieuDe: "🖼️ Ảnh Tổng Hợp Chi Tiết \(dsNV.count) Nhân Viên (Gộp 1 ảnh — \(cheDoNV.tieuDe))") { [weak self] in
+            MucChonDMX(tieuDe: "🖼️ Ảnh gộp chi tiết \(dsNV.count) NV (\(cheDoNV.tieuDe))") { [weak self] in
                 guard let self = self,
                       let anhGop = ManHinhChiTietNhanVien.taoAnhGopTatCaSucKhoe(cho: self.ngayHienTai, cheDo: cheDoNV) else { return }
                 self.chiaSe([anhGop])
             },
-            MucChonDMX(tieuDe: "📚 Xuất Bộ \(dsNV.count) Ảnh Rời Chi Tiết Từng Nhân Viên (\(cheDoNV.tieuDe))") { [weak self] in
+            MucChonDMX(tieuDe: "📚 Xuất bộ \(dsNV.count) ảnh rời từng NV (\(cheDoNV.tieuDe))") { [weak self] in
                 guard let self = self else { return }
                 let cacAnh = ManHinhChiTietNhanVien.taoTatCaAnhSucKhoe(cho: self.ngayHienTai, cheDo: cheDoNV)
                 guard !cacAnh.isEmpty else { return }
                 self.chiaSe(cacAnh)
             },
-            MucChonDMX(tieuDe: "👤 Chọn 1 Nhân Viên Cụ Thể Để Xuất Ảnh Chi Tiết (\(cheDoNV.tieuDe))") { [weak self] in
+            MucChonDMX(tieuDe: "👤 Chọn 1 nhân viên để xuất ảnh (\(cheDoNV.tieuDe))") { [weak self] in
                 self?.moChonNhanVienChiaSeAnh(cheDo: cheDoNV)
             },
             MucChonDMX(tieuDe: "Đóng", kieu: .huy)
         ]
 
         hienMenuChon(
-            tieuDe: "Chia sẻ ảnh Nhân viên",
-            thongDiep: "Chọn loại ảnh báo cáo liên quan đến nhân viên bạn muốn chia sẻ hoặc lưu về máy:",
+            tieuDe: "Xuất ảnh Nhân viên",
             cacMuc: cacMuc
         )
     }
@@ -5563,11 +5594,12 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
     }
 
     private func hienBangNutXuatAnh() {
+        let cheDoNV = cheDoDoanhThu
         var cacNut: [(tieuDe: String, hanhDong: () -> Void)] = [
-            (tieuDe: "☁️ Tải ảnh báo cáo chung lên kho đã chọn", hanhDong: { [weak self] in
+            (tieuDe: "☁️ Tải ảnh báo cáo chung lên kho", hanhDong: { [weak self] in
                 self?.xuatTatCaAnhLenServerSupabase()
             }),
-            (tieuDe: "❤️‍🩹 Tải riêng ảnh từng nhân viên lên kho", hanhDong: { [weak self] in
+            (tieuDe: "❤️‍🩹 Tải ảnh từng nhân viên lên kho", hanhDong: { [weak self] in
                 self?.xuatTatCaAnhLenServerSupabase(chiAnhNhanVien: true)
             })
         ]
@@ -5577,80 +5609,24 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 self.chiaSe([anh])
             })
         })
-        hienBangNut(tieuDe: "Xuất ảnh", huongDan: "CHỌN NỘI DUNG ẢNH HOẶC TẢI LÊN SERVER", cacNut: cacNut)
+        cacNut.append((
+            tieuDe: "👤 Chọn 1 nhân viên để xuất ảnh (\(cheDoNV.tieuDe))",
+            hanhDong: { [weak self] in
+                self?.moChonNhanVienChiaSeAnh(cheDo: cheDoNV)
+            }
+        ))
+        hienBangNut(tieuDe: "Xuất ảnh báo cáo", huongDan: "", cacNut: cacNut)
     }
 
     private func hienBangNut(tieuDe: String, huongDan: String, cacNut: [(tieuDe: String, hanhDong: () -> Void)], nguyHiem: Bool = false) {
-        let hop = UIViewController()
-        hop.view.backgroundColor = BangMauBCTD.nenTrang
-        hop.title = tieuDe
-
-        let cuon = UIScrollView()
-        let ngan = UIStackView()
-        cuon.translatesAutoresizingMaskIntoConstraints = false
-        ngan.axis = .vertical
-        ngan.spacing = 10
-        ngan.translatesAutoresizingMaskIntoConstraints = false
-        hop.view.addSubview(cuon)
-        cuon.addSubview(ngan)
-
-        let nhanHuongDan = UILabel()
-        nhanHuongDan.text = huongDan
-        nhanHuongDan.font = .systemFont(ofSize: 15, weight: .heavy)
-        nhanHuongDan.textColor = BangMauBCTD.xanhChuDaoDam
-        nhanHuongDan.numberOfLines = 0
-        ngan.addArrangedSubview(nhanHuongDan)
-
-        var hang: UIStackView?
-        for (chiSo, muc) in cacNut.enumerated() {
-            if chiSo % 2 == 0 {
-                let h = UIStackView()
-                h.axis = .horizontal
-                h.spacing = 10
-                h.distribution = .fillEqually
-                ngan.addArrangedSubview(h)
-                hang = h
+        let kieuMuc: MucChonDMX.KieuMuc = nguyHiem ? .nguyHiem : .macDinh
+        var cacMuc: [MucChonDMX] = cacNut.map { muc in
+            MucChonDMX(tieuDe: muc.tieuDe, kieu: kieuMuc) {
+                muc.hanhDong()
             }
-            let nut = UIButton(type: .system, primaryAction: UIAction { [weak hop] _ in
-                hop?.dismiss(animated: true, completion: muc.hanhDong)
-            })
-            nut.setTitle(muc.tieuDe, for: .normal)
-            nut.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
-            nut.titleLabel?.numberOfLines = 0
-            nut.titleLabel?.textAlignment = .center
-            nut.setTitleColor(nguyHiem ? BangMauBCTD.doYeuChu : BangMauBCTD.chuChinh, for: .normal)
-            nut.backgroundColor = BangMauBCTD.nenThe
-            nut.layer.cornerRadius = 11
-            nut.layer.borderWidth = 1.2
-            nut.layer.borderColor = (nguyHiem ? BangMauBCTD.doYeuChu : BangMauBCTD.xanhChuDao).cgColor
-            nut.heightAnchor.constraint(greaterThanOrEqualToConstant: 64).isActive = true
-            hang?.addArrangedSubview(nut)
         }
-
-        let nutDong = UIButton(type: .system, primaryAction: UIAction { [weak hop] _ in hop?.dismiss(animated: true) })
-        nutDong.setTitle("Đóng", for: .normal)
-        nutDong.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
-        nutDong.backgroundColor = BangMauBCTD.nenThePhu
-        nutDong.layer.cornerRadius = 10
-        ngan.addArrangedSubview(nutDong)
-
-        NSLayoutConstraint.activate([
-            cuon.topAnchor.constraint(equalTo: hop.view.safeAreaLayoutGuide.topAnchor),
-            cuon.leadingAnchor.constraint(equalTo: hop.view.leadingAnchor),
-            cuon.trailingAnchor.constraint(equalTo: hop.view.trailingAnchor),
-            cuon.bottomAnchor.constraint(equalTo: hop.view.bottomAnchor),
-            ngan.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 18),
-            ngan.leadingAnchor.constraint(equalTo: cuon.contentLayoutGuide.leadingAnchor, constant: 16),
-            ngan.trailingAnchor.constraint(equalTo: cuon.contentLayoutGuide.trailingAnchor, constant: -16),
-            ngan.widthAnchor.constraint(equalTo: cuon.frameLayoutGuide.widthAnchor, constant: -32),
-            ngan.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -24)
-        ])
-        let nav = UINavigationController(rootViewController: hop)
-        nav.modalPresentationStyle = .pageSheet
-        if let sheet = nav.sheetPresentationController {
-            sheet.detents = [.medium(), .large()]
-        }
-        present(nav, animated: true)
+        cacMuc.append(MucChonDMX(tieuDe: "Đóng", kieu: .huy))
+        hienMenuChon(tieuDe: tieuDe, cacMuc: cacMuc)
     }
 
     private func saoChepGoiJSONXuatFile() {
@@ -5672,17 +5648,17 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         guard !dsNV.isEmpty else { return }
 
         var cacMuc: [MucChonDMX] = [
-            MucChonDMX(tieuDe: "📚 Xuất TẤT CẢ \(dsNV.count) NV đang quản lý (Bộ \(dsNV.count) ảnh rời)") { [weak self] in
+            MucChonDMX(tieuDe: "📚 Xuất bộ \(dsNV.count) ảnh rời tất cả NV") { [weak self] in
                 guard let self = self else { return }
                 let cacAnh = ManHinhChiTietNhanVien.taoTatCaAnhSucKhoe(cho: self.ngayHienTai, cheDo: cheDo)
                 guard !cacAnh.isEmpty else { return }
                 self.chiaSe(cacAnh)
             },
-            MucChonDMX(tieuDe: "☁️ Tải ảnh Sức khỏe tất cả \(dsNV.count) NV lên Kho đã chọn (cho lệnh Bot sk mã_NV)") { [weak self] in
+            MucChonDMX(tieuDe: "☁️ Tải ảnh sức khỏe \(dsNV.count) NV lên kho") { [weak self] in
                 guard let self = self else { return }
                 self.xuatTatCaAnhLenServerSupabase(chiAnhNhanVien: true)
             },
-            MucChonDMX(tieuDe: "🖼️ Xuất TẤT CẢ \(dsNV.count) NV đang quản lý (Gộp 1 ảnh tổng hợp)") { [weak self] in
+            MucChonDMX(tieuDe: "🖼️ Xuất 1 ảnh gộp tất cả \(dsNV.count) NV") { [weak self] in
                 guard let self = self,
                       let anhGop = ManHinhChiTietNhanVien.taoAnhGopTatCaSucKhoe(cho: self.ngayHienTai, cheDo: cheDo) else { return }
                 self.chiaSe([anhGop])
@@ -5701,7 +5677,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
 
         hienMenuChon(
             tieuDe: "Xuất ảnh Sức khoẻ Nhân viên (\(cheDo.tieuDe))",
-            thongDiep: "Chọn xuất tất cả \(dsNV.count) nhân viên đang quản lý hoặc chọn 1 nhân viên cụ thể:",
             cacMuc: cacMuc
         )
     }

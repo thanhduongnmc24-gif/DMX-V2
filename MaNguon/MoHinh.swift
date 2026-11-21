@@ -5394,9 +5394,10 @@ private final class NutHangMenuDMX: UIControl {
         let chuHienThi = muc.dangChon ? "✓  \(muc.tieuDe)" : muc.tieuDe
         nhan.text = chuHienThi
         nhan.font = muc.dangChon ? .systemFont(ofSize: coChu.pointSize, weight: .bold) : coChu
-        nhan.numberOfLines = 0
-        nhan.lineBreakMode = .byWordWrapping
-        nhan.adjustsFontSizeToFitWidth = false
+        nhan.numberOfLines = 1
+        nhan.lineBreakMode = .byTruncatingTail
+        nhan.adjustsFontSizeToFitWidth = true
+        nhan.minimumScaleFactor = 0.72
         nhan.textAlignment = canGiua ? .center : .left
         nhan.isUserInteractionEnabled = false
 
@@ -5526,9 +5527,10 @@ final class HopChonDMXController: UIViewController {
                 lbTieuDe.font = .systemFont(ofSize: 14.5, weight: .heavy)
                 lbTieuDe.textColor = BangMauBCTD.vangChuDao
                 lbTieuDe.textAlignment = .center
-                lbTieuDe.numberOfLines = 0
-                lbTieuDe.lineBreakMode = .byWordWrapping
-                lbTieuDe.adjustsFontSizeToFitWidth = false
+                lbTieuDe.numberOfLines = 1
+                lbTieuDe.lineBreakMode = .byTruncatingTail
+                lbTieuDe.adjustsFontSizeToFitWidth = true
+                lbTieuDe.minimumScaleFactor = 0.75
                 nganHeader.addArrangedSubview(lbTieuDe)
             }
 

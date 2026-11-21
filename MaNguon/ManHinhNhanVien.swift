@@ -106,10 +106,11 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         nutQuetAnhNV.setImage(UIImage(systemName: "camera.viewfinder"), for: .normal)
         nutQuetAnhNV.setTitle(" Nhập ảnh thực hiện NV (\(cheDo.tieuDe))", for: .normal)
         nutQuetAnhNV.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
-        nutQuetAnhNV.titleLabel?.numberOfLines = 0
-        nutQuetAnhNV.titleLabel?.lineBreakMode = .byWordWrapping
+        nutQuetAnhNV.titleLabel?.numberOfLines = 1
+        nutQuetAnhNV.titleLabel?.lineBreakMode = .byTruncatingTail
         nutQuetAnhNV.titleLabel?.textAlignment = .center
-        nutQuetAnhNV.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutQuetAnhNV.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutQuetAnhNV.titleLabel?.minimumScaleFactor = 0.72
         nutQuetAnhNV.backgroundColor = BangMauBCTD.indigoChuDao
         nutQuetAnhNV.tintColor = .white
         nutQuetAnhNV.setTitleColor(.white, for: .normal)
@@ -331,7 +332,6 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
     @objc private func bamQuetAnhNV() {
         hienMenuChon(
             tieuDe: "Nhập ảnh Thực hiện Nhân viên",
-            thongDiep: "Chọn ảnh từ Thư viện Ảnh hoặc nhập tệp ảnh từ ứng dụng Tệp (Files):",
             cacMuc: [
                 MucChonDMX(tieuDe: "🖼️ Chọn ảnh từ Thư viện Ảnh") { [weak self] in
                     guard let self else { return }
@@ -352,7 +352,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
                     picker.allowsMultipleSelection = true
                     self.present(picker, animated: true)
                 },
-                MucChonDMX(tieuDe: "Huỷ", kieu: .huy)
+                MucChonDMX(tieuDe: "Đóng", kieu: .huy)
             ]
         )
     }
@@ -986,21 +986,9 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         nhanTieuDe.setContentHuggingPriority(.defaultLow, for: .horizontal)
         nhanTieuDe.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        let cfgShare = UIImage.SymbolConfiguration(pointSize: 11.5, weight: .bold)
-        nutChiaSeAnh.setImage(UIImage(systemName: "square.and.arrow.up", withConfiguration: cfgShare), for: .normal)
-        nutChiaSeAnh.setTitle(" Chia sẻ ảnh", for: .normal)
-        nutChiaSeAnh.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
-        nutChiaSeAnh.titleLabel?.numberOfLines = 1
-        nutChiaSeAnh.backgroundColor = BangMauBCTD.xanhDatVach
-        nutChiaSeAnh.tintColor = .white
-        nutChiaSeAnh.setTitleColor(.white, for: .normal)
-        nutChiaSeAnh.layer.cornerRadius = 8
-        nutChiaSeAnh.contentEdgeInsets = UIEdgeInsets(top: 6, left: 9, bottom: 6, right: 9)
-        nutChiaSeAnh.setContentHuggingPriority(.required, for: .horizontal)
-        nutChiaSeAnh.setContentCompressionResistancePriority(.required, for: .horizontal)
-        nutChiaSeAnh.addTarget(self, action: #selector(bamChiaSeAnh), for: .touchUpInside)
+        nutChiaSeAnh.isHidden = true
 
-        let thanhDieuKhien = UIStackView(arrangedSubviews: [nhanTieuDe, nutChiaSeAnh, nutSapXep])
+        let thanhDieuKhien = UIStackView(arrangedSubviews: [nhanTieuDe, nutSapXep])
         thanhDieuKhien.axis = .horizontal
         thanhDieuKhien.spacing = 8
         thanhDieuKhien.alignment = .center
@@ -4296,6 +4284,10 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
         nutUploadAnhNV.setImage(UIImage(systemName: "photo.badge.plus"), for: .normal)
         nutUploadAnhNV.setTitle(" Nhập ảnh NV", for: .normal)
         nutUploadAnhNV.titleLabel?.font = .systemFont(ofSize: 12.0, weight: .bold)
+        nutUploadAnhNV.titleLabel?.numberOfLines = 1
+        nutUploadAnhNV.titleLabel?.lineBreakMode = .byTruncatingTail
+        nutUploadAnhNV.titleLabel?.adjustsFontSizeToFitWidth = true
+        nutUploadAnhNV.titleLabel?.minimumScaleFactor = 0.75
         nutUploadAnhNV.backgroundColor = BangMauBCTD.xanhChuDao
         nutUploadAnhNV.tintColor = .white
         nutUploadAnhNV.setTitleColor(.white, for: .normal)
@@ -4462,7 +4454,6 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
     @objc private func bamQuetAnhSucKhoeNV() {
         hienMenuChon(
             tieuDe: "Nhập ảnh Sức khỏe & Thi đua NV",
-            thongDiep: "Chọn ảnh từ Thư viện Ảnh hoặc nhập tệp ảnh từ ứng dụng Tệp (Files):",
             cacMuc: [
                 MucChonDMX(tieuDe: "🖼️ Chọn ảnh từ Thư viện Ảnh") { [weak self] in
                     guard let self else { return }
@@ -4483,7 +4474,7 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
                     picker.allowsMultipleSelection = true
                     self.present(picker, animated: true)
                 },
-                MucChonDMX(tieuDe: "Huỷ", kieu: .huy)
+                MucChonDMX(tieuDe: "Đóng", kieu: .huy)
             ]
         )
     }
@@ -4662,30 +4653,30 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
         let hienNS = KhoDuLieu.dungChung.caiDat.hienThiNangSuatNhanVien
 
         var cacMuc: [MucChonDMX] = [
-            MucChonDMX(tieuDe: "📷 Quét ảnh Phiếu Sức khỏe / Thi đua cá nhân NV") { [weak self] in
+            MucChonDMX(tieuDe: "📷 Quét ảnh Phiếu Sức khỏe / Thi đua NV") { [weak self] in
                 self?.bamQuetAnhSucKhoeNV()
             },
-            MucChonDMX(tieuDe: hienNS ? "☑️ Phần Năng suất: Đang hiển thị số (Chạm để ẩn thành dấu *)" : "⬜ Phần Năng suất: Đang để dấu * (Chạm để hiển thị số)", dangChon: hienNS) { [weak self] in
+            MucChonDMX(tieuDe: hienNS ? "☑️ Năng suất: Đang hiện số (Chạm để ẩn *)" : "⬜ Năng suất: Đang ẩn * (Chạm để hiện số)", dangChon: hienNS) { [weak self] in
                 guard let self else { return }
                 var cd = KhoDuLieu.dungChung.caiDat
                 cd.hienThiNangSuatNhanVien.toggle()
                 KhoDuLieu.dungChung.luuCaiDat(cd)
                 self.napLaiDuLieuHienTai()
             },
-            MucChonDMX(tieuDe: "👤 Xuất 1 nhân viên này (\(tongHop.nhanVien.hoTen))") { [weak self] in
+            MucChonDMX(tieuDe: "👤 Xuất ảnh nhân viên: \(tongHop.nhanVien.hoTen)") { [weak self] in
                 guard let self = self, let anh = self.taoAnhSucKhoeNhanVien() else { return }
                 self.hienChiaSe([anh])
             }
         ]
 
         if !dsNV.isEmpty {
-            cacMuc.append(MucChonDMX(tieuDe: "📚 Xuất TẤT CẢ \(dsNV.count) NV đang quản lý (Bộ \(dsNV.count) ảnh rời)") { [weak self] in
+            cacMuc.append(MucChonDMX(tieuDe: "📚 Xuất bộ \(dsNV.count) ảnh rời tất cả NV") { [weak self] in
                 guard let self = self else { return }
                 let cacAnh = Self.taoTatCaAnhSucKhoe(cho: self.ngay, cheDo: self.cheDo)
                 guard !cacAnh.isEmpty else { return }
                 self.hienChiaSe(cacAnh)
             })
-            cacMuc.append(MucChonDMX(tieuDe: "🖼️ Xuất TẤT CẢ \(dsNV.count) NV đang quản lý (Gộp 1 ảnh tổng hợp)") { [weak self] in
+            cacMuc.append(MucChonDMX(tieuDe: "🖼️ Xuất 1 ảnh gộp tất cả \(dsNV.count) NV") { [weak self] in
                 guard let self = self, let anhGop = Self.taoAnhGopTatCaSucKhoe(cho: self.ngay, cheDo: self.cheDo) else { return }
                 self.hienChiaSe([anhGop])
             })
@@ -4694,7 +4685,6 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
 
         hienMenuChon(
             tieuDe: "Xuất ảnh Sức khoẻ Nhân viên (\(cheDo.tieuDe))",
-            thongDiep: "Chọn xuất riêng nhân viên đang xem hoặc xuất tất cả \(dsNV.count) nhân viên đang quản lý:",
             cacMuc: cacMuc
         )
     }
