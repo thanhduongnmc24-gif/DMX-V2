@@ -401,6 +401,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
     private var rangBuocTopBangThiDua: NSLayoutConstraint?
     private var rangBuocTopBangNhanVien: NSLayoutConstraint?
     private var rangBuocBangRongHaiNutNV: NSLayoutConstraint?
+    private var rangBuocBangRongGioCongNV: NSLayoutConstraint?
 
     // Mục con 2: NHẬP SỐ (Nhập tất cả Lũy kế & Nhập tất cả Realtime + Nhập từng phần)
     private let khungNhapSo = UIView()
@@ -1039,6 +1040,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         rgBangRongNV.priority = .defaultHigh
         rangBuocBangRongHaiNutNV = rgBangRongNV
 
+        let rgBangRongGioCongNV = nutNhapGioCongNV.widthAnchor.constraint(equalTo: nutThemAnhMoi.widthAnchor)
+        rgBangRongGioCongNV.priority = .defaultHigh
+        rangBuocBangRongGioCongNV = rgBangRongGioCongNV
+
         // 4. Sự kiện các bảng dữ liệu trong phần "1. Xem số"
         bangThiDua.khiBamQuetAnh = { [weak self] in
             self?.bamTheDoanhThu()
@@ -1357,7 +1362,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 ("📋 Quét ảnh Bảng Thi đua Ngành hàng Lũy kế", #selector(bamQuetThiDuaLK)),
                 ("📁 Nhập ảnh Thi đua Lũy kế từ Tệp (Files)", #selector(bamNhapTepThiDuaLK)),
                 ("💰 Quét ảnh Bảng Doanh thu Nhân viên Lũy kế", #selector(bamQuetDoanhThuNVLK)),
-                ("⏱️ Quét ảnh Bảng Giờ công Nhân viên Lũy kế", #selector(bamQuetGioCongNVLK)),
                 ("👥 Quét ảnh Bảng Thi đua Nhân viên Lũy kế", #selector(bamQuetThiDuaNVLK)),
                 ("📁 Nhập ảnh Thi đua Nhân viên Lũy kế từ Tệp (Files)", #selector(bamNhapTepThiDuaNVLK))
             ]
@@ -1506,11 +1510,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
     @objc private func bamQuetDoanhThuNVLK() {
         cheDoDoanhThu = .luyKe
         moChonAnh(cheDo: .doanhThuNhanVien(.luyKe), gioiHan: 0)
-    }
-
-    @objc private func bamQuetGioCongNVLK() {
-        cheDoDoanhThu = .luyKe
-        moChonAnh(cheDo: .gioCongNhanVien(.luyKe), gioiHan: 0)
     }
 
     @objc private func bamQuetThiDuaNVLK() {
@@ -3844,12 +3843,14 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 nutNhapGioCongNV.isHidden = false
                 nutNhapGioCongNV.setTitle(" Quét Giờ công", for: .normal)
                 rangBuocBangRongHaiNutNV?.isActive = true
+                rangBuocBangRongGioCongNV?.isActive = true
             } else {
                 nutThemAnhMoi.isHidden = true
                 nutNhapDoanhThuNV.isHidden = false
                 nutNhapDoanhThuNV.setTitle(" Nhập Doanh thu NV (Realtime)", for: .normal)
                 nutNhapGioCongNV.isHidden = true
                 rangBuocBangRongHaiNutNV?.isActive = false
+                rangBuocBangRongGioCongNV?.isActive = false
             }
         } else {
             nutThemAnhMoi.isHidden = false
@@ -3857,6 +3858,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
             nutNhapDoanhThuNV.isHidden = true
             nutNhapGioCongNV.isHidden = true
             rangBuocBangRongHaiNutNV?.isActive = false
+            rangBuocBangRongGioCongNV?.isActive = false
         }
 
         bangThiDua.isHidden = !laThiDua
@@ -4134,6 +4136,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
     }
 
     @objc private func bamNhapAnhGioCongNV() {
+        cheDoDoanhThu = .luyKe
         moChonAnh(cheDo: .gioCongNhanVien(.luyKe), gioiHan: 0)
     }
 
@@ -4383,9 +4386,6 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                     } else {
                         self?.moChonAnh(cheDo: .thiDuaNhanVien(.luyKe), gioiHan: 0)
                     }
-                },
-                MucChonDMX(tieuDe: "⏱️ Ảnh Bảng Giờ công Nhân viên Lũy kế (2 mục giờ công)") { [weak self] in
-                    self?.moChonAnh(cheDo: .gioCongNhanVien(.luyKe), gioiHan: 0)
                 },
                 MucChonDMX(tieuDe: "✏️ Nhập / Sửa tay Doanh thu \(tenCheDo) (& Lượt khách)") { [weak self] in
                     self?.moHopThoaiNhapDoanhThu()
