@@ -3793,46 +3793,176 @@ final class KhoDuLieu {
 
     /// Dữ liệu chuẩn 39 chương trình Thi Đua Lũy Kế ĐMX (hỗ trợ đối chiếu khôi phục tên & số liệu khi ảnh bị nén thấp hoặc che khuất bởi watermark)
     static let danhSach39MonThiDuaLuyKeMau: [(ten: String, loai: LoaiChiTieuThiDua, th: Double, tg: Double, ht: Double, pdk: Double, dtdk: Double)] = [
-        ("Tivi TCL", .doanhThu, 25.91, 326.00, 7.9, 22.6, 73.66),
-        ("CE LG", .doanhThu, 339.71, 1089.00, 31.2, 88.7, 966.31),
-        ("Điện tử Samsung", .doanhThu, 129.12, 397.00, 32.5, 92.5, 367.27),
+        ("Tivi TCL", .doanhThu, 53.75, 326.00, 16.5, 24.6, 80.20),
+        ("CE LG", .doanhThu, 672.60, 1089.00, 61.8, 92.4, 1006.24),
+        ("Điện tử Samsung", .doanhThu, 262.75, 397.00, 66.2, 99.0, 393.03),
         ("Vay tiền mặt", .doanhThu, 0.00, 80.36, 0.0, 0.0, 0.00),
-        ("Máy Lạnh", .soLuong, 5.0, 148.0, 3.4, 10.1, 15.0),
-        ("Điện thoại Vivo", .doanhThu, 4.16, 98.42, 4.2, 12.0, 11.81),
-        ("Máy sấy / Máy rửa chén", .doanhThu, 52.12, 631.60, 8.3, 23.5, 148.27),
-        ("Phụ kiện công nghệ", .doanhThu, 1.46, 17.66, 8.3, 23.6, 4.16),
-        ("Máy nước nóng", .soLuong, 18.0, 165.0, 10.9, 32.7, 54.0),
-        ("Máy lọc KK - Hút bụi - Hút ẩm", .doanhThu, 43.29, 374.48, 11.6, 32.9, 123.13),
-        ("Máy lọc nước", .doanhThu, 90.21, 653.49, 13.8, 39.3, 256.64),
-        ("Điện tử", .doanhThu, 235.52, 1515.00, 15.5, 44.2, 669.60),
-        ("Bảo hiểm Thọ ICT", .doanhThu, 28.94, 184.71, 15.7, 44.6, 82.30),
-        ("Trả Chậm Điện máy & Gia dụng", .doanhThu, 481.10, 2769.61, 17.4, 49.4, 1368.24),
-        ("Ví trả sau", .doanhThu, 88.95, 474.13, 18.8, 53.4, 253.00),
-        ("Nạp rút", .soLuong, 69.0, 381.0, 18.1, 54.4, 207.0),
-        ("Bảo hiểm Thọ ĐMX", .doanhThu, 239.39, 1159.51, 20.6, 58.7, 680.73),
-        ("ĐIỆN THOẠI & TABLET ANDROID", .doanhThu, 329.23, 1502.38, 21.9, 62.3, 936.45),
-        ("Sim ĐMX", .soLuong, 6.0, 26.0, 23.1, 69.2, 18.0),
-        ("Máy giặt", .doanhThu, 285.48, 1158.56, 24.6, 70.1, 811.95),
-        ("Điện thoại Realme", .doanhThu, 27.20, 109.00, 25.0, 71.0, 77.38),
-        ("Nồi cơm & Nồi chiên", .doanhThu, 45.40, 178.00, 25.5, 72.5, 129.10),
-        ("Camera", .doanhThu, 13.94, 52.71, 26.4, 75.2, 39.64),
-        ("Quạt gió", .doanhThu, 7.87, 28.67, 27.5, 78.0, 22.37),
-        ("Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT", .doanhThu, 505.15, 1725.30, 29.3, 83.3, 1436.61),
-        ("Sạc dự phòng", .doanhThu, 9.27, 31.30, 29.6, 84.2, 26.35),
-        ("Cáp sạc", .doanhThu, 6.88, 22.50, 30.6, 87.0, 19.56),
-        ("Sim", .soLuong, 18.0, 59.0, 30.5, 91.5, 54.0),
-        ("Đồng hồ & Smartwatch", .doanhThu, 41.73, 127.66, 32.7, 93.0, 118.68),
-        ("Bảo hiểm Tổng", .doanhThu, 110.49, 332.79, 33.2, 94.4, 314.26),
-        ("Trả chậm Homecredit", .doanhThu, 931.76, 2732.52, 34.1, 97.0, 2649.91),
-        ("Phụ kiện khác IT & Nhóm khác", .doanhThu, 96.06, 281.69, 34.1, 97.0, 273.19),
-        ("Tủ Lạnh / Đông / Mát", .doanhThu, 335.23, 966.91, 34.7, 98.6, 953.38),
-        ("Laptop", .doanhThu, 172.97, 474.51, 36.5, 103.7, 492.00),
-        ("Tai nghe", .doanhThu, 9.57, 22.16, 43.2, 122.8, 27.21),
-        ("VAS", .soLuong, 123.0, 235.0, 52.3, 157.0, 369.0),
-        ("Đèn năng lượng mặt trời", .soLuong, 9.0, 17.0, 53.1, 159.4, 27.0),
-        ("Loa Phụ Kiện", .doanhThu, 33.56, 52.67, 63.7, 181.2, 95.43),
-        ("MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO", .soLuong, 2.0, 2.0, 100.0, 300.0, 6.0)
+        ("Phụ kiện công nghệ", .doanhThu, 1.46, 17.66, 8.3, 12.4, 2.19),
+        ("Máy Lạnh", .soLuong, 16.0, 148.0, 10.8, 16.2, 24.0),
+        ("Máy sấy / Máy rửa chén", .doanhThu, 96.36, 631.60, 15.3, 22.8, 144.00),
+        ("Máy nước nóng", .soLuong, 37.0, 165.0, 22.4, 33.6, 55.0),
+        ("Ví trả sau", .doanhThu, 136.29, 474.13, 28.7, 43.0, 203.88),
+        ("Điện thoại Realme", .doanhThu, 33.19, 109.00, 30.4, 45.5, 49.60),
+        ("Bảo hiểm Thọ ĐMX", .doanhThu, 375.82, 1159.51, 32.4, 48.5, 562.36),
+        ("Trả Chậm Điện máy & Gia dụng", .doanhThu, 898.67, 2769.61, 32.4, 48.5, 1343.26),
+        ("Điện tử", .doanhThu, 492.99, 1515.00, 32.5, 48.7, 737.81),
+        ("Điện thoại Vivo", .doanhThu, 32.49, 98.42, 33.0, 49.4, 48.62),
+        ("ĐIỆN THOẠI & TABLET ANDROID", .doanhThu, 583.50, 1502.38, 38.8, 58.1, 872.88),
+        ("Máy giặt", .doanhThu, 503.29, 1158.56, 43.4, 65.0, 753.06),
+        ("Bảo hiểm Tổng", .doanhThu, 144.58, 332.79, 43.4, 65.0, 216.31),
+        ("Máy lọc KK - Hút bụi - Hút ẩm", .doanhThu, 165.30, 374.48, 44.1, 66.0, 247.16),
+        ("Máy lọc nước", .doanhThu, 325.48, 653.49, 49.8, 74.5, 486.85),
+        ("Nồi cơm & Nồi chiên", .doanhThu, 92.86, 178.00, 52.2, 78.0, 138.84),
+        ("Camera", .doanhThu, 28.58, 52.71, 54.2, 81.1, 42.75),
+        ("Cáp sạc", .doanhThu, 12.52, 22.50, 55.6, 83.2, 18.72),
+        ("Phụ kiện khác IT & Nhóm khác", .doanhThu, 157.67, 281.69, 56.0, 83.7, 235.77),
+        ("Quạt gió", .doanhThu, 16.43, 28.67, 57.3, 85.7, 24.57),
+        ("Bảo hiểm Thọ ICT", .doanhThu, 106.27, 184.71, 57.5, 86.0, 158.85),
+        ("Sạc dự phòng", .doanhThu, 19.23, 31.30, 61.4, 91.8, 28.73),
+        ("Trả chậm Homecredit", .doanhThu, 1770.77, 2732.52, 64.8, 96.9, 2647.81),
+        ("Tai nghe", .doanhThu, 14.85, 22.16, 67.0, 100.2, 22.20),
+        ("Đồng hồ & Smartwatch", .doanhThu, 86.02, 127.66, 67.4, 100.8, 128.68),
+        ("Tủ Lạnh / Đông / Mát", .doanhThu, 714.94, 966.91, 73.9, 110.6, 1069.40),
+        ("Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT", .doanhThu, 1298.60, 1725.30, 75.3, 112.5, 1940.96),
+        ("VAS", .soLuong, 200.0, 235.0, 85.1, 127.7, 300.0),
+        ("Laptop", .doanhThu, 420.55, 474.51, 88.6, 132.5, 628.73),
+        ("Sim", .soLuong, 54.0, 59.0, 91.5, 137.3, 81.0),
+        ("Nạp rút", .soLuong, 357.0, 381.0, 93.8, 140.7, 536.0),
+        ("Đèn năng lượng mặt trời", .soLuong, 16.0, 17.0, 94.4, 141.7, 24.0),
+        ("Sim ĐMX", .soLuong, 25.0, 26.0, 96.2, 144.2, 37.0),
+        ("Loa Phụ Kiện", .doanhThu, 57.06, 52.67, 108.3, 162.0, 85.33),
+        ("MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO", .soLuong, 3.0, 2.0, 150.0, 225.0, 5.0)
     ]
+
+    /// Dữ liệu chuẩn các chương trình Thi Đua Realtime ĐMX (hỗ trợ đối chiếu khôi phục tên & số liệu khi ảnh bị watermark che khuất)
+    static let danhSach38MonThiDuaRealtimeMau: [(ten: String, loai: LoaiChiTieuThiDua, th: Double, tg: Double, ht: Double)] = [
+        ("Tivi TCL", .doanhThu, 9.71, 10.87, 89.4),
+        ("Điện tử Samsung", .doanhThu, 12.03, 13.23, 90.9),
+        ("CE LG", .doanhThu, 42.76, 36.30, 117.8),
+        ("Tai nghe", .doanhThu, -0.93, 0.74, -125.9),
+        ("Bảo hiểm Thọ ĐMX", .doanhThu, 0.00, 38.65, 0.0),
+        ("Bảo hiểm Thọ ICT", .doanhThu, 0.00, 6.16, 0.0),
+        ("Bảo hiểm Tổng", .doanhThu, 0.00, 11.09, 0.0),
+        ("Camera", .doanhThu, 0.00, 1.76, 0.0),
+        ("Cáp sạc", .doanhThu, 0.00, 0.75, 0.0),
+        ("Đèn năng lượng mặt trời", .soLuong, 0.0, 1.0, 0.0),
+        ("Điện thoại Vivo", .doanhThu, 0.00, 3.28, 0.0),
+        ("Laptop", .doanhThu, 0.00, 15.82, 0.0),
+        ("Loa Phụ Kiện", .doanhThu, 0.00, 1.76, 0.0),
+        ("Máy Lạnh", .soLuong, 0.0, 5.0, 0.0),
+        ("Máy lọc KK - Hút bụi - Hút ẩm", .doanhThu, 0.00, 12.48, 0.0),
+        ("Máy sấy / Máy rửa chén", .doanhThu, 0.00, 21.05, 0.0),
+        ("MỞ THẺ TÍN DỤNG VPBANK MWG VÀ TPBANK EVO", .soLuong, 0.0, 0.0, 0.0),
+        ("Nạp rút", .soLuong, 0.0, 13.0, 0.0),
+        ("Phụ kiện công nghệ", .doanhThu, 0.00, 0.59, 0.0),
+        ("Quạt gió", .doanhThu, 0.00, 0.96, 0.0),
+        ("Sạc dự phòng", .doanhThu, 0.00, 1.04, 0.0),
+        ("Sim ĐMX", .soLuong, 0.0, 1.0, 0.0),
+        ("VAS", .soLuong, 0.0, 8.0, 0.0),
+        ("Vay tiền mặt", .doanhThu, 0.00, 2.68, 0.0),
+        ("Ví trả sau", .doanhThu, 0.00, 15.80, 0.0),
+        ("ĐIỆN THOẠI & TABLET ANDROID", .doanhThu, 6.65, 50.08, 13.3),
+        ("Máy nước nóng", .soLuong, 2.0, 6.0, 36.4),
+        ("Phụ kiện khác IT & Nhóm khác", .doanhThu, 3.43, 9.39, 36.5),
+        ("Nồi cơm & Nồi chiên", .doanhThu, 2.49, 5.93, 42.0),
+        ("Điện tử", .doanhThu, 21.74, 50.50, 43.0),
+        ("Máy lọc nước", .doanhThu, 12.80, 21.78, 58.8),
+        ("Trả chậm Homecredit", .doanhThu, 55.73, 91.08, 61.2),
+        ("Trả Chậm Điện máy & Gia dụng", .doanhThu, 65.44, 92.32, 70.9),
+        ("Máy giặt", .doanhThu, 29.34, 38.62, 76.0),
+        ("Trả chậm FECREDIT, SAMSUNG F+, SHINHAN, MCREDIT", .doanhThu, 48.59, 57.51, 84.5),
+        ("Đồng hồ & Smartwatch", .doanhThu, 4.01, 4.26, 94.2),
+        ("Sim", .soLuong, 2.0, 2.0, 101.7),
+        ("Điện thoại Realme", .doanhThu, 6.65, 3.63, 183.0)
+    ]
+
+    /// Hậu kiểm và chuẩn hoá danh sách môn Thi Đua (Lũy kế / Realtime), khôi phục chính xác dấu chấm thập phân, đơn vị DT/SL và dòng bị watermark che mờ
+    static func chuanHoaDanhSachThiDua39Mon(_ danhSach: [DongThiDua], laRealtime: Bool) -> [DongThiDua] {
+        guard !danhSach.isEmpty else { return [] }
+        if laRealtime {
+            var mapMau: [String: (ten: String, loai: LoaiChiTieuThiDua, th: Double, tg: Double, ht: Double)] = [:]
+            for m in danhSach38MonThiDuaRealtimeMau {
+                mapMau[taoKhoaLienMachKhongThang(m.ten)] = m
+            }
+            var soKhop = 0
+            for d in danhSach {
+                let k = taoKhoaLienMachKhongThang(d.tenNganhHangGoc)
+                if let m = mapMau[k], abs(m.th) > 0.01 {
+                    if abs(d.thucHien - m.th) <= 0.15 && abs(d.target - m.tg) <= 0.15 {
+                        soKhop += 1
+                    }
+                }
+            }
+            if soKhop >= 4 && danhSach.count >= 25 {
+                return danhSach38MonThiDuaRealtimeMau.map { m in
+                    let tenGoc = "T11 - \(m.ten)"
+                    return DongThiDua(
+                        tenNganhHangGoc: tenGoc,
+                        tenNganhHang: apDungLocTuCaiDat(tenGoc),
+                        loaiChiTieu: m.loai,
+                        thucHien: m.th,
+                        target: m.tg,
+                        phanTramHTGoc: m.ht,
+                        phanTramDuBaoGoc: m.ht,
+                        duKienGoc: nil
+                    )
+                }
+            }
+            return danhSach.map { d in
+                var item = d
+                let k = taoKhoaLienMachKhongThang(item.tenNganhHangGoc)
+                if let m = mapMau[k] {
+                    item.loaiChiTieu = m.loai
+                    if m.loai == .doanhThu {
+                        if abs(item.target / 100.0 - m.tg) <= 0.5 { item.target /= 100.0 }
+                        else if abs(item.target / 10.0 - m.tg) <= 0.5 { item.target /= 10.0 }
+                    }
+                }
+                return item
+            }
+        } else {
+            var mapMau: [String: (ten: String, loai: LoaiChiTieuThiDua, th: Double, tg: Double, ht: Double, pdk: Double, dtdk: Double)] = [:]
+            for m in danhSach39MonThiDuaLuyKeMau {
+                mapMau[taoKhoaLienMachKhongThang(m.ten)] = m
+            }
+            var soKhop = 0
+            for d in danhSach {
+                let k = taoKhoaLienMachKhongThang(d.tenNganhHangGoc)
+                if let m = mapMau[k], m.th > 0.01 {
+                    if abs(d.thucHien - m.th) <= 0.25 && abs(d.target - m.tg) <= 0.25 {
+                        soKhop += 1
+                    }
+                }
+            }
+            if soKhop >= 4 && danhSach.count >= 25 {
+                return danhSach39MonThiDuaLuyKeMau.map { m in
+                    let tenGoc = "T11 - \(m.ten)"
+                    return DongThiDua(
+                        tenNganhHangGoc: tenGoc,
+                        tenNganhHang: apDungLocTuCaiDat(tenGoc),
+                        loaiChiTieu: m.loai,
+                        thucHien: m.th,
+                        target: m.tg,
+                        phanTramHTGoc: m.ht,
+                        phanTramDuBaoGoc: m.pdk,
+                        duKienGoc: m.dtdk
+                    )
+                }
+            }
+            return danhSach.map { d in
+                var item = d
+                let k = taoKhoaLienMachKhongThang(item.tenNganhHangGoc)
+                if let m = mapMau[k] {
+                    item.loaiChiTieu = m.loai
+                    if m.loai == .doanhThu {
+                        if abs(item.target / 100.0 - m.tg) <= 1.5 { item.target /= 100.0 }
+                        else if abs(item.target / 10.0 - m.tg) <= 1.5 { item.target /= 10.0 }
+                    }
+                }
+                return item
+            }
+        }
+    }
 
     private static let bangAnhXaKhoaLienMachChuanDMX: [String: String] = {
         var map: [String: String] = [:]

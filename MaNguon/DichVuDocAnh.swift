@@ -2578,7 +2578,7 @@ final class DichVuDocAnh {
         let u = boDau(chu)
             .replacingOccurrences(of: "^[^A-Z0-9]+", with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return u.range(of: "^(?:[A-Z]{1,3}\\s+)?(?:T|7|1|I|L)?\\d{1,2}\\s*[-–—]", options: .regularExpression) != nil
+        return u.range(of: "^(?:[A-Z]{1,3}\\s+)?(?:T|7|I|L)\\d{1,2}\\s*[-–—]\\s*[^0-9]*[A-Z]{2,}", options: .regularExpression) != nil
     }
 
     private func laBadgePhanNhomThe(_ chu: String) -> Bool {
@@ -2597,8 +2597,16 @@ final class DichVuDocAnh {
     private func laAnhLuoiTheThiDua(phanTu: [PhanTuVanBan]) -> Bool {
         if laAnhDoanhThuSieuThi(phanTu: phanTu) { return false }
 
-        // Bảng 4 cột có chữ "CHƯƠNG TRÌNH" ở góc trên bên trái và KHÔNG bao giờ có tiêu đề T11 ở nửa phải hoặc nhãn THỰC HIỆN ở sát lề trái (x < 0.22)
+        // Bảng dọc 5-6 cột luôn có thanh tiêu đề CHƯƠNG TRÌNH | THỰC HIỆN | TARGET | ... | HẠNG VÙNG ở đầu bảng
         let coHeaderChuongTrinh = phanTu.contains { $0.y < 0.25 && $0.x < 0.35 && boDau($0.chu).contains("CHUONG TRINH") }
+        let coHeaderCotBangDoc = phanTu.contains { pt in
+            guard pt.y < 0.22 && pt.x >= 0.28 else { return false }
+            let u = boDau(pt.chu)
+            return u.contains("HANG VUNG") || u.contains("DU KIEN HOAN THANH") || u.contains("TARGET NGAY") || u.contains("HT NGAY") || (pt.x >= 0.30 && pt.x <= 0.62 && (u == "THUC HIEN" || u == "TARGET"))
+        }
+        if coHeaderChuongTrinh && coHeaderCotBangDoc {
+            return false
+        }
         let coTieuDeThePhai = phanTu.contains { $0.x >= 0.46 && laDauTieuDeMonThiDua($0.chu) }
         let coTieuDeTheTrai = phanTu.contains { $0.x < 0.45 && laDauTieuDeMonThiDua($0.chu) }
         let coThucHienSatTrai = phanTu.contains {
@@ -2627,6 +2635,11 @@ final class DichVuDocAnh {
         watermark: String?,
         phuongPhap: PhuongPhapQuetThiDua
     ) -> [DongThiDua] {
+        // Nếu ảnh có tiêu đề bảng dọc 5-6 cột (CHƯƠNG TRÌNH | THỰC HIỆN | TARGET | % DỰ KIẾN HOÀN THÀNH | HẠNG VÙNG), luôn ưu tiên bộ phân tích bảng dọc
+        if laAnhBangThiDua6Cot(phanTu: phanTu) || laAnhBangThiDua5CotRealtime(phanTu: phanTu) {
+            let dsDoc = phanTichBangThiDuaPhuongPhap2_6Cot(phanTu: phanTu, anh: anh, watermark: watermark)
+            if !dsDoc.isEmpty { return dsDoc }
+        }
         switch phuongPhap {
         case .bangNgang:
             let dsNgang = phanTichBangThiDuaBangNgang(phanTu: phanTu, anh: anh, watermark: watermark)
@@ -3228,7 +3241,7 @@ final class DichVuDocAnh {
         guard let cgGoc = anh.cgImage else { return [] }
         let w0 = cgGoc.width
         let h0 = cgGoc.height
-        guard w0 >= 300, h0 >= 150 else { return [] }
+        guard w0 >= 300, h0 >= 150, w0 >= Int(Double(h0) * 0.90) else { return [] }
 
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         var raw = [UInt8](repeating: 255, count: w0 * h0 * 4)
@@ -3301,14 +3314,20 @@ final class DichVuDocAnh {
         for i in 0..<(colEdges.count - 1) {
             colBounds.append((colEdges[i], colEdges[i + 1]))
         }
+        var coCotSTT = false
         if colBounds.count >= 5 && colBounds[0].x1 < Int(Double(w0) * 0.08) && (colBounds[1].x1 - colBounds[1].x0) > Int(Double(w0) * 0.18) {
             colBounds.removeFirst()
+            coCotSTT = true
         } else if colBounds.count == 15 && colBounds[0].x1 < Int(Double(w0) * 0.075) {
             colBounds.removeFirst()
+            coCotSTT = true
         }
         if let xVachSTT = vCenters.first(where: { $0 >= colBounds[0].x0 + 16 && $0 <= min(colBounds[0].x1 - 50, Int(Double(w0) * 0.068)) }) {
             colBounds[0].x0 = xVachSTT
+            coCotSTT = true
         }
+        let soCotKT = colBounds.count - 1
+        guard (soCotKT >= 4 && soCotKT <= 6 && coCotSTT) || soCotKT >= 12 else { return [] }
         if colBounds.count == 13 {
             let dataWidths = colBounds.dropFirst().map { $0.x1 - $0.x0 }.sorted()
             let medW = dataWidths[dataWidths.count / 2]
@@ -3419,7 +3438,7 @@ final class DichVuDocAnh {
                 return dpNV >= 20
             }
         }
-        guard !rowBounds.isEmpty else { return [] }
+        guard !rowBounds.isEmpty && rowBounds.count <= 28 else { return [] }
 
         var ySubHeaderTop = yHeaderTop
         if colBounds.count > 1 {
@@ -4410,7 +4429,7 @@ final class DichVuDocAnh {
         anh: UIImage? = nil,
         watermark: String? = nil
     ) -> [DongThiDua] {
-        if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) {
+        if laAnhDoanhThuSieuThi(phanTu: phanTu) || laAnhBangDoanhThuNhanVien(phanTu: phanTu) || laAnhBangThiDua6Cot(phanTu: phanTu) || laAnhBangThiDua5CotRealtime(phanTu: phanTu) {
             return []
         }
 
@@ -4507,11 +4526,15 @@ final class DichVuDocAnh {
                     }
                 }
 
-                // Dự phòng lưới chuẩn 6 cột × 7 hàng nếu ảnh bị giảm độ sáng nền khiến bộ dò tự động tìm được < 3 cột
-                if cardCols.count < 3 || cardRows.count < 5 {
-                    let coDauHieuLuoi6Cot = phanTu.contains { pt in
+                // Dự phòng lưới chuẩn 6 cột × 7 hàng (chỉ áp dụng cho ảnh Lưới Thẻ ngang w0 > h0, tuyệt đối không áp dụng cho Bảng dọc 39 dòng)
+                if (cardCols.count < 3 || cardRows.count < 5) && w0 > h0 {
+                    let coHeaderBangDoc = phanTu.contains { pt in
                         let u = boDau(pt.chu)
-                        return u.contains("THE ·") || u.contains("THE -") || u.contains("39 CHUONG TRINH") || (pt.x > 0.68 && (u.contains("TARGET") || u.contains("DU KIEN")))
+                        return pt.y < 0.22 && (u.contains("CHUONG TRINH") || u.contains("HANG VUNG") || u.contains("TARGET NGAY") || u.contains("HT NGAY"))
+                    }
+                    let coDauHieuLuoi6Cot = !coHeaderBangDoc && phanTu.contains { pt in
+                        let u = boDau(pt.chu)
+                        return u.contains("THE ·") || u.contains("THE -") || (u.contains("39 CHUONG TRINH") && u.contains("THE"))
                     }
                     if coDauHieuLuoi6Cot {
                         let colNorms: [(Double, Double)] = [
@@ -5083,14 +5106,21 @@ final class DichVuDocAnh {
         }
         var coHTDuKien = false
         var coTargetNgayHoacHTNgay = false
+        var coChuongTrinh = false
+        var coHangVung = false
         for pt in phanTu where pt.y < 0.22 {
             let u = boDau(pt.chu)
-            if pt.x >= 0.65 && (u.contains("DU KIEN") || u.contains("DY KIEN") || u == "KIEN") {
+            if u.contains("CHUONG TRINH") { coChuongTrinh = true }
+            if pt.x >= 0.78 && (u.contains("HANG VUNG") || u == "VUNG") { coHangVung = true }
+            if pt.x >= 0.54 && (u.contains("DU KIEN") || u.contains("DY KIEN") || u.contains("HOAN THANH") || u == "KIEN") {
                 coHTDuKien = true
             }
-            if u.contains("TARGET NGAY") || u.contains("HT NGAY") || (pt.x >= 0.50 && pt.x < 0.86 && u == "NGAY") {
+            if u.contains("REALTIME") || u.contains("TARGET NGAY") || u.contains("HT NGAY") || (pt.x >= 0.44 && pt.x < 0.88 && u == "NGAY") {
                 coTargetNgayHoacHTNgay = true
             }
+        }
+        if !coTargetNgayHoacHTNgay && coChuongTrinh && coHangVung {
+            coHTDuKien = true
         }
         if coTargetNgayHoacHTNgay && !coHTDuKien {
             return false
@@ -5708,9 +5738,9 @@ final class DichVuDocAnh {
                             var thongTinDongGian: [(ySrc0: Int, caoSrc: Int, yDst0: Int, yDst1: Int)] = []
                             let catBien = max(2, heSo)
                             for d in cacDongHopLe {
-                                let ys0 = min(h - 2, max(0, d.y0Px * heSo + catBien))
-                                let ys1 = max(ys0 + 4, min(h, d.y1Px * heSo - catBien))
-                                let cs = ys1 - ys0
+                                let ys0 = min(max(0, h - 6), max(0, d.y0Px * heSo + catBien))
+                                let ys1 = min(h, max(ys0 + 4, d.y1Px * heSo - catBien))
+                                let cs = max(1, ys1 - ys0)
                                 thongTinDongGian.append((ySrc0: ys0, caoSrc: cs, yDst0: tongCaoGian, yDst1: tongCaoGian + cs))
                                 tongCaoGian += cs + demDoc
                             }
@@ -5724,6 +5754,8 @@ final class DichVuDocAnh {
                                 for dy in 0..<tt.caoSrc {
                                     let srcRow = (tt.ySrc0 + dy) * bprW
                                     let dstRow = (tt.yDst0 + dy) * bprW
+                                    guard srcRow >= 0, srcRow + bprW <= cleanPixels.count,
+                                          dstRow >= 0, dstRow + bprW <= explodedPixels.count else { continue }
                                     explodedPixels.replaceSubrange(dstRow..<(dstRow + bprW), with: cleanPixels[srcRow..<(srcRow + bprW)])
                                     // Nếu là Bảng dọc có thanh tiến độ ở Cột 4A (xv3..xv4), xoá trắng vùng thanh tiến độ (với Realtime xoá toàn bộ ô thanh tiến độ vì % HT ngày nằm ở xv4..xv5)
                                     if laBangDocCoThanhTienDo && (laRealtime || dy >= dyCutBar) && xBar1 > xBar0 {
@@ -5763,6 +5795,9 @@ final class DichVuDocAnh {
 
                                 let chunkSizeDong = 8
                                 for (chiSoCot, cot) in cacCotRanhGioi.enumerated() {
+                                    if laRealtime && laBangDocCoThanhTienDo && chiSoCot == 3 {
+                                        continue
+                                    }
                                     let xc0 = min(w - 2, max(0, Int((CGFloat(w) * cot.b0).rounded()) + catBien))
                                     let xc1 = max(xc0 + 4, min(w, Int((CGFloat(w) * cot.b1).rounded()) - catBien))
                                     var obsDaSapXep: [(yPx: CGFloat, xPx: CGFloat, chu: String)] = []
@@ -5798,8 +5833,10 @@ final class DichVuDocAnh {
                                                 req.recognitionLanguages = ["vi-VN", "en-US"]
                                             }
                                             req.minimumTextHeight = 0.01
-                                            let handler = VNImageRequestHandler(cgImage: cgChunk, orientation: anhGoc.cgImageOrientation, options: [:])
-                                            try? handler.perform([req])
+                                            autoreleasepool {
+                                                let handler = VNImageRequestHandler(cgImage: cgChunk, orientation: anhGoc.cgImageOrientation, options: [:])
+                                                try? handler.perform([req])
+                                            }
                                         }
                                         startRow = endRow
                                     }
@@ -5860,8 +5897,10 @@ final class DichVuDocAnh {
                                     reqO.usesLanguageCorrection = cot.laCotTen
                                     if cot.laCotTen { reqO.recognitionLanguages = ["vi-VN", "en-US"] }
                                     reqO.minimumTextHeight = 0.04
-                                    let hdl = VNImageRequestHandler(cgImage: cgO, orientation: anhGoc.cgImageOrientation, options: [:])
-                                    try? hdl.perform([reqO])
+                                    autoreleasepool {
+                                        let hdl = VNImageRequestHandler(cgImage: cgO, orientation: anhGoc.cgImageOrientation, options: [:])
+                                        try? hdl.perform([reqO])
+                                    }
 
                                     // Nếu ô số chỉ có 1 chữ số đơn lẻ (như 0, 1, 2, 5, 8) khiến Vision bỏ qua khi đứng một mình,
                                     // ghép nhãn neo "100 : " bên trái ô để Vision luôn nhận diện thành dòng chữ hoàn chỉnh
@@ -5903,8 +5942,10 @@ final class DichVuDocAnh {
                                             reqNeo.recognitionLevel = .accurate
                                             reqNeo.usesLanguageCorrection = false
                                             reqNeo.minimumTextHeight = 0.05
-                                            let hdlNeo = VNImageRequestHandler(cgImage: cgNeo, orientation: .up, options: [:])
-                                            try? hdlNeo.perform([reqNeo])
+                                            autoreleasepool {
+                                                let hdlNeo = VNImageRequestHandler(cgImage: cgNeo, orientation: .up, options: [:])
+                                                try? hdlNeo.perform([reqNeo])
+                                            }
                                         }
                                     }
 
@@ -5927,38 +5968,10 @@ final class DichVuDocAnh {
                                     var ht = trichSoHopLe(chuoiCot4).first
                                     var dk = trichSoHopLe(chuoiCot5).first
 
-                                    if th == nil {
-                                        let them2 = lamSachChuoi(docOTrongBang(chiSoCot: 1, idxDong: idxDong).joined(separator: " "))
-                                        if !them2.isEmpty {
-                                            chuoiCot2 = them2
-                                            th = trichSoHopLe(them2).first
-                                        }
-                                    }
-                                    if tg == nil {
-                                        let them3 = lamSachChuoi(docOTrongBang(chiSoCot: 2, idxDong: idxDong).joined(separator: " "))
-                                        if !them3.isEmpty {
-                                            chuoiCot3 = them3
-                                            tg = trichSoHopLe(them3).first
-                                        }
-                                    }
-                                    if ht == nil {
-                                        let them4 = lamSachChuoi(docOTrongBang(chiSoCot: 3, idxDong: idxDong).joined(separator: " "))
-                                        if !them4.isEmpty {
-                                            chuoiCot4 = them4
-                                            ht = trichSoHopLe(them4).first
-                                        }
-                                    }
-                                    if dk == nil {
-                                        let them5 = lamSachChuoi(docOTrongBang(chiSoCot: 4, idxDong: idxDong).joined(separator: " "))
-                                        if !them5.isEmpty {
-                                            chuoiCot5 = them5
-                                            dk = trichSoHopLe(them5).first
-                                        }
-                                    }
-
                                     var coThapPhan = chuoiCot2.range(of: "\\d+[.]\\d{1,2}\\b", options: .regularExpression) != nil ||
                                                      chuoiCot3.range(of: "\\d+[.]\\d{1,2}\\b", options: .regularExpression) != nil
 
+                                    // Ưu tiên đối chiếu ngay với phanTuGocDonDong đã có sẵn trong bộ nhớ trước khi gọi OCR đơn lẻ
                                     if th == nil || tg == nil || ht == nil || dk == nil {
                                         let ptHangGoc = phanTuGocDonDong.filter {
                                             let yTam = $0.y + $0.cao / 2.0
@@ -5999,6 +6012,35 @@ final class DichVuDocAnh {
                                         }
                                     }
 
+                                    if th == nil {
+                                        let them2 = lamSachChuoi(docOTrongBang(chiSoCot: 1, idxDong: idxDong).joined(separator: " "))
+                                        if !them2.isEmpty {
+                                            chuoiCot2 = them2
+                                            th = trichSoHopLe(them2).first
+                                        }
+                                    }
+                                    if tg == nil {
+                                        let them3 = lamSachChuoi(docOTrongBang(chiSoCot: 2, idxDong: idxDong).joined(separator: " "))
+                                        if !them3.isEmpty {
+                                            chuoiCot3 = them3
+                                            tg = trichSoHopLe(them3).first
+                                        }
+                                    }
+                                    if dk == nil {
+                                        let them5 = lamSachChuoi(docOTrongBang(chiSoCot: 4, idxDong: idxDong).joined(separator: " "))
+                                        if !them5.isEmpty {
+                                            chuoiCot5 = them5
+                                            dk = trichSoHopLe(them5).first
+                                        }
+                                    }
+                                    if ht == nil && !(laRealtime && laBangDocCoThanhTienDo) && (th ?? 0) > 0.0001 {
+                                        let them4 = lamSachChuoi(docOTrongBang(chiSoCot: 3, idxDong: idxDong).joined(separator: " "))
+                                        if !them4.isEmpty {
+                                            chuoiCot4 = them4
+                                            ht = trichSoHopLe(them4).first
+                                        }
+                                    }
+
                                     let cacDongTenCot0 = ketQuaTungCot[0][idxDong]
                                     var (tenSach, loai) = nhanDienTenVaDonVi(tu: cacDongTenCot0, coSoThapPhan: coThapPhan)
 
@@ -6031,11 +6073,19 @@ final class DichVuDocAnh {
                                         }
                                     }
 
-                                    // Nếu bảng có đúng 39 dòng chương trình chuẩn ĐMX mà dòng hiện tại bị watermark che mờ tên, khôi phục chính xác tên chuẩn theo vị trí dòng
-                                    if cacDongHopLe.count == KhoDuLieu.danhSach39MonThiDuaLuyKeMau.count,
+                                    // Nếu bảng có đúng 39 dòng Lũy kế hoặc 38 dòng Realtime chuẩn ĐMX mà dòng hiện tại bị watermark che mờ tên, khôi phục chính xác tên chuẩn theo vị trí dòng
+                                    if !laRealtime,
+                                       cacDongHopLe.count == KhoDuLieu.danhSach39MonThiDuaLuyKeMau.count,
                                        idxDong < KhoDuLieu.danhSach39MonThiDuaLuyKeMau.count,
                                        !KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) {
                                         let mau = KhoDuLieu.danhSach39MonThiDuaLuyKeMau[idxDong]
+                                        tenSach = "T11 - \(mau.ten)"
+                                        loai = mau.loai
+                                    } else if laRealtime,
+                                              cacDongHopLe.count == KhoDuLieu.danhSach38MonThiDuaRealtimeMau.count,
+                                              idxDong < KhoDuLieu.danhSach38MonThiDuaRealtimeMau.count,
+                                              !KhoDuLieu.laTenMonThiDuaChuanDMX(tenSach) {
+                                        let mau = KhoDuLieu.danhSach38MonThiDuaRealtimeMau[idxDong]
                                         tenSach = "T11 - \(mau.ten)"
                                         loai = mau.loai
                                     }
@@ -6294,15 +6344,9 @@ final class DichVuDocAnh {
                     d.phanTramHT = 0.0
                     d.phanTramDuKien = 0.0
                 } else if !laRealtime, d.soTH > 0, let heSo = (d.loai == .soLuong ? (heSoSL ?? heSoDT) : (heSoDT ?? heSoSL)), heSo > 1.0 {
-                    let dkKyVong: Double
-                    if d.loai == .soLuong {
-                        let slDK = (d.soTH * heSo).rounded()
-                        dkKyVong = ((slDK / d.soTG) * 1000.0).rounded() / 10.0
-                    } else {
-                        let htChinhXac = (d.soTH / d.soTG) * 100.0
-                        dkKyVong = ((htChinhXac * heSo) * 10.0).rounded() / 10.0
-                    }
-                    if d.phanTramDuKien == nil || abs(d.phanTramDuKien! - dkKyVong) > 1.2 {
+                    let htChinhXac = (d.soTH / d.soTG) * 100.0
+                    let dkKyVong = ((htChinhXac * heSo) * 10.0).rounded() / 10.0
+                    if d.phanTramDuKien == nil || abs(d.phanTramDuKien! - dkKyVong) > 2.5 {
                         d.phanTramDuKien = dkKyVong
                     }
                 }
@@ -6327,7 +6371,7 @@ final class DichVuDocAnh {
             danhSachKetQua = KhoDuLieu.gopDanhSachThiDua(cu: danhSachKetQua, moi: [dong])
         }
 
-        return danhSachKetQua
+        return KhoDuLieu.chuanHoaDanhSachThiDua39Mon(danhSachKetQua, laRealtime: laRealtime)
     }
 
     // MARK: - Bước 2A.00B: Bộ phân tích Bảng Thi Đua 5 Cột Theo Ngày / Realtime - Phương pháp 2 (CHƯƠNG TRÌNH | THỰC HIỆN | TARGET NGÀY | % HT NGÀY | HẠNG VÙNG)
@@ -6814,9 +6858,9 @@ final class DichVuDocAnh {
                             var thongTinDongGian: [(ySrc0: Int, caoSrc: Int, yDst0: Int, yDst1: Int)] = []
                             let catBien = max(2, heSo)
                             for d in cacDongHopLe {
-                                let ys0 = min(h - 2, max(0, d.y0Px * heSo + catBien))
-                                let ys1 = max(ys0 + 4, min(h, d.y1Px * heSo - catBien))
-                                let cs = ys1 - ys0
+                                let ys0 = min(max(0, h - 6), max(0, d.y0Px * heSo + catBien))
+                                let ys1 = min(h, max(ys0 + 4, d.y1Px * heSo - catBien))
+                                let cs = max(1, ys1 - ys0)
                                 thongTinDongGian.append((ySrc0: ys0, caoSrc: cs, yDst0: tongCaoGian, yDst1: tongCaoGian + cs))
                                 tongCaoGian += cs + demDoc
                             }
@@ -6827,6 +6871,8 @@ final class DichVuDocAnh {
                                 for dy in 0..<tt.caoSrc {
                                     let srcRow = (tt.ySrc0 + dy) * bprW
                                     let dstRow = (tt.yDst0 + dy) * bprW
+                                    guard srcRow >= 0, srcRow + bprW <= cleanPixels.count,
+                                          dstRow >= 0, dstRow + bprW <= explodedPixels.count else { continue }
                                     explodedPixels.replaceSubrange(dstRow..<(dstRow + bprW), with: cleanPixels[srcRow..<(srcRow + bprW)])
                                 }
                             }
@@ -6946,8 +6992,10 @@ final class DichVuDocAnh {
                                     reqO.usesLanguageCorrection = cot.laCotTen
                                     if cot.laCotTen { reqO.recognitionLanguages = ["vi-VN", "en-US"] }
                                     reqO.minimumTextHeight = 0.04
-                                    let hdl = VNImageRequestHandler(cgImage: cgO, orientation: anhGoc.cgImageOrientation, options: [:])
-                                    try? hdl.perform([reqO])
+                                    autoreleasepool {
+                                        let hdl = VNImageRequestHandler(cgImage: cgO, orientation: anhGoc.cgImageOrientation, options: [:])
+                                        try? hdl.perform([reqO])
+                                    }
                                     kqO.sort {
                                         if abs($0.y - $1.y) < 0.08 { return $0.x < $1.x }
                                         return $0.y < $1.y
@@ -7255,7 +7303,7 @@ final class DichVuDocAnh {
             danhSachKetQua = KhoDuLieu.gopDanhSachThiDua(cu: danhSachKetQua, moi: [dong])
         }
 
-        return danhSachKetQua
+        return KhoDuLieu.chuanHoaDanhSachThiDua39Mon(danhSachKetQua, laRealtime: true)
     }
 
     // MARK: - Bước 2A.0: Bộ phân tích Bảng Thi Đua 4-5 Cột (CHƯƠNG TRÌNH | THỰC HIỆN | TARGET NGÀY/THÁNG | % HT NGÀY/THÁNG)

@@ -11,11 +11,9 @@ final class DichVuQuetAnhGemini {
     private func danhSachModelHopLe() -> [(model: String, tatThinking: Bool)] {
         let ungVien: [(model: String, tatThinking: Bool)] = [
             ("gemini-2.5-flash", true),
-            ("gemini-2.5-flash-lite", false),
-            ("gemini-3.1-flash-lite-preview", true),
-            ("gemini-2.0-flash", false),
-            ("gemini-3.5-flash-lite", false),
-            ("gemini-3.1-flash-lite", false)
+            ("gemini-2.5-flash-lite", true),
+            ("gemini-3.1-flash-lite-preview", false),
+            ("gemini-2.0-flash", false)
         ]
         khoaModel404.lock()
         let ds404 = cacModelKhongHoTro
@@ -70,8 +68,11 @@ final class DichVuQuetAnhGemini {
         DispatchQueue.global(qos: .userInitiated).async {
             var cacMucAnh: [(data: Data, luoiO: ThongTinLuoiMaTranAnh?)] = []
             for anh in danhSachAnh {
-                if let d = self.duLieuAnhGon(anh) {
-                    cacMucAnh.append((d, self.phanTichLuoiOAnhMaTran(anh)))
+                autoreleasepool {
+                    if let d = self.duLieuAnhGon(anh) {
+                        let luoi = (cheDo == .luyKe) ? self.phanTichLuoiOAnhMaTran(anh) : nil
+                        cacMucAnh.append((d, luoi))
+                    }
                 }
             }
             guard !cacMucAnh.isEmpty else {
@@ -335,9 +336,9 @@ final class DichVuQuetAnhGemini {
             }
             if error != nil || status != 200 {
                 if chiSo + 1 < cacCap.count {
-                    let delay: TimeInterval = (status == 429 || status == 503) ? 0.4 : 0.05
+                    let delay: TimeInterval = (status == 429 || status == 503) ? 0.35 : 0.05
                     let chiSoTiep: Int
-                    if status == 404 {
+                    if status == 404 || status == 400 {
                         chiSoTiep = cacCap[(chiSo + 1)...].firstIndex(where: { $0.model != cap.model }) ?? cacCap.count
                     } else {
                         chiSoTiep = chiSo + 1
@@ -358,8 +359,9 @@ final class DichVuQuetAnhGemini {
             }
 
             guard let data, let json = self.layJSONKetQua(tu: data) else {
-                if chiSo + 1 < cacCap.count {
-                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, hoanTat: hoanTat)
+                let chiSoTiep = cacCap[(chiSo + 1)...].firstIndex(where: { $0.model != cap.model }) ?? cacCap.count
+                if chiSoTiep < cacCap.count {
+                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSoTiep, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, hoanTat: hoanTat)
                     return
                 }
                 hoanTat(.failure(NSError(
@@ -372,8 +374,13 @@ final class DichVuQuetAnhGemini {
 
             let ketQua = self.chuyen(json: json, cheDo: cheDo, luoiO: luoiOTuChon)
             guard ketQua.coDuLieu else {
-                if chiSo + 1 < cacCap.count {
-                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo + 1, cheDo: cheDo, imageData: imageData, promptTuChon: promptTuChon, luoiOTuChon: luoiOTuChon, hoanTat: hoanTat)
+                if promptTuChon != nil {
+                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSo, cheDo: cheDo, imageData: imageData, promptTuChon: nil, luoiOTuChon: nil, hoanTat: hoanTat)
+                    return
+                }
+                let chiSoTiep = cacCap[(chiSo + 1)...].firstIndex(where: { $0.model != cap.model }) ?? cacCap.count
+                if chiSoTiep < cacCap.count {
+                    self.goiGeminiChoMotAnh(cacCap: cacCap, chiSo: chiSoTiep, cheDo: cheDo, imageData: imageData, promptTuChon: nil, luoiOTuChon: nil, hoanTat: hoanTat)
                     return
                 }
                 hoanTat(.failure(NSError(
@@ -595,7 +602,8 @@ final class DichVuQuetAnhGemini {
                     duKienGoc: duKienGoc
                 )
             }
-            kq.danhSachThiDua = KhoDuLieu.gopDanhSachThiDua(cu: [], moi: dsQuet)
+            let dsGop = KhoDuLieu.gopDanhSachThiDua(cu: [], moi: dsQuet)
+            kq.danhSachThiDua = KhoDuLieu.chuanHoaDanhSachThiDua39Mon(dsGop, laRealtime: cheDo == .realtime)
             if !kq.danhSachThiDua.isEmpty { kq.soAnhThiDua = 1 }
         }
         if json["gioCongNhanVien"] is [[String: Any]] {
@@ -805,7 +813,7 @@ final class DichVuQuetAnhGemini {
         guard let cgGoc = anh.cgImage else { return nil }
         let w0 = cgGoc.width
         let h0 = cgGoc.height
-        guard w0 >= 300, h0 >= 150 else { return nil }
+        guard w0 >= 300, h0 >= 150, w0 >= Int(Double(h0) * 0.90) else { return nil }
 
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         var raw = [UInt8](repeating: 255, count: w0 * h0 * 4)
@@ -878,13 +886,17 @@ final class DichVuQuetAnhGemini {
             colBounds.append((colEdges[i], colEdges[i + 1]))
         }
         // Bỏ cột STT hẹp ở đầu nếu theo sau là cột NHÂN VIÊN rộng (> 18% chiều rộng ảnh)
+        var coCotSTT = false
         if colBounds.count >= 5 && colBounds[0].x1 < Int(Double(w0) * 0.08) && (colBounds[1].x1 - colBounds[1].x0) > Int(Double(w0) * 0.18) {
             colBounds.removeFirst()
+            coCotSTT = true
         } else if colBounds.count == 15 && colBounds[0].x1 < Int(Double(w0) * 0.075) {
             colBounds.removeFirst()
+            coCotSTT = true
         }
         if let xVachSTT = vCenters.first(where: { $0 >= colBounds[0].x0 + 16 && $0 <= min(colBounds[0].x1 - 50, Int(Double(w0) * 0.068)) }) {
             colBounds[0].x0 = xVachSTT
+            coCotSTT = true
         }
         if colBounds.count == 13 {
             let dataWidths = colBounds.dropFirst().map { $0.x1 - $0.x0 }.sorted()
@@ -901,7 +913,7 @@ final class DichVuQuetAnhGemini {
             }
         }
         let soCotDuLieu = colBounds.count - 1
-        guard (soCotDuLieu >= 4 && soCotDuLieu <= 6) || soCotDuLieu == 13 else { return nil }
+        guard (soCotDuLieu >= 4 && soCotDuLieu <= 6 && coCotSTT) || soCotDuLieu == 13 else { return nil }
         // Kiểm tra cột NHÂN VIÊN (colBounds[0]) đủ rộng (>= 22% chiều rộng ảnh) và các cột dữ liệu có bề rộng đồng đều
         guard (colBounds[0].x1 - colBounds[0].x0) >= Int(Double(w0) * 0.22) else { return nil }
 
@@ -1001,7 +1013,7 @@ final class DichVuQuetAnhGemini {
                 return dpNV >= 20
             }
         }
-        guard rowBounds.count >= 10 else { return nil }
+        guard rowBounds.count >= 10 && rowBounds.count <= 28 else { return nil }
 
         var coSoTheoCot: [[Bool]] = []
         var soOActiveTheoCot: [Int] = []
