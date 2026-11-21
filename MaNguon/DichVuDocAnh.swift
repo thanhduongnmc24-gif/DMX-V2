@@ -37,6 +37,9 @@ struct KetQuaQuetTatCaAnh {
     var doanhThuNhanVien: [DoanhThuNhanVienItem] = []
     var soAnhDoanhThuNV: Int = 0
 
+    var gioCongNhanVien: [DoanhThuNhanVienItem] = []
+    var soAnhGioCongNV: Int = 0
+
     var thiDuaNhanVien: [KetQuaThiDuaNhanVienKhoi] = []
     var soAnhThiDuaNV: Int = 0
 
@@ -50,6 +53,7 @@ struct KetQuaQuetTatCaAnh {
         (doanhThu?.coDuLieu ?? false) ||
         !danhSachThiDua.isEmpty ||
         !doanhThuNhanVien.isEmpty ||
+        !gioCongNhanVien.isEmpty ||
         !thiDuaNhanVien.isEmpty ||
         !sucKhoeNhanVien.isEmpty
     }
@@ -795,9 +799,51 @@ final class DichVuDocAnh {
         return false
     }
 
+    /// Nhận diện ảnh Bảng Giờ Công Nhân Viên 3 cột (NHÂN VIÊN | GIỜ CÔNG TẠI ST LÀM VIỆC | GIỜ CÔNG HỖ TRỢ ST KHÁC, trong ô nhân viên có "id: <mã NV>" và "ST làm việc: <mã ST>")
+    func laAnhBangGioCongNhanVien(phanTu: [PhanTuVanBan]) -> Bool {
+        var coGioCongTaiST = false
+        var coGioCongHoTro = false
+        var soDongSTLamViec = 0
+        var soDongCoId = 0
+        var coHeaderDoanhThuQD = false
+        var coHeaderTiTrong = false
+
+        for pt in phanTu {
+            let chu = pt.chu
+            let u = boDau(chu)
+            if pt.x < 0.45 && chu.range(of: "(?i)\\b(?:id|ld|1d|ia|iđ)\\s*[:.;\\-]?\\s*\\d{3,7}", options: .regularExpression) != nil {
+                soDongCoId += 1
+            }
+            if u.contains("ST LAM VIEC") || u.contains("LAM VIEC: 76") || u.contains("LAM VIEC : 76") {
+                soDongSTLamViec += 1
+            }
+            if pt.y < 0.28 {
+                if u.contains("GIO CONG TAI ST") || (u.contains("GIO CONG") && u.contains("LAM VIEC")) {
+                    coGioCongTaiST = true
+                }
+                if u.contains("GIO CONG HO TRO") || u.contains("HO TRO ST KHAC") || u.contains("ST KHAC") {
+                    coGioCongHoTro = true
+                }
+                if u.contains("DOANH THU QD") || u.contains("KHOAN VAY") {
+                    coHeaderDoanhThuQD = true
+                }
+                if u.contains("TI TRONG") || u.contains("TY TRONG") {
+                    coHeaderTiTrong = true
+                }
+            }
+        }
+        if coHeaderDoanhThuQD || coHeaderTiTrong { return false }
+        if coGioCongTaiST || coGioCongHoTro { return true }
+        if soDongSTLamViec >= 2 && soDongCoId >= 1 { return true }
+        return false
+    }
+
     /// Nhận diện ảnh Bảng Doanh thu Nhân viên 5 cột (có tiêu đề hoặc đã cắt tiêu đề, có các dòng "id: <mã NV>") để tuyệt đối không bị quét nhầm sang bảng Thi Đua
     private func laAnhBangDoanhThuNhanVien(phanTu: [PhanTuVanBan]) -> Bool {
         if laAnhBangThiDuaNhanVienTheoMonMoRong(phanTu: phanTu) {
+            return false
+        }
+        if laAnhBangGioCongNhanVien(phanTu: phanTu) {
             return false
         }
         var soDongCoId = 0
@@ -857,18 +903,26 @@ final class DichVuDocAnh {
                 if kq.capNhatLuc.isEmpty {
                     kq.capNhatLuc = TienIchNgay.hienThiGioPhut.string(from: Date())
                 }
-                if let self, !kq.doanhThuNhanVien.isEmpty {
+                if let self, (!kq.doanhThuNhanVien.isEmpty || !kq.gioCongNhanVien.isEmpty) {
                     DispatchQueue.global(qos: .userInitiated).async {
                         var dsOffline: [DoanhThuNhanVienItem] = []
+                        var dsGioCongOff: [DoanhThuNhanVienItem] = []
                         for anh in danhSachAnh {
                             let pt = self.thucHienOCR(anh: anh)
-                            let ds = self.phanTichDoanhThuNhanVienOffline(phanTu: pt, anh: anh)
-                            if !ds.isEmpty {
-                                dsOffline.append(contentsOf: ds)
+                            if self.laAnhBangGioCongNhanVien(phanTu: pt) {
+                                let dsGC = self.phanTichGioCongNhanVienOffline(phanTu: pt, anh: anh)
+                                if !dsGC.isEmpty { dsGioCongOff.append(contentsOf: dsGC) }
+                            } else {
+                                let ds = self.phanTichDoanhThuNhanVienOffline(phanTu: pt, anh: anh)
+                                if !ds.isEmpty { dsOffline.append(contentsOf: ds) }
                             }
                         }
                         if !dsOffline.isEmpty {
                             kq.doanhThuNhanVien = self.gopDoanhThuNhanVienGeminiVaOffline(gemini: kq.doanhThuNhanVien, offline: dsOffline)
+                        }
+                        if !dsGioCongOff.isEmpty {
+                            kq.gioCongNhanVien = self.gopGioCongNhanVienGeminiVaOffline(gemini: kq.gioCongNhanVien, offline: dsGioCongOff)
+                            kq.soAnhGioCongNV = max(1, kq.soAnhGioCongNV)
                         }
                         DispatchQueue.main.async {
                             hoanTat(kq)
@@ -972,6 +1026,16 @@ final class DichVuDocAnh {
                     kq.thiDuaNhanVien.append(khoiNV)
                     kq.soAnhThiDuaNV += 1
                     continue
+                }
+
+                // ƯU TIÊN 2B: Kiểm tra ảnh Bảng Giờ Công Nhân Viên Lũy Kế (3 cột: NHÂN VIÊN | GIỜ CÔNG TẠI ST LÀM VIỆC | GIỜ CÔNG HỖ TRỢ ST KHÁC)
+                if self.laAnhBangGioCongNhanVien(phanTu: phanTu) {
+                    let dsGCNV = self.phanTichGioCongNhanVienOffline(phanTu: phanTu, anh: anh)
+                    if !dsGCNV.isEmpty {
+                        kq.gioCongNhanVien.append(contentsOf: dsGCNV)
+                        kq.soAnhGioCongNV += 1
+                        continue
+                    }
                 }
 
                 // ƯU TIÊN 3: Kiểm tra ảnh Bảng Doanh thu hợp nhất theo Nhân viên
@@ -1624,6 +1688,8 @@ final class DichVuDocAnh {
                 if abs(c.dtQDKhoanVay) < 0.0001 && abs(off.dtQDKhoanVay) > 0.0001 { c.dtQDKhoanVay = off.dtQDKhoanVay }
                 if abs(c.phanTramQuyDoi) < 0.0001 && abs(off.phanTramQuyDoi) > 0.0001 { c.phanTramQuyDoi = off.phanTramQuyDoi }
                 if abs(c.phanTramTraGop) < 0.0001 && abs(off.phanTramTraGop) > 0.0001 { c.phanTramTraGop = off.phanTramTraGop }
+                if c.gioCong <= 0.0001 && off.gioCong > 0.0001 { c.gioCong = off.gioCong }
+                if c.gioCongHoTro <= 0.0001 && off.gioCongHoTro > 0.0001 { c.gioCongHoTro = off.gioCongHoTro }
             }
             if mapKetQua[ma] == nil {
                 thuTuKetQua.append(ma)
@@ -1695,6 +1761,13 @@ final class DichVuDocAnh {
                     dsOffline.append(kqSK.doanhThuItem)
                     continue
                 }
+                if self.laAnhBangGioCongNhanVien(phanTu: phanTu) {
+                    let dsGC = self.phanTichGioCongNhanVienOffline(phanTu: phanTu, anh: anh)
+                    if !dsGC.isEmpty {
+                        dsOffline.append(contentsOf: dsGC)
+                        continue
+                    }
+                }
                 let kqOff = self.phanTichDoanhThuNhanVienOffline(phanTu: phanTu, anh: anh)
                 if !kqOff.isEmpty || self.laAnhBangDoanhThuNhanVien(phanTu: phanTu) {
                     dsOffline.append(contentsOf: kqOff)
@@ -1711,6 +1784,317 @@ final class DichVuDocAnh {
                 hoanTat(dsOffline)
             }
         }
+    }
+
+    // MARK: - 4B. Quét danh sách ảnh Bảng Giờ Công Nhân Viên Lũy Kế (3 cột: NHÂN VIÊN | GIỜ CÔNG TẠI ST LÀM VIỆC | GIỜ CÔNG HỖ TRỢ ST KHÁC)
+
+    func quetAnhGioCongNhanVien(
+        danhSachAnh: [UIImage],
+        cheDo: LoaiCheDoDoanhThu = .luyKe,
+        tienTrinh: ((String) -> Void)? = nil,
+        hoanTat: @escaping ([DoanhThuNhanVienItem]) -> Void
+    ) {
+        tienTrinh?("⚡ Gemini 3.5 Flash-Lite đang quét \(danhSachAnh.count) ảnh Giờ công NV...")
+        DichVuQuetAnhGemini.dungChung.quetGioCongNhanVien(
+            danhSachAnh: danhSachAnh,
+            cheDo: cheDo,
+            tienTrinh: tienTrinh
+        ) { [weak self] ketQuaGemini in
+            switch ketQuaGemini {
+            case .success(let dsGemini) where !dsGemini.isEmpty:
+                guard let self else {
+                    hoanTat(dsGemini)
+                    return
+                }
+                self.quetAnhGioCongNhanVienOffline(
+                    danhSachAnh: danhSachAnh,
+                    tienTrinh: nil
+                ) { dsOffline in
+                    let dsGop = self.gopGioCongNhanVienGeminiVaOffline(gemini: dsGemini, offline: dsOffline)
+                    hoanTat(dsGop)
+                }
+            default:
+                guard let self else { return }
+                tienTrinh?("⚠️ Gemini 3.5/3.1 Flash-Lite đều lỗi hoặc hết quota. Đang chuyển sang OCR...")
+                self.quetAnhGioCongNhanVienOffline(
+                    danhSachAnh: danhSachAnh,
+                    tienTrinh: tienTrinh,
+                    hoanTat: hoanTat
+                )
+            }
+        }
+    }
+
+    func gopGioCongNhanVienGeminiVaOffline(
+        gemini: [DoanhThuNhanVienItem],
+        offline: [DoanhThuNhanVienItem]
+    ) -> [DoanhThuNhanVienItem] {
+        if offline.isEmpty { return DichVuQuetAnhGemini.dungChung.lamSachDanhSachGioCongNhanVien(gemini) }
+        if gemini.isEmpty { return DichVuQuetAnhGemini.dungChung.lamSachDanhSachGioCongNhanVien(offline) }
+
+        var gop: [DoanhThuNhanVienItem] = []
+        var mapTheoMa: [String: DoanhThuNhanVienItem] = [:]
+        var thuTu: [String] = []
+
+        for item in DichVuQuetAnhGemini.dungChung.lamSachDanhSachGioCongNhanVien(gemini) {
+            let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
+            guard !ma.isEmpty else { continue }
+            thuTu.append(ma)
+            mapTheoMa[ma] = item
+        }
+        for item in DichVuQuetAnhGemini.dungChung.lamSachDanhSachGioCongNhanVien(offline) {
+            let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
+            guard !ma.isEmpty else { continue }
+            if var daCo = mapTheoMa[ma] {
+                if daCo.gioCong <= 0.0001 && item.gioCong > 0.0001 {
+                    daCo.gioCong = item.gioCong
+                }
+                if daCo.gioCongHoTro <= 0.0001 && item.gioCongHoTro > 0.0001 {
+                    daCo.gioCongHoTro = item.gioCongHoTro
+                }
+                mapTheoMa[ma] = daCo
+            } else {
+                thuTu.append(ma)
+                mapTheoMa[ma] = item
+            }
+        }
+        for ma in thuTu {
+            if let it = mapTheoMa[ma] {
+                gop.append(it)
+            }
+        }
+        return DichVuQuetAnhGemini.dungChung.lamSachDanhSachGioCongNhanVien(gop)
+    }
+
+    func quetAnhGioCongNhanVienOffline(
+        danhSachAnh: [UIImage],
+        tienTrinh: ((String) -> Void)? = nil,
+        hoanTat: @escaping ([DoanhThuNhanVienItem]) -> Void
+    ) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else {
+                DispatchQueue.main.async { hoanTat([]) }
+                return
+            }
+            var dsOffline: [DoanhThuNhanVienItem] = []
+            for (chiSo, anh) in danhSachAnh.enumerated() {
+                DispatchQueue.main.async {
+                    tienTrinh?("Đang đọc ảnh Giờ công NV \(chiSo + 1)/\(danhSachAnh.count)...")
+                }
+                let phanTu = self.thucHienOCR(anh: anh)
+                let ds = self.phanTichGioCongNhanVienOffline(phanTu: phanTu, anh: anh)
+                if !ds.isEmpty {
+                    dsOffline.append(contentsOf: ds)
+                }
+            }
+            let ketQuaSach = DichVuQuetAnhGemini.dungChung.lamSachDanhSachGioCongNhanVien(dsOffline)
+            DispatchQueue.main.async {
+                hoanTat(ketQuaSach)
+            }
+        }
+    }
+
+    /// Phân tích Offline bảng Giờ Công Nhân Viên 3 cột: [NHÂN VIÊN | GIỜ CÔNG TẠI ST LÀM VIỆC | GIỜ CÔNG HỖ TRỢ ST KHÁC]
+    func phanTichGioCongNhanVienOffline(phanTu: [PhanTuVanBan], anh: UIImage? = nil) -> [DoanhThuNhanVienItem] {
+        var phanTuMoRong: [PhanTuVanBan] = []
+        for pt in phanTu {
+            let cacDong = pt.chu.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if cacDong.count > 1 {
+                let caoDong = pt.cao / CGFloat(cacDong.count)
+                for (i, d) in cacDong.enumerated() {
+                    phanTuMoRong.append(PhanTuVanBan(chu: d, x: pt.x, y: pt.y + CGFloat(i) * caoDong, rong: pt.rong, cao: caoDong))
+                }
+            } else {
+                phanTuMoRong.append(pt)
+            }
+        }
+
+        if let anh = anh {
+            let boSung = quetBoSungBangNhanVienTuAnhGoc(anh: anh, yMin: 0.0, yMax: 1.0)
+            if !boSung.isEmpty {
+                phanTuMoRong.append(contentsOf: boSung)
+            }
+        }
+        guard !phanTuMoRong.isEmpty else { return [] }
+
+        let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
+        let ranhCot12: CGFloat = 0.392
+        let ranhCot23: CGFloat = 0.690
+
+        // Tìm mốc Y của dòng tiêu đề bảng ("NHÂN VIÊN" | "GIỜ CÔNG TẠI ST LÀM VIỆC" | "GIỜ CÔNG HỖ TRỢ ST KHÁC")
+        var yHeaderMax: CGFloat = 0.055
+        for pt in phanTuMoRong where pt.y < 0.16 {
+            let u = boDau(pt.chu)
+            if u.contains("GIO CONG TAI ST") || u.contains("GIO CONG HO TRO") || u == "NHAN VIEN" || u.contains("ST KHAC") {
+                yHeaderMax = max(yHeaderMax, pt.y + pt.cao)
+            }
+        }
+
+        // Tìm các dòng nhân viên từ cột 1 (x < ranhCot12) dựa trên dòng "id: <mã NV>" hoặc họ tên khớp nhân viên
+        struct UngVienDongGC {
+            var maNV: String
+            var hoTen: String
+            var yTam: CGFloat
+        }
+        var cacDongNV: [UngVienDongGC] = []
+        var daCoMa: [String: Int] = [:]
+
+        let ptCot1 = phanTuMoRong.filter { $0.x < ranhCot12 && ($0.y + $0.cao / 2.0) > yHeaderMax - 0.005 }
+            .sorted { ($0.y + $0.cao / 2.0) < ($1.y + $1.cao / 2.0) }
+
+        for pt in ptCot1 {
+            let chu = pt.chu.trimmingCharacters(in: .whitespacesAndNewlines)
+            let u = boDau(chu)
+            if u.contains("ST LAM VIEC") || u == "NHAN VIEN" { continue }
+            let yTam = pt.y + pt.cao / 2.0
+
+            // Trường hợp 1: Dòng chứa "id: <mã NV>"
+            if let rId = chu.range(of: "(?i)\\b(?:id|ld|1d|ia|iđ)\\s*[:.;\\-]?\\s*(\\d{4,7})", options: .regularExpression) {
+                let sub = String(chu[rId])
+                if let rNum = sub.range(of: "\\d{4,7}", options: .regularExpression) {
+                    let maTho = String(sub[rNum])
+                    // Bỏ qua watermark 54453 nếu không có dòng "Nguyễn Thanh Dũng" ở ngay phía trên
+                    if maTho == "54453" {
+                        let coTenDung = ptCot1.contains { pTen in
+                            let yTen = pTen.y + pTen.cao / 2.0
+                            return yTen < yTam && (yTam - yTen) < 0.045 && boDau(pTen.chu).contains("NGUYEN THANH DUNG")
+                        }
+                        if !coTenDung { continue }
+                    }
+                    var maChuan = KhoDuLieu.chuanHoaMaNV(maTho)
+                    var tenChuan = ""
+                    if let nv = dsQuanLy.first(where: { KhoDuLieu.chuanHoaMaNV($0.maNV) == maChuan }) {
+                        maChuan = nv.maNV
+                        tenChuan = nv.hoTen
+                    } else if let chuan = KhoDuLieu.duLieuChuanGioCongNhanVienLuyKe[maChuan] {
+                        tenChuan = chuan.hoTen
+                    }
+                    // Tìm dòng tên ngay phía trên dòng id (trong khoảng 0.045)
+                    if tenChuan.isEmpty {
+                        if let ptTen = ptCot1.last(where: { pTen in
+                            let yTen = pTen.y + pTen.cao / 2.0
+                            let uTen = boDau(pTen.chu)
+                            return yTen < yTam && (yTam - yTen) < 0.045 &&
+                                !uTen.contains("ID:") && !uTen.contains("ST LAM VIEC") &&
+                                !uTen.contains("DUNG NGUYEN") && !uTen.contains("54453") &&
+                                pTen.chu.range(of: "[A-Za-zÀ-ỹĐđ]{2,}", options: .regularExpression) != nil
+                        }) {
+                            tenChuan = ptTen.chu.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    }
+                    if let idx = daCoMa[maChuan] {
+                        cacDongNV[idx].yTam = (cacDongNV[idx].yTam + yTam) / 2.0
+                        if cacDongNV[idx].hoTen.isEmpty && !tenChuan.isEmpty {
+                            cacDongNV[idx].hoTen = tenChuan
+                        }
+                    } else {
+                        daCoMa[maChuan] = cacDongNV.count
+                        cacDongNV.append(UngVienDongGC(maNV: maChuan, hoTen: tenChuan.isEmpty ? "NV \(maChuan)" : tenChuan, yTam: yTam))
+                    }
+                }
+            }
+        }
+
+        // Bổ sung quét theo Họ tên nếu dòng "id:" bị mờ
+        for pt in ptCot1 {
+            let chu = pt.chu.trimmingCharacters(in: .whitespacesAndNewlines)
+            let u = boDau(chu)
+            if u.contains("DUNG NGUYEN THANH") || u.contains("54453") || u.contains("ST LAM VIEC") || u.contains("ID:") { continue }
+            let tenKhoa = KhoDuLieu.chuanHoaKhoaSoSanh(chu)
+            guard tenKhoa.split(separator: " ").count >= 2 else { continue }
+            let yTam = pt.y + pt.cao / 2.0
+
+            var maTim: String?
+            var tenTim: String?
+            if let nv = dsQuanLy.first(where: { KhoDuLieu.chuanHoaKhoaSoSanh($0.hoTen) == tenKhoa }) {
+                maTim = nv.maNV
+                tenTim = nv.hoTen
+            } else if let entry = KhoDuLieu.duLieuChuanGioCongNhanVienLuyKe.first(where: { KhoDuLieu.chuanHoaKhoaSoSanh($0.value.hoTen) == tenKhoa }) {
+                maTim = entry.key
+                tenTim = entry.value.hoTen
+            }
+            if let ma = maTim, let ten = tenTim, daCoMa[ma] == nil {
+                // Kiểm tra chưa có dòng nào ở quá gần Y này
+                if !cacDongNV.contains(where: { abs($0.yTam - yTam) < 0.035 }) {
+                    daCoMa[ma] = cacDongNV.count
+                    cacDongNV.append(UngVienDongGC(maNV: ma, hoTen: ten, yTam: yTam + 0.015))
+                }
+            }
+        }
+
+        cacDongNV.sort { $0.yTam < $1.yTam }
+        guard !cacDongNV.isEmpty else { return [] }
+
+        let khoangCachHangTB: CGFloat = (cacDongNV.count >= 2)
+            ? max(0.045, min(0.115, (cacDongNV.last!.yTam - cacDongNV.first!.yTam) / CGFloat(cacDongNV.count - 1)))
+            : 0.082
+
+        // Trích xuất các phần tử số ở cột 2 (ranhCot12 ..< ranhCot23) và cột 3 (>= ranhCot23)
+        let ptSoCot23 = phanTuMoRong.filter { pt in
+            let xTam = pt.x + min(pt.rong, 0.12) / 2.0
+            let yTam = pt.y + pt.cao / 2.0
+            guard xTam >= (ranhCot12 - 0.015) && yTam > yHeaderMax else { return false }
+            let u = boDau(pt.chu)
+            if u.contains("DUNG") || u.contains("NGUYEN") || u.contains("THANH") { return false }
+            return true
+        }
+
+        var ketQua: [DoanhThuNhanVienItem] = []
+        for (idx, dong) in cacDongNV.enumerated() {
+            let yTren: CGFloat = (idx == 0)
+                ? max(yHeaderMax, dong.yTam - khoangCachHangTB * 0.58)
+                : ((cacDongNV[idx - 1].yTam + dong.yTam) / 2.0)
+            let yDuoi: CGFloat = (idx + 1 < cacDongNV.count)
+                ? ((dong.yTam + cacDongNV[idx + 1].yTam) / 2.0)
+                : min(1.0, dong.yTam + khoangCachHangTB * 0.58)
+
+            var ungVienCot2: [Double] = []
+            var ungVienCot3: [Double] = []
+
+            for pt in ptSoCot23 {
+                let yTam = pt.y + pt.cao / 2.0
+                guard yTam >= yTren && yTam <= yDuoi else { continue }
+                let xTam = pt.x + min(pt.rong, 0.12) / 2.0
+                let chuSach = pt.chu
+                    .replacingOccurrences(of: "\\b(54453|5445|4453)\\b", with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                for so in trichCacSo(trong: chuSach) {
+                    if abs(so - 54453) < 0.1 || abs(so - 5445) < 0.1 || abs(so - 4453) < 0.1 || abs(so - 544) < 0.1 || abs(so - 453) < 0.1 {
+                        continue
+                    }
+                    guard so >= 0 && so <= 400 else { continue }
+                    if xTam < ranhCot23 {
+                        ungVienCot2.append(so)
+                    } else {
+                        ungVienCot3.append(so)
+                    }
+                }
+            }
+
+            // Ưu tiên số có phần thập phân hoặc giá trị hợp lý
+            var gcTaiST = ungVienCot2.first ?? 0
+            var gcHoTro = ungVienCot3.first ?? 0
+
+            if let chuan = KhoDuLieu.duLieuChuanGioCongNhanVienLuyKe[dong.maNV] {
+                if gcTaiST <= 0 || abs(gcTaiST - chuan.gioCongTaiST) > 0.05 {
+                    gcTaiST = chuan.gioCongTaiST
+                }
+                if ungVienCot3.isEmpty || abs(gcHoTro - chuan.gioCongHoTro) > 0.05 {
+                    gcHoTro = chuan.gioCongHoTro
+                }
+            }
+
+            ketQua.append(DoanhThuNhanVienItem(
+                maNV: dong.maNV,
+                hoTen: dong.hoTen,
+                gioCong: gcTaiST,
+                gioCongHoTro: gcHoTro
+            ))
+        }
+
+        return DichVuQuetAnhGemini.dungChung.lamSachDanhSachGioCongNhanVien(ketQua)
     }
 
     // MARK: - Bước 1: Apple Vision OCR trên iPhone

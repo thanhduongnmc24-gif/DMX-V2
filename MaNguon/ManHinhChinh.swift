@@ -338,6 +338,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         case thiDua(LoaiCheDoDoanhThu)
         case thiDuaNhanVien(LoaiCheDoDoanhThu)
         case doanhThuNhanVien(LoaiCheDoDoanhThu)
+        case gioCongNhanVien(LoaiCheDoDoanhThu)
         case tatCaAnhTheoTab(LoaiCheDoDoanhThu)
     }
 
@@ -430,6 +431,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
     private var hangNutQuet: UIStackView!
     private let nutThemAnhMoi = UIButton(type: .system)
     private let nutNhapDoanhThuNV = UIButton(type: .system)
+    private let nutNhapGioCongNV = UIButton(type: .system)
     private let nutXoaQuetLai = UIButton(type: .system)
     private let nutThemThuCong = UIButton(type: .system)
     private let nutXuatAnhTrongXemSo = UIButton(type: .system)
@@ -961,6 +963,22 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         nutNhapDoanhThuNV.contentEdgeInsets = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
         nutNhapDoanhThuNV.addTarget(self, action: #selector(bamNhapAnhDoanhThuNV), for: .touchUpInside)
 
+        nutNhapGioCongNV.setImage(UIImage(systemName: "clock.fill"), for: .normal)
+        nutNhapGioCongNV.setTitle(" Quét Giờ công", for: .normal)
+        nutNhapGioCongNV.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
+        nutNhapGioCongNV.titleLabel?.numberOfLines = 0
+        nutNhapGioCongNV.titleLabel?.lineBreakMode = .byWordWrapping
+        nutNhapGioCongNV.titleLabel?.textAlignment = .center
+        nutNhapGioCongNV.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutNhapGioCongNV.backgroundColor = UIColor(red: 0.90, green: 0.97, blue: 0.94, alpha: 1)
+        nutNhapGioCongNV.tintColor = UIColor(red: 0.05, green: 0.48, blue: 0.30, alpha: 1)
+        nutNhapGioCongNV.setTitleColor(UIColor(red: 0.05, green: 0.48, blue: 0.30, alpha: 1), for: .normal)
+        nutNhapGioCongNV.layer.cornerRadius = 9
+        nutNhapGioCongNV.layer.borderWidth = 1
+        nutNhapGioCongNV.layer.borderColor = UIColor(red: 0.65, green: 0.88, blue: 0.76, alpha: 1).cgColor
+        nutNhapGioCongNV.contentEdgeInsets = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
+        nutNhapGioCongNV.addTarget(self, action: #selector(bamNhapAnhGioCongNV), for: .touchUpInside)
+
         nutXoaQuetLai.setTitle(" Xoá", for: .normal)
         nutXoaQuetLai.setImage(UIImage(systemName: "trash.fill"), for: .normal)
         nutXoaQuetLai.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
@@ -1003,13 +1021,15 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         nutXuatAnhTrongXemSo.layer.cornerRadius = 9
         nutXuatAnhTrongXemSo.addTarget(self, action: #selector(moMenuXuatBaoCao), for: .touchUpInside)
 
-        hangNutQuet = UIStackView(arrangedSubviews: [nutThemAnhMoi, nutNhapDoanhThuNV, nutXoaQuetLai])
+        hangNutQuet = UIStackView(arrangedSubviews: [nutThemAnhMoi, nutNhapDoanhThuNV, nutNhapGioCongNV, nutXoaQuetLai])
         hangNutQuet.axis = .horizontal
-        hangNutQuet.spacing = 6
+        hangNutQuet.spacing = 5
         nutThemAnhMoi.setContentHuggingPriority(.defaultLow, for: .horizontal)
         nutThemAnhMoi.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         nutNhapDoanhThuNV.setContentHuggingPriority(.defaultLow, for: .horizontal)
         nutNhapDoanhThuNV.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        nutNhapGioCongNV.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        nutNhapGioCongNV.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         nutXoaQuetLai.setContentHuggingPriority(.required, for: .horizontal)
         nutXoaQuetLai.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutThemThuCong.setContentHuggingPriority(.required, for: .horizontal)
@@ -1337,6 +1357,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 ("📋 Quét ảnh Bảng Thi đua Ngành hàng Lũy kế", #selector(bamQuetThiDuaLK)),
                 ("📁 Nhập ảnh Thi đua Lũy kế từ Tệp (Files)", #selector(bamNhapTepThiDuaLK)),
                 ("💰 Quét ảnh Bảng Doanh thu Nhân viên Lũy kế", #selector(bamQuetDoanhThuNVLK)),
+                ("⏱️ Quét ảnh Bảng Giờ công Nhân viên Lũy kế", #selector(bamQuetGioCongNVLK)),
                 ("👥 Quét ảnh Bảng Thi đua Nhân viên Lũy kế", #selector(bamQuetThiDuaNVLK)),
                 ("📁 Nhập ảnh Thi đua Nhân viên Lũy kế từ Tệp (Files)", #selector(bamNhapTepThiDuaNVLK))
             ]
@@ -1485,6 +1506,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
     @objc private func bamQuetDoanhThuNVLK() {
         cheDoDoanhThu = .luyKe
         moChonAnh(cheDo: .doanhThuNhanVien(.luyKe), gioiHan: 0)
+    }
+
+    @objc private func bamQuetGioCongNVLK() {
+        cheDoDoanhThu = .luyKe
+        moChonAnh(cheDo: .gioCongNhanVien(.luyKe), gioiHan: 0)
     }
 
     @objc private func bamQuetThiDuaNVLK() {
@@ -3815,17 +3841,21 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 nutThemAnhMoi.setTitle(" Nhập Thi đua NV", for: .normal)
                 nutNhapDoanhThuNV.isHidden = false
                 nutNhapDoanhThuNV.setTitle(" Nhập Doanh thu NV", for: .normal)
+                nutNhapGioCongNV.isHidden = false
+                nutNhapGioCongNV.setTitle(" Quét Giờ công", for: .normal)
                 rangBuocBangRongHaiNutNV?.isActive = true
             } else {
                 nutThemAnhMoi.isHidden = true
                 nutNhapDoanhThuNV.isHidden = false
                 nutNhapDoanhThuNV.setTitle(" Nhập Doanh thu NV (Realtime)", for: .normal)
+                nutNhapGioCongNV.isHidden = true
                 rangBuocBangRongHaiNutNV?.isActive = false
             }
         } else {
             nutThemAnhMoi.isHidden = false
             nutThemAnhMoi.setTitle(" Thêm ảnh Thi đua (\(nhanCheDo))", for: .normal)
             nutNhapDoanhThuNV.isHidden = true
+            nutNhapGioCongNV.isHidden = true
             rangBuocBangRongHaiNutNV?.isActive = false
         }
 
@@ -4103,6 +4133,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         moChonAnh(cheDo: .doanhThuNhanVien(cheDoDoanhThu), gioiHan: 0)
     }
 
+    @objc private func bamNhapAnhGioCongNV() {
+        moChonAnh(cheDo: .gioCongNhanVien(.luyKe), gioiHan: 0)
+    }
+
     private func moHuongDanQuetAnhThiDua(cheDo: LoaiCheDoDoanhThu? = nil) {
         let cheDoMucTieu = cheDo ?? cheDoDoanhThu
         if cheDoDoanhThu != cheDoMucTieu {
@@ -4343,12 +4377,15 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 MucChonDMX(tieuDe: "📋 Ảnh thi đua ngành hàng") { [weak self] in
                     self?.moHuongDanQuetAnhThiDua(cheDo: cheDo)
                 },
-                MucChonDMX(tieuDe: cheDo == .realtime ? "👥 Ảnh bảng Doanh thu Nhân viên (Realtime)" : "👥 Ảnh Ma trận Thi đua Nhân viên Lũy kế (3 ảnh)") { [weak self] in
+                MucChonDMX(tieuDe: cheDo == .realtime ? "👥 Ảnh bảng Doanh thu Nhân viên (Realtime)" : "👥 Ảnh Ma trận Thi đua Nhân viên Lũy kế (7 ảnh)") { [weak self] in
                     if cheDo == .realtime {
                         self?.moChonAnh(cheDo: .doanhThuNhanVien(.realtime), gioiHan: 0)
                     } else {
                         self?.moChonAnh(cheDo: .thiDuaNhanVien(.luyKe), gioiHan: 0)
                     }
+                },
+                MucChonDMX(tieuDe: "⏱️ Ảnh Bảng Giờ công Nhân viên Lũy kế (2 mục giờ công)") { [weak self] in
+                    self?.moChonAnh(cheDo: .gioCongNhanVien(.luyKe), gioiHan: 0)
                 },
                 MucChonDMX(tieuDe: "✏️ Nhập / Sửa tay Doanh thu \(tenCheDo) (& Lượt khách)") { [weak self] in
                     self?.moHopThoaiNhapDoanhThu()
@@ -4583,6 +4620,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
             self.xuLyQuetThiDuaNhanVien(cacAnh, loai: loaiTDNV)
         case .doanhThuNhanVien(let loaiNV):
             self.xuLyQuetDoanhThuNhanVien(cacAnh, loai: loaiNV)
+        case .gioCongNhanVien(let loaiGC):
+            self.xuLyQuetGioCongNhanVien(cacAnh, loai: loaiGC)
         case .tatCaAnhTheoTab(let cheDoTab):
             self.xuLyQuetTatCaAnhTheoTab(cacAnh, cheDoTab: cheDoTab)
         }
@@ -4754,6 +4793,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                                 continue
                             }
                         }
+                        if let cu = mapDTNV[ma] {
+                            if capNhat.gioCong <= 0.0001 && cu.gioCong > 0.0001 { capNhat.gioCong = cu.gioCong }
+                            if capNhat.gioCongHoTro <= 0.0001 && cu.gioCongHoTro > 0.0001 { capNhat.gioCongHoTro = cu.gioCongHoTro }
+                        }
                         daQuetTrongDot.insert(ma)
                         mapDTNV[ma] = capNhat
                         if cheDoTab == .luyKe {
@@ -4761,11 +4804,23 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                             skNV.doanhThuQDSucKhoe = capNhat.doanhThuQD
                             skNV.soLuotBillBanHang = capNhat.soLuong
                             skNV.phanTramQuyDoi = capNhat.phanTramQuyDoi
+                            if capNhat.gioCong > 0.0001 { skNV.gioCongTaiST = capNhat.gioCong }
+                            if capNhat.gioCongHoTro > 0.0001 { skNV.gioCongHoTroSTKhac = capNhat.gioCongHoTro }
                             dl.sucKhoeBoSungNhanVien[ma] = skNV
                         }
                     }
                     dl.ganDoanhThuNhanVien(Array(mapDTNV.values), theo: cheDoTab)
                     cacMucDaDien.append("• Doanh thu Nhân viên \(tenCheDo) (\(kq.soAnhDoanhThuNV) ảnh): \(mapDTNV.count) NV (Đã thay thế dữ liệu cũ)")
+                }
+
+                if !kq.gioCongNhanVien.isEmpty {
+                    let soNVGC = KhoDuLieu.dungChung.apDungGioCongNhanVienQuetDuoc(
+                        kq.gioCongNhanVien,
+                        vao: &dl,
+                        ngay: self.ngayHienTai,
+                        cheDo: cheDoTab
+                    )
+                    cacMucDaDien.append("• Giờ công Nhân viên \(tenCheDo) (\(max(1, kq.soAnhGioCongNV)) ảnh): \(soNVGC) NV (Giờ công tại ST & Hỗ trợ ST khác)")
                 }
 
                 if !kq.thiDuaNhanVien.isEmpty {
@@ -4804,6 +4859,52 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 let tb = UIAlertController(
                     title: "✅ Đã nạp vào phần \(tenCheDo)",
                     message: cacMucDaDien.joined(separator: "\n"),
+                    preferredStyle: .alert
+                )
+                tb.addAction(UIAlertAction(title: "Hoàn tất", style: .default))
+                self.present(tb, animated: true)
+            }
+        )
+    }
+
+    private func xuLyQuetGioCongNhanVien(_ cacAnh: [UIImage], loai: LoaiCheDoDoanhThu) {
+        let tenCheDo = loai.tieuDe
+        hienTienTrinh("Đang đọc \(cacAnh.count) ảnh Bảng Giờ công Nhân viên (\(tenCheDo))...")
+        DichVuDocAnh.dungChung.quetAnhGioCongNhanVien(
+            danhSachAnh: cacAnh,
+            cheDo: loai,
+            tienTrinh: { [weak self] tt in
+                self?.nhanTienTrinh.text = tt
+            },
+            hoanTat: { [weak self] dsQuet in
+                guard let self = self else { return }
+                self.anTienTrinh()
+                guard !dsQuet.isEmpty else {
+                    let tb = UIAlertController(
+                        title: "Chưa đọc được dữ liệu Giờ công NV",
+                        message: "Hãy chọn ảnh Bảng Giờ công Nhân viên (có 3 cột: NHÂN VIÊN | GIỜ CÔNG TẠI ST LÀM VIỆC | GIỜ CÔNG HỖ TRỢ ST KHÁC) rồi thử lại.",
+                        preferredStyle: .alert
+                    )
+                    tb.addAction(UIAlertAction(title: "Đóng", style: .default))
+                    self.present(tb, animated: true)
+                    return
+                }
+
+                var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
+                let soNVCapNhat = KhoDuLieu.dungChung.apDungGioCongNhanVienQuetDuoc(
+                    dsQuet,
+                    vao: &dl,
+                    ngay: self.ngayHienTai,
+                    cheDo: loai
+                )
+                KhoDuLieu.dungChung.luu(dl)
+                self.napDuLieu()
+
+                let tongGCTaiST = dsQuet.reduce(0.0) { $0 + $1.gioCong }
+                let tongGCHoTro = dsQuet.reduce(0.0) { $0 + $1.gioCongHoTro }
+                let tb = UIAlertController(
+                    title: "✅ Đã nhập Giờ công Nhân viên (\(tenCheDo))",
+                    message: "Đã cập nhật Giờ công tại ST làm việc (Tổng: \(tongGCTaiST.chuoiSoMotLeVN)h) & Giờ công hỗ trợ ST khác (Tổng: \(tongGCHoTro.chuoiSoMotLeVN)h) cho \(soNVCapNhat) nhân viên. Số liệu đã hiển thị trên Bảng xếp hạng và Bảng chi tiết nhân viên.",
                     preferredStyle: .alert
                 )
                 tb.addAction(UIAlertAction(title: "Hoàn tất", style: .default))
@@ -4975,6 +5076,27 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 }
 
                 var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
+                let chiLaAnhGioCong = dsQuet.allSatisfy {
+                    abs($0.doanhThuQD) < 0.0001 && abs($0.soLuong) < 0.0001 && ($0.gioCong > 0.0001 || $0.gioCongHoTro > 0.0001)
+                }
+                if chiLaAnhGioCong {
+                    let soNVGC = KhoDuLieu.dungChung.apDungGioCongNhanVienQuetDuoc(
+                        dsQuet,
+                        vao: &dl,
+                        ngay: self.ngayHienTai,
+                        cheDo: loai
+                    )
+                    KhoDuLieu.dungChung.luu(dl)
+                    self.napDuLieu()
+                    let tb = UIAlertController(
+                        title: "✅ Đã nhập Giờ công Nhân viên (\(tenCheDo))",
+                        message: "Đã cập nhật Giờ công tại ST làm việc & Giờ công hỗ trợ ST khác cho \(soNVGC) nhân viên.",
+                        preferredStyle: .alert
+                    )
+                    tb.addAction(UIAlertAction(title: "Hoàn tất", style: .default))
+                    self.present(tb, animated: true)
+                    return
+                }
                 let dsQuanLy = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
                 var mapDTNV: [String: DoanhThuNhanVienItem] = [:]
                 for item in KhoDuLieu.locSachDanhSachDTNV(dl.doanhThuNhanVien(theo: loai)) {
@@ -4997,6 +5119,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                     var capNhat = item
                     capNhat.maNV = ma
                     capNhat.hoTen = ten
+                    if let cu = mapDTNV[ma] {
+                        if capNhat.gioCong <= 0.0001 && cu.gioCong > 0.0001 { capNhat.gioCong = cu.gioCong }
+                        if capNhat.gioCongHoTro <= 0.0001 && cu.gioCongHoTro > 0.0001 { capNhat.gioCongHoTro = cu.gioCongHoTro }
+                    }
                     if daQuetTrongDot.contains(ma), let daCo = mapDTNV[ma] {
                         let daCoSo = abs(daCo.doanhThuQD) > 0.001 || abs(daCo.soLuong) > 0.001 || abs(daCo.phanTramQuyDoi) > 0.01
                         let moiCoSo = abs(capNhat.doanhThuQD) > 0.001 || abs(capNhat.soLuong) > 0.001 || abs(capNhat.phanTramQuyDoi) > 0.01
@@ -5014,6 +5140,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                         if abs(capNhat.phanTramQuyDoi) > 0.0001 {
                             skNV.phanTramQuyDoi = capNhat.phanTramQuyDoi
                         }
+                        if capNhat.gioCong > 0.0001 { skNV.gioCongTaiST = capNhat.gioCong }
+                        if capNhat.gioCongHoTro > 0.0001 { skNV.gioCongHoTroSTKhac = capNhat.gioCongHoTro }
                         dl.sucKhoeBoSungNhanVien[ma] = skNV
                     }
                 }

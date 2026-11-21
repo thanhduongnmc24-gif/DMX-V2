@@ -353,6 +353,7 @@ enum KieuSapXepNhanVien: Int, CaseIterable {
     case soMonHoanThanh = 1
     case doanhThuQD = 2
     case phanTramTB = 3
+    case gioCong = 4
 
     var nhan: String {
         switch self {
@@ -360,6 +361,7 @@ enum KieuSapXepNhanVien: Int, CaseIterable {
         case .soMonHoanThanh: return "🏆 Số môn hoàn thành (Cao → Thấp)"
         case .doanhThuQD: return "🎯 Doanh thu QĐ (Cao → Thấp)"
         case .phanTramTB: return "📈 % HT thi đua TB (Cao → Thấp)"
+        case .gioCong: return "⏱️ Giờ công tại ST (Cao → Thấp)"
         }
     }
 
@@ -369,6 +371,7 @@ enum KieuSapXepNhanVien: Int, CaseIterable {
         case .soMonHoanThanh: return "Số môn HT"
         case .doanhThuQD: return "DT QĐ"
         case .phanTramTB: return "% HT TB"
+        case .gioCong: return "Giờ công"
         }
     }
 }
@@ -423,6 +426,7 @@ struct DoanhThuNhanVienItem: Codable, Hashable {
     var phanTramQuyDoi: Double = 0
     var phanTramTraGop: Double = 0
     var gioCong: Double = 0
+    var gioCongHoTro: Double = 0
     var soNgayNghi: Double = 0
     var nangSuat: Double = 0
 
@@ -440,6 +444,7 @@ struct DoanhThuNhanVienItem: Codable, Hashable {
         phanTramQuyDoi: Double = 0,
         phanTramTraGop: Double = 0,
         gioCong: Double = 0,
+        gioCongHoTro: Double = 0,
         soNgayNghi: Double = 0,
         nangSuat: Double = 0
     ) {
@@ -456,6 +461,7 @@ struct DoanhThuNhanVienItem: Codable, Hashable {
         self.phanTramQuyDoi = phanTramQuyDoi
         self.phanTramTraGop = phanTramTraGop
         self.gioCong = gioCong
+        self.gioCongHoTro = gioCongHoTro
         self.soNgayNghi = soNgayNghi
         self.nangSuat = nangSuat
     }
@@ -475,6 +481,7 @@ struct DoanhThuNhanVienItem: Codable, Hashable {
         phanTramQuyDoi = (try? c.decode(Double.self, forKey: .phanTramQuyDoi)) ?? 0
         phanTramTraGop = (try? c.decode(Double.self, forKey: .phanTramTraGop)) ?? 0
         gioCong = (try? c.decode(Double.self, forKey: .gioCong)) ?? 0
+        gioCongHoTro = (try? c.decode(Double.self, forKey: .gioCongHoTro)) ?? 0
         soNgayNghi = (try? c.decode(Double.self, forKey: .soNgayNghi)) ?? 0
         nangSuat = (try? c.decode(Double.self, forKey: .nangSuat)) ?? 0
     }
@@ -512,8 +519,14 @@ struct TongHopNhanVien: Hashable {
     var dtQDKhoanVay: Double
     var dtTraThangQD: Double
     var phanTramTiTrong: Double = 0
+    var gioCongTaiST: Double = 0
+    var gioCongHoTro: Double = 0
     var cacMonGiao: [MonThiDuaNhanVien]
     var doanhThuCaNhan: DoanhThuNhanVienItem?
+
+    var tongGioCong: Double {
+        gioCongTaiST + gioCongHoTro
+    }
 }
 
 /// Khung dữ liệu thông số Sức khỏe cá nhân Nhân viên (mẫu 27 điểm: Doanh thu 6, Năng suất 3, Hiệu quả khai thác 9, Đơn giá 8, Thi đua 1).
@@ -541,13 +554,15 @@ struct DuLieuSucKhoeBoSungNV: Codable, Hashable {
     var phanTramBanKem: Double?
     var tbPhanTramBanKem: Double?
 
-    // 2. Khối Năng suất (3/3: Điểm thưởng ERP, Điểm thưởng / Giờ công, DTQĐ / Giờ công)
+    // 2. Khối Năng suất (3/3: Điểm thưởng ERP, Điểm thưởng / Giờ công, DTQĐ / Giờ công) & Giờ công lũy kế (2 mục)
     var diemThuongERP: Double?
     var tbDiemThuongERP: Double?
     var diemThuongTrenGioCong: Double?
     var tbDiemThuongTrenGioCong: Double?
     var dtqdTrenGioCong: Double?
     var tbDtqdTrenGioCong: Double?
+    var gioCongTaiST: Double?
+    var gioCongHoTroSTKhac: Double?
 
     // 2b. Khối Thi đua cá nhân (% hoàn thành từng môn từ phiếu sức khỏe NV)
     var phanTramThiDuaCaNhan: [String: Double]?
@@ -618,6 +633,8 @@ struct DuLieuSucKhoeBoSungNV: Codable, Hashable {
         diemThuongERP != nil ||
         diemThuongTrenGioCong != nil ||
         dtqdTrenGioCong != nil ||
+        gioCongTaiST != nil ||
+        gioCongHoTroSTKhac != nil ||
         !(phanTramThiDuaCaNhan ?? [:]).isEmpty ||
         !hieuQuaKhaiThac.isEmpty ||
         !donGiaCaNhan.isEmpty
@@ -649,6 +666,8 @@ struct DuLieuSucKhoeBoSungNV: Codable, Hashable {
         if let v = moi.tbDiemThuongTrenGioCong { kq.tbDiemThuongTrenGioCong = v }
         if let v = moi.dtqdTrenGioCong { kq.dtqdTrenGioCong = v }
         if let v = moi.tbDtqdTrenGioCong { kq.tbDtqdTrenGioCong = v }
+        if let v = moi.gioCongTaiST { kq.gioCongTaiST = v }
+        if let v = moi.gioCongHoTroSTKhac { kq.gioCongHoTroSTKhac = v }
         if let ptMoi = moi.phanTramThiDuaCaNhan, !ptMoi.isEmpty {
             var gopPT = kq.phanTramThiDuaCaNhan ?? [:]
             for (k, v) in ptMoi { gopPT[k] = v }
@@ -2006,9 +2025,15 @@ final class KhoDuLieu {
             if let cu = mapTheoMa[khoa] {
                 let diemCu = abs(cu.doanhThuQD) * 1000 + abs(cu.soLuong) * 10 + abs(cu.phanTramQuyDoi)
                 let diemMoi = abs(it.doanhThuQD) * 1000 + abs(it.soLuong) * 10 + abs(it.phanTramQuyDoi)
-                if diemMoi >= diemCu {
-                    mapTheoMa[khoa] = it
-                }
+                var gop = (diemMoi >= diemCu) ? it : cu
+                let phu = (diemMoi >= diemCu) ? cu : it
+                if abs(gop.doanhThuQD) < 0.0001 && abs(phu.doanhThuQD) > 0.0001 { gop.doanhThuQD = phu.doanhThuQD }
+                if abs(gop.soLuong) < 0.0001 && abs(phu.soLuong) > 0.0001 { gop.soLuong = phu.soLuong }
+                if abs(gop.dtQDKhoanVay) < 0.0001 && abs(phu.dtQDKhoanVay) > 0.0001 { gop.dtQDKhoanVay = phu.dtQDKhoanVay }
+                if abs(gop.phanTramQuyDoi) < 0.0001 && abs(phu.phanTramQuyDoi) > 0.0001 { gop.phanTramQuyDoi = phu.phanTramQuyDoi }
+                if gop.gioCong <= 0.0001 && phu.gioCong > 0.0001 { gop.gioCong = phu.gioCong }
+                if gop.gioCongHoTro <= 0.0001 && phu.gioCongHoTro > 0.0001 { gop.gioCongHoTro = phu.gioCongHoTro }
+                mapTheoMa[khoa] = gop
             } else {
                 mapTheoMa[khoa] = it
                 thuTu.append(khoa)
@@ -3114,9 +3139,15 @@ final class KhoDuLieu {
                 if let cu = mapDTCaNhan[ma] {
                     let diemCu = abs(cu.doanhThuQD) * 1000 + abs(cu.soLuong) * 10 + abs(cu.phanTramQuyDoi)
                     let diemMoi = abs(item.doanhThuQD) * 1000 + abs(item.soLuong) * 10 + abs(item.phanTramQuyDoi)
-                    if diemMoi >= diemCu {
-                        mapDTCaNhan[ma] = item
-                    }
+                    var gop = (diemMoi >= diemCu) ? item : cu
+                    let phu = (diemMoi >= diemCu) ? cu : item
+                    if abs(gop.doanhThuQD) < 0.0001 && abs(phu.doanhThuQD) > 0.0001 { gop.doanhThuQD = phu.doanhThuQD }
+                    if abs(gop.soLuong) < 0.0001 && abs(phu.soLuong) > 0.0001 { gop.soLuong = phu.soLuong }
+                    if abs(gop.dtQDKhoanVay) < 0.0001 && abs(phu.dtQDKhoanVay) > 0.0001 { gop.dtQDKhoanVay = phu.dtQDKhoanVay }
+                    if abs(gop.phanTramQuyDoi) < 0.0001 && abs(phu.phanTramQuyDoi) > 0.0001 { gop.phanTramQuyDoi = phu.phanTramQuyDoi }
+                    if gop.gioCong <= 0.0001 && phu.gioCong > 0.0001 { gop.gioCong = phu.gioCong }
+                    if gop.gioCongHoTro <= 0.0001 && phu.gioCongHoTro > 0.0001 { gop.gioCongHoTro = phu.gioCongHoTro }
+                    mapDTCaNhan[ma] = gop
                 } else {
                     mapDTCaNhan[ma] = item
                 }
@@ -3205,6 +3236,16 @@ final class KhoDuLieu {
                 if let dtCaNhan, abs(dtCaNhan.dtTraThangQD) > 0.0001, abs(dtCaNhan.dtTraThangQD - soDonCuoi) > 0.1 { return dtCaNhan.dtTraThangQD }
                 return 0
             }()
+            let gioCongTaiSTCuoi: Double = {
+                if let gc = dtCaNhan?.gioCong, gc > 0.0001 { return gc }
+                if let skGC = boSungNV?.gioCongTaiST, skGC > 0.0001 { return skGC }
+                return 0
+            }()
+            let gioCongHoTroCuoi: Double = {
+                if let gcHT = dtCaNhan?.gioCongHoTro, gcHT > 0.0001 { return gcHT }
+                if let skGCHT = boSungNV?.gioCongHoTroSTKhac, skGCHT > 0.0001 { return skGCHT }
+                return 0
+            }()
 
             return TongHopNhanVien(
                 nhanVien: nv,
@@ -3216,6 +3257,8 @@ final class KhoDuLieu {
                 dtQDKhoanVay: dtCaNhan?.dtQDKhoanVay ?? 0,
                 dtTraThangQD: (dtCaNhan?.dtTraThangQD ?? 0) > 0 ? (dtCaNhan?.dtTraThangQD ?? 0) : (dtCaNhan?.doanhThuThuc ?? 0),
                 phanTramTiTrong: tiTrongCuoi,
+                gioCongTaiST: gioCongTaiSTCuoi,
+                gioCongHoTro: gioCongHoTroCuoi,
                 cacMonGiao: cacMonGiao,
                 doanhThuCaNhan: dtCaNhan
             )
@@ -3249,6 +3292,13 @@ final class KhoDuLieu {
             ketQua.sort {
                 if abs($0.phanTramHTTB - $1.phanTramHTTB) > 0.001 { return $0.phanTramHTTB > $1.phanTramHTTB }
                 if $0.soMonDat != $1.soMonDat { return $0.soMonDat > $1.soMonDat }
+                return NhanVienQuanLy.soSanhAZ($0.nhanVien, $1.nhanVien)
+            }
+        case .gioCong:
+            ketQua.sort {
+                if abs($0.gioCongTaiST - $1.gioCongTaiST) > 0.001 { return $0.gioCongTaiST > $1.gioCongTaiST }
+                if abs($0.gioCongHoTro - $1.gioCongHoTro) > 0.001 { return $0.gioCongHoTro > $1.gioCongHoTro }
+                if abs($0.doanhThuQD - $1.doanhThuQD) > 0.001 { return $0.doanhThuQD > $1.doanhThuQD }
                 return NhanVienQuanLy.soSanhAZ($0.nhanVien, $1.nhanVien)
             }
         }
@@ -3546,6 +3596,114 @@ final class KhoDuLieu {
             dl.ganDoanhThuNhanVien(Array(mapDTNV.values), theo: cheDo)
         }
         dl.ganThiDuaNhanVien(bangTDNV, theo: cheDo)
+    }
+
+    /// Bộ dữ liệu chuẩn Bảng Giờ Công Nhân Viên Lũy Kế (3 cột: NHÂN VIÊN | GIỜ CÔNG TẠI ST LÀM VIỆC | GIỜ CÔNG HỖ TRỢ ST KHÁC)
+    static let duLieuChuanGioCongNhanVienLuyKe: [String: (hoTen: String, gioCongTaiST: Double, gioCongHoTro: Double)] = [
+        "285688": ("Lê Tuấn", 190.7, 14.0),
+        "280417": ("Huỳnh Thành Đạt", 183.3, 14.0),
+        "54453":  ("Nguyễn Thanh Dũng", 182.8, 0.0),
+        "39665":  ("Nguyễn Hữu Kha", 172.8, 14.0),
+        "194649": ("Nguyễn Hoàn Điện", 171.7, 14.0),
+        "261423": ("Trần Nam Tùng", 167.8, 1.6),
+        "23997":  ("Lê Thị Kim Phượng", 167.3, 23.5),
+        "116719": ("Đinh Thị Quỳnh Nga", 164.7, 41.4),
+        "207241": ("Huỳnh Tấn Thành", 163.5, 20.0),
+        "285681": ("Hồ Ngọc Châu Ánh", 161.5, 20.5),
+        "34922":  ("Đỗ Thị Chanh", 161.1, 14.0),
+        "186532": ("Đỗ Thị Mỹ Linh", 160.1, 28.0),
+        "201962": ("Nguyễn Thị Kim Loan", 155.7, 42.0),
+        "293044": ("Võ Ngọc Vĩ", 153.4, 0.0),
+        "24939":  ("Phan Hoàng Sơn", 151.8, 14.0),
+        "23986":  ("Nguyễn Ngọc Đẩu", 151.7, 33.0),
+        "65255":  ("Nguyễn Thị Thu Thảo", 135.1, 13.9),
+        "65257":  ("Phan Thương Vĩnh", 105.4, 46.9)
+    ]
+
+    /// Gộp kết quả quét Bảng Giờ Công Nhân Viên (Giờ công tại ST làm việc & Giờ công hỗ trợ ST khác) vào dữ liệu tháng mà không làm mất Doanh thu QĐ / Số lượng đơn đã quét trước đó
+    @discardableResult
+    func apDungGioCongNhanVienQuetDuoc(
+        _ dsGioCong: [DoanhThuNhanVienItem],
+        vao dl: inout DuLieuNgayDMX,
+        ngay: Date,
+        cheDo: LoaiCheDoDoanhThu = .luyKe
+    ) -> Int {
+        guard !dsGioCong.isEmpty else { return 0 }
+        khoaTruyCap.lock()
+        defer { khoaTruyCap.unlock() }
+
+        let dsQuanLy = caiDat.danhSachNhanVien
+        var mapDTNV: [String: DoanhThuNhanVienItem] = [:]
+        for item in Self.locSachDanhSachDTNV(dl.doanhThuNhanVien(theo: cheDo)) {
+            let ma = Self.chuanHoaMaNV(item.maNV)
+            if !ma.isEmpty { mapDTNV[ma] = item }
+        }
+        if mapDTNV.isEmpty && cheDo == .luyKe {
+            for item in doanhThuNhanVienLuyKeThang(cho: ngay) {
+                let ma = Self.chuanHoaMaNV(item.maNV)
+                if !ma.isEmpty { mapDTNV[ma] = item }
+            }
+        }
+
+        let tienToThang = String(dl.khoaNgay.prefix(7))
+        var daCapNhat = Set<String>()
+
+        for item in dsGioCong {
+            let ma: String
+            let ten: String
+            if !dsQuanLy.isEmpty {
+                guard let nvKhop = Self.khopNhanVienQuetVoiQuanLy(maQuet: item.maNV, tenQuet: item.hoTen, dsQuanLy: dsQuanLy) else { continue }
+                ma = nvKhop.maNV
+                ten = nvKhop.hoTen
+            } else {
+                ma = Self.chuanHoaMaNV(item.maNV)
+                ten = item.hoTen
+            }
+            guard !ma.isEmpty else { continue }
+            guard item.gioCong > 0.0001 || item.gioCongHoTro > 0.0001 || daCapNhat.contains(ma) == false else { continue }
+
+            var hienTai = mapDTNV[ma] ?? DoanhThuNhanVienItem(maNV: ma, hoTen: ten)
+            hienTai.maNV = ma
+            if !ten.isEmpty { hienTai.hoTen = ten }
+            if item.gioCong >= 0 {
+                hienTai.gioCong = item.gioCong
+            }
+            if item.gioCongHoTro >= 0 {
+                hienTai.gioCongHoTro = item.gioCongHoTro
+            }
+            if abs(hienTai.doanhThuQD) < 0.0001 && abs(item.doanhThuQD) > 0.0001 {
+                hienTai.doanhThuQD = item.doanhThuQD
+            }
+            if abs(hienTai.soLuong) < 0.0001 && abs(item.soLuong) > 0.0001 {
+                hienTai.soLuong = item.soLuong
+            }
+            if abs(hienTai.phanTramQuyDoi) < 0.0001 && abs(item.phanTramQuyDoi) > 0.0001 {
+                hienTai.phanTramQuyDoi = item.phanTramQuyDoi
+            }
+            mapDTNV[ma] = hienTai
+            daCapNhat.insert(ma)
+
+            if cheDo == .luyKe {
+                var skNV = dl.sucKhoeBoSungNhanVien[ma] ?? DuLieuSucKhoeBoSungNV()
+                skNV.gioCongTaiST = hienTai.gioCong
+                skNV.gioCongHoTroSTKhac = hienTai.gioCongHoTro
+                if hienTai.gioCong > 0.001 && hienTai.doanhThuQD > 0.001 && (skNV.dtqdTrenGioCong ?? 0) <= 0.0001 {
+                    skNV.dtqdTrenGioCong = ((hienTai.doanhThuQD / hienTai.gioCong) * 100.0).rounded() / 100.0
+                }
+                dl.sucKhoeBoSungNhanVien[ma] = skNV
+                for kNgay in cacNgay.keys where kNgay.hasPrefix(tienToThang) {
+                    var skNgay = cacNgay[kNgay]?.sucKhoeBoSungNhanVien[ma] ?? DuLieuSucKhoeBoSungNV()
+                    skNgay.gioCongTaiST = hienTai.gioCong
+                    skNgay.gioCongHoTroSTKhac = hienTai.gioCongHoTro
+                    cacNgay[kNgay]?.sucKhoeBoSungNhanVien[ma] = skNgay
+                }
+            }
+        }
+
+        if !mapDTNV.isEmpty {
+            dl.ganDoanhThuNhanVien(Array(mapDTNV.values), theo: cheDo)
+        }
+        return daCapNhat.count
     }
 
     /// Xóa dữ liệu thi đua nhân viên của riêng 1 môn (ngành hàng) cụ thể theo chế độ Lũy kế hoặc Realtime

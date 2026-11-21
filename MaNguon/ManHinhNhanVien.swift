@@ -934,7 +934,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         if cheDoDoanhThu == .realtime {
             return [44, 185, 84, 108, 108, 92]
         } else {
-            return [44, 170, 78, 92, 84, 78, 96, 92]
+            return [44, 178, 78, 92, 84, 78, 96, 88, 88, 92]
         }
     }
     private var tongChieuRongBang: CGFloat { chieuRongCot.reduce(0, +) }
@@ -1156,7 +1156,10 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
             attributes: [.font: fontTen],
             context: nil
         )
-        let chuoiMa = "id: \(row.nhanVien.maNV)"
+        let coGioCong = (cheDoDoanhThu == .luyKe) && (row.gioCongTaiST > 0.001 || row.gioCongHoTro > 0.001)
+        let chuoiMa = coGioCong
+            ? "id: \(row.nhanVien.maNV) • ⏱️ \(row.gioCongTaiST.chuoiSoMotLeVN)h (+\(row.gioCongHoTro.chuoiSoMotLeVN)h)"
+            : "id: \(row.nhanVien.maNV)"
         let rectMa = (chuoiMa as NSString).boundingRect(
             with: CGSize(width: rongTen, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
@@ -1183,7 +1186,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         let laRT = (cheDoDoanhThu == .realtime)
         let tieuDe: [String] = laRT
             ? ["HẠNG", "NHÂN VIÊN", "SỐ LƯỢNG", "DOANH THU QĐ", "DT QĐ KHOẢN VAY", "% TỈ TRỌNG"]
-            : ["HẠNG", "NHÂN VIÊN (CHẠM XEM SK)", "% TỈ TRỌNG", "DOANH THU QĐ", "% HT TB", "SỐ LƯỢNG", "SỐ MÔN ĐẠT", "DT KHOẢN VAY"]
+            : ["HẠNG", "NHÂN VIÊN (CHẠM XEM SK)", "% TỈ TRỌNG", "DOANH THU QĐ", "% HT TB", "SỐ LƯỢNG", "SỐ MÔN ĐẠT", "GIỜ CÔNG TẠI ST", "GIỜ CÔNG HỖ TRỢ", "DT KHOẢN VAY"]
 
         var xHienTai: CGFloat = 0
         for (i, chu) in tieuDe.enumerated() {
@@ -1191,7 +1194,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
             let nhan = UILabel(frame: CGRect(x: xHienTai + 4, y: 2, width: w - 8, height: 37))
             nhan.text = chu
             nhan.font = .systemFont(ofSize: 10.5, weight: .bold)
-            nhan.textColor = (i == 3 || (!laRT && i == 6)) ? BangMauBCTD.vangChuDao : .white
+            nhan.textColor = (i == 3 || (!laRT && (i == 6 || i == 7 || i == 8))) ? BangMauBCTD.vangChuDao : .white
             nhan.numberOfLines = 0
             nhan.lineBreakMode = .byWordWrapping
             nhan.adjustsFontSizeToFitWidth = false
@@ -1340,8 +1343,12 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
                     lbTen.adjustsFontSizeToFitWidth = false
 
                     let lbMa = UILabel(frame: CGRect(x: x + 8, y: 5 + caoTen + 2, width: rongTen, height: caoMa))
-                    lbMa.text = "id: \(row.nhanVien.maNV)"
-                    lbMa.font = .systemFont(ofSize: 12.0, weight: .medium)
+                    if row.gioCongTaiST > 0.001 || row.gioCongHoTro > 0.001 {
+                        lbMa.text = "id: \(row.nhanVien.maNV) • ⏱️ \(row.gioCongTaiST.chuoiSoMotLeVN)h (+\(row.gioCongHoTro.chuoiSoMotLeVN)h)"
+                    } else {
+                        lbMa.text = "id: \(row.nhanVien.maNV)"
+                    }
+                    lbMa.font = .systemFont(ofSize: 11.5, weight: .medium)
                     lbMa.textColor = .secondaryLabel
                     lbMa.numberOfLines = 0
                     lbMa.lineBreakMode = .byWordWrapping
@@ -1401,7 +1408,31 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
                     pill.backgroundColor = row.soMonDat > 0 ? UIColor.systemGreen.withAlphaComponent(0.16) : UIColor.systemRed.withAlphaComponent(0.14)
                     pill.textColor = row.soMonDat > 0 ? UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1) : UIColor(red: 0.78, green: 0.14, blue: 0.14, alpha: 1)
                     khung.addSubview(pill)
-                case 7:
+                case 7: // GIỜ CÔNG TẠI ST LÀM VIỆC
+                    let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
+                    lb.text = row.gioCongTaiST > 0.001 ? "\(row.gioCongTaiST.chuoiSoMotLeVN)h" : "0,0h"
+                    lb.font = fontDongNhat
+                    lb.textColor = row.gioCongTaiST > 0.001
+                        ? UIColor(red: 0.05, green: 0.44, blue: 0.72, alpha: 1)
+                        : .secondaryLabel
+                    lb.textAlignment = .right
+                    lb.numberOfLines = 0
+                    lb.lineBreakMode = .byWordWrapping
+                    lb.adjustsFontSizeToFitWidth = false
+                    khung.addSubview(lb)
+                case 8: // GIỜ CÔNG HỖ TRỢ ST KHÁC
+                    let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
+                    lb.text = row.gioCongHoTro > 0.001 ? "\(row.gioCongHoTro.chuoiSoMotLeVN)h" : "0,0h"
+                    lb.font = fontDongNhat
+                    lb.textColor = row.gioCongHoTro > 0.001
+                        ? UIColor(red: 0.56, green: 0.24, blue: 0.82, alpha: 1)
+                        : .secondaryLabel
+                    lb.textAlignment = .right
+                    lb.numberOfLines = 0
+                    lb.lineBreakMode = .byWordWrapping
+                    lb.adjustsFontSizeToFitWidth = false
+                    khung.addSubview(lb)
+                case 9: // DT KHOẢN VAY
                     let lb = UILabel(frame: rect.insetBy(dx: 6, dy: 2))
                     lb.text = row.dtQDKhoanVay > 0 ? row.dtQDKhoanVay.chuoiSoLieu : "0"
                     lb.font = fontDongNhat
@@ -1453,6 +1484,8 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
         let tongDTQD = ds.reduce(0.0) { $0 + $1.doanhThuQD }
         let tongDon = ds.reduce(0.0) { $0 + $1.soLuongDon }
         let tongVay = ds.reduce(0.0) { $0 + $1.dtQDKhoanVay }
+        let tongGioCongST = ds.reduce(0.0) { $0 + $1.gioCongTaiST }
+        let tongGioCongHT = ds.reduce(0.0) { $0 + $1.gioCongHoTro }
         let tbHT = ds.isEmpty ? 0.0 : (ds.reduce(0.0) { $0 + $1.phanTramHTTB } / Double(ds.count))
 
         let le: CGFloat = 18
@@ -1481,7 +1514,7 @@ final class BangNhanVienView: UIView, UITableViewDataSource, UITableViewDelegate
 
         let chuTomTat = (cheDoXuat == .realtime)
             ? "Tổng DT Quy đổi (Realtime): \(tongDTQD.chuoiSoGonVN)   •   Tổng số lượng: \(tongDon.chuoiSoNguyenVN)   •   DT QĐ Khoản vay: \(tongVay.chuoiSoGonVN)"
-            : "Tổng DT Quy đổi (\(cheDoXuat.tieuDe)): \(tongDTQD.chuoiSoGonVN)   •   Tổng đơn: \(tongDon.chuoiSoNguyenVN)   •   DT Khoản vay: \(tongVay.chuoiSoGonVN)   •   % HT TB: \(String(format: "%.1f%%", tbHT))"
+            : "Tổng DT Quy đổi (\(cheDoXuat.tieuDe)): \(tongDTQD.chuoiSoGonVN)   •   Tổng đơn: \(tongDon.chuoiSoNguyenVN)   •   Giờ công tại ST: \(tongGioCongST.chuoiSoMotLeVN)h (Hỗ trợ ST khác: \(tongGioCongHT.chuoiSoMotLeVN)h)   •   % HT TB: \(String(format: "%.1f%%", tbHT))"
         let fontTomTat = UIFont.systemFont(ofSize: 12.5, weight: .bold)
         let caoTextTomTat = max(24, ceil((chuTomTat as NSString).boundingRect(
             with: CGSize(width: rongBang - 24, height: CGFloat.greatestFiniteMagnitude),
@@ -2490,6 +2523,12 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
         let khungDoanhThu6Muc = taoKhungDoanhThu6Muc(sk: skNV, dsTatCaNV: dsTatCaNV)
         nganChinh.addArrangedSubview(khungDoanhThu6Muc)
 
+        // ==================== 1B-2. KHỐI GIỜ CÔNG LŨY KẾ (2 MỤC: GIỜ CÔNG TẠI ST LÀM VIỆC & GIỜ CÔNG HỖ TRỢ ST KHÁC) ====================
+        if cheDo == .luyKe || tongHop.gioCongTaiST > 0.001 || tongHop.gioCongHoTro > 0.001 {
+            let khungGioCong2Muc = taoKhungGioCong2Muc(sk: skNV, dsTatCaNV: dsTatCaNV)
+            nganChinh.addArrangedSubview(khungGioCong2Muc)
+        }
+
         // ==================== 1C. KHỐI NĂNG SUẤT (3 MỤC · CÓ TÙY CHỌN HIỂN THỊ HOẶC ĐỂ DẤU *) ====================
         let khungNangSuat3Muc = taoKhungNangSuat3Muc(sk: skNV)
         nganChinh.addArrangedSubview(khungNangSuat3Muc)
@@ -3030,6 +3069,101 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
         return khung
     }
 
+    private func taoKhungGioCong2Muc(sk: DuLieuSucKhoeBoSungNV?, dsTatCaNV: [TongHopNhanVien]) -> UIView {
+        let khung = UIView()
+        khung.backgroundColor = UIColor(red: 0.94, green: 0.96, blue: 1.0, alpha: 1)
+        khung.layer.cornerRadius = 12
+        khung.layer.borderWidth = 1
+        khung.layer.borderColor = UIColor(red: 0.80, green: 0.86, blue: 0.98, alpha: 1).cgColor
+
+        let gcTaiST: Double = {
+            if tongHop.gioCongTaiST > 0.0001 { return tongHop.gioCongTaiST }
+            if let v = sk?.gioCongTaiST, v > 0.0001 { return v }
+            if let v = tongHop.doanhThuCaNhan?.gioCong, v > 0.0001 { return v }
+            return 0
+        }()
+        let gcHoTro: Double = {
+            if tongHop.gioCongHoTro > 0.0001 { return tongHop.gioCongHoTro }
+            if let v = sk?.gioCongHoTroSTKhac, v > 0.0001 { return v }
+            if let v = tongHop.doanhThuCaNhan?.gioCongHoTro, v > 0.0001 { return v }
+            return 0
+        }()
+        let tongGC = gcTaiST + gcHoTro
+
+        let dsCoGC = dsTatCaNV.filter { $0.gioCongTaiST > 0.001 || $0.gioCongHoTro > 0.001 }
+        let tbGCTaiST: Double? = !dsCoGC.isEmpty
+            ? (dsCoGC.map(\.gioCongTaiST).reduce(0, +) / Double(dsCoGC.count))
+            : nil
+        let tbGCHoTro: Double? = !dsCoGC.isEmpty
+            ? (dsCoGC.map(\.gioCongHoTro).reduce(0, +) / Double(dsCoGC.count))
+            : nil
+
+        let tt1: TheChiSoSucKhoeView.TrangThaiThe = {
+            guard gcTaiST > 0.001 else { return .chuaCoSo }
+            if let tb = tbGCTaiST, tb > 0 {
+                return gcTaiST >= tb - 0.001 ? .dat : .chuaDat
+            }
+            return .dat
+        }()
+        let tt2: TheChiSoSucKhoeView.TrangThaiThe = {
+            if gcHoTro > 0.001 { return .dat }
+            if gcTaiST > 0.001 { return .chuaCoSo }
+            return .chuaCoSo
+        }()
+
+        let lbTieuDe = UILabel()
+        lbTieuDe.text = "⏱️ GIỜ CÔNG (\(cheDo.tieuDe.uppercased()))"
+        lbTieuDe.font = .systemFont(ofSize: 12.0, weight: .heavy)
+        lbTieuDe.textColor = UIColor(red: 0.14, green: 0.30, blue: 0.76, alpha: 1)
+
+        let lbTong = UILabel()
+        lbTong.text = " Tổng: \(tongGC.chuoiSoMotLeVN) giờ "
+        lbTong.font = .monospacedDigitSystemFont(ofSize: 11.0, weight: .heavy)
+        lbTong.textColor = UIColor(red: 0.14, green: 0.30, blue: 0.76, alpha: 1)
+        lbTong.backgroundColor = .white
+        lbTong.layer.cornerRadius = 6
+        lbTong.clipsToBounds = true
+
+        let hangDau = UIStackView(arrangedSubviews: [lbTieuDe, lbTong, UIView()])
+        hangDau.axis = .horizontal
+        hangDau.spacing = 6
+        hangDau.alignment = .center
+
+        let the1 = TheChiSoSucKhoeView(
+            tieuDe: "GIỜ CÔNG TẠI ST LÀM VIỆC",
+            giaTri: "\(gcTaiST.chuoiSoMotLeVN) giờ",
+            chuoiTB: tbGCTaiST != nil ? "TB \(tbGCTaiST!.chuoiSoMotLeVN)h" : "TB 0,0h",
+            chuoiPhu: "ST làm việc",
+            trangThai: tt1
+        )
+        let the2 = TheChiSoSucKhoeView(
+            tieuDe: "GIỜ CÔNG HỖ TRỢ ST KHÁC",
+            giaTri: "\(gcHoTro.chuoiSoMotLeVN) giờ",
+            chuoiTB: tbGCHoTro != nil ? "TB \(tbGCHoTro!.chuoiSoMotLeVN)h" : "TB 0,0h",
+            chuoiPhu: "Tổng: \(tongGC.chuoiSoMotLeVN)h",
+            trangThai: tt2
+        )
+
+        let hangThe = UIStackView(arrangedSubviews: [the1, the2])
+        hangThe.axis = .horizontal
+        hangThe.spacing = laCheDoXuatAnhRong ? 8 : 6
+        hangThe.distribution = .fillEqually
+
+        let ngan = UIStackView(arrangedSubviews: [hangDau, hangThe])
+        ngan.axis = .vertical
+        ngan.spacing = 8
+        ngan.translatesAutoresizingMaskIntoConstraints = false
+        khung.addSubview(ngan)
+
+        NSLayoutConstraint.activate([
+            ngan.topAnchor.constraint(equalTo: khung.topAnchor, constant: 10),
+            ngan.bottomAnchor.constraint(equalTo: khung.bottomAnchor, constant: -10),
+            ngan.leadingAnchor.constraint(equalTo: khung.leadingAnchor, constant: 10),
+            ngan.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -10)
+        ])
+        return khung
+    }
+
     private func taoKhungNangSuat3Muc(sk: DuLieuSucKhoeBoSungNV?) -> UIView {
         let khung = UIView()
         khung.backgroundColor = UIColor(red: 0.93, green: 0.98, blue: 0.96, alpha: 1)
@@ -3043,7 +3177,14 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
         let tbErp = sk?.tbDiemThuongERP
         let erpGC = max(0, sk?.diemThuongTrenGioCong ?? 0)
         let tbErpGC = sk?.tbDiemThuongTrenGioCong
-        let dtGC = max(0, sk?.dtqdTrenGioCong ?? 0)
+        let gcTaiST = tongHop.gioCongTaiST > 0.001 ? tongHop.gioCongTaiST : (sk?.gioCongTaiST ?? 0)
+        let dtGC: Double = {
+            if let v = sk?.dtqdTrenGioCong, v > 0.0001 { return v }
+            if tongHop.doanhThuQD > 0.001 && gcTaiST > 0.001 {
+                return ((tongHop.doanhThuQD / gcTaiST) * 100.0).rounded() / 100.0
+            }
+            return 0
+        }()
         let tbDtGC = sk?.tbDtqdTrenGioCong
 
         func trangThaiNS(_ giaTri: Double, _ tb: Double?) -> TheChiSoSucKhoeView.TrangThaiThe {
@@ -3251,14 +3392,16 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
             }
         let tongCaoBang = caoHeaderBang + cacCaoDong.reduce(0, +)
 
+        let hienKhungGioCong = (cheDo == .luyKe || tongHop.gioCongTaiST > 0.001 || tongHop.gioCongHoTro > 0.001)
         let caoHeader: CGFloat = 48
         let caoTienDo: CGFloat = 46
         let caoKhungDT: CGFloat = 196
+        let caoKhungGC: CGFloat = hienKhungGioCong ? 116 : 0
         let caoKhungNS: CGFloat = 120
         let caoHangKPI: CGFloat = 76
         let khoangCach: CGFloat = 10
 
-        let caoAnh = le + caoHeader + khoangCach + caoTienDo + khoangCach + caoKhungDT + khoangCach + caoKhungNS + khoangCach + caoHangKPI + khoangCach + tongCaoBang + le
+        let caoAnh = le + caoHeader + khoangCach + caoTienDo + khoangCach + caoKhungDT + (hienKhungGioCong ? (khoangCach + caoKhungGC) : 0) + khoangCach + caoKhungNS + khoangCach + caoHangKPI + khoangCach + tongCaoBang + le
 
         let pLeft = NSMutableParagraphStyle()
         pLeft.alignment = .left
@@ -3659,6 +3802,93 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
 
             y += caoKhungDT + khoangCach
 
+            // ==================== 1B-2. KHỐI GIỜ CÔNG 2 MỤC (GIỜ CÔNG TẠI ST LÀM VIỆC & GIỜ CÔNG HỖ TRỢ ST KHÁC) ====================
+            let gcTaiST: Double = {
+                if tongHop.gioCongTaiST > 0.0001 { return tongHop.gioCongTaiST }
+                if let v = sk?.gioCongTaiST, v > 0.0001 { return v }
+                if let v = tongHop.doanhThuCaNhan?.gioCong, v > 0.0001 { return v }
+                return 0
+            }()
+            let gcHoTro: Double = {
+                if tongHop.gioCongHoTro > 0.0001 { return tongHop.gioCongHoTro }
+                if let v = sk?.gioCongHoTroSTKhac, v > 0.0001 { return v }
+                if let v = tongHop.doanhThuCaNhan?.gioCongHoTro, v > 0.0001 { return v }
+                return 0
+            }()
+            if hienKhungGioCong {
+                let rKhungGC = CGRect(x: le, y: y, width: rongNoiDung, height: caoKhungGC)
+                let pathGC = UIBezierPath(roundedRect: rKhungGC, cornerRadius: 12)
+                UIColor(red: 0.94, green: 0.96, blue: 1.0, alpha: 1).setFill()
+                pathGC.fill()
+                UIColor(red: 0.80, green: 0.86, blue: 0.98, alpha: 1).setStroke()
+                pathGC.lineWidth = 1
+                pathGC.stroke()
+
+                let tongGC = gcTaiST + gcHoTro
+                let dsCoGC = dsTatCaNV.filter { $0.gioCongTaiST > 0.001 || $0.gioCongHoTro > 0.001 }
+                let tbGCTaiST: Double? = !dsCoGC.isEmpty
+                    ? (dsCoGC.map(\.gioCongTaiST).reduce(0, +) / Double(dsCoGC.count))
+                    : nil
+                let tbGCHoTro: Double? = !dsCoGC.isEmpty
+                    ? (dsCoGC.map(\.gioCongHoTro).reduce(0, +) / Double(dsCoGC.count))
+                    : nil
+
+                let ttGC1: TheChiSoSucKhoeView.TrangThaiThe = {
+                    guard gcTaiST > 0.001 else { return .chuaCoSo }
+                    if let tb = tbGCTaiST, tb > 0 {
+                        return gcTaiST >= tb - 0.001 ? .dat : .chuaDat
+                    }
+                    return .dat
+                }()
+                let ttGC2: TheChiSoSucKhoeView.TrangThaiThe = gcHoTro > 0.001 ? .dat : .chuaCoSo
+
+                ("⏱️ GIỜ CÔNG (\(cheDo.tieuDe.uppercased()))" as NSString).draw(
+                    in: CGRect(x: rKhungGC.minX + 10, y: rKhungGC.minY + 11, width: 175, height: 18),
+                    withAttributes: [
+                        .font: UIFont.systemFont(ofSize: 12.0, weight: .heavy),
+                        .foregroundColor: UIColor(red: 0.14, green: 0.30, blue: 0.76, alpha: 1),
+                        .paragraphStyle: pLeft
+                    ]
+                )
+                let chuTongGC = " Tổng: \(tongGC.chuoiSoMotLeVN) giờ "
+                let fontTongGC = UIFont.monospacedDigitSystemFont(ofSize: 11.0, weight: .heavy)
+                let wTongGC = ceil((chuTongGC as NSString).size(withAttributes: [.font: fontTongGC]).width) + 10
+                let rDemGC = CGRect(x: rKhungGC.minX + 188, y: rKhungGC.minY + 10, width: wTongGC, height: 18)
+                UIColor.white.setFill()
+                UIBezierPath(roundedRect: rDemGC, cornerRadius: 6).fill()
+                (chuTongGC as NSString).draw(
+                    in: CGRect(x: rDemGC.minX, y: rDemGC.minY + 2, width: rDemGC.width, height: 15),
+                    withAttributes: [
+                        .font: fontTongGC,
+                        .foregroundColor: UIColor(red: 0.14, green: 0.30, blue: 0.76, alpha: 1),
+                        .paragraphStyle: pCenter
+                    ]
+                )
+
+                let rongThe2 = (rKhungGC.width - 20 - gapThe) / 2.0
+                let yHangGC = rKhungGC.minY + 36
+                veTheChiSo(
+                    in: cg,
+                    rect: CGRect(x: rKhungGC.minX + 10, y: yHangGC, width: rongThe2, height: caoTheChiSo),
+                    tieuDe: "GIỜ CÔNG TẠI ST LÀM VIỆC",
+                    giaTri: "\(gcTaiST.chuoiSoMotLeVN) giờ",
+                    chuoiTB: tbGCTaiST != nil ? "TB \(tbGCTaiST!.chuoiSoMotLeVN)h" : "TB 0,0h",
+                    chuoiPhu: "ST làm việc",
+                    trangThai: ttGC1
+                )
+                veTheChiSo(
+                    in: cg,
+                    rect: CGRect(x: rKhungGC.minX + 10 + rongThe2 + gapThe, y: yHangGC, width: rongThe2, height: caoTheChiSo),
+                    tieuDe: "GIỜ CÔNG HỖ TRỢ ST KHÁC",
+                    giaTri: "\(gcHoTro.chuoiSoMotLeVN) giờ",
+                    chuoiTB: tbGCHoTro != nil ? "TB \(tbGCHoTro!.chuoiSoMotLeVN)h" : "TB 0,0h",
+                    chuoiPhu: "Tổng: \(tongGC.chuoiSoMotLeVN)h",
+                    trangThai: ttGC2
+                )
+
+                y += caoKhungGC + khoangCach
+            }
+
             // ==================== 1C. KHỐI NĂNG SUẤT 3 MỤC ====================
             let rKhungNS = CGRect(x: le, y: y, width: rongNoiDung, height: caoKhungNS)
             let pathNS = UIBezierPath(roundedRect: rKhungNS, cornerRadius: 12)
@@ -3672,7 +3902,13 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
             let tbErp = sk?.tbDiemThuongERP
             let erpGC = max(0, sk?.diemThuongTrenGioCong ?? 0)
             let tbErpGC = sk?.tbDiemThuongTrenGioCong
-            let dtGC = max(0, sk?.dtqdTrenGioCong ?? 0)
+            let dtGC: Double = {
+                if let v = sk?.dtqdTrenGioCong, v > 0.0001 { return v }
+                if dtQD > 0.001 && gcTaiST > 0.001 {
+                    return ((dtQD / gcTaiST) * 100.0).rounded() / 100.0
+                }
+                return 0
+            }()
             let tbDtGC = sk?.tbDtqdTrenGioCong
 
             func trangThaiNS(_ giaTri: Double, _ tb: Double?) -> TheChiSoSucKhoeView.TrangThaiThe {
@@ -4182,8 +4418,11 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
         guard !ds.isEmpty else { return }
         var cacMuc: [MucChonDMX] = ds.enumerated().map { i, item in
             let dtStr = item.doanhThuQD > 0 ? "\(item.doanhThuQD.chuoiSoGonVN) tr" : "--"
+            let gcStr = (item.gioCongTaiST > 0.001 || item.gioCongHoTro > 0.001)
+                ? " • ⏱️ \(item.gioCongTaiST.chuoiSoMotLeVN)h (+\(item.gioCongHoTro.chuoiSoMotLeVN)h)"
+                : ""
             return MucChonDMX(
-                tieuDe: "\(i + 1). \(item.nhanVien.hoTen) (id: \(item.nhanVien.maNV)) • DT QĐ: \(dtStr)",
+                tieuDe: "\(i + 1). \(item.nhanVien.hoTen) (id: \(item.nhanVien.maNV)) • DT QĐ: \(dtStr)\(gcStr)",
                 dangChon: item.nhanVien.maNV == tongHop.nhanVien.maNV
             ) { [weak self] in
                 guard let self else { return }
@@ -4311,7 +4550,17 @@ final class ManHinhChiTietNhanVien: UIViewController, PHPickerViewControllerDele
                 guard let self else { return }
                 var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngay)
                 let dsQuanLy = KhoDuLieu.dungChung.caiDat.danhSachNhanVien
-                if !dsQuet.isEmpty {
+                let chiLaAnhGioCong = !dsQuet.isEmpty && dsQuet.allSatisfy {
+                    abs($0.doanhThuQD) < 0.0001 && abs($0.soLuong) < 0.0001 && ($0.gioCong > 0.0001 || $0.gioCongHoTro > 0.0001)
+                }
+                if chiLaAnhGioCong {
+                    KhoDuLieu.dungChung.apDungGioCongNhanVienQuetDuoc(
+                        dsQuet,
+                        vao: &dl,
+                        ngay: self.ngay,
+                        cheDo: self.cheDo
+                    )
+                } else if !dsQuet.isEmpty {
                     var mapDTNV: [String: DoanhThuNhanVienItem] = [:]
                     for item in KhoDuLieu.locSachDanhSachDTNV(dl.doanhThuNhanVien(theo: self.cheDo)) {
                         let ma = KhoDuLieu.chuanHoaMaNV(item.maNV)
