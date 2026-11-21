@@ -63,7 +63,7 @@ final class DichVuDocAnh {
     static let dungChung = DichVuDocAnh()
     private init() {}
 
-    private struct PhanTuVanBan {
+    struct PhanTuVanBan {
         let chu: String
         let x: CGFloat      // 0 (trái) -> 1 (phải)
         let y: CGFloat      // 0 (đỉnh) -> 1 (đáy)
@@ -800,7 +800,7 @@ final class DichVuDocAnh {
     }
 
     /// Nhận diện ảnh Bảng Giờ Công Nhân Viên 3 cột (NHÂN VIÊN | GIỜ CÔNG TẠI ST LÀM VIỆC | GIỜ CÔNG HỖ TRỢ ST KHÁC, trong ô nhân viên có "id: <mã NV>" và "ST làm việc: <mã ST>")
-    func laAnhBangGioCongNhanVien(phanTu: [PhanTuVanBan]) -> Bool {
+    private func laAnhBangGioCongNhanVien(phanTu: [PhanTuVanBan]) -> Bool {
         var coGioCongTaiST = false
         var coGioCongHoTro = false
         var soDongSTLamViec = 0
@@ -1895,7 +1895,7 @@ final class DichVuDocAnh {
     }
 
     /// Phân tích Offline bảng Giờ Công Nhân Viên 3 cột: [NHÂN VIÊN | GIỜ CÔNG TẠI ST LÀM VIỆC | GIỜ CÔNG HỖ TRỢ ST KHÁC]
-    func phanTichGioCongNhanVienOffline(phanTu: [PhanTuVanBan], anh: UIImage? = nil) -> [DoanhThuNhanVienItem] {
+    private func phanTichGioCongNhanVienOffline(phanTu: [PhanTuVanBan], anh: UIImage? = nil) -> [DoanhThuNhanVienItem] {
         var phanTuMoRong: [PhanTuVanBan] = []
         for pt in phanTu {
             let cacDong = pt.chu.components(separatedBy: .newlines)
