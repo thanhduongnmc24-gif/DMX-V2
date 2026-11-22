@@ -235,6 +235,9 @@ final class DichVuDocAnh {
             ) else { continue }
             ctx.interpolationQuality = .high
             ctx.draw(cgCrop, in: CGRect(x: 0, y: 0, width: rw, height: rh))
+            if let data = ctx.data {
+                Self.apDungLocWatermarkTrenBufferRGBA(data: data, rong: rw, cao: rh, xoaSaoVang: false)
+            }
             guard let cgPhong = ctx.makeImage() else { continue }
 
             var ptDai: [PhanTuVanBan] = []
@@ -2099,6 +2102,79 @@ final class DichVuDocAnh {
 
     // MARK: - Bước 1: Apple Vision OCR trên iPhone
 
+    /// Xóa sạch chữ chìm watermark màu xám trung tính (độ sáng 205..250, ví dụ "54453 / Dũng Nguyễn Thanh")
+    /// đồng thời kéo giãn tương phản mượt dải [35..205] -> [0..255] cho chữ số/văn bản trung tính và giữ nguyên mọi chi tiết có màu (badge, thanh tiến độ).
+    static func apDungLocWatermarkTrenBufferRGBA(data: UnsafeMutableRawPointer, rong: Int, cao: Int, xoaSaoVang: Bool) {
+        let ptr = data.bindMemory(to: UInt8.self, capacity: rong * cao * 4)
+        let tongPixel = rong * cao
+
+        for i in 0..<tongPixel {
+            let offset = i * 4
+            let r = Int(ptr[offset])
+            let g = Int(ptr[offset + 1])
+            let b = Int(ptr[offset + 2])
+
+            if xoaSaoVang {
+                // Làm trắng biểu tượng ngôi sao màu vàng tươi (⭐) ở vùng đầu tiêu đề mà không làm mất chữ số % màu cam ở các cột bên phải
+                let xPx = i % rong
+                let laVungSao = (xPx < (rong * 16) / 100) || (xPx >= (rong * 49) / 100 && xPx < (rong * 62) / 100)
+                if laVungSao && r >= 190 && g >= 150 && b < 160 && (r - b) > 55 && (g * 100) >= (r * 73) {
+                    ptr[offset] = 255
+                    ptr[offset + 1] = 255
+                    ptr[offset + 2] = 255
+                    continue
+                }
+            }
+
+            let mx = max(r, max(g, b))
+            let mn = min(r, min(g, b))
+            // Chỉ xử lý pixel xám trung tính (chữ đen, chữ xám đậm, watermark xám nhạt) để giữ nguyên hoàn toàn các thẻ/thanh màu
+            if (mx - mn) <= 22 {
+                let gray = (r * 299 + g * 587 + b * 114) / 1000
+                let outV: UInt8
+                if gray >= 205 {
+                    outV = 255
+                } else if gray <= 35 {
+                    outV = 0
+                } else {
+                    outV = UInt8(((gray - 35) * 255) / 170)
+                }
+                ptr[offset] = outV
+                ptr[offset + 1] = outV
+                ptr[offset + 2] = outV
+            }
+        }
+    }
+
+    /// Trả về ảnh UIImage đã xóa sạch chữ chìm watermark trước khi gửi qua Gemini Vision hoặc chạy OCR.
+    static func xoaWatermarkChuChim(_ anh: UIImage) -> UIImage {
+        guard let cgGoc = anh.cgImage else { return anh }
+        let rong = cgGoc.width
+        let cao = cgGoc.height
+        guard rong > 20, cao > 20 else { return anh }
+
+        let bytesPerRow = rong * 4
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: nil,
+            width: rong,
+            height: cao,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return anh
+        }
+
+        ctx.draw(cgGoc, in: CGRect(x: 0, y: 0, width: rong, height: cao))
+        if let data = ctx.data {
+            apDungLocWatermarkTrenBufferRGBA(data: data, rong: rong, cao: cao, xoaSaoVang: false)
+        }
+        guard let cgSach = ctx.makeImage() else { return anh }
+        return UIImage(cgImage: cgSach, scale: anh.scale, orientation: anh.imageOrientation)
+    }
+
     /// Làm sạch watermark chữ chìm màu xám nhạt (ví dụ: 54453 / Dũng Nguyễn Thanh) và phóng nét ảnh nhỏ trước khi đưa vào Apple Vision OCR
     private func taoCGImageDaLocWatermarkVaTangNet(tu anh: UIImage) -> CGImage? {
         guard let cgGoc = anh.cgImage else { return nil }
@@ -2128,24 +2204,8 @@ final class DichVuDocAnh {
         ctx.interpolationQuality = .high
         ctx.draw(cgGoc, in: CGRect(x: 0, y: 0, width: rong, height: cao))
 
-        guard let data = ctx.data else { return ctx.makeImage() ?? cgGoc }
-        let ptr = data.bindMemory(to: UInt8.self, capacity: rong * cao * bytesPerPixel)
-        let tongPixel = rong * cao
-
-        for i in 0..<tongPixel {
-            let offset = i * 4
-            let r = Int(ptr[offset])
-            let g = Int(ptr[offset + 1])
-            let b = Int(ptr[offset + 2])
-
-            // Làm trắng biểu tượng ngôi sao màu vàng tươi (⭐) ở vùng đầu tiêu đề mà không làm mất chữ số % màu cam ở các cột bên phải
-            let xPx = i % rong
-            let laVungSao = (xPx < (rong * 16) / 100) || (xPx >= (rong * 49) / 100 && xPx < (rong * 62) / 100)
-            if laVungSao && r >= 190 && g >= 150 && b < 160 && (r - b) > 55 && (g * 100) >= (r * 73) {
-                ptr[offset] = 255
-                ptr[offset + 1] = 255
-                ptr[offset + 2] = 255
-            }
+        if let data = ctx.data {
+            Self.apDungLocWatermarkTrenBufferRGBA(data: data, rong: rong, cao: cao, xoaSaoVang: true)
         }
 
         return ctx.makeImage() ?? cgGoc
@@ -3821,7 +3881,7 @@ final class DichVuDocAnh {
                     ketQuaSo = ketQuaSo / 100.0
                 }
             }
-            return coDauAm ? -abs(ketQuaSo) : ketQuaSo
+            return (coDauAm || ketQuaSo < 0) ? -abs(ketQuaSo) : ketQuaSo
         }
 
         let allValueBands = [tongBand] + rowBounds

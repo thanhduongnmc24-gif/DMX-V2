@@ -202,8 +202,9 @@ final class DichVuQuetAnhGemini {
         }
     }
 
-    /// Nén ảnh sắc nét (hỗ trợ cắt xếp dọc cho ảnh Bảng ngang siêu rộng để không bị mờ chữ 39 cột, và giữ độ nét 2048px cho Bảng dọc / Lưới 6 cột).
-    private func duLieuAnhGon(_ anh: UIImage) -> Data? {
+    /// Xóa sạch watermark chữ chìm trước khi nén ảnh sắc nét gửi Gemini (hỗ trợ cắt xếp dọc cho ảnh Bảng ngang siêu rộng và giữ độ nét cao cho Bảng dọc / Ma trận).
+    private func duLieuAnhGon(_ anhGoc: UIImage) -> Data? {
+        let anh = DichVuDocAnh.xoaWatermarkChuChim(anhGoc)
         let w = anh.size.width
         let h = anh.size.height
         guard w > 10, h > 10 else { return anh.jpegData(compressionQuality: 0.84) }
@@ -494,7 +495,7 @@ final class DichVuQuetAnhGemini {
         4. Với bảng Thi đua Nhân viên (mảng "thiDuaNhanVien"), hỗ trợ cả 2 mẫu:
            - MẪU 1 — MA TRẬN THEO NHÂN VIÊN ("Ma trận theo Nhân viên · 4/5/6/13 chương trình"):
              + Hỗ trợ 2 kiểu bố cục ma trận:
-               * KIỂU DỌC (mới): Hai cột đầu bên trái là "STT" (đánh số thứ tự 1..N, ví dụ 1..24) và "NHÂN VIÊN" (dạng "<maNV> - <hoTen>"), hàng đầu tiên dưới tiêu đề là "TỔNG", phía trên 13 cột chương trình có nhãn phân nhóm ("Nhóm CE", "Nhóm DV", "Nhóm ICT"). Mỗi ô chỉ có 1 con số thực hiện (nếu là "—", "-", hoặc 0/0.00 thì đặt "thucHien": 0), không có cột target riêng (đặt "target": 0). Với mỗi cột chương trình, tạo 1 phần tử trong "thiDuaNhanVien" với "tenNganhHang", "thucHienNganhGoiY" (lấy từ hàng TỔNG), "targetNganhGoiY": 0, và "danhSach" gồm đầy đủ tất cả các hàng nhân viên (từ STT 1 đến hết bảng, kể cả các hàng cuối từ 18..24) kèm "maNV", "hoTen", "thucHien", "target": 0, "laPhanTram": false.
+               * KIỂU DỌC (mới): Hai cột đầu bên trái là "STT" (đánh số thứ tự 1..N, ví dụ 1..24) và "NHÂN VIÊN" (dạng "<maNV> - <hoTen>"), hàng đầu tiên dưới tiêu đề là "TỔNG", phía trên 13 cột chương trình có nhãn phân nhóm ("Nhóm CE", "Nhóm DV", "Nhóm ICT"). Mỗi ô chỉ có 1 con số thực hiện (GIỮ NGUYÊN SỐ ÂM như -0.54, tuyệt đối không làm tròn về 0; chỉ khi ô là dấu gạch ngang "—" đứng một mình, trống hoặc 0/0.00 mới đặt "thucHien": 0), không có cột target riêng (đặt "target": 0). Với mỗi cột chương trình, tạo 1 phần tử trong "thiDuaNhanVien" với "tenNganhHang", "thucHienNganhGoiY" (lấy từ hàng TỔNG), "targetNganhGoiY": 0, và "danhSach" gồm đầy đủ tất cả các hàng nhân viên (từ STT 1 đến hết bảng, kể cả các hàng cuối từ 18..24) kèm "maNV", "hoTen", "thucHien", "target": 0, "laPhanTram": false.
                * KIỂU NGANG (cũ): Các hàng là danh sách chương trình thi đua, các cột là từng nhân viên với 2 cột con [THỰC HIỆN | TARGET].
            - MẪU 2 — BẢNG MỞ RỘNG 1 MÔN THI ĐUA (có các dòng nhân viên kèm "id: <mã NV>" ở cột 1 và cột 2 hiển thị % đóng góp): chỉ trích các hàng có cả tên nhân viên và id vào mảng "thiDuaNhanVien", đặt "laPhanTram": true, "thucHien" là con số phần trăm, kèm "thucHienNganhGoiY" và "targetNganhGoiY".
         5. Nếu ảnh là PHIẾU SỨC KHỎE & THI ĐUA CÁ NHÂN NHÂN VIÊN 27 ĐIỂM (có tên nhân viên, mã NV 6 số, khối DOANH THU 6 mục, khối NĂNG SUẤT 3 mục, khối THI ĐUA gồm lưới thẻ % các môn): hãy trả thêm trường "sucKhoeNhanVien": [{"maNV":"293044","hoTen":"Võ Ngọc Vĩ","doanhThuQD":97.1,"tbDoanhThuQD":228.7,"phanTramTarget":46,"tbPhanTramTarget":108,"mucTieuTargetQD":703.7,"soLuotBill":33,"tbSoLuotBill":35,"phanTramQuyDoi":64,"tbPhanTramQuyDoi":43,"phanTramTraCham":45,"tbPhanTramTraCham":53,"phanTramBanKem":100,"tbPhanTramBanKem":61,"diemThuongERP":1254937,"tbDiemThuongERP":1496937,"diemThuongGioCong":17317,"tbDiemThuongGioCong":20855,"dtqdGioCong":1.34,"tbDtqdGioCong":3.20,"thiDua":[{"ten":"Phụ kiện công nghệ","phanTram":107}]}] (các môn nằm ở phần "Chưa có số liệu" đặt phanTram: 0).
@@ -723,8 +724,8 @@ final class DichVuQuetAnhGemini {
                         let ptVal = so(td, "phanTram")
                         let kLM = KhoDuLieu.chuanHoaKhoaLienMachThiDua(tenMon)
                         let kSS = KhoDuLieu.chuanHoaKhoaSoSanh(tenMon)
-                        if !kLM.isEmpty { bangPT[kLM] = max(0, ptVal) }
-                        if !kSS.isEmpty { bangPT[kSS] = max(0, ptVal) }
+                        if !kLM.isEmpty { bangPT[kLM] = ptVal }
+                        if !kSS.isEmpty { bangPT[kSS] = ptVal }
                     }
                 }
                 sk.phanTramThiDuaCaNhan = bangPT
@@ -902,7 +903,7 @@ final class DichVuQuetAnhGemini {
             }
         }
         let soCotDuLieu = colBounds.count - 1
-        guard (soCotDuLieu >= 4 && soCotDuLieu <= 6) || soCotDuLieu == 13 else { return nil }
+        guard (soCotDuLieu >= 3 && soCotDuLieu <= 6) || soCotDuLieu == 13 else { return nil }
         // Kiểm tra cột NHÂN VIÊN (colBounds[0]) đủ rộng (>= 22% chiều rộng ảnh) và các cột dữ liệu có bề rộng đồng đều
         guard (colBounds[0].x1 - colBounds[0].x0) >= Int(Double(w0) * 0.22) else { return nil }
 
@@ -1052,7 +1053,7 @@ final class DichVuQuetAnhGemini {
     private func taoPromptThiDuaNhanVien(luoiO: ThongTinLuoiMaTranAnh?) -> String {
         let soCot = luoiO?.soCotDuLieu ?? 6
         var goiYLuoi = ""
-        if let luoiO, luoiO.soCotDuLieu >= 4 {
+        if let luoiO, luoiO.soCotDuLieu >= 3 {
             var cacDongGoiY: [String] = []
             for c in 0..<luoiO.soCotDuLieu {
                 let hangCoSo = luoiO.coSoTheoCot[c].enumerated().compactMap { $0.element ? "\($0.offset + 1)" : nil }
@@ -1073,7 +1074,7 @@ final class DichVuQuetAnhGemini {
             \(cacDongGoiY.joined(separator: "\n"))
             BẮT BUỘC tuân thủ đúng bản đồ trên:\(goiYTenCot)
             - Xuất ĐẦY ĐỦ ĐÚNG \(luoiO.soHangNhanVien) dòng nhân viên theo thứ tự STT từ 1 đến \(luoiO.soHangNhanVien) (kể cả các nhân viên ở cuối bảng có toàn dấu "—" hoặc 0.00).
-            - Tại mỗi Cột k (1..\(luoiO.soCotDuLieu)), những hàng nhân viên nằm trong danh sách có số thì PHẢI đọc đúng con số in trên ảnh (nếu trên ảnh in 0 hoặc 0.00 thì ghi 0, nếu in số > 0 thì tuyệt đối không được bỏ sót thành 0), còn những hàng không nằm trong danh sách thì BẮT BUỘC ghi 0!
+            - Tại mỗi Cột k (1..\(luoiO.soCotDuLieu)), những hàng nhân viên nằm trong danh sách có số thì PHẢI đọc đúng con số in trên ảnh (bao gồm cả số âm như -0.54, tuyệt đối giữ nguyên dấu âm và không làm tròn về 0; nếu in 0 hoặc 0.00 thì ghi 0; nếu in số khác 0 thì tuyệt đối không được bỏ sót thành 0), còn những hàng không nằm trong danh sách thì BẮT BUỘC ghi 0!
             """
         }
 
@@ -1100,7 +1101,7 @@ final class DichVuQuetAnhGemini {
         4. GIỮ ĐÚNG CỘT DỌC, ĐỌC ĐỦ TẤT CẢ CÁC DÒNG NHÂN VIÊN & KHÔNG NHẢY SỐ GIỮA CÁC CỘT:
            - Phải đọc đầy đủ tất cả các hàng nhân viên từ STT 1 đến hết bảng.
            - Mỗi mảng `soLieu` của từng nhân viên phải có ĐÚNG \(soCot) PHẦN TỬ tương ứng với \(soCot) cột từ trái sang phải (`Cột 1` đến `Cột \(soCot)`).
-           - Ô nào có dấu gạch ngang "—", "-", trống hoặc 0.00 thì ghi 0 tại đúng vị trí cột đó.\(goiYLuoi)
+           - Nếu ô chứa SỐ ÂM (ví dụ: -0.54, -1.20) thì BẮT BUỘC giữ nguyên dấu trừ (-) và giá trị âm, TUYỆT ĐỐI KHÔNG làm tròn hay đổi về 0. Chỉ ô chỉ có duy nhất dấu gạch ngang "—" hoặc "-" đứng một mình (không kèm chữ số), ô trống hoặc 0.00 mới ghi 0 tại đúng vị trí cột đó.\(goiYLuoi)
         5. Trả về DUY NHẤT 1 đối tượng JSON theo đúng cấu trúc:
         {"cotNganhHang":["Tên cột 1","Tên cột 2","..."],"hangTong":[0,0],"nhanVien":[{"stt":1,"maNV":"285688","hoTen":"Lê Tuấn","soLieu":[0,0]}]}
         """

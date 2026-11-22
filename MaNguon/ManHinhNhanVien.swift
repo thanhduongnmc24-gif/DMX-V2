@@ -702,7 +702,7 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
         hop.addTextField { tf in
             tf.placeholder = "Nhập % (VD: 24) hoặc số thực hiện"
             tf.keyboardType = .decimalPad
-            if item.thucHien > 0 {
+            if abs(item.thucHien) > 0.0001 {
                 tf.text = item.thucHien.chuoiSoGonVN.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
             }
         }
@@ -3277,8 +3277,8 @@ final class BangThongSoSucKhoeNhanVienView: UIView {
         hop.addTextField { tf in
             tf.placeholder = "Thực hiện (VD: 1.5 hoặc 88%)"
             tf.keyboardType = .decimalPad
-            if mon.thucHien > 0 { tf.text = String(mon.thucHien) }
-            else if mon.phanTramHT > 0 { tf.text = "\(Int(round(mon.phanTramHT)))%" }
+            if abs(mon.thucHien) > 0.0001 { tf.text = String(mon.thucHien) }
+            else if abs(mon.phanTramHT) > 0.0001 { tf.text = "\(Int(round(mon.phanTramHT)))%" }
         }
         hop.addAction(UIAlertAction(title: "Lưu", style: .default) { [weak self] _ in
             guard let self else { return }

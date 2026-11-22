@@ -2919,11 +2919,11 @@ final class KhoDuLieu {
             let phanTramHT: Double
             if let ptSK = ptTuSK {
                 if targetCaNhan > 0.0001 {
-                    if let th = thTuBang, th > 0 {
+                    if let th = thTuBang, abs(th) > 0.0001 {
                         thucHien = th
                         let htTinh = (th / targetCaNhan) * 100.0
                         phanTramHT = abs(htTinh - ptSK) <= 2.5 ? ptSK : htTinh
-                    } else if ptSK > 0 {
+                    } else if abs(ptSK) > 0.0001 {
                         thucHien = ((targetCaNhan * ptSK / 100.0) * 100.0).rounded() / 100.0
                         phanTramHT = ptSK
                     } else {
@@ -2932,7 +2932,7 @@ final class KhoDuLieu {
                     }
                 } else {
                     thucHien = thTuBang ?? 0
-                    phanTramHT = max(0, ptSK)
+                    phanTramHT = ptSK
                 }
             } else {
                 thucHien = thTuBang ?? 0
@@ -3367,9 +3367,9 @@ final class KhoDuLieu {
             })
 
             let thucHienMon: Double
-            if let dongMon, dongMon.thucHien > 0 {
+            if let dongMon, abs(dongMon.thucHien) > 0.0001 {
                 thucHienMon = dongMon.thucHien
-            } else if khoi.thucHienNganhGoiY > 0 {
+            } else if abs(khoi.thucHienNganhGoiY) > 0.0001 {
                 thucHienMon = khoi.thucHienNganhGoiY
             } else {
                 thucHienMon = dongMon?.thucHien ?? 0
@@ -3393,8 +3393,8 @@ final class KhoDuLieu {
                     bangCu[k] = 0
                 }
             }
-            if khoi.thucHienNganhGoiY > 0 || khoi.danhSach.count >= 5 {
-                bangCu["__thuc_hien_sieu_thi__"] = max(0, khoi.thucHienNganhGoiY)
+            if abs(khoi.thucHienNganhGoiY) > 0.0001 || khoi.danhSach.count >= 5 {
+                bangCu["__thuc_hien_sieu_thi__"] = khoi.thucHienNganhGoiY
             }
             if khoi.targetNganhGoiY > 0 {
                 bangCu["__target_sieu_thi__"] = khoi.targetNganhGoiY
@@ -3419,37 +3419,33 @@ final class KhoDuLieu {
                     }
                 }
                 if item.laPhanTramTargetCaNhan {
-                    if item.thucHien >= 0 {
-                        let soNVChia = max(1, dongMon.map { danhSachMaNVChiaTarget(cho: $0).count } ?? max(1, caiDat.danhSachNhanVien.count))
+                    let soNVChia = max(1, dongMon.map { danhSachMaNVChiaTarget(cho: $0).count } ?? max(1, caiDat.danhSachNhanVien.count))
+                    let targetMon = (dongMon?.target ?? 0) > 0 ? (dongMon?.target ?? 0) : khoi.targetNganhGoiY
+                    let targetCaNhan = (bangCu["__target_\(maLuu)__"] ?? bangCu["__target_ca_nhan__"] ?? 0) > 0
+                        ? (bangCu["__target_\(maLuu)__"] ?? bangCu["__target_ca_nhan__"] ?? 0)
+                        : (targetMon / Double(soNVChia))
+                    if targetCaNhan > 0 && abs(item.thucHien) > 0.0001 {
+                        let soLuongNV = (targetCaNhan * item.thucHien) / 100.0
+                        bangCu[maLuu] = ((soLuongNV * 100.0).rounded()) / 100.0
+                    } else {
+                        bangCu[maLuu] = 0
+                    }
+                } else if item.laPhanTram {
+                    if abs(thucHienMon) > 0.0001 {
+                        let soLuongNV = (thucHienMon / 100.0) * item.thucHien
+                        let lamTron = ((soLuongNV * 10000.0).rounded()) / 10000.0
+                        bangCu[maLuu] = lamTron
+                    } else {
                         let targetMon = (dongMon?.target ?? 0) > 0 ? (dongMon?.target ?? 0) : khoi.targetNganhGoiY
+                        let soNVChia = max(1, dongMon.map { danhSachMaNVChiaTarget(cho: $0).count } ?? max(1, caiDat.danhSachNhanVien.count))
                         let targetCaNhan = (bangCu["__target_\(maLuu)__"] ?? bangCu["__target_ca_nhan__"] ?? 0) > 0
                             ? (bangCu["__target_\(maLuu)__"] ?? bangCu["__target_ca_nhan__"] ?? 0)
                             : (targetMon / Double(soNVChia))
-                        if targetCaNhan > 0 && item.thucHien > 0 {
+                        if targetCaNhan > 0 && abs(item.thucHien) > 0.0001 {
                             let soLuongNV = (targetCaNhan * item.thucHien) / 100.0
                             bangCu[maLuu] = ((soLuongNV * 100.0).rounded()) / 100.0
                         } else {
                             bangCu[maLuu] = 0
-                        }
-                    }
-                } else if item.laPhanTram {
-                    if item.thucHien >= 0 {
-                        if thucHienMon > 0 {
-                            let soLuongNV = (thucHienMon / 100.0) * item.thucHien
-                            let lamTron = ((soLuongNV * 10000.0).rounded()) / 10000.0
-                            bangCu[maLuu] = lamTron
-                        } else {
-                            let targetMon = (dongMon?.target ?? 0) > 0 ? (dongMon?.target ?? 0) : khoi.targetNganhGoiY
-                            let soNVChia = max(1, dongMon.map { danhSachMaNVChiaTarget(cho: $0).count } ?? max(1, caiDat.danhSachNhanVien.count))
-                            let targetCaNhan = (bangCu["__target_\(maLuu)__"] ?? bangCu["__target_ca_nhan__"] ?? 0) > 0
-                                ? (bangCu["__target_\(maLuu)__"] ?? bangCu["__target_ca_nhan__"] ?? 0)
-                                : (targetMon / Double(soNVChia))
-                            if targetCaNhan > 0 && item.thucHien > 0 {
-                                let soLuongNV = (targetCaNhan * item.thucHien) / 100.0
-                                bangCu[maLuu] = ((soLuongNV * 100.0).rounded()) / 100.0
-                            } else {
-                                bangCu[maLuu] = 0
-                            }
                         }
                     }
                 } else {
@@ -3471,7 +3467,7 @@ final class KhoDuLieu {
         var dsHienTai = dl.danhSachThiDua(theo: cheDo)
         var dsBoiSung: [DongThiDua] = []
         for khoi in mangKhoiNV {
-            guard khoi.targetNganhGoiY > 0 || khoi.thucHienNganhGoiY > 0 else { continue }
+            guard khoi.targetNganhGoiY > 0 || abs(khoi.thucHienNganhGoiY) > 0.0001 else { continue }
             let tenChuan = Self.chuanHoaTenMonThiDuaChuan(khoi.tenNganhHang, tienToThangMacDinh: "T11")
             guard !tenChuan.isEmpty, tenChuan != "Ngành hàng" else { continue }
             let kSoSanh = Self.chuanHoaKhoaSoSanh(tenChuan)
@@ -3484,8 +3480,8 @@ final class KhoDuLieu {
                 if khoi.targetNganhGoiY > 0 {
                     dsHienTai[idx].target = khoi.targetNganhGoiY
                 }
-                if khoi.thucHienNganhGoiY > 0 || khoi.danhSach.count >= 5 {
-                    dsHienTai[idx].thucHien = max(0, khoi.thucHienNganhGoiY)
+                if abs(khoi.thucHienNganhGoiY) > 0.0001 || khoi.danhSach.count >= 5 {
+                    dsHienTai[idx].thucHien = khoi.thucHienNganhGoiY
                     if dsHienTai[idx].target > 0 {
                         dsHienTai[idx].phanTramHTGoc = ((dsHienTai[idx].thucHien / dsHienTai[idx].target) * 1000.0).rounded() / 10.0
                     }
