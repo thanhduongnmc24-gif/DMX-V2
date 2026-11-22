@@ -254,6 +254,7 @@ final class DichVuDongBo {
     static let taiKhoanAdminGoc = "duongnt"
 
     private let diaChiWeb = URL(string: "https://www.duongnt.io.vn")!
+    private let diaChiWorkerR2 = URL(string: "https://dmx-line-bot.thanhduongnmc24.workers.dev")!
     private let diaChiSupabase = URL(string: "https://isxrxeaxytyiydxiwvuc.supabase.co")!
     private let khoaCongKhaiSupabase = "sb_publishable_mafynf1XYupP9W_WeLYSRg_M7cjJXPS"
     private let khoaBiMatSupabase = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzeHJ4ZWF4eXR5aXlkeGl3dnVjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDQ1OTY1OCwiZXhwIjoyMTAwMDM1NjU4fQ.V7zW8iMiwuKCHGY-1tG1ociK-aeUXwX0BnhqDf1rTo4"
@@ -2046,6 +2047,81 @@ final class DichVuDongBo {
             return
         }
         taiAnhTrucTiepLenStorageSupabase(jpeg: jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+    }
+
+    /// Tải ảnh JPEG trực tiếp lên Cloudflare R2 thông qua Worker `dmx-line-bot` (miễn phí 10GB + 0đ băng thông tải ra).
+    /// Tự động làm mới JWT nếu hết hạn (HTTP 401).
+    func taiAnhLenCloudflareR2(
+        jpeg: Data,
+        loai: String,
+        ngay: String,
+        thuLai: Bool = true,
+        hoanTat: @escaping (Result<String, Error>) -> Void
+    ) {
+        damBaoUserIdVaSieuThi { [weak self] ketQua in
+            guard let self else { return }
+            switch ketQua {
+            case .failure(let loi):
+                DispatchQueue.main.async { hoanTat(.failure(loi)) }
+            case .success(let (_, sieuThiId)):
+                guard let token = self.phien?.accessToken, !token.isEmpty else {
+                    DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Chưa có phiên đăng nhập DMX."))) }
+                    return
+                }
+                var comp = URLComponents(url: self.diaChiWorkerR2.appendingPathComponent("/r2/upload"), resolvingAgainstBaseURL: false)!
+                comp.queryItems = [
+                    URLQueryItem(name: "loai", value: loai),
+                    URLQueryItem(name: "ngay", value: ngay),
+                    URLQueryItem(name: "sid", value: sieuThiId)
+                ]
+                guard let url = comp.url else {
+                    DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("URL Cloudflare R2 không hợp lệ."))) }
+                    return
+                }
+                var req = URLRequest(url: url)
+                req.httpMethod = "POST"
+                req.httpBody = jpeg
+                req.timeoutInterval = 60
+                req.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+                req.setValue("application/json", forHTTPHeaderField: "Accept")
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                req.setValue(sieuThiId, forHTTPHeaderField: "X-DMX-Store-ID")
+                req.setValue(String(jpeg.count), forHTTPHeaderField: "Content-Length")
+
+                struct PhanHoiR2: Decodable {
+                    var ok: Bool?
+                    var url: String?
+                    var loi: String?
+                }
+
+                self.phienMang.dataTask(with: req) { [weak self] data, response, error in
+                    guard let self else { return }
+                    if let error {
+                        DispatchQueue.main.async { hoanTat(.failure(error)) }
+                        return
+                    }
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    if status == 401, thuLai {
+                        self.lamMoiPhien { thanhCong in
+                            if thanhCong {
+                                self.taiAnhLenCloudflareR2(jpeg: jpeg, loai: loai, ngay: ngay, thuLai: false, hoanTat: hoanTat)
+                            } else {
+                                DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Phiên đăng nhập hết hạn khi tải ảnh lên R2."))) }
+                            }
+                        }
+                        return
+                    }
+                    let duLieu = data ?? Data()
+                    let phanHoi = try? JSONDecoder().decode(PhanHoiR2.self, from: duLieu)
+                    guard (200..<300).contains(status), phanHoi?.ok == true, let urlAnh = phanHoi?.url else {
+                        let msg = phanHoi?.loi ?? "Cloudflare R2 từ chối tải ảnh (HTTP \(status))."
+                        DispatchQueue.main.async { hoanTat(.failure(NSError.dmx(msg))) }
+                        return
+                    }
+                    DispatchQueue.main.async { hoanTat(.success(urlAnh)) }
+                }.resume()
+            }
+        }
     }
 
     func taiAnhTrucTiepLenStorageSupabase(

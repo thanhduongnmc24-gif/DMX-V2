@@ -99,7 +99,7 @@ final class BangGuiBaoCaoView: UIView {
 
         ngan.addArrangedSubview(taoDuongKe())
         ngan.addArrangedSubview(taoNhan("KHO ẢNH GỬI NHANH", dam: true))
-        ngan.addArrangedSubview(taoNhan("Chọn kho lưu ảnh báo cáo: Supabase (trực tiếp), API Key (ImgBB siêu tốc không qua Apps Script), hoặc Google Drive (API trực tiếp / Apps Script)."))
+        ngan.addArrangedSubview(taoNhan("Chọn kho lưu ảnh báo cáo: Cloudflare R2 (khuyên dùng — miễn phí 10GB & 0đ băng thông), API Key (ImgBB), hoặc Google Drive."))
         chonKhoAnh.addTarget(self, action: #selector(doiKhoAnh), for: .valueChanged)
         ngan.addArrangedSubview(chonKhoAnh)
 

@@ -8,7 +8,7 @@ enum KhoAnhBaoCaoBot: String, Codable, CaseIterable {
 
     var tieuDe: String {
         switch self {
-        case .supabase: return "Supabase"
+        case .supabase: return "Cloudflare R2"
         case .apiKey: return "API Key (ImgBB)"
         case .googleDrive: return "Google Drive"
         }
@@ -85,13 +85,13 @@ struct CauHinhKhoAnhBaoCaoBot: Codable, Equatable {
     var tenKhoHieuLuc: String {
         switch kho {
         case .supabase:
-            return "Supabase"
+            return "Cloudflare R2"
         case .apiKey:
-            return apiKeyDaSanSang ? "API Key (ImgBB)" : "Supabase"
+            return apiKeyDaSanSang ? "API Key (ImgBB)" : "Cloudflare R2"
         case .googleDrive:
             if driveTrucTiepDaSanSang { return "Google Drive (API trực tiếp)" }
             if driveAppsScriptDaSanSang { return "Google Drive" }
-            return "Supabase"
+            return "Cloudflare R2"
         }
     }
 }
@@ -188,8 +188,8 @@ final class DichVuAnhBaoCaoBot {
                             // che lỗi ImgBB như trước đây.
                             self.taiLenSupabase(jpeg, loai: loai, ngay: ngay) { ketQuaDuPhong in
                                 switch ketQuaDuPhong {
-                                case .success:
-                                    hoanTat?(.success("Supabase dự phòng — ImgBB lỗi: \(loiImgBB.localizedDescription)"))
+                                case .success(let khoDuPhong):
+                                    hoanTat?(.success("\(khoDuPhong) dự phòng — ImgBB lỗi: \(loiImgBB.localizedDescription)"))
                                 case .failure(let loiSupabase):
                                     hoanTat?(.failure(NSError.dmx(
                                         "ImgBB lỗi: \(loiImgBB.localizedDescription). Supabase dự phòng cũng lỗi: \(loiSupabase.localizedDescription)"
@@ -247,8 +247,17 @@ final class DichVuAnhBaoCaoBot {
         ngay: String,
         hoanTat: ((Result<String, Error>) -> Void)?
     ) {
-        DichVuDongBo.dungChung.taiAnhTrucTiepLenStorageSupabase(jpeg: jpeg, loai: loai, ngay: ngay) { kq in
-            hoanTat?(kq.map { "Supabase" })
+        // Ưu tiên tải lên Cloudflare R2 (miễn phí 10GB + 0đ băng thông tải ra),
+        // tự động dự phòng sang Supabase Storage nếu R2 chưa sẵn sàng.
+        DichVuDongBo.dungChung.taiAnhLenCloudflareR2(jpeg: jpeg, loai: loai, ngay: ngay) { kqR2 in
+            switch kqR2 {
+            case .success:
+                hoanTat?(.success("Cloudflare R2"))
+            case .failure:
+                DichVuDongBo.dungChung.taiAnhTrucTiepLenStorageSupabase(jpeg: jpeg, loai: loai, ngay: ngay) { kq in
+                    hoanTat?(kq.map { "Supabase" })
+                }
+            }
         }
     }
 
