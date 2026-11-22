@@ -1,5 +1,6 @@
 import UIKit
 import Security
+import CryptoKit
 
 struct PhienDangNhapDMX: Codable {
     var accessToken: String
@@ -242,6 +243,7 @@ private struct DongHoSoSupabase: Codable {
 
 private struct DongDuLieuNgaySupabase: Codable {
     var nguoi_dung_id: String?
+    var sieu_thi_id: String?
     var ngay: String
     var du_lieu: DuLieuNgayDMX
     var ngay_cap_nhat: String?
@@ -1015,14 +1017,13 @@ final class DichVuDongBo {
                     }
                 }
 
-                // Chỉ dùng một API đồng bộ chuẩn. Trước đây app gọi thêm Storage và
-                // PostgREST trực tiếp, khiến cùng dữ liệu bị tải/giải mã/gộp ba lần.
-                nhom.enter()
-                self.guiWeb(path: "/api/dmx/dong-bo", method: "GET", bodyData: nil, canDangNhap: true, sieuThiId: sieuThiLucBatDau) { (kq: Result<DuLieuDamMay, Error>) in
-                    if case .success(let cloud) = kq {
-                        gopAnToan(caiDat: cloud.caiDat, cacNgay: cloud.cacNgay)
+                // Đọc đúng siêu thị qua RLS của Supabase, không phụ thuộc Render.
+                if let userId = self.phien?.userId, !sieuThiLucBatDau.isEmpty {
+                    nhom.enter()
+                    self.docBangSQLSupabase(userId: userId, sieuThiId: sieuThiLucBatDau) { caiDat, cacNgay in
+                        gopAnToan(caiDat: caiDat, cacNgay: cacNgay)
+                        nhom.leave()
                     }
-                    nhom.leave()
                 }
 
                 // Xử lý gộp và chuẩn hoá chuỗi trên luồng nền (hangDoi) thay vì luồng chính
@@ -1091,6 +1092,9 @@ final class DichVuDongBo {
 
     private func thucThiDayDuLieuGomNhom() {
         guard daDangNhap else { return }
+        guard let userId = phien?.userId else { return }
+        let sieuThiId = BoNhoSieuThiDMX.idDangChon
+        guard !sieuThiId.isEmpty else { return }
         khoaTrangThai.lock()
         let dsNgayCanDay = cacNgayChoDay
         let cdCanDay = caiDatChoDay
@@ -1100,18 +1104,10 @@ final class DichVuDongBo {
 
         guard cdCanDay != nil || !dsNgayCanDay.isEmpty else { return }
 
-        // 1. Đẩy sang Web API (từng gói gọn nhẹ)
-        if let cdCanDay, dsNgayCanDay.isEmpty {
-            let goi = GoiDongBo(caiDat: cdCanDay, ngay: nil, duLieuNgay: nil)
-            guiWeb(path: "/api/dmx/dong-bo", method: "POST", body: goi, canDangNhap: true) { (_: Result<LoiMayChu, Error>) in }
-        } else {
-            for (_, dlNgay) in dsNgayCanDay {
-                let goi = GoiDongBo(caiDat: cdCanDay, ngay: dlNgay.khoaNgay, duLieuNgay: dlNgay)
-                guiWeb(path: "/api/dmx/dong-bo", method: "POST", body: goi, canDangNhap: true) { (_: Result<LoiMayChu, Error>) in }
-            }
-        }
+        // Chỉ ghi những ngày thay đổi, không tải/ghi lại cả file 62 ngày.
+        ghiBangSQLSupabase(userId: userId, sieuThiId: sieuThiId, caiDat: cdCanDay, cacNgay: dsNgayCanDay)
 
-        // Web API chịu trách nhiệm ghi đồng thời SQL và Storage. Không ghi lặp lần hai.
+        // SQL là nguồn đồng bộ của ứng dụng iPhone.
     }
 
     // MARK: - Các hàm làm việc trực tiếp với Supabase Auth, Storage & PostgREST
@@ -1281,6 +1277,7 @@ final class DichVuDongBo {
 
     private func docBangSQLSupabase(
         userId: String,
+        sieuThiId: String,
         hoanTat: @escaping (CaiDatDMX?, [String: DuLieuNgayDMX]) -> Void
     ) {
         guard let token = phien?.accessToken else {
@@ -1293,10 +1290,11 @@ final class DichVuDongBo {
         var ngayKetQua: [String: DuLieuNgayDMX] = [:]
 
         nhom.enter()
-        var compHoSo = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_ho_so"), resolvingAgainstBaseURL: false)!
+        var compHoSo = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_sieu_thi"), resolvingAgainstBaseURL: false)!
         compHoSo.queryItems = [
             URLQueryItem(name: "select", value: "cai_dat"),
             URLQueryItem(name: "nguoi_dung_id", value: "eq.\(userId)"),
+            URLQueryItem(name: "id", value: "eq.\(sieuThiId)"),
             URLQueryItem(name: "limit", value: "1")
         ]
         var reqHoSo = URLRequest(url: compHoSo.url!)
@@ -1318,6 +1316,7 @@ final class DichVuDongBo {
         compNgay.queryItems = [
             URLQueryItem(name: "select", value: "ngay,du_lieu"),
             URLQueryItem(name: "nguoi_dung_id", value: "eq.\(userId)"),
+            URLQueryItem(name: "sieu_thi_id", value: "eq.\(sieuThiId)"),
             URLQueryItem(name: "order", value: "ngay.desc"),
             URLQueryItem(name: "limit", value: "62")
         ]
@@ -1346,32 +1345,29 @@ final class DichVuDongBo {
     }
 
     /// Ghi dữ liệu lên bảng SQL Supabase theo lô (batch upsert) giúp nhanh và nhẹ máy
-    private func ghiBangSQLSupabase(userId: String, caiDat: CaiDatDMX?, cacNgay: [String: DuLieuNgayDMX]) {
+    private func ghiBangSQLSupabase(userId: String, sieuThiId: String, caiDat: CaiDatDMX?, cacNgay: [String: DuLieuNgayDMX]) {
         guard let token = phien?.accessToken else { return }
         let isoNow = ISO8601DateFormatter().string(from: Date())
 
         if let cd = caiDat {
-            var comp = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_ho_so"), resolvingAgainstBaseURL: false)!
-            comp.queryItems = [URLQueryItem(name: "on_conflict", value: "nguoi_dung_id")]
+            var comp = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_sieu_thi"), resolvingAgainstBaseURL: false)!
+            comp.queryItems = [
+                URLQueryItem(name: "id", value: "eq.\(sieuThiId)"),
+                URLQueryItem(name: "nguoi_dung_id", value: "eq.\(userId)")
+            ]
             var req = URLRequest(url: comp.url!)
-            req.httpMethod = "POST"
+            req.httpMethod = "PATCH"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.setValue("resolution=merge-duplicates", forHTTPHeaderField: "Prefer")
             req.setValue(khoaCongKhaiSupabase, forHTTPHeaderField: "apikey")
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            let body = DongHoSoSupabase(
-                nguoi_dung_id: userId,
-                ten_dang_nhap: tenDangNhap.isEmpty ? "user" : tenDangNhap,
-                cai_dat: cd,
-                ngay_cap_nhat: isoNow
-            )
+            let body = DongHoSoSupabase(nguoi_dung_id: nil, ten_dang_nhap: nil, cai_dat: cd, ngay_cap_nhat: isoNow)
             req.httpBody = try? JSONEncoder().encode(body)
             phienMang.dataTask(with: req) { _, _, _ in }.resume()
         }
 
         if !cacNgay.isEmpty {
             var comp = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_du_lieu_ngay"), resolvingAgainstBaseURL: false)!
-            comp.queryItems = [URLQueryItem(name: "on_conflict", value: "nguoi_dung_id,ngay")]
+            comp.queryItems = [URLQueryItem(name: "on_conflict", value: "nguoi_dung_id,sieu_thi_id,ngay")]
             var req = URLRequest(url: comp.url!)
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -1381,6 +1377,7 @@ final class DichVuDongBo {
             let danhSachDong = cacNgay.map { (khoa, dl) in
                 DongDuLieuNgaySupabase(
                     nguoi_dung_id: userId,
+                    sieu_thi_id: sieuThiId,
                     ngay: khoa,
                     du_lieu: dl,
                     ngay_cap_nhat: isoNow
@@ -1397,54 +1394,349 @@ final class DichVuDongBo {
             hoanTat(.failure(NSError.dmx("Mã liên kết LINE phải gồm đúng 6 chữ số.")))
             return
         }
-        let body = YeuCauLienKetLine(hanhDong: "xac_nhan", ma: maSach)
-        guiWeb(path: "api/dmx/bot/lien-ket", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiLienKetLine, Error>) in
-            switch ketQua {
-            case .success(let phanHoi):
-                let ten = phanHoi.tenDangNhap ?? self.tenDangNhap
-                hoanTat(.success(phanHoi.thongBao ?? "Đã liên kết LINE với tài khoản \(ten)."))
-            case .failure(let loi):
-                hoanTat(.failure(loi))
+        damBaoUserId { [weak self] uid in
+            guard let self, let uid, !uid.isEmpty else {
+                DispatchQueue.main.async {
+                    hoanTat(.failure(NSError.dmx("Hãy đăng nhập tài khoản DMX trước khi liên kết LINE.")))
+                }
+                return
+            }
+            let maHash = self.bamSHA256(maSach)
+            let isoNow = ISO8601DateFormatter().string(from: Date())
+            var compTim = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_ma_lien_ket"), resolvingAgainstBaseURL: false)!
+            compTim.queryItems = [
+                URLQueryItem(name: "select", value: "line_user_id,het_han"),
+                URLQueryItem(name: "ma_hash", value: "eq.\(maHash)"),
+                URLQueryItem(name: "het_han", value: "gt.\(isoNow)"),
+                URLQueryItem(name: "limit", value: "1")
+            ]
+            struct MaLienKetRow: Decodable {
+                var line_user_id: String?
+            }
+            self.guiSupabaseAdminREST(url: compTim.url!, method: "GET") { [weak self] (kqTim: Result<[MaLienKetRow], Error>) in
+                guard let self else { return }
+                switch kqTim {
+                case .failure(let loi):
+                    DispatchQueue.main.async { hoanTat(.failure(loi)) }
+                case .success(let rows):
+                    guard let lineUserId = rows.first?.line_user_id, !lineUserId.isEmpty else {
+                        DispatchQueue.main.async {
+                            hoanTat(.failure(NSError.dmx("Mã liên kết không đúng hoặc đã hết hạn. Hãy gõ /lienket để lấy mã mới.")))
+                        }
+                        return
+                    }
+                    var compXoaCu = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_lien_ket"), resolvingAgainstBaseURL: false)!
+                    compXoaCu.queryItems = [URLQueryItem(name: "nguoi_dung_id", value: "eq.\(uid)")]
+                    self.guiSupabaseAdminRESTKhongCanDuLieu(url: compXoaCu.url!, method: "DELETE") { [weak self] _ in
+                        guard let self else { return }
+                        var compUpsert = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_lien_ket"), resolvingAgainstBaseURL: false)!
+                        compUpsert.queryItems = [URLQueryItem(name: "on_conflict", value: "line_user_id")]
+                        let payload: [String: String] = [
+                            "line_user_id": lineUserId,
+                            "nguoi_dung_id": uid,
+                            "ngay_cap_nhat": isoNow
+                        ]
+                        self.guiSupabaseAdminRESTKhongCanDuLieu(
+                            url: compUpsert.url!,
+                            method: "POST",
+                            bodyDict: payload,
+                            prefer: "resolution=merge-duplicates"
+                        ) { [weak self] kqLuu in
+                            guard let self else { return }
+                            switch kqLuu {
+                            case .failure(let loi):
+                                DispatchQueue.main.async { hoanTat(.failure(loi)) }
+                            case .success:
+                                var compXoaMa = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_ma_lien_ket"), resolvingAgainstBaseURL: false)!
+                                compXoaMa.queryItems = [URLQueryItem(name: "line_user_id", value: "eq.\(lineUserId)")]
+                                self.guiSupabaseAdminRESTKhongCanDuLieu(url: compXoaMa.url!, method: "DELETE") { _ in }
+                                let ten = self.tenDangNhap.isEmpty ? "Tài khoản DMX" : self.tenDangNhap
+                                DispatchQueue.main.async {
+                                    hoanTat(.success("Đã liên kết LINE với tài khoản \(ten)."))
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
     func taoMaGanNhomLine(hoanTat: @escaping (Result<(String, Int), Error>) -> Void) {
-        let body = YeuCauNhomLine(hanhDong: "tao_ma", id: nil, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, kieuGui: nil, dangHoatDong: nil)
-        guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiMaGanNhom, Error>) in
-            switch ketQua {
-            case .success(let kq): hoanTat(.success((kq.ma, kq.soPhut)))
-            case .failure(let loi): hoanTat(.failure(loi))
+        damBaoUserId { [weak self] uid in
+            guard let self, let uid, !uid.isEmpty else {
+                DispatchQueue.main.async {
+                    hoanTat(.failure(NSError.dmx("Hãy đăng nhập tài khoản DMX.")))
+                }
+                return
+            }
+            let soPhut = 10
+            let ma = String(format: "%06d", Int.random(in: 0..<1_000_000))
+            let maHash = self.bamSHA256(ma)
+            let hetHan = ISO8601DateFormatter().string(from: Date().addingTimeInterval(TimeInterval(soPhut * 60)))
+
+            var compXoa = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_ma_gan_nhom"), resolvingAgainstBaseURL: false)!
+            compXoa.queryItems = [URLQueryItem(name: "nguoi_dung_id", value: "eq.\(uid)")]
+            self.guiSupabaseAdminRESTKhongCanDuLieu(url: compXoa.url!, method: "DELETE") { [weak self] _ in
+                guard let self else { return }
+                let urlInsert = self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_ma_gan_nhom")
+                let payload: [String: String] = [
+                    "ma_hash": maHash,
+                    "nguoi_dung_id": uid,
+                    "het_han": hetHan
+                ]
+                self.guiSupabaseAdminRESTKhongCanDuLieu(url: urlInsert, method: "POST", bodyDict: payload) { kq in
+                    DispatchQueue.main.async {
+                        switch kq {
+                        case .success: hoanTat(.success((ma, soPhut)))
+                        case .failure(let loi): hoanTat(.failure(loi))
+                        }
+                    }
+                }
             }
         }
     }
 
     func taiCauHinhGuiBaoCao(hoanTat: @escaping (Result<([NhomLineDMX], [LichGuiBaoCaoDMX]), Error>) -> Void) {
-        let body = YeuCauNhomLine(hanhDong: "danh_sach", id: nil, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, kieuGui: nil, dangHoatDong: nil)
-        guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiDanhSachNhom, Error>) in
+        damBaoUserIdVaSieuThi { [weak self] ketQua in
+            guard let self else { return }
             switch ketQua {
-            case .success(let kq): hoanTat(.success((kq.nhom, kq.lich)))
-            case .failure(let loi): hoanTat(.failure(loi))
+            case .failure(let loi):
+                DispatchQueue.main.async { hoanTat(.failure(loi)) }
+            case .success(let (uid, sieuThiId)):
+                let group = DispatchGroup()
+                let lock = NSLock()
+                var dsNhomRaw: [NhomLineDMX] = []
+                var dsLich: [LichGuiBaoCaoDMX] = []
+                var mapCauHinh: [String: (Bool, Int)] = [:]
+                var loiNhom: Error?
+
+                group.enter()
+                var compNhom = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_nhom"), resolvingAgainstBaseURL: false)!
+                compNhom.queryItems = [
+                    URLQueryItem(name: "select", value: "line_group_id,ten_nhom,dang_hoat_dong"),
+                    URLQueryItem(name: "nguoi_dung_id", value: "eq.\(uid)"),
+                    URLQueryItem(name: "order", value: "ngay_tao.asc")
+                ]
+                self.guiSupabaseAdminREST(url: compNhom.url!, method: "GET") { (kq: Result<[NhomLineDMX], Error>) in
+                    lock.lock()
+                    switch kq {
+                    case .success(let rows): dsNhomRaw = rows
+                    case .failure(let err): loiNhom = err
+                    }
+                    lock.unlock()
+                    group.leave()
+                }
+
+                group.enter()
+                var compLich = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_lich_gui"), resolvingAgainstBaseURL: false)!
+                compLich.queryItems = [
+                    URLQueryItem(name: "select", value: "id,line_group_id,sieu_thi_id,gio,cac_thu,cac_noi_dung,kieu_gui,dang_hoat_dong"),
+                    URLQueryItem(name: "nguoi_dung_id", value: "eq.\(uid)"),
+                    URLQueryItem(name: "sieu_thi_id", value: "eq.\(sieuThiId)"),
+                    URLQueryItem(name: "order", value: "gio.asc")
+                ]
+                self.guiSupabaseAdminREST(url: compLich.url!, method: "GET") { (kq: Result<[LichGuiBaoCaoDMX], Error>) in
+                    lock.lock()
+                    if case .success(let rows) = kq { dsLich = rows }
+                    lock.unlock()
+                    group.leave()
+                }
+
+                struct CauHinhNhacRow: Decodable {
+                    var line_group_id: String
+                    var bat_nhac_phan_hoi: Bool?
+                    var so_phut_cho: Int?
+                }
+                group.enter()
+                var compNhac = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_cau_hinh_nhac"), resolvingAgainstBaseURL: false)!
+                compNhac.queryItems = [URLQueryItem(name: "select", value: "line_group_id,bat_nhac_phan_hoi,so_phut_cho")]
+                self.guiSupabaseAdminREST(url: compNhac.url!, method: "GET") { (kq: Result<[CauHinhNhacRow], Error>) in
+                    lock.lock()
+                    if case .success(let rows) = kq {
+                        for r in rows {
+                            mapCauHinh[r.line_group_id] = (r.bat_nhac_phan_hoi ?? false, r.so_phut_cho ?? 30)
+                        }
+                    }
+                    lock.unlock()
+                    group.leave()
+                }
+
+                group.notify(queue: .main) {
+                    if let loiNhom {
+                        hoanTat(.failure(loiNhom))
+                        return
+                    }
+                    let nhomDayDu = dsNhomRaw.map { item -> NhomLineDMX in
+                        var m = item
+                        if let ch = mapCauHinh[item.lineGroupId] {
+                            m.batNhacPhanHoi = ch.0
+                            m.soPhutCho = ch.1
+                        } else {
+                            m.batNhacPhanHoi = false
+                            m.soPhutCho = 30
+                        }
+                        return m
+                    }
+                    hoanTat(.success((nhomDayDu, dsLich)))
+                }
             }
         }
     }
 
     func taiDanhSachSieuThi(hoanTat: @escaping (Result<[SieuThiDMX], Error>) -> Void) {
-        guiWeb(path: "api/dmx/sieu-thi", method: "GET", bodyData: nil, canDangNhap: true) { [weak self] (ketQua: Result<PhanHoiDanhSachSieuThi, Error>) in
+        damBaoUserId { [weak self] uid in
+            guard let self, let uid, !uid.isEmpty else {
+                DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Hãy đăng nhập tài khoản DMX."))) }
+                return
+            }
+            self.truyVanDanhSachSieuThiSupabase(userId: uid) { [weak self] ketQua in
+                guard let self else { return }
+                switch ketQua {
+                case .success(let kq):
+                    self.danhSachSieuThi = kq.sieuThi
+                    let id = kq.sieuThiDangChon ?? kq.sieuThi.first?.id ?? ""
+                    guard !id.isEmpty else {
+                        DispatchQueue.main.async { hoanTat(.success(kq.sieuThi)) }
+                        return
+                    }
+                    let idCu = BoNhoSieuThiDMX.idDangChon
+                    self.chuyenDuLieuSieuThiTrenMay(tu: idCu, sang: id, danhSach: kq.sieuThi) {
+                        DispatchQueue.main.async { hoanTat(.success(kq.sieuThi)) }
+                    }
+                case .failure(let loi):
+                    DispatchQueue.main.async { hoanTat(.failure(loi)) }
+                }
+            }
+        }
+    }
+
+    private func truyVanDanhSachSieuThiSupabase(
+        userId: String,
+        hoanTat: @escaping (Result<PhanHoiDanhSachSieuThi, Error>) -> Void
+    ) {
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var dsStores: [SieuThiDMX] = []
+        var idDangChon: String?
+        var loiTruyVan: Error?
+
+        group.enter()
+        var compStores = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_sieu_thi"), resolvingAgainstBaseURL: false)!
+        compStores.queryItems = [
+            URLQueryItem(name: "select", value: "id,ma_sieu_thi,ten_sieu_thi"),
+            URLQueryItem(name: "nguoi_dung_id", value: "eq.\(userId)"),
+            URLQueryItem(name: "order", value: "ngay_tao.asc")
+        ]
+        guiSupabaseAdminREST(url: compStores.url!, method: "GET") { (kq: Result<[SieuThiDMX], Error>) in
+            lock.lock()
+            switch kq {
+            case .success(let rows): dsStores = rows
+            case .failure(let err): loiTruyVan = err
+            }
+            lock.unlock()
+            group.leave()
+        }
+
+        struct HoSoSieuThiRow: Decodable {
+            var sieu_thi_dang_chon: String?
+        }
+        group.enter()
+        var compProfile = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_ho_so"), resolvingAgainstBaseURL: false)!
+        compProfile.queryItems = [
+            URLQueryItem(name: "select", value: "sieu_thi_dang_chon"),
+            URLQueryItem(name: "nguoi_dung_id", value: "eq.\(userId)"),
+            URLQueryItem(name: "limit", value: "1")
+        ]
+        guiSupabaseAdminREST(url: compProfile.url!, method: "GET") { (kq: Result<[HoSoSieuThiRow], Error>) in
+            lock.lock()
+            if case .success(let rows) = kq {
+                idDangChon = rows.first?.sieu_thi_dang_chon
+            }
+            lock.unlock()
+            group.leave()
+        }
+
+        group.notify(queue: hangDoi) { [weak self] in
             guard let self else { return }
-            switch ketQua {
-            case .success(let kq):
-                self.danhSachSieuThi = kq.sieuThi
-                let id = kq.sieuThiDangChon ?? kq.sieuThi.first?.id ?? ""
-                guard !id.isEmpty else {
-                    hoanTat(.success(kq.sieuThi))
-                    return
+            if let loiTruyVan {
+                hoanTat(.failure(loiTruyVan))
+                return
+            }
+            if dsStores.isEmpty {
+                // Tự động khởi tạo siêu thị mặc định nếu tài khoản mới chưa có
+                let urlInsert = self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_sieu_thi?select=id,ma_sieu_thi,ten_sieu_thi")
+                let payload: [String: String] = [
+                    "nguoi_dung_id": userId,
+                    "ma_sieu_thi": "MAC_DINH",
+                    "ten_sieu_thi": "Siêu thị mặc định"
+                ]
+                self.guiSupabaseAdminREST(url: urlInsert, method: "POST", bodyDict: payload, prefer: "return=representation") { (kqTao: Result<[SieuThiDMX], Error>) in
+                    switch kqTao {
+                    case .success(let moi):
+                        let chon = moi.first?.id
+                        if let chon {
+                            self.capNhatSieuThiDangChonHoSo(userId: userId, sieuThiId: chon) { _ in
+                                hoanTat(.success(PhanHoiDanhSachSieuThi(sieuThi: moi, sieuThiDangChon: chon)))
+                            }
+                        } else {
+                            hoanTat(.success(PhanHoiDanhSachSieuThi(sieuThi: moi, sieuThiDangChon: nil)))
+                        }
+                    case .failure(let err):
+                        hoanTat(.failure(err))
+                    }
                 }
-                let idCu = BoNhoSieuThiDMX.idDangChon
-                self.chuyenDuLieuSieuThiTrenMay(tu: idCu, sang: id, danhSach: kq.sieuThi) {
-                    hoanTat(.success(kq.sieuThi))
+                return
+            }
+            let chonHopLe = (idDangChon != nil && dsStores.contains(where: { $0.id == idDangChon }))
+                ? idDangChon
+                : dsStores.first?.id
+            hoanTat(.success(PhanHoiDanhSachSieuThi(sieuThi: dsStores, sieuThiDangChon: chonHopLe)))
+        }
+    }
+
+    private func capNhatSieuThiDangChonHoSo(userId: String, sieuThiId: String?, hoanTat: @escaping (Result<Void, Error>) -> Void) {
+        var comp = URLComponents(url: diaChiSupabase.appendingPathComponent("/rest/v1/dmx_ho_so"), resolvingAgainstBaseURL: false)!
+        comp.queryItems = [URLQueryItem(name: "on_conflict", value: "nguoi_dung_id")]
+        var payload: [String: Any] = [
+            "nguoi_dung_id": userId,
+            "ten_dang_nhap": tenDangNhap.isEmpty ? "user-\(userId.prefix(6))" : tenDangNhap,
+            "ngay_cap_nhat": ISO8601DateFormatter().string(from: Date())
+        ]
+        payload["sieu_thi_dang_chon"] = sieuThiId ?? NSNull()
+        guiSupabaseAdminRESTKhongCanDuLieu(
+            url: comp.url!,
+            method: "POST",
+            bodyDict: payload,
+            prefer: "resolution=merge-duplicates",
+            hoanTat: hoanTat
+        )
+    }
+
+    private func damBaoUserIdVaSieuThi(hoanTat: @escaping (Result<(String, String), Error>) -> Void) {
+        damBaoUserId { [weak self] uid in
+            guard let self, let uid, !uid.isEmpty else {
+                hoanTat(.failure(NSError.dmx("Hãy đăng nhập tài khoản DMX.")))
+                return
+            }
+            let hienTai = BoNhoSieuThiDMX.idDangChon
+            if !hienTai.isEmpty {
+                hoanTat(.success((uid, hienTai)))
+                return
+            }
+            self.truyVanDanhSachSieuThiSupabase(userId: uid) { kq in
+                switch kq {
+                case .success(let ds):
+                    self.danhSachSieuThi = ds.sieuThi
+                    if let chon = ds.sieuThiDangChon ?? ds.sieuThi.first?.id, !chon.isEmpty {
+                        BoNhoSieuThiDMX.idDangChon = chon
+                        hoanTat(.success((uid, chon)))
+                    } else {
+                        hoanTat(.failure(NSError.dmx("Tài khoản chưa chọn siêu thị.")))
+                    }
+                case .failure(let loi):
+                    hoanTat(.failure(loi))
                 }
-            case .failure(let loi): hoanTat(.failure(loi))
             }
         }
     }
@@ -1516,35 +1808,186 @@ final class DichVuDongBo {
     }
 
     private func thaoTacSieuThi(_ body: YeuCauSieuThi, hoanTat: @escaping (Result<[SieuThiDMX], Error>) -> Void) {
-        guiWeb(path: "api/dmx/sieu-thi", method: "POST", body: body, canDangNhap: true) { [weak self] (ketQua: Result<PhanHoiDanhSachSieuThi, Error>) in
-            switch ketQua {
-            case .success(let kq):
-                self?.danhSachSieuThi = kq.sieuThi
-                if let id = kq.sieuThiDangChon { BoNhoSieuThiDMX.idDangChon = id }
-                hoanTat(.success(kq.sieuThi))
-            case .failure(let loi): hoanTat(.failure(loi))
+        damBaoUserId { [weak self] uid in
+            guard let self, let uid, !uid.isEmpty else {
+                DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Hãy đăng nhập tài khoản DMX."))) }
+                return
+            }
+            let hanhDong = body.hanhDong.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+            let taiLaiSauThaoTac: () -> Void = { [weak self] in
+                guard let self else { return }
+                self.truyVanDanhSachSieuThiSupabase(userId: uid) { kq in
+                    DispatchQueue.main.async {
+                        switch kq {
+                        case .success(let ds):
+                            self.danhSachSieuThi = ds.sieuThi
+                            if let id = ds.sieuThiDangChon { BoNhoSieuThiDMX.idDangChon = id }
+                            hoanTat(.success(ds.sieuThi))
+                        case .failure(let loi):
+                            hoanTat(.failure(loi))
+                        }
+                    }
+                }
+            }
+
+            if hanhDong == "them" {
+                let ma = (body.maSieuThi ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                let ten = (body.tenSieuThi ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard ma.range(of: "^[A-Z0-9._-]{1,30}$", options: .regularExpression) != nil,
+                      !ten.isEmpty, ten.count <= 120 else {
+                    DispatchQueue.main.async {
+                        hoanTat(.failure(NSError.dmx("Mã siêu thị chỉ gồm chữ, số, dấu chấm, gạch ngang; tên tối đa 120 ký tự.")))
+                    }
+                    return
+                }
+                let urlInsert = self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_sieu_thi?select=id,ma_sieu_thi,ten_sieu_thi")
+                let payload: [String: String] = [
+                    "nguoi_dung_id": uid,
+                    "ma_sieu_thi": ma,
+                    "ten_sieu_thi": ten
+                ]
+                self.guiSupabaseAdminREST(url: urlInsert, method: "POST", bodyDict: payload, prefer: "return=representation") { [weak self] (kq: Result<[SieuThiDMX], Error>) in
+                    guard let self else { return }
+                    switch kq {
+                    case .failure(let loi):
+                        DispatchQueue.main.async { hoanTat(.failure(loi)) }
+                    case .success(let moi):
+                        guard let idMoi = moi.first?.id, !idMoi.isEmpty else {
+                            taiLaiSauThaoTac()
+                            return
+                        }
+                        self.capNhatSieuThiDangChonHoSo(userId: uid, sieuThiId: idMoi) { _ in
+                            taiLaiSauThaoTac()
+                        }
+                    }
+                }
+            } else if hanhDong == "chon" {
+                let id = (body.sieuThiId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !id.isEmpty else {
+                    DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Siêu thị không hợp lệ."))) }
+                    return
+                }
+                self.capNhatSieuThiDangChonHoSo(userId: uid, sieuThiId: id) { _ in
+                    taiLaiSauThaoTac()
+                }
+            } else if hanhDong == "xoa" {
+                let id = (body.sieuThiId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard self.danhSachSieuThi.count > 1 else {
+                    DispatchQueue.main.async {
+                        hoanTat(.failure(NSError.dmx("Tài khoản phải còn ít nhất một siêu thị.")))
+                    }
+                    return
+                }
+                var compDel = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_sieu_thi"), resolvingAgainstBaseURL: false)!
+                compDel.queryItems = [
+                    URLQueryItem(name: "id", value: "eq.\(id)"),
+                    URLQueryItem(name: "nguoi_dung_id", value: "eq.\(uid)")
+                ]
+                self.guiSupabaseAdminRESTKhongCanDuLieu(url: compDel.url!, method: "DELETE") { [weak self] kqXoa in
+                    guard let self else { return }
+                    switch kqXoa {
+                    case .failure(let loi):
+                        DispatchQueue.main.async { hoanTat(.failure(loi)) }
+                    case .success:
+                        let conLai = self.danhSachSieuThi.first(where: { $0.id != id })?.id
+                        self.capNhatSieuThiDangChonHoSo(userId: uid, sieuThiId: conLai) { _ in
+                            taiLaiSauThaoTac()
+                        }
+                    }
+                }
+            } else {
+                DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Hành động không hợp lệ."))) }
             }
         }
     }
 
     func luuLichGuiBaoCao(id: String? = nil, groupId: String, gio: String, cacThu: [Int], cacNoiDung: [String], kieuGui: String, dangHoatDong: Bool = true, hoanTat: @escaping (Result<LichGuiBaoCaoDMX, Error>) -> Void) {
-        let body = YeuCauNhomLine(hanhDong: "luu_lich", id: id, lineGroupId: groupId, gio: gio, cacThu: cacThu, cacNoiDung: cacNoiDung, kieuGui: kieuGui, dangHoatDong: dangHoatDong)
-        guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiThaoTacNhom, Error>) in
+        let gioSach = gio.trimmingCharacters(in: .whitespacesAndNewlines)
+        let thuHopLe = cacThu.filter { (1...7).contains($0) }
+        let noiDungHopLe = cacNoiDung.filter { !$0.isEmpty }
+        guard gioSach.range(of: "^([01]\\d|2[0-3]):[0-5]\\d$", options: .regularExpression) != nil,
+              !thuHopLe.isEmpty, !noiDungHopLe.isEmpty, !groupId.isEmpty else {
+            hoanTat(.failure(NSError.dmx("Hãy chọn nhóm, giờ, ngày gửi và ít nhất một nội dung.")))
+            return
+        }
+        damBaoUserIdVaSieuThi { [weak self] ketQua in
+            guard let self else { return }
             switch ketQua {
-            case .success(let phanHoi):
-                if let lich = phanHoi.lich { hoanTat(.success(lich)) }
-                else { hoanTat(.failure(NSError.dmx("Máy chủ đã lưu nhưng chưa trả lại lịch."))) }
-            case .failure(let loi): hoanTat(.failure(loi))
+            case .failure(let loi):
+                DispatchQueue.main.async { hoanTat(.failure(loi)) }
+            case .success(let (uid, sieuThiId)):
+                let isoNow = ISO8601DateFormatter().string(from: Date())
+                var payload: [String: Any] = [
+                    "line_group_id": groupId,
+                    "nguoi_dung_id": uid,
+                    "sieu_thi_id": sieuThiId,
+                    "gio": "\(gioSach):00",
+                    "cac_thu": thuHopLe,
+                    "cac_noi_dung": noiDungHopLe,
+                    "kieu_gui": kieuGui == "text" ? "text" : "anh",
+                    "dang_hoat_dong": dangHoatDong,
+                    "lan_gui_cuoi": NSNull(),
+                    "ngay_cap_nhat": isoNow
+                ]
+                var comp = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_lich_gui"), resolvingAgainstBaseURL: false)!
+                let method: String
+                if let id, !id.isEmpty {
+                    method = "PATCH"
+                    comp.queryItems = [
+                        URLQueryItem(name: "select", value: "id,line_group_id,sieu_thi_id,gio,cac_thu,cac_noi_dung,kieu_gui,dang_hoat_dong"),
+                        URLQueryItem(name: "id", value: "eq.\(id)"),
+                        URLQueryItem(name: "nguoi_dung_id", value: "eq.\(uid)")
+                    ]
+                } else {
+                    method = "POST"
+                    comp.queryItems = [
+                        URLQueryItem(name: "select", value: "id,line_group_id,sieu_thi_id,gio,cac_thu,cac_noi_dung,kieu_gui,dang_hoat_dong")
+                    ]
+                }
+                self.guiSupabaseAdminREST(
+                    url: comp.url!,
+                    method: method,
+                    bodyDict: payload,
+                    prefer: "return=representation"
+                ) { (kq: Result<[LichGuiBaoCaoDMX], Error>) in
+                    DispatchQueue.main.async {
+                        switch kq {
+                        case .success(let rows):
+                            if let lich = rows.first {
+                                hoanTat(.success(lich))
+                            } else {
+                                hoanTat(.failure(NSError.dmx("Máy chủ đã lưu nhưng chưa trả lại lịch.")))
+                            }
+                        case .failure(let loi):
+                            hoanTat(.failure(loi))
+                        }
+                    }
+                }
             }
         }
     }
 
     func xoaLichGuiBaoCao(id: String, hoanTat: @escaping (Result<Void, Error>) -> Void) {
-        let body = YeuCauNhomLine(hanhDong: "xoa_lich", id: id, lineGroupId: nil, gio: nil, cacThu: nil, cacNoiDung: nil, kieuGui: nil, dangHoatDong: nil)
-        guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiThaoTacNhom, Error>) in
-            switch ketQua {
-            case .success: hoanTat(.success(()))
-            case .failure(let loi): hoanTat(.failure(loi))
+        damBaoUserId { [weak self] uid in
+            guard let self, let uid, !uid.isEmpty else {
+                DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Hãy đăng nhập tài khoản DMX."))) }
+                return
+            }
+            var compTat = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_lich_gui"), resolvingAgainstBaseURL: false)!
+            compTat.queryItems = [
+                URLQueryItem(name: "id", value: "eq.\(id)"),
+                URLQueryItem(name: "nguoi_dung_id", value: "eq.\(uid)")
+            ]
+            let bodyTat: [String: Any] = [
+                "dang_hoat_dong": false,
+                "ngay_cap_nhat": ISO8601DateFormatter().string(from: Date())
+            ]
+            self.guiSupabaseAdminRESTKhongCanDuLieu(url: compTat.url!, method: "PATCH", bodyDict: bodyTat) { [weak self] _ in
+                guard let self else { return }
+                self.guiSupabaseAdminRESTKhongCanDuLieu(url: compTat.url!, method: "DELETE") { kq in
+                    DispatchQueue.main.async { hoanTat(kq) }
+                }
             }
         }
     }
@@ -1555,15 +1998,26 @@ final class DichVuDongBo {
         soPhutCho: Int,
         hoanTat: @escaping (Result<Void, Error>) -> Void
     ) {
-        let body = YeuCauNhomLine(
-            hanhDong: "luu_nhac_nhom", id: nil, lineGroupId: groupId, gio: nil,
-            cacThu: nil, cacNoiDung: nil, kieuGui: nil, dangHoatDong: nil,
-            batNhacPhanHoi: bat, soPhutCho: max(1, min(1440, soPhutCho))
-        )
-        guiWeb(path: "api/dmx/bot/nhom", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiThaoTacNhom, Error>) in
-            switch ketQua {
-            case .success: hoanTat(.success(()))
-            case .failure(let loi): hoanTat(.failure(loi))
+        damBaoUserId { [weak self] uid in
+            guard let self, let uid, !uid.isEmpty else {
+                DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Hãy đăng nhập tài khoản DMX."))) }
+                return
+            }
+            var comp = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_cau_hinh_nhac"), resolvingAgainstBaseURL: false)!
+            comp.queryItems = [URLQueryItem(name: "on_conflict", value: "line_group_id")]
+            let payload: [String: Any] = [
+                "line_group_id": groupId,
+                "bat_nhac_phan_hoi": bat,
+                "so_phut_cho": max(1, min(1440, soPhutCho)),
+                "ngay_cap_nhat": ISO8601DateFormatter().string(from: Date())
+            ]
+            self.guiSupabaseAdminRESTKhongCanDuLieu(
+                url: comp.url!,
+                method: "POST",
+                bodyDict: payload,
+                prefer: "resolution=merge-duplicates"
+            ) { kq in
+                DispatchQueue.main.async { hoanTat(kq) }
             }
         }
     }
@@ -1576,19 +2030,73 @@ final class DichVuDongBo {
         hoanTat: @escaping (Result<Void, Error>) -> Void
     ) {
         let laDrive = !(urlDrive?.isEmpty ?? true)
-        let body = YeuCauLuuAnhBaoCao(
-            hanhDong: nil,
-            loai: loai,
-            ngay: ngay,
-            nhaCungCap: laDrive ? "google_drive" : "supabase",
-            duLieuAnhBase64: laDrive ? nil : duLieuJPEG?.base64EncodedString(),
-            urlBenNgoai: laDrive ? urlDrive : nil,
-            duongDanLuuTru: nil
-        )
-        guiWeb(path: "api/dmx/bot/anh-cache", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiLuuAnhBaoCao, Error>) in
+        if laDrive, let urlBenNgoai = urlDrive {
+            ghiBanGhiAnhBaoCaoSupabase(
+                loai: loai,
+                ngay: ngay,
+                nhaCungCap: "google_drive",
+                duongDanLuuTru: nil,
+                urlBenNgoai: urlBenNgoai,
+                hoanTat: hoanTat
+            )
+            return
+        }
+        guard let jpeg = duLieuJPEG, !jpeg.isEmpty else {
+            hoanTat(.failure(NSError.dmx("Thiếu dữ liệu ảnh.")))
+            return
+        }
+        taiAnhTrucTiepLenStorageSupabase(jpeg: jpeg, loai: loai, ngay: ngay, hoanTat: hoanTat)
+    }
+
+    func taiAnhTrucTiepLenStorageSupabase(
+        jpeg: Data,
+        loai: String,
+        ngay: String,
+        hoanTat: @escaping (Result<Void, Error>) -> Void
+    ) {
+        damBaoUserIdVaSieuThi { [weak self] ketQua in
+            guard let self else { return }
             switch ketQua {
-            case .success: hoanTat(.success(()))
-            case .failure(let loi): hoanTat(.failure(loi))
+            case .failure(let loi):
+                DispatchQueue.main.async { hoanTat(.failure(loi)) }
+            case .success(let (uid, sieuThiId)):
+                let phienBan = "\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString.prefix(8).lowercased())"
+                let duongDanMoi = "bot-anh/\(uid)/\(sieuThiId)/\(loai)-\(phienBan).jpg"
+                let urlUpload = self.diaChiSupabase.appendingPathComponent("/storage/v1/object/\(self.tenBucket)/\(duongDanMoi)")
+                var req = URLRequest(url: urlUpload)
+                req.httpMethod = "POST"
+                req.httpBody = jpeg
+                req.timeoutInterval = 60
+                req.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+                req.setValue("31536000", forHTTPHeaderField: "cache-control")
+                req.setValue("true", forHTTPHeaderField: "x-upsert")
+                req.setValue(self.khoaBiMatSupabase, forHTTPHeaderField: "apikey")
+                req.setValue("Bearer \(self.khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
+
+                self.phienMang.dataTask(with: req) { [weak self] _, response, error in
+                    guard let self else { return }
+                    if let error {
+                        DispatchQueue.main.async { hoanTat(.failure(error)) }
+                        return
+                    }
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    guard (200..<300).contains(status) else {
+                        DispatchQueue.main.async {
+                            hoanTat(.failure(NSError.dmx("Supabase Storage từ chối tải ảnh (HTTP \(status)).")))
+                        }
+                        return
+                    }
+                    self.ghiBanGhiAnhBaoCaoSupabase(
+                        userId: uid,
+                        sieuThiId: sieuThiId,
+                        loai: loai,
+                        ngay: ngay,
+                        nhaCungCap: "supabase",
+                        duongDanLuuTru: duongDanMoi,
+                        urlBenNgoai: nil,
+                        hoanTat: hoanTat
+                    )
+                }.resume()
             }
         }
     }
@@ -1598,28 +2106,60 @@ final class DichVuDongBo {
         ngay: String,
         hoanTat: @escaping (Result<PhienTaiAnhBaoCaoDMX, Error>) -> Void
     ) {
-        let body = YeuCauLuuAnhBaoCao(
-            hanhDong: "tao_url_tai_len",
-            loai: loai,
-            ngay: ngay,
-            nhaCungCap: "supabase",
-            duLieuAnhBase64: nil,
-            urlBenNgoai: nil,
-            duongDanLuuTru: nil
-        )
-        guiWeb(path: "api/dmx/bot/anh-cache", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiLuuAnhBaoCao, Error>) in
+        damBaoUserIdVaSieuThi { [weak self] ketQua in
+            guard let self else { return }
             switch ketQua {
-            case .success(let phanHoi):
-                guard let chuoiURL = phanHoi.signedUrl,
-                      let url = URL(string: chuoiURL),
-                      let duongDan = phanHoi.duongDanLuuTru,
-                      !duongDan.isEmpty else {
-                    hoanTat(.failure(NSError.dmx("Máy chủ chưa cấp đường tải ảnh trực tiếp.")))
-                    return
-                }
-                hoanTat(.success(PhienTaiAnhBaoCaoDMX(signedURL: url, duongDanLuuTru: duongDan)))
             case .failure(let loi):
-                hoanTat(.failure(loi))
+                DispatchQueue.main.async { hoanTat(.failure(loi)) }
+            case .success(let (uid, sieuThiId)):
+                let phienBan = "\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString.prefix(8).lowercased())"
+                let duongDanMoi = "bot-anh/\(uid)/\(sieuThiId)/\(loai)-\(phienBan).jpg"
+                let urlSign = self.diaChiSupabase.appendingPathComponent("/storage/v1/object/upload/sign/\(self.tenBucket)/\(duongDanMoi)")
+                var req = URLRequest(url: urlSign)
+                req.httpMethod = "POST"
+                req.timeoutInterval = 20
+                req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                req.setValue(self.khoaBiMatSupabase, forHTTPHeaderField: "apikey")
+                req.setValue("Bearer \(self.khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
+                req.httpBody = Data("{}".utf8)
+
+                struct SignedUploadRes: Decodable {
+                    var url: String?
+                    var signedURL: String?
+                    var signedUrl: String?
+                }
+                self.phienMang.dataTask(with: req) { [weak self] data, response, error in
+                    guard let self else { return }
+                    if let error {
+                        DispatchQueue.main.async { hoanTat(.failure(error)) }
+                        return
+                    }
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    if (200..<300).contains(status),
+                       let data,
+                       let res = try? JSONDecoder().decode(SignedUploadRes.self, from: data),
+                       let rawPath = res.url ?? res.signedURL ?? res.signedUrl {
+                        let fullStr: String
+                        if rawPath.hasPrefix("http") {
+                            fullStr = rawPath
+                        } else if rawPath.hasPrefix("/storage/v1") {
+                            fullStr = self.diaChiSupabase.absoluteString + rawPath
+                        } else if rawPath.hasPrefix("/") {
+                            fullStr = self.diaChiSupabase.absoluteString + "/storage/v1" + rawPath
+                        } else {
+                            fullStr = self.diaChiSupabase.absoluteString + "/storage/v1/" + rawPath
+                        }
+                        if let signedURL = URL(string: fullStr) {
+                            DispatchQueue.main.async {
+                                hoanTat(.success(PhienTaiAnhBaoCaoDMX(signedURL: signedURL, duongDanLuuTru: duongDanMoi)))
+                            }
+                            return
+                        }
+                    }
+                    DispatchQueue.main.async {
+                        hoanTat(.failure(NSError.dmx("Không tạo được phiên tải ảnh lên Supabase (HTTP \(status)).")))
+                    }
+                }.resume()
             }
         }
     }
@@ -1630,23 +2170,203 @@ final class DichVuDongBo {
         duongDanLuuTru: String,
         hoanTat: @escaping (Result<Void, Error>) -> Void
     ) {
-        let body = YeuCauLuuAnhBaoCao(
-            hanhDong: "xac_nhan_tai_len",
+        ghiBanGhiAnhBaoCaoSupabase(
             loai: loai,
             ngay: ngay,
             nhaCungCap: "supabase",
-            duLieuAnhBase64: nil,
+            duongDanLuuTru: duongDanLuuTru,
             urlBenNgoai: nil,
-            duongDanLuuTru: duongDanLuuTru
+            hoanTat: hoanTat
         )
-        guiWeb(path: "api/dmx/bot/anh-cache", method: "POST", body: body, canDangNhap: true) { (ketQua: Result<PhanHoiLuuAnhBaoCao, Error>) in
-            switch ketQua {
-            case .success:
-                hoanTat(.success(()))
-            case .failure(let loi):
-                hoanTat(.failure(loi))
+    }
+
+    private func ghiBanGhiAnhBaoCaoSupabase(
+        userId: String? = nil,
+        sieuThiId: String? = nil,
+        loai: String,
+        ngay: String,
+        nhaCungCap: String,
+        duongDanLuuTru: String?,
+        urlBenNgoai: String?,
+        hoanTat: @escaping (Result<Void, Error>) -> Void
+    ) {
+        let thucThi: (String, String) -> Void = { [weak self] uid, sid in
+            guard let self else { return }
+            let loaiChuan = loai.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let isoNow = ISO8601DateFormatter().string(from: Date())
+
+            struct BanGhiAnhCu: Decodable {
+                var duong_dan_luu_tru: String?
+            }
+            var compCu = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_anh_bao_cao"), resolvingAgainstBaseURL: false)!
+            compCu.queryItems = [
+                URLQueryItem(name: "select", value: "duong_dan_luu_tru"),
+                URLQueryItem(name: "nguoi_dung_id", value: "eq.\(uid)"),
+                URLQueryItem(name: "sieu_thi_id", value: "eq.\(sid)"),
+                URLQueryItem(name: "loai", value: "eq.\(loaiChuan)"),
+                URLQueryItem(name: "limit", value: "1")
+            ]
+            self.guiSupabaseAdminREST(url: compCu.url!, method: "GET") { [weak self] (kqCu: Result<[BanGhiAnhCu], Error>) in
+                guard let self else { return }
+                let duongDanCu = (try? kqCu.get())?.first?.duong_dan_luu_tru
+
+                if loaiChuan.hasPrefix("sk_") {
+                    let metaDict: [String: Any] = [
+                        "loai": loaiChuan,
+                        "ngay": ngay,
+                        "nhaCungCap": nhaCungCap,
+                        "duongDanLuuTru": duongDanLuuTru ?? NSNull(),
+                        "urlBenNgoai": urlBenNgoai ?? NSNull(),
+                        "ngayCapNhat": isoNow
+                    ]
+                    if let metaData = try? JSONSerialization.data(withJSONObject: metaDict) {
+                        let metaPath = "bot-anh/\(uid)/\(sid)/meta-\(loaiChuan).json"
+                        let urlMeta = self.diaChiSupabase.appendingPathComponent("/storage/v1/object/\(self.tenBucket)/\(metaPath)")
+                        var reqMeta = URLRequest(url: urlMeta)
+                        reqMeta.httpMethod = "POST"
+                        reqMeta.httpBody = metaData
+                        reqMeta.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        reqMeta.setValue("true", forHTTPHeaderField: "x-upsert")
+                        reqMeta.setValue(self.khoaBiMatSupabase, forHTTPHeaderField: "apikey")
+                        reqMeta.setValue("Bearer \(self.khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
+                        self.phienMang.dataTask(with: reqMeta) { _, _, _ in }.resume()
+                    }
+                }
+
+                var compUpsert = URLComponents(url: self.diaChiSupabase.appendingPathComponent("/rest/v1/dmx_line_anh_bao_cao"), resolvingAgainstBaseURL: false)!
+                compUpsert.queryItems = [URLQueryItem(name: "on_conflict", value: "nguoi_dung_id,sieu_thi_id,loai")]
+                var payload: [String: Any] = [
+                    "nguoi_dung_id": uid,
+                    "sieu_thi_id": sid,
+                    "loai": loaiChuan,
+                    "ngay": ngay,
+                    "nha_cung_cap": nhaCungCap,
+                    "ngay_cap_nhat": isoNow,
+                    "xoa_sau": NSNull()
+                ]
+                payload["duong_dan_luu_tru"] = duongDanLuuTru ?? NSNull()
+                payload["url_ben_ngoai"] = urlBenNgoai ?? NSNull()
+
+                self.guiSupabaseAdminRESTKhongCanDuLieu(
+                    url: compUpsert.url!,
+                    method: "POST",
+                    bodyDict: payload,
+                    prefer: "resolution=merge-duplicates"
+                ) { [weak self] kqUpsert in
+                    guard let self else { return }
+                    if let duongDanCu, !duongDanCu.isEmpty, duongDanCu != duongDanLuuTru {
+                        let urlDel = self.diaChiSupabase.appendingPathComponent("/storage/v1/object/\(self.tenBucket)/\(duongDanCu)")
+                        var reqDel = URLRequest(url: urlDel)
+                        reqDel.httpMethod = "DELETE"
+                        reqDel.setValue(self.khoaBiMatSupabase, forHTTPHeaderField: "apikey")
+                        reqDel.setValue("Bearer \(self.khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
+                        self.phienMang.dataTask(with: reqDel) { _, _, _ in }.resume()
+                    }
+                    if loaiChuan.hasPrefix("sk_") {
+                        DispatchQueue.main.async { hoanTat(.success(())) }
+                    } else {
+                        DispatchQueue.main.async { hoanTat(kqUpsert) }
+                    }
+                }
             }
         }
+
+        if let uid = userId, let sid = sieuThiId, !uid.isEmpty, !sid.isEmpty {
+            thucThi(uid, sid)
+        } else {
+            damBaoUserIdVaSieuThi { ketQua in
+                switch ketQua {
+                case .failure(let loi):
+                    DispatchQueue.main.async { hoanTat(.failure(loi)) }
+                case .success(let (uid, sid)):
+                    thucThi(uid, sid)
+                }
+            }
+        }
+    }
+
+    private func bamSHA256(_ chuoi: String) -> String {
+        let data = Data(chuoi.trimmingCharacters(in: .whitespacesAndNewlines).utf8)
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func guiSupabaseAdminREST<T: Decodable>(
+        url: URL,
+        method: String,
+        bodyDict: Any? = nil,
+        prefer: String? = nil,
+        hoanTat: @escaping (Result<T, Error>) -> Void
+    ) {
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.timeoutInterval = 20
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
+        if let prefer {
+            req.setValue(prefer, forHTTPHeaderField: "Prefer")
+        }
+        if let bodyDict {
+            req.httpBody = try? JSONSerialization.data(withJSONObject: bodyDict)
+        }
+        phienMang.dataTask(with: req) { data, response, error in
+            if let error {
+                hoanTat(.failure(error))
+                return
+            }
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let duLieu = data ?? Data()
+            guard (200..<300).contains(status) else {
+                let errObj = try? JSONDecoder().decode(SupabaseAuthError.self, from: duLieu)
+                let msg = errObj?.message ?? errObj?.msg ?? errObj?.errorDescription ?? "Supabase từ chối yêu cầu (HTTP \(status))."
+                hoanTat(.failure(NSError.dmx(msg)))
+                return
+            }
+            do {
+                let decoded = try JSONDecoder().decode(T.self, from: duLieu)
+                hoanTat(.success(decoded))
+            } catch {
+                hoanTat(.failure(error))
+            }
+        }.resume()
+    }
+
+    private func guiSupabaseAdminRESTKhongCanDuLieu(
+        url: URL,
+        method: String,
+        bodyDict: Any? = nil,
+        prefer: String? = nil,
+        hoanTat: @escaping (Result<Void, Error>) -> Void
+    ) {
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.timeoutInterval = 20
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(khoaBiMatSupabase, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(khoaBiMatSupabase)", forHTTPHeaderField: "Authorization")
+        if let prefer {
+            req.setValue(prefer, forHTTPHeaderField: "Prefer")
+        }
+        if let bodyDict {
+            req.httpBody = try? JSONSerialization.data(withJSONObject: bodyDict)
+        }
+        phienMang.dataTask(with: req) { data, response, error in
+            if let error {
+                hoanTat(.failure(error))
+                return
+            }
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard (200..<300).contains(status) else {
+                let duLieu = data ?? Data()
+                let errObj = try? JSONDecoder().decode(SupabaseAuthError.self, from: duLieu)
+                let msg = errObj?.message ?? errObj?.msg ?? errObj?.errorDescription ?? "Supabase từ chối yêu cầu (HTTP \(status))."
+                hoanTat(.failure(NSError.dmx(msg)))
+                return
+            }
+            hoanTat(.success(()))
+        }.resume()
     }
 
     private func lamMoiPhien(hoanTat: @escaping (Bool) -> Void) {

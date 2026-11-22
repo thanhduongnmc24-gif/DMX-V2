@@ -1,0 +1,13 @@
+name = "dmx-line-bot"
+main = "dmx-line-bot.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+SUPABASE_URL = "https://isxrxeaxytyiydxiwvuc.supabase.co"
+
+[triggers]
+crons = ["* * * * *"]
+
+# Secrets configured in Cloudflare Dashboard:
+# LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN
+# (Optional) SUPABASE_SERVICE_ROLE_KEY, DMX_BOT_USERNAME

@@ -247,41 +247,8 @@ final class DichVuAnhBaoCaoBot {
         ngay: String,
         hoanTat: ((Result<String, Error>) -> Void)?
     ) {
-        DichVuDongBo.dungChung.taoPhienTaiAnhBaoCaoTrucTiep(loai: loai, ngay: ngay) { [weak self] ketQua in
-            guard let self else { return }
-            switch ketQua {
-            case .failure(let loi):
-                hoanTat?(.failure(loi))
-            case .success(let phienTai):
-                var request = URLRequest(url: phienTai.signedURL)
-                request.httpMethod = "PUT"
-                request.httpBody = jpeg
-                request.timeoutInterval = 60
-                request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
-                request.setValue("max-age=31536000", forHTTPHeaderField: "Cache-Control")
-                request.setValue("false", forHTTPHeaderField: "x-upsert")
-                request.setValue(String(jpeg.count), forHTTPHeaderField: "Content-Length")
-                self.phienMang.dataTask(with: request) { _, response, error in
-                    if let error {
-                        DispatchQueue.main.async { hoanTat?(.failure(error)) }
-                        return
-                    }
-                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                    guard (200..<300).contains(status) else {
-                        DispatchQueue.main.async {
-                            hoanTat?(.failure(NSError.dmx("Supabase từ chối tải ảnh trực tiếp (HTTP \(status)).")))
-                        }
-                        return
-                    }
-                    DichVuDongBo.dungChung.xacNhanTaiAnhBaoCaoTrucTiep(
-                        loai: loai,
-                        ngay: ngay,
-                        duongDanLuuTru: phienTai.duongDanLuuTru
-                    ) { kq in
-                        hoanTat?(kq.map { "Supabase" })
-                    }
-                }.resume()
-            }
+        DichVuDongBo.dungChung.taiAnhTrucTiepLenStorageSupabase(jpeg: jpeg, loai: loai, ngay: ngay) { kq in
+            hoanTat?(kq.map { "Supabase" })
         }
     }
 

@@ -3901,7 +3901,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
 
         case .ketNoi:
             let tk = DichVuDongBo.dungChung.tenDangNhap.isEmpty ? "Chưa đăng nhập" : DichVuDongBo.dungChung.tenDangNhap
-            nhanMoTaMucMoRong.text = "Trạng thái kết nối đồng bộ đám mây với máy chủ ĐMX (duongnt.io.vn/dmx).\nTài khoản hiện tại: \(tk)."
+            nhanMoTaMucMoRong.text = "Trạng thái kết nối đồng bộ đám mây trực tiếp qua Supabase & Cloudflare Bot.\nTài khoản hiện tại: \(tk)."
             nganHanhDongMucMoRong.addArrangedSubview(taoNutHanhDongMoRong("🔄 Đồng bộ dữ liệu đám mây ngay", action: #selector(dongBoDamMayTuMucMoRong)))
 
         default:
