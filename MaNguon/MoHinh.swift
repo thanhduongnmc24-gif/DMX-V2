@@ -4352,21 +4352,9 @@ final class KhoDuLieu {
             return laTenMonThiDuaChuanDMX(chuan) ? chuan : ""
         }
 
-        // Hỗ trợ mẫu 7 ảnh mới (4, 5 hoặc 6 cột chương trình / ảnh)
-        if soCot >= 4 && soCot <= 6 {
-            if let idxBang = nhanDienChiSoBang7MaTran(
-                soCot: soCot,
-                soHangNV: soHangNV,
-                soOActiveTheoCot: soOActiveTheoCot,
-                tenCacCotTho: tenCacCotTho,
-                hangTong: hangTong
-            ) {
-                let nhomChuan = cacBangMaTranThiDuaNhanVienChuan[idxBang]
-                if nhomChuan.count == soCot {
-                    return nhomChuan.map { "\(tienToThang) - \($0)" }
-                }
-            }
-            // Dự phòng nếu chưa xác định được bảng nhưng có trùng giữa "Điện tử Samsung" và "Điện tử"
+        // Hỗ trợ mẫu 7 ảnh (3..6 cột chương trình / ảnh):
+        // Luôn ưu tiên tên cột đọc trực tiếp từ ảnh thực tế (tránh ghi đè sai khi web đổi cách gom nhóm cột giữa các ảnh).
+        if soCot >= 3 && soCot <= 6 {
             var viTriTheoKLM: [String: [Int]] = [:]
             for i in 0..<soCot where !ketQua[i].isEmpty {
                 let k = chuanHoaKhoaLienMachThiDua(ketQua[i])
@@ -4376,8 +4364,15 @@ final class KhoDuLieu {
                 if k == "DIENTUSAMSUNG" || k == "DIENTU" {
                     let idx0 = idxs[0]
                     let idx1 = idxs[1]
-                    ketQua[idx0] = "\(tienToThang) - Điện tử Samsung"
-                    ketQua[idx1] = "\(tienToThang) - Điện tử"
+                    let raw0 = tenCacCotTho[idx0].uppercased()
+                    let raw1 = tenCacCotTho[idx1].uppercased()
+                    if raw1.contains("SAMSUNG") && !raw0.contains("SAMSUNG") {
+                        ketQua[idx1] = "\(tienToThang) - Điện tử Samsung"
+                        ketQua[idx0] = "\(tienToThang) - Điện tử"
+                    } else {
+                        ketQua[idx0] = "\(tienToThang) - Điện tử Samsung"
+                        ketQua[idx1] = "\(tienToThang) - Điện tử"
+                    }
                 }
             }
             return ketQua

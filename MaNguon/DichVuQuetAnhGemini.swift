@@ -1348,58 +1348,35 @@ final class DichVuQuetAnhGemini {
                 }
             }
 
-            // Đối chiếu với bản đồ pixel thực tế của ảnh (luoiO):
-            // Ánh xạ từng nhân viên theo đúng mã NV vào hàng thực tế của ảnh trong 7 bảng Ma trận (hoặc theo thứ tự dòng r).
+            // Đối chiếu với bản đồ pixel thực tế của ảnh (luoiO) theo đúng thứ tự dòng trên ảnh:
             if let luoiO, luoiO.soCotDuLieu == soCot,
-               (abs(dsNhanVienDong.count - luoiO.soHangNhanVien) <= 1 || (dsNhanVienDong.count >= 14 && dsNhanVienDong.count <= luoiO.soHangNhanVien)) {
-                let thuTuMaBang7: [String]? = {
-                    if let idxB = luoiO.chiSoBang7GoiY, idxB < KhoDuLieu.thuTuMaNVTheo7BangMaTranChuan.count {
-                        return KhoDuLieu.thuTuMaNVTheo7BangMaTranChuan[idxB]
-                    }
-                    return nil
-                }()
+               abs(dsNhanVienDong.count - luoiO.soHangNhanVien) <= 1 {
+                let soHangKhop = min(dsNhanVienDong.count, luoiO.soHangNhanVien)
                 for c in 0..<soCot {
-                    for r in dsNhanVienDong.indices {
-                        let rAnh: Int
-                        if let dsMa = thuTuMaBang7, dsMa.count == luoiO.soHangNhanVien,
-                           let idxChuan = dsMa.firstIndex(of: dsNhanVienDong[r].maNV) {
-                            rAnh = idxChuan
-                        } else {
-                            rAnh = r
-                        }
-                        if rAnh < luoiO.soHangNhanVien && !luoiO.coSoTheoCot[c][rAnh] {
+                    for r in 0..<soHangKhop {
+                        if !luoiO.coSoTheoCot[c][r] {
                             dsNhanVienDong[r].soLieu[c] = 0
                         }
                     }
                 }
-                if abs(dsNhanVienDong.count - luoiO.soHangNhanVien) <= 1 {
-                    let soHangKhop = min(dsNhanVienDong.count, luoiO.soHangNhanVien)
-                    for c in 0..<soCot where mangTong[c] > 0.01 {
-                        var cacHangThieu: [Int] = []
-                        var tongDaCo: Double = 0
-                        for r in 0..<soHangKhop {
-                            let rAnh: Int
-                            if let dsMa = thuTuMaBang7, dsMa.count == luoiO.soHangNhanVien,
-                               let idxChuan = dsMa.firstIndex(of: dsNhanVienDong[r].maNV) {
-                                rAnh = idxChuan
+                for c in 0..<soCot where mangTong[c] > 0.01 {
+                    var cacHangThieu: [Int] = []
+                    var tongDaCo: Double = 0
+                    for r in 0..<soHangKhop {
+                        if luoiO.coSoTheoCot[c][r] {
+                            let v = dsNhanVienDong[r].soLieu[c]
+                            if abs(v) <= 0.0001 {
+                                cacHangThieu.append(r)
                             } else {
-                                rAnh = r
-                            }
-                            if rAnh < luoiO.soHangNhanVien && luoiO.coSoTheoCot[c][rAnh] {
-                                let v = dsNhanVienDong[r].soLieu[c]
-                                if abs(v) <= 0.0001 {
-                                    cacHangThieu.append(r)
-                                } else {
-                                    tongDaCo += v
-                                }
+                                tongDaCo += v
                             }
                         }
-                        if cacHangThieu.count == 1 {
-                            let rThieu = cacHangThieu[0]
-                            let phanConThieu = ((mangTong[c] - tongDaCo) * 100.0).rounded() / 100.0
-                            if phanConThieu >= 0.10 {
-                                dsNhanVienDong[rThieu].soLieu[c] = phanConThieu
-                            }
+                    }
+                    if cacHangThieu.count == 1 {
+                        let rThieu = cacHangThieu[0]
+                        let phanConThieu = ((mangTong[c] - tongDaCo) * 100.0).rounded() / 100.0
+                        if phanConThieu >= 0.10 {
+                            dsNhanVienDong[rThieu].soLieu[c] = phanConThieu
                         }
                     }
                 }
@@ -1738,75 +1715,8 @@ final class DichVuQuetAnhGemini {
             }
         }
 
-        // Kiểm tra xem đợt quét này có phải bảng Ma trận nhân viên chuẩn không (không áp dụng cho phiếu sức khỏe cá nhân 1 NV có laPhanTram == true)
-        let tapMa24Chuan = Set(KhoDuLieu.danhSach24NVBMaTranChuan.map(\.maNV))
-        let laBangMaTran24NV = mapKhoi.values.contains { info in
-            let coPhanTram = info.mapNV.values.contains { $0.laPhanTram || $0.laPhanTramTargetCaNhan }
-            if coPhanTram { return false }
-            let soNVKhop24 = info.mapNV.keys.filter { tapMa24Chuan.contains($0) }.count
-            return soNVKhop24 >= 8
-        }
-
-        if laBangMaTran24NV {
-            // Nếu quét bất kỳ bảng nào trong bộ 7 ảnh Ma trận (4..6 chương trình / ảnh) mà Gemini làm rơi/bỏ sót 1 cột trong ảnh đó, tự động khôi phục đủ các cột của ảnh đó
-            for nhom7 in KhoDuLieu.cacBangMaTranThiDuaNhanVienChuan {
-                let khoaNhom = nhom7.map { KhoDuLieu.chuanHoaKhoaLienMachThiDua($0) }
-                let soCotDaCo = khoaNhom.filter { mapKhoi[$0] != nil }.count
-                let nguongKhop = max(2, nhom7.count - 2)
-                if soCotDaCo >= nguongKhop && soCotDaCo < nhom7.count {
-                    for (idxMon, kLMNhom) in khoaNhom.enumerated() where mapKhoi[kLMNhom] == nil {
-                        if let mauChuan = KhoDuLieu.duLieuChuan39MonMaTranTheoMaNV[kLMNhom] {
-                            let tenChuan = KhoDuLieu.chuanHoaTenMonThiDuaChuan(nhom7[idxMon], tienToThangMacDinh: "T11")
-                            mapKhoi[kLMNhom] = (
-                                tenChuan: tenChuan.isEmpty ? nhom7[idxMon] : tenChuan,
-                                tong: mauChuan.tong,
-                                target: 0,
-                                mapNV: [:],
-                                thuTuNV: []
-                            )
-                            thuTuKhoi.append(kLMNhom)
-                        }
-                    }
-                }
-            }
-        }
-
-        let dsQuanLy = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachNhanVien
-
         return thuTuKhoi.compactMap { kLM in
-            guard var info = mapKhoi[kLM] else { return nil }
-            // Hậu kiểm đối chiếu từng nhân viên (lechCaNhan) và tổng cột (lechTong) với bộ dữ liệu chuẩn 39 môn từ 7 ảnh Ma trận để đảm bảo chính xác 100%
-            if laBangMaTran24NV, let mauChuan = KhoDuLieu.duLieuChuan39MonMaTranTheoMaNV[kLM] {
-                let tongNVHienTai = info.mapNV.values.reduce(0.0) { $0 + $1.thucHien }
-                let lechTong = abs(tongNVHienTai - mauChuan.tong) > 0.05 || abs(info.tong - mauChuan.tong) > 0.05
-                let lechCaNhan = KhoDuLieu.danhSach24NVBMaTranChuan.contains { nvMau in
-                    let valChuan = mauChuan.nv[nvMau.maNV] ?? 0.0
-                    let valHienTai = info.mapNV[nvMau.maNV]?.thucHien ?? (valChuan > 0 ? -1.0 : 0.0)
-                    return abs(valHienTai - valChuan) > 0.005
-                }
-                if lechTong || lechCaNhan {
-                    info.tong = mauChuan.tong
-                    for nvMau in KhoDuLieu.danhSach24NVBMaTranChuan {
-                        let ma = nvMau.maNV
-                        let valChuan = mauChuan.nv[ma] ?? 0.0
-                        let tenNV = dsQuanLy.first(where: { KhoDuLieu.chuanHoaMaNV($0.maNV) == ma })?.hoTen ?? nvMau.hoTen
-                        if var cur = info.mapNV[ma] {
-                            cur.thucHien = valChuan
-                            info.mapNV[ma] = cur
-                        } else {
-                            info.thuTuNV.append(ma)
-                            info.mapNV[ma] = DongThiDuaNhanVienQuet(
-                                maNV: ma,
-                                hoTen: tenNV,
-                                thucHien: valChuan,
-                                target: 0,
-                                laPhanTram: false,
-                                laPhanTramTargetCaNhan: false
-                            )
-                        }
-                    }
-                }
-            }
+            guard let info = mapKhoi[kLM] else { return nil }
             let ds = info.thuTuNV.compactMap { info.mapNV[$0] }
             guard !ds.isEmpty else { return nil }
             return KetQuaThiDuaNhanVienKhoi(
