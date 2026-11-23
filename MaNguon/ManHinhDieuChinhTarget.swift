@@ -5,14 +5,15 @@ final class ManHinhDieuChinhTarget: UIViewController {
 
     private let cheDo: LoaiCheDoDoanhThu
     private let targetGoc: ThongTinDoanhThu
+    private let phanTramBanDau: Double
     private let nhanGiaTri = UILabel()
     private let thanhTruot = UISlider()
 
     init(cheDo: LoaiCheDoDoanhThu, phanTram: Double, targetGoc: ThongTinDoanhThu) {
         self.cheDo = cheDo
         self.targetGoc = targetGoc
+        self.phanTramBanDau = min(200, max(50, phanTram))
         super.init(nibName: nil, bundle: nil)
-        thanhTruot.value = Float(min(200, max(50, phanTram)))
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -42,6 +43,7 @@ final class ManHinhDieuChinhTarget: UIViewController {
 
         thanhTruot.minimumValue = 50
         thanhTruot.maximumValue = 200
+        thanhTruot.value = Float(phanTramBanDau)
         thanhTruot.minimumTrackTintColor = BangMauBCTD.xanhChuDao
         thanhTruot.addTarget(self, action: #selector(thayDoiThanhTruot), for: .valueChanged)
 

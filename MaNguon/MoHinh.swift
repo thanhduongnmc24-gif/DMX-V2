@@ -1035,9 +1035,26 @@ struct DongThiDua: Codable, Hashable, Identifiable {
     var loaiChiTieu: LoaiChiTieuThiDua
     var thucHien: Double
     var target: Double
+    var targetGoc: Double?
+    var phanTramDieuChinhTarget: Double?
     var phanTramHTGoc: Double?
     var phanTramDuBaoGoc: Double?
     var duKienGoc: Double?
+
+    /// Target gốc trước khi điều chỉnh % (tương thích ngược với dữ liệu cũ chưa lưu targetGoc)
+    var targetGocHieuLuc: Double {
+        if let g = targetGoc, g > 0.0001 { return g }
+        return target
+    }
+
+    /// Tỷ lệ % điều chỉnh target hiện tại (50...200, mặc định 100%)
+    var phanTramDieuChinhTargetHieuLuc: Double {
+        if let pt = phanTramDieuChinhTarget, pt >= 50, pt <= 200 { return pt }
+        if let g = targetGoc, g > 0.0001 {
+            return min(200, max(50, ((target / g) * 100.0).rounded()))
+        }
+        return 100
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -1046,6 +1063,8 @@ struct DongThiDua: Codable, Hashable, Identifiable {
         case loaiChiTieu
         case thucHien
         case target
+        case targetGoc
+        case phanTramDieuChinhTarget
         case phanTramHTGoc
         case phanTramDuBaoGoc
         case duKienGoc
@@ -1058,6 +1077,8 @@ struct DongThiDua: Codable, Hashable, Identifiable {
         loaiChiTieu: LoaiChiTieuThiDua,
         thucHien: Double,
         target: Double,
+        targetGoc: Double? = nil,
+        phanTramDieuChinhTarget: Double? = nil,
         phanTramHTGoc: Double? = nil,
         phanTramDuBaoGoc: Double? = nil,
         duKienGoc: Double? = nil
@@ -1069,6 +1090,8 @@ struct DongThiDua: Codable, Hashable, Identifiable {
         self.loaiChiTieu = loaiChiTieu
         self.thucHien = thucHien
         self.target = target
+        self.targetGoc = targetGoc
+        self.phanTramDieuChinhTarget = phanTramDieuChinhTarget
         self.phanTramHTGoc = phanTramHTGoc
         self.phanTramDuBaoGoc = phanTramDuBaoGoc
         self.duKienGoc = duKienGoc
@@ -1092,6 +1115,8 @@ struct DongThiDua: Codable, Hashable, Identifiable {
         loaiChiTieu = (try? c.decode(LoaiChiTieuThiDua.self, forKey: .loaiChiTieu)) ?? .doanhThu
         thucHien = (try? c.decode(Double.self, forKey: .thucHien)) ?? 0
         target = (try? c.decode(Double.self, forKey: .target)) ?? 0
+        targetGoc = try? c.decode(Double.self, forKey: .targetGoc)
+        phanTramDieuChinhTarget = try? c.decode(Double.self, forKey: .phanTramDieuChinhTarget)
         phanTramHTGoc = try? c.decode(Double.self, forKey: .phanTramHTGoc)
         phanTramDuBaoGoc = try? c.decode(Double.self, forKey: .phanTramDuBaoGoc)
         duKienGoc = try? c.decode(Double.self, forKey: .duKienGoc)
@@ -1105,6 +1130,8 @@ struct DongThiDua: Codable, Hashable, Identifiable {
         try c.encode(loaiChiTieu, forKey: .loaiChiTieu)
         try c.encode(thucHien, forKey: .thucHien)
         try c.encode(target, forKey: .target)
+        try c.encodeIfPresent(targetGoc, forKey: .targetGoc)
+        try c.encodeIfPresent(phanTramDieuChinhTarget, forKey: .phanTramDieuChinhTarget)
         try c.encodeIfPresent(phanTramHTGoc, forKey: .phanTramHTGoc)
         try c.encodeIfPresent(phanTramDuBaoGoc, forKey: .phanTramDuBaoGoc)
         try c.encodeIfPresent(duKienGoc, forKey: .duKienGoc)

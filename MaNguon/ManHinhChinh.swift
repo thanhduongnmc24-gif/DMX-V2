@@ -4473,7 +4473,11 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
             var danhSachMoi = duLieu.danhSachThiDua(theo: cheDo)
             for index in danhSachMoi.indices {
                 guard let tyLe = tyLeTheoId[danhSachMoi[index].id] else { continue }
-                danhSachMoi[index].target *= min(2, max(0.5, tyLe / 100))
+                let tyLeHopLe = min(200, max(50, tyLe))
+                let goc = danhSachMoi[index].targetGocHieuLuc
+                danhSachMoi[index].targetGoc = goc
+                danhSachMoi[index].phanTramDieuChinhTarget = tyLeHopLe
+                danhSachMoi[index].target = goc * (tyLeHopLe / 100.0)
                 // Target đã đổi nên các tỷ lệ OCR cũ không còn đúng; để model tự tính lại.
                 danhSachMoi[index].phanTramHTGoc = nil
                 danhSachMoi[index].phanTramDuBaoGoc = nil

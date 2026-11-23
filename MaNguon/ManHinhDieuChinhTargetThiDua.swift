@@ -54,7 +54,14 @@ final class ManHinhDieuChinhTargetThiDua: UIViewController {
         nhanTong.font = .systemFont(ofSize: 16, weight: .heavy)
         nhanTong.textColor = BangMauBCTD.xanhChuDao
         ngan.addArrangedSubview(nhanTong)
-        cauHinh(thanhTong)
+        let cacTyLeDaLuu = danhSach.map { Int(round($0.phanTramDieuChinhTargetHieuLuc)) }
+        let tyLeTongBanDau: Float = {
+            if let dau = cacTyLeDaLuu.first, cacTyLeDaLuu.allSatisfy({ $0 == dau }) {
+                return Float(min(200, max(50, dau)))
+            }
+            return 100
+        }()
+        cauHinh(thanhTong, giaTri: tyLeTongBanDau)
         thanhTong.addTarget(self, action: #selector(thayDoiTong), for: .valueChanged)
         ngan.addArrangedSubview(thanhTong)
 
@@ -67,7 +74,7 @@ final class ManHinhDieuChinhTargetThiDua: UIViewController {
             ngan.addArrangedSubview(nhan)
 
             let thanh = UISlider()
-            cauHinh(thanh)
+            cauHinh(thanh, giaTri: Float(min(200, max(50, mon.phanTramDieuChinhTargetHieuLuc))))
             thanh.addTarget(self, action: #selector(thayDoiMotMon(_:)), for: .valueChanged)
             thanhTheoId[mon.id] = thanh
             ngan.addArrangedSubview(thanh)
@@ -75,10 +82,10 @@ final class ManHinhDieuChinhTargetThiDua: UIViewController {
         capNhatNhan()
     }
 
-    private func cauHinh(_ thanh: UISlider) {
+    private func cauHinh(_ thanh: UISlider, giaTri: Float = 100) {
         thanh.minimumValue = 50
         thanh.maximumValue = 200
-        thanh.value = 100
+        thanh.value = min(200, max(50, giaTri))
         thanh.minimumTrackTintColor = BangMauBCTD.xanhChuDao
     }
 
@@ -98,8 +105,9 @@ final class ManHinhDieuChinhTargetThiDua: UIViewController {
         nhanTong.text = "TỔNG TẤT CẢ MÔN: \(Int(thanhTong.value))%"
         for mon in danhSach {
             let pt = Double(thanhTheoId[mon.id]?.value ?? 100)
-            let targetMoi = mon.target * pt / 100
-            nhanTheoId[mon.id]?.text = "\(mon.tenNganhHang): \(Int(pt))%  •  \(mon.target.chuoiSoVN) → \(targetMoi.chuoiSoVN)"
+            let goc = mon.targetGocHieuLuc
+            let targetMoi = goc * pt / 100.0
+            nhanTheoId[mon.id]?.text = "\(mon.tenNganhHang): \(Int(pt))%  •  \(goc.chuoiSoVN) → \(targetMoi.chuoiSoVN)"
         }
     }
 
