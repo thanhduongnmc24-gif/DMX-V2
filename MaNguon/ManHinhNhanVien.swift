@@ -425,9 +425,10 @@ final class ManHinhChiTietNganhHang: UIViewController, UITableViewDataSource, UI
                     self.lopPhuTai.isHidden = true
 
                     if cacKhoi.isEmpty {
+                        let loi = DichVuDocAnh.dungChung.loiGeminiGanNhat
                         let tb = UIAlertController(
-                            title: "Chưa đọc được dòng nhân viên",
-                            message: "Hãy chụp rõ cột mã - tên nhân viên và cột số thực hiện rồi thử lại.",
+                            title: loi != nil ? "Quét Gemini thất bại" : "Chưa đọc được dòng nhân viên",
+                            message: loi ?? "Hãy chụp rõ cột mã - tên nhân viên và cột số thực hiện rồi thử lại.",
                             preferredStyle: .alert
                         )
                         tb.addAction(UIAlertAction(title: "Đóng", style: .default))

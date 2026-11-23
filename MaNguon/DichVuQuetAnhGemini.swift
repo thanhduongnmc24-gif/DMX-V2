@@ -202,74 +202,80 @@ final class DichVuQuetAnhGemini {
         }
     }
 
-    /// Xóa sạch watermark chữ chìm trước khi nén ảnh sắc nét gửi Gemini (hỗ trợ cắt xếp dọc cho ảnh Bảng ngang siêu rộng và giữ độ nét cao cho Bảng dọc / Ma trận).
-    private func duLieuAnhGon(_ anhGoc: UIImage) -> Data? {
-        let anh = DichVuDocAnh.xoaWatermarkChuChim(anhGoc)
-        let w = anh.size.width
-        let h = anh.size.height
-        guard w > 10, h > 10 else { return anh.jpegData(compressionQuality: 0.84) }
-
-        // Giữ nguyên toàn bộ khung ảnh bảng 13 cột (không cắt thành 4 dải dọc làm đứt đôi các cột ở vị trí nối)
-
-        // Nếu là ảnh Bảng ngang siêu rộng của Siêu thị (width > height * 11.5): cắt thành 4 dải ngang có chồng lấp 3% và xếp dọc trên 1 khung ảnh rộng 2200px
-        if w > h * 11.5, let cg = anh.cgImage {
-            let cw = CGFloat(cg.width)
-            let ch = CGFloat(cg.height)
-            let cacDai: [(CGFloat, CGFloat)] = [
-                (0.00, 0.27),
-                (0.24, 0.52),
-                (0.49, 0.77),
-                (0.74, 1.00)
-            ]
-            let rongDich: CGFloat = min(2200, max(1600, cw * 0.28))
-            let demDoc: CGFloat = 20
-            var cacAnhDai: [(img: CGImage, caoVe: CGFloat)] = []
-            for (x0, x1) in cacDai {
-                let rect = CGRect(
-                    x: (cw * x0).rounded(),
-                    y: 0,
-                    width: max(1, (cw * (x1 - x0)).rounded()),
-                    height: ch
-                )
-                if let sub = cg.cropping(to: rect) {
-                    let tyLe = rongDich / CGFloat(sub.width)
-                    let caoVe = max(80, (CGFloat(sub.height) * tyLe).rounded())
-                    cacAnhDai.append((sub, caoVe))
-                }
+    /// Thu gọn ảnh trước để tiết kiệm RAM, sau đó xóa sạch watermark chữ chìm rồi mới nén JPEG gửi Gemini.
+    private func duLieuAnhGon(_ anh: UIImage) -> Data? {
+        return autoreleasepool {
+            let w = anh.size.width
+            let h = anh.size.height
+            guard w > 10, h > 10 else {
+                return DichVuDocAnh.xoaWatermarkChuChim(anh).jpegData(compressionQuality: 0.84)
             }
-            if !cacAnhDai.isEmpty {
-                let tongCao = cacAnhDai.reduce(CGFloat(0)) { $0 + $1.caoVe } + CGFloat(cacAnhDai.count + 1) * demDoc
-                let dinhDang = UIGraphicsImageRendererFormat.default()
-                dinhDang.scale = 1.0
-                dinhDang.opaque = true
-                let boVe = UIGraphicsImageRenderer(size: CGSize(width: rongDich, height: tongCao), format: dinhDang)
-                let anhGhep = boVe.image { ctx in
-                    UIColor.white.setFill()
-                    ctx.fill(CGRect(x: 0, y: 0, width: rongDich, height: tongCao))
-                    var yHienTai = demDoc
-                    for item in cacAnhDai {
-                        UIImage(cgImage: item.img, scale: 1.0, orientation: anh.imageOrientation)
-                            .draw(in: CGRect(x: 0, y: yHienTai, width: rongDich, height: item.caoVe))
-                        yHienTai += item.caoVe + demDoc
+
+            // Nếu là ảnh Bảng ngang siêu rộng của Siêu thị (width > height * 11.5): cắt thành 4 dải ngang có chồng lấp 3% và xếp dọc trên 1 khung ảnh rộng 2200px
+            if w > h * 11.5, let cg = anh.cgImage {
+                let cw = CGFloat(cg.width)
+                let ch = CGFloat(cg.height)
+                let cacDai: [(CGFloat, CGFloat)] = [
+                    (0.00, 0.27),
+                    (0.24, 0.52),
+                    (0.49, 0.77),
+                    (0.74, 1.00)
+                ]
+                let rongDich: CGFloat = min(2200, max(1600, cw * 0.28))
+                let demDoc: CGFloat = 20
+                var cacAnhDai: [(img: CGImage, caoVe: CGFloat)] = []
+                for (x0, x1) in cacDai {
+                    let rect = CGRect(
+                        x: (cw * x0).rounded(),
+                        y: 0,
+                        width: max(1, (cw * (x1 - x0)).rounded()),
+                        height: ch
+                    )
+                    if let sub = cg.cropping(to: rect) {
+                        let tyLe = rongDich / CGFloat(sub.width)
+                        let caoVe = max(80, (CGFloat(sub.height) * tyLe).rounded())
+                        cacAnhDai.append((sub, caoVe))
                     }
                 }
-                return anhGhep.jpegData(compressionQuality: 0.85)
+                if !cacAnhDai.isEmpty {
+                    let tongCao = cacAnhDai.reduce(CGFloat(0)) { $0 + $1.caoVe } + CGFloat(cacAnhDai.count + 1) * demDoc
+                    let dinhDang = UIGraphicsImageRendererFormat.default()
+                    dinhDang.scale = 1.0
+                    dinhDang.opaque = true
+                    let boVe = UIGraphicsImageRenderer(size: CGSize(width: rongDich, height: tongCao), format: dinhDang)
+                    let anhGhep = boVe.image { ctx in
+                        UIColor.white.setFill()
+                        ctx.fill(CGRect(x: 0, y: 0, width: rongDich, height: tongCao))
+                        var yHienTai = demDoc
+                        for item in cacAnhDai {
+                            UIImage(cgImage: item.img, scale: 1.0, orientation: anh.imageOrientation)
+                                .draw(in: CGRect(x: 0, y: yHienTai, width: rongDich, height: item.caoVe))
+                            yHienTai += item.caoVe + demDoc
+                        }
+                    }
+                    let anhSach = DichVuDocAnh.xoaWatermarkChuChim(anhGhep)
+                    return anhSach.jpegData(compressionQuality: 0.85)
+                }
             }
-        }
 
-        let gioiHan: CGFloat = 1800
-        let canhLon = max(w, h)
-        guard canhLon > gioiHan else { return anh.jpegData(compressionQuality: 0.82) }
-        let tiLe = gioiHan / canhLon
-        let kichThuoc = CGSize(width: (w * tiLe).rounded(), height: (h * tiLe).rounded())
-        let dinhDang = UIGraphicsImageRendererFormat.default()
-        dinhDang.scale = 1.0
-        dinhDang.opaque = true
-        let boVe = UIGraphicsImageRenderer(size: kichThuoc, format: dinhDang)
-        let anhGon = boVe.image { _ in
-            anh.draw(in: CGRect(origin: .zero, size: kichThuoc))
+            let gioiHan: CGFloat = 1800
+            let canhLon = max(w, h)
+            if canhLon <= gioiHan {
+                let anhSach = DichVuDocAnh.xoaWatermarkChuChim(anh)
+                return anhSach.jpegData(compressionQuality: 0.82)
+            }
+            let tiLe = gioiHan / canhLon
+            let kichThuoc = CGSize(width: (w * tiLe).rounded(), height: (h * tiLe).rounded())
+            let dinhDang = UIGraphicsImageRendererFormat.default()
+            dinhDang.scale = 1.0
+            dinhDang.opaque = true
+            let boVe = UIGraphicsImageRenderer(size: kichThuoc, format: dinhDang)
+            let anhGon = boVe.image { _ in
+                anh.draw(in: CGRect(origin: .zero, size: kichThuoc))
+            }
+            let anhSach = DichVuDocAnh.xoaWatermarkChuChim(anhGon)
+            return anhSach.jpegData(compressionQuality: 0.82)
         }
-        return anhGon.jpegData(compressionQuality: 0.82)
     }
 
     private func taoBodyData(imageData: Data, cheDo: LoaiCheDoDoanhThu, tatThinking: Bool, promptTuChon: String? = nil) -> Data? {
@@ -460,11 +466,29 @@ final class DichVuQuetAnhGemini {
     }
 
     private func thongDiepLoi(tu data: Data, status: Int) -> String {
-        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let error = root["error"] as? [String: Any], let message = error["message"] as? String {
-            return message
+        let chiTiet: String? = {
+            if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let error = root["error"] as? [String: Any],
+               let message = error["message"] as? String, !message.isEmpty {
+                return message
+            }
+            return nil
+        }()
+        switch status {
+        case 429:
+            return "Gemini đang quá tải hoặc hết hạn mức (HTTP 429). Vui lòng đợi vài giây hoặc kiểm tra API Key trong Cài đặt."
+        case 401, 403:
+            return "Gemini API Key không hợp lệ hoặc bị từ chối quyền truy cập (HTTP \(status)). Vui lòng kiểm tra lại API Key trong Cài đặt."
+        case 500, 502, 503, 504:
+            return "Máy chủ Gemini đang tạm thời gián đoạn (HTTP \(status)). Vui lòng bấm quét lại sau vài giây."
+        case 0:
+            return "Không kết nối được máy chủ Gemini. Vui lòng kiểm tra kết nối mạng rồi thử lại."
+        default:
+            if let chiTiet {
+                return "Gemini lỗi (HTTP \(status)): \(chiTiet)"
+            }
+            return "Gemini Flash trả về lỗi HTTP \(status)."
         }
-        return "Gemini Flash trả về lỗi HTTP \(status)."
     }
 
     private func prompt(cheDo: LoaiCheDoDoanhThu) -> String {

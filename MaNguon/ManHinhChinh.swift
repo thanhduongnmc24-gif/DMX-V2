@@ -4760,9 +4760,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 self.anTienTrinh()
 
                 guard kq.coDuLieu else {
+                    let loi = DichVuDocAnh.dungChung.loiGeminiGanNhat
                     let tb = UIAlertController(
-                        title: "Chưa nhận diện được dữ liệu",
-                        message: "Không tìm thấy bảng Doanh thu, Thi đua hay Nhân viên hợp lệ trong các ảnh vừa chọn.",
+                        title: loi != nil ? "Quét Gemini thất bại" : "Chưa nhận diện được dữ liệu",
+                        message: loi ?? "Không tìm thấy bảng Doanh thu, Thi đua hay Nhân viên hợp lệ trong các ảnh vừa chọn.",
                         preferredStyle: .alert
                     )
                     tb.addAction(UIAlertAction(title: "Đóng", style: .default))
@@ -4916,9 +4917,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 guard let self = self else { return }
                 self.anTienTrinh()
                 guard !dsQuet.isEmpty else {
+                    let loi = DichVuDocAnh.dungChung.loiGeminiGanNhat
                     let tb = UIAlertController(
-                        title: "Chưa đọc được dữ liệu Giờ công NV",
-                        message: "Hãy chọn ảnh Bảng Giờ công Nhân viên (có 3 cột: NHÂN VIÊN | GIỜ CÔNG TẠI ST LÀM VIỆC | GIỜ CÔNG HỖ TRỢ ST KHÁC) rồi thử lại.",
+                        title: loi != nil ? "Quét Gemini thất bại" : "Chưa đọc được dữ liệu Giờ công NV",
+                        message: loi ?? "Hãy chọn ảnh Bảng Giờ công Nhân viên (có 3 cột: NHÂN VIÊN | GIỜ CÔNG TẠI ST LÀM VIỆC | GIỜ CÔNG HỖ TRỢ ST KHÁC) rồi thử lại.",
                         preferredStyle: .alert
                     )
                     tb.addAction(UIAlertAction(title: "Đóng", style: .default))
@@ -4966,6 +4968,19 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
             hoanTat: { [weak self] kq in
                 guard let self = self else { return }
                 self.anTienTrinh()
+                let coDuLieuThiDua = !kq.danhSach.isEmpty || !kq.thiDuaNhanVien.isEmpty || (kq.doanhThuQuetDuoc?.coDuLieu ?? false) || !kq.sucKhoeNhanVien.isEmpty
+                guard coDuLieuThiDua else {
+                    self.thayTheBangThiDuaKhiQuet = false
+                    let loi = DichVuDocAnh.dungChung.loiGeminiGanNhat
+                    let tb = UIAlertController(
+                        title: loi != nil ? "Quét Gemini thất bại" : "Chưa đọc được bảng Thi đua",
+                        message: loi ?? "Gemini không tìm thấy bảng số liệu Thi đua hợp lệ trong ảnh vừa chọn.",
+                        preferredStyle: .alert
+                    )
+                    tb.addAction(UIAlertAction(title: "Đóng", style: .default))
+                    self.present(tb, animated: true)
+                    return
+                }
                 var dl = KhoDuLieu.dungChung.duLieu(cho: self.ngayHienTai)
                 if let dtMoi = kq.doanhThuQuetDuoc, dtMoi.coDuLieu {
                     if laRT {
@@ -5033,9 +5048,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 guard let self = self else { return }
                 self.anTienTrinh()
                 guard !cacKhoi.isEmpty || !skQuetDuoc.isEmpty else {
+                    let loi = DichVuDocAnh.dungChung.loiGeminiGanNhat
                     let tb = UIAlertController(
-                        title: "Chưa đọc được dữ liệu Thi đua NV",
-                        message: "Hãy chọn ảnh Phiếu Sức Khỏe / Thi Đua Cá Nhân Nhân Viên (27 điểm) hoặc bảng Thực hiện Thi đua Nhân viên rồi thử lại.",
+                        title: loi != nil ? "Quét Gemini thất bại" : "Chưa đọc được dữ liệu Thi đua NV",
+                        message: loi ?? "Hãy chọn ảnh Phiếu Sức Khỏe / Thi Đua Cá Nhân Nhân Viên (27 điểm) hoặc bảng Thực hiện Thi đua Nhân viên rồi thử lại.",
                         preferredStyle: .alert
                     )
                     tb.addAction(UIAlertAction(title: "Đóng", style: .default))
@@ -5101,9 +5117,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 guard let self = self else { return }
                 self.anTienTrinh()
                 guard !dsQuet.isEmpty else {
+                    let loi = DichVuDocAnh.dungChung.loiGeminiGanNhat
                     let tb = UIAlertController(
-                        title: "Chưa đọc được dòng nhân viên",
-                        message: "Hãy chụp rõ bảng Doanh thu hợp nhất theo Nhân viên rồi thử lại.",
+                        title: loi != nil ? "Quét Gemini thất bại" : "Chưa đọc được dòng nhân viên",
+                        message: loi ?? "Hãy chụp rõ bảng Doanh thu hợp nhất theo Nhân viên rồi thử lại.",
                         preferredStyle: .alert
                     )
                     tb.addAction(UIAlertAction(title: "Đóng", style: .default))
@@ -5218,9 +5235,10 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
                 self.anTienTrinh()
 
                 if dtMoi.doanhThuThuc <= 0 && dtMoi.doanhThuQuyDoi <= 0 {
+                    let loi = DichVuDocAnh.dungChung.loiGeminiGanNhat
                     let tb = UIAlertController(
-                        title: "Chưa đọc được số liệu Doanh thu",
-                        message: "Vui lòng chọn ảnh chụp màn hình Doanh thu thực và Doanh thu quy đổi của phần \(tenCheDo).",
+                        title: loi != nil ? "Quét Gemini thất bại" : "Chưa đọc được số liệu Doanh thu",
+                        message: loi ?? "Vui lòng chọn ảnh chụp màn hình Doanh thu thực và Doanh thu quy đổi của phần \(tenCheDo).",
                         preferredStyle: .alert
                     )
                     tb.addAction(UIAlertAction(title: "Chọn lại ảnh", style: .default) { [weak self] _ in
