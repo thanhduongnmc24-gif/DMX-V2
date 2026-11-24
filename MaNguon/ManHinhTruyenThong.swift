@@ -108,7 +108,11 @@ final class DichVuTruyenThongGemini {
         }
     }
 
-    private func taoPromptAnh(thongTin: ThongTinSanPhamTruyenThong, coAnhMau: Bool) -> String {
+    func taoPromptChoGoogleFlow(thongTin: ThongTinSanPhamTruyenThong, coAnhMau: Bool) -> String {
+        return taoPromptAnh(thongTin: thongTin, coAnhMau: coAnhMau)
+    }
+
+    func taoPromptAnh(thongTin: ThongTinSanPhamTruyenThong, coAnhMau: Bool) -> String {
         var chiTiet: [String] = []
         if !thongTin.tenSanPham.isEmpty { chiTiet.append("- Tên sản phẩm nổi bật: \"\(thongTin.tenSanPham)\"") }
         if !thongTin.giaNiemYet.isEmpty { chiTiet.append("- Giá niêm yết (gạch ngang nhỏ hơn): \"\(thongTin.giaNiemYet)\"") }
@@ -415,6 +419,11 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private let chonPhongCachAnh = UISegmentedControl(items: ["Rực rỡ ĐMX", "Sang trọng", "Flash Sale"])
 
     // Hành động & Trạng thái
+    private let nutMoGoogleFlow = UIButton(type: .system)
+    private let nutCopyPromptFlow = UIButton(type: .system)
+    private let nutHuongDanFlow = UIButton(type: .system)
+    private let oPromptFlow = UITextView()
+    private var promptFlowTuTaoGanNhat: String = ""
     private let nutTaoTatCa = UIButton(type: .system)
     private let nutChiTaoAnh = UIButton(type: .system)
     private let nutChiVietBai = UIButton(type: .system)
@@ -651,45 +660,92 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     private func taoTheHanhDong() -> UIView {
-        let (the, stack) = taoKhungThe(tieuDe: "3. Tạo nội dung bằng Gemini AI")
+        let (the, stack) = taoKhungThe(tieuDe: "3. Tạo ảnh Google Flow & 3 bài đăng Facebook")
 
-        nutTaoTatCa.setTitle("✨ Tạo ảnh + 3 bài đăng Facebook", for: .normal)
-        nutTaoTatCa.titleLabel?.font = .systemFont(ofSize: 15.5, weight: .heavy)
-        nutTaoTatCa.backgroundColor = BangMauBCTD.xanhChuDao
-        nutTaoTatCa.setTitleColor(.white, for: .normal)
-        nutTaoTatCa.layer.cornerRadius = 12
-        nutTaoTatCa.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        nutMoGoogleFlow.setTitle("🌊 Mở Google Flow (Tự điền Prompt)", for: .normal)
+        nutMoGoogleFlow.titleLabel?.font = .systemFont(ofSize: 15.5, weight: .heavy)
+        nutMoGoogleFlow.backgroundColor = BangMauBCTD.xanhLaDam
+        nutMoGoogleFlow.setTitleColor(.white, for: .normal)
+        nutMoGoogleFlow.layer.cornerRadius = 12
+        nutMoGoogleFlow.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        nutMoGoogleFlow.addTarget(self, action: #selector(bamMoGoogleFlow), for: .touchUpInside)
+        stack.addArrangedSubview(nutMoGoogleFlow)
+
+        nutCopyPromptFlow.setTitle("📋 Copy Prompt Flow", for: .normal)
+        nutCopyPromptFlow.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
+        nutCopyPromptFlow.backgroundColor = BangMauBCTD.nenTrang
+        nutCopyPromptFlow.setTitleColor(BangMauBCTD.xanhLaDam, for: .normal)
+        nutCopyPromptFlow.layer.cornerRadius = 10
+        nutCopyPromptFlow.layer.borderWidth = 1
+        nutCopyPromptFlow.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutCopyPromptFlow.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        nutCopyPromptFlow.addTarget(self, action: #selector(bamCopyPromptFlow), for: .touchUpInside)
+
+        nutHuongDanFlow.setTitle("⚙️ Cách bật tự điền", for: .normal)
+        nutHuongDanFlow.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
+        nutHuongDanFlow.backgroundColor = BangMauBCTD.nenTrang
+        nutHuongDanFlow.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutHuongDanFlow.layer.cornerRadius = 10
+        nutHuongDanFlow.layer.borderWidth = 1
+        nutHuongDanFlow.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutHuongDanFlow.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        nutHuongDanFlow.addTarget(self, action: #selector(bamHuongDanFlow), for: .touchUpInside)
+
+        let hangFlowPhu = UIStackView(arrangedSubviews: [nutCopyPromptFlow, nutHuongDanFlow])
+        hangFlowPhu.axis = .horizontal
+        hangFlowPhu.spacing = 10
+        hangFlowPhu.distribution = .fillEqually
+        stack.addArrangedSubview(hangFlowPhu)
+
+        stack.addArrangedSubview(taoNhanNho("Prompt sẽ tự điền vào Google Flow (có thể sửa tay nếu muốn):"))
+        oPromptFlow.font = .systemFont(ofSize: 13)
+        oPromptFlow.textColor = BangMauBCTD.chuChinh
+        oPromptFlow.backgroundColor = BangMauBCTD.nenTrang
+        oPromptFlow.layer.cornerRadius = 10
+        oPromptFlow.layer.borderWidth = 1
+        oPromptFlow.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        oPromptFlow.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+        oPromptFlow.heightAnchor.constraint(equalToConstant: 86).isActive = true
+        oPromptFlow.text = ""
+        stack.addArrangedSubview(oPromptFlow)
+
+        nutChiVietBai.setTitle("✍️ Viết 3 bài đăng Facebook (Gemini Free)", for: .normal)
+        nutChiVietBai.titleLabel?.font = .systemFont(ofSize: 14.5, weight: .heavy)
+        nutChiVietBai.backgroundColor = BangMauBCTD.xanhChuDao
+        nutChiVietBai.setTitleColor(.white, for: .normal)
+        nutChiVietBai.layer.cornerRadius = 12
+        nutChiVietBai.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        nutChiVietBai.addTarget(self, action: #selector(bamChiVietBai), for: .touchUpInside)
+        stack.addArrangedSubview(nutChiVietBai)
+
+        nutTaoTatCa.setTitle("✨ Tạo ảnh API + 3 bài", for: .normal)
+        nutTaoTatCa.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
+        nutTaoTatCa.backgroundColor = BangMauBCTD.nenTrang
+        nutTaoTatCa.setTitleColor(BangMauBCTD.xanhChuDao, for: .normal)
+        nutTaoTatCa.layer.cornerRadius = 10
+        nutTaoTatCa.layer.borderWidth = 1
+        nutTaoTatCa.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutTaoTatCa.heightAnchor.constraint(equalToConstant: 38).isActive = true
         nutTaoTatCa.addTarget(self, action: #selector(bamTaoTatCa), for: .touchUpInside)
-        stack.addArrangedSubview(nutTaoTatCa)
 
-        nutChiTaoAnh.setTitle("🎨 Chỉ tạo lại ảnh", for: .normal)
-        nutChiTaoAnh.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutChiTaoAnh.setTitle("🎨 Tạo ảnh qua API", for: .normal)
+        nutChiTaoAnh.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
         nutChiTaoAnh.backgroundColor = BangMauBCTD.nenTrang
         nutChiTaoAnh.setTitleColor(BangMauBCTD.xanhChuDao, for: .normal)
         nutChiTaoAnh.layer.cornerRadius = 10
         nutChiTaoAnh.layer.borderWidth = 1
         nutChiTaoAnh.layer.borderColor = BangMauBCTD.vienDam.cgColor
-        nutChiTaoAnh.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        nutChiTaoAnh.heightAnchor.constraint(equalToConstant: 38).isActive = true
         nutChiTaoAnh.addTarget(self, action: #selector(bamChiTaoAnh), for: .touchUpInside)
 
-        nutChiVietBai.setTitle("✍️ Chỉ viết lại 3 bài", for: .normal)
-        nutChiVietBai.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nutChiVietBai.backgroundColor = BangMauBCTD.nenTrang
-        nutChiVietBai.setTitleColor(BangMauBCTD.xanhChuDao, for: .normal)
-        nutChiVietBai.layer.cornerRadius = 10
-        nutChiVietBai.layer.borderWidth = 1
-        nutChiVietBai.layer.borderColor = BangMauBCTD.vienDam.cgColor
-        nutChiVietBai.heightAnchor.constraint(equalToConstant: 40).isActive = true
-        nutChiVietBai.addTarget(self, action: #selector(bamChiVietBai), for: .touchUpInside)
-
-        let hangPhu = UIStackView(arrangedSubviews: [nutChiTaoAnh, nutChiVietBai])
+        let hangPhu = UIStackView(arrangedSubviews: [nutTaoTatCa, nutChiTaoAnh])
         hangPhu.axis = .horizontal
         hangPhu.spacing = 10
         hangPhu.distribution = .fillEqually
         stack.addArrangedSubview(hangPhu)
 
         vongQuay.hidesWhenStopped = true
-        nhanTrangThai.text = "Nhập thông tin sản phẩm (hoặc chọn ảnh mẫu) rồi bấm nút tạo."
+        nhanTrangThai.text = "Nhập thông tin sản phẩm rồi bấm Mở Google Flow để tự điền prompt, hoặc bấm Viết 3 bài Facebook."
         nhanTrangThai.font = .systemFont(ofSize: 13)
         nhanTrangThai.textColor = BangMauBCTD.chuPhu
         nhanTrangThai.numberOfLines = 0
@@ -860,6 +916,70 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         if dangTai { vongQuay.startAnimating() } else { vongQuay.stopAnimating() }
         nhanTrangThai.text = thongDiep
         nhanTrangThai.textColor = mau ?? BangMauBCTD.chuPhu
+    }
+
+    private func chuanBiPromptGoogleFlow() -> String? {
+        let promptHienTai = oPromptFlow.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !promptHienTai.isEmpty && promptHienTai != promptFlowTuTaoGanNhat {
+            return promptHienTai
+        }
+        let tt = thuThapThongTin()
+        guard kiemTraHopLe(tt) else { return nil }
+        let promptMoi = DichVuTruyenThongGemini.dungChung.taoPromptChoGoogleFlow(
+            thongTin: tt,
+            coAnhMau: anhMauChon != nil
+        )
+        promptFlowTuTaoGanNhat = promptMoi
+        oPromptFlow.text = promptMoi
+        return promptMoi
+    }
+
+    private func maHoaBase64URL(_ text: String) -> String {
+        let data = Data(text.utf8)
+        return data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    @objc private func bamMoGoogleFlow() {
+        view.endEditing(true)
+        guard let prompt = chuanBiPromptGoogleFlow() else { return }
+
+        // Lưu thêm vào clipboard làm phương án dự phòng 1 chạm dán
+        UIPasteboard.general.string = prompt
+
+        let encoded = maHoaBase64URL(prompt)
+        let urlStr = "https://flow.google.com/#dmx_prompt=\(encoded)"
+        guard let url = URL(string: urlStr) else {
+            hienThongBao(tieuDe: "Lỗi mở liên kết", noiDung: "Không tạo được liên kết Google Flow.")
+            return
+        }
+
+        nhanTrangThai.text = "Đang mở Google Flow trên Safari (đã gửi prompt tự điền + copy dự phòng)."
+        nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+    }
+
+    @objc private func bamCopyPromptFlow() {
+        view.endEditing(true)
+        guard let prompt = chuanBiPromptGoogleFlow() else { return }
+        UIPasteboard.general.string = prompt
+        nhanTrangThai.text = "Đã tạo & sao chép prompt Google Flow vào bộ nhớ tạm."
+        nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+    }
+
+    @objc private func bamHuongDanFlow() {
+        let msg = """
+        Để Safari tự điền prompt khi mở Google Flow, bạn chỉ cần bật tiện ích 1 lần duy nhất:
+
+        1. Mở Cài đặt (Settings) trên iPhone → Ứng dụng → Safari → Phần mở rộng (Extensions).
+        2. Bật "DMX Flow Prompt".
+        3. Ở mục quyền trang web "flow.google.com", chọn "Cho phép" (Allow).
+
+        Sau đó quay lại app ĐMX bấm "Mở Google Flow (Tự điền Prompt)". Khi mở hoặc tạo dự án trên Flow, tiện ích sẽ tự điền prompt sẵn vào ô nhập.
+        """
+        hienThongBao(tieuDe: "Hướng dẫn bật tự điền Flow", noiDung: msg)
     }
 
     @objc private func bamTaoTatCa() {
