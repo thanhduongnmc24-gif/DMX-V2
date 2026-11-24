@@ -894,7 +894,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                         let rect = self.theAnhKetQua.convert(self.theAnhKetQua.bounds, to: self.cuon)
                         self.cuon.scrollRectToVisible(rect, animated: true)
                     }
-                case .failure(let err):
+                case .failure(_):
                     self.hienToastFlow("Không lấy được ảnh tự động — hãy bấm tải trực tiếp trên Flow.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                 }
             }
@@ -1463,7 +1463,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           existingSrcs,
           foundBox: !!box
         });
-        \"\"\"#
+        """#
 
         webViewFlow.callAsyncJavaScript(asyncJS, arguments: args, in: nil, in: .page) { [weak self] result in
             DispatchQueue.main.async {
