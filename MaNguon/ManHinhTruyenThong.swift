@@ -4,6 +4,24 @@ import PhotosUI
 import WebKit
 import SafariServices
 
+struct MucSanPhamPoster {
+    var anhMau: UIImage? = nil
+    var tenSanPham: String = ""
+    var giaNiemYet: String = ""
+    var giaKhuyenMai: String = ""
+    var uuDai: String = ""
+    var diemNoiBat: String = ""
+
+    var coDuLieu: Bool {
+        return anhMau != nil
+            || !tenSanPham.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !giaKhuyenMai.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !giaNiemYet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !uuDai.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !diemNoiBat.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 struct ThongTinSanPhamTruyenThong {
     var tenSanPham: String
     var giaNiemYet: String
@@ -14,6 +32,7 @@ struct ThongTinSanPhamTruyenThong {
     var tyLeAnh: String
     var modelFlow: String
     var phongCachAnh: String
+    var danhSachSanPham: [MucSanPhamPoster] = []
 }
 
 struct KetQua3BaiDangFacebook {
@@ -118,14 +137,6 @@ final class DichVuTruyenThongGemini {
     }
 
     func taoPromptAnh(thongTin: ThongTinSanPhamTruyenThong, coAnhMau: Bool) -> String {
-        var chiTiet: [String] = []
-        if !thongTin.tenSanPham.isEmpty { chiTiet.append("- Tên sản phẩm nổi bật: \"\(thongTin.tenSanPham)\"") }
-        if !thongTin.giaNiemYet.isEmpty { chiTiet.append("- Giá niêm yết (gạch ngang nhỏ hơn): \"\(thongTin.giaNiemYet)\"") }
-        if !thongTin.giaKhuyenMai.isEmpty { chiTiet.append("- Giá khuyến mãi / Giá sốc (to, đậm, nổi bật nhất): \"\(thongTin.giaKhuyenMai)\"") }
-        if !thongTin.uuDai.isEmpty { chiTiet.append("- Ưu đãi / Quà tặng (huy hiệu / khung nổi bật): \"\(thongTin.uuDai)\"") }
-        if !thongTin.diemNoiBat.isEmpty { chiTiet.append("- Điểm nổi bật (tối đa 2-3 nhãn ngắn gọn): \"\(thongTin.diemNoiBat)\"") }
-        if !thongTin.lienHe.isEmpty { chiTiet.append("- Thông tin cửa hàng / liên hệ ở chân poster: \"\(thongTin.lienHe)\"") }
-
         let moTaPhongCach: String
         switch thongTin.phongCachAnh {
         case "Sang trọng":
@@ -135,6 +146,44 @@ final class DichVuTruyenThongGemini {
         default:
             moTaPhongCach = "Phong cách quảng cáo điện máy rực rỡ, chuyên nghiệp (xanh dương đậm kết hợp vàng nổi bật và trắng sạch sẽ), bố cục cân đối, dễ đọc trên điện thoại."
         }
+
+        let cacSP = thongTin.danhSachSanPham.filter { $0.coDuLieu }
+        if cacSP.count >= 2 {
+            var moTaTungSP: [String] = []
+            for (idx, sp) in cacSP.enumerated() {
+                var dong: [String] = ["• SẢN PHẨM \(idx + 1):"]
+                if !sp.tenSanPham.isEmpty { dong.append("  - Tên sản phẩm: \"\(sp.tenSanPham)\"") }
+                if !sp.giaNiemYet.isEmpty { dong.append("  - Giá niêm yết (gạch ngang): \"\(sp.giaNiemYet)\"") }
+                if !sp.giaKhuyenMai.isEmpty { dong.append("  - Giá khuyến mãi / Giá sốc (to, đậm, nổi bật): \"\(sp.giaKhuyenMai)\"") }
+                if !sp.uuDai.isEmpty { dong.append("  - Ưu đãi / Quà tặng: \"\(sp.uuDai)\"") }
+                if !sp.diemNoiBat.isEmpty { dong.append("  - Điểm nổi bật: \"\(sp.diemNoiBat)\"") }
+                moTaTungSP.append(dong.joined(separator: "\n"))
+            }
+            if !thongTin.lienHe.isEmpty {
+                moTaTungSP.append("• Thông tin cửa hàng / liên hệ ở chân poster: \"\(thongTin.lienHe)\"")
+            }
+            let soAnh = cacSP.filter { $0.anhMau != nil }.count
+            let nguonNhieuSP = (coAnhMau || soAnh > 0)
+                ? "Ảnh mẫu đính kèm chứa hình ảnh thực tế của \(max(1, soAnh)) sản phẩm (được ghép theo thứ tự SẢN PHẨM 1, SẢN PHẨM 2...). Hãy tách nền gọn gàng từng sản phẩm, giữ nguyên 100% hình dáng, màu sắc, chi tiết thật của từng sản phẩm và GỘP TẤT CẢ \(cacSP.count) SẢN PHẨM VÀO CHUNG 1 POSTER quảng cáo thống nhất (không giữ khung chia ô thô của ảnh mẫu mà bố trí các sản phẩm thành bố cục poster khuyến mãi chuyên nghiệp, mỗi sản phẩm đặt cạnh đúng bảng tên và giá bán tương ứng của sản phẩm đó)."
+                : "Tạo hình ảnh sắc nét, chân thực cho cả \(cacSP.count) sản phẩm và gộp chung vào 1 poster quảng cáo chuyên nghiệp, mỗi sản phẩm đi kèm đúng khung tên và giá bán tương ứng."
+
+            return """
+            Thiết kế 1 poster tổng hợp (combo nhiều sản phẩm) truyền thông bán hàng chuyên nghiệp đăng Facebook bằng tiếng Việt có dấu chuẩn xác 100%, chữ rõ nét, không sai chính tả, không bị chồng chữ.
+            \(nguonNhieuSP)
+            \(moTaPhongCach)
+            Các nội dung chữ BẮT BUỘC hiển thị rõ ràng, chính xác từng ký tự cho từng sản phẩm trên poster:
+            \(moTaTungSP.joined(separator: "\n"))
+            Yêu cầu bố cục: chia vùng/thẻ sản phẩm cân đối cho cả \(cacSP.count) sản phẩm trong cùng 1 poster, sản phẩm sắc nét, khung giá khuyến mãi của từng sản phẩm cực kỳ dễ đọc, phông chữ sans-serif đậm rõ dấu tiếng Việt, không thêm watermark lạ, không thừa chữ rác tiếng Anh.
+            """
+        }
+
+        var chiTiet: [String] = []
+        if !thongTin.tenSanPham.isEmpty { chiTiet.append("- Tên sản phẩm nổi bật: \"\(thongTin.tenSanPham)\"") }
+        if !thongTin.giaNiemYet.isEmpty { chiTiet.append("- Giá niêm yết (gạch ngang nhỏ hơn): \"\(thongTin.giaNiemYet)\"") }
+        if !thongTin.giaKhuyenMai.isEmpty { chiTiet.append("- Giá khuyến mãi / Giá sốc (to, đậm, nổi bật nhất): \"\(thongTin.giaKhuyenMai)\"") }
+        if !thongTin.uuDai.isEmpty { chiTiet.append("- Ưu đãi / Quà tặng (huy hiệu / khung nổi bật): \"\(thongTin.uuDai)\"") }
+        if !thongTin.diemNoiBat.isEmpty { chiTiet.append("- Điểm nổi bật (tối đa 2-3 nhãn ngắn gọn): \"\(thongTin.diemNoiBat)\"") }
+        if !thongTin.lienHe.isEmpty { chiTiet.append("- Thông tin cửa hàng / liên hệ ở chân poster: \"\(thongTin.lienHe)\"") }
 
         let nguonSanPham = coAnhMau
             ? "Giữ nguyên chính xác hình dáng, màu sắc và chi tiết của sản phẩm trong ảnh mẫu đính kèm; tách nền gọn gàng và đặt sản phẩm làm trung tâm nổi bật trong poster."
@@ -267,15 +316,34 @@ final class DichVuTruyenThongGemini {
 
         DispatchQueue.global(qos: .userInitiated).async {
             let anhData = anhMau.flatMap { self.thuGonAnhMau($0) }
+            let cacSP = thongTin.danhSachSanPham.filter { $0.coDuLieu }
+            let moTaSanPhamBai: String
+            if cacSP.count >= 2 {
+                var ds: [String] = ["Danh sách \(cacSP.count) sản phẩm trong chương trình khuyến mãi:"]
+                for (idx, sp) in cacSP.enumerated() {
+                    ds.append("""
+                    * Sản phẩm \(idx + 1): \(sp.tenSanPham.isEmpty ? "(xem từ ảnh)" : sp.tenSanPham)
+                      - Giá niêm yết: \(sp.giaNiemYet.isEmpty ? "(không có)" : sp.giaNiemYet) | Giá khuyến mãi: \(sp.giaKhuyenMai.isEmpty ? "(không có)" : sp.giaKhuyenMai)
+                      - Ưu đãi / Quà tặng: \(sp.uuDai.isEmpty ? "(không có)" : sp.uuDai)
+                      - Điểm nổi bật: \(sp.diemNoiBat.isEmpty ? "(không có)" : sp.diemNoiBat)
+                    """)
+                }
+                ds.append("- Siêu thị / Liên hệ: \(thongTin.lienHe.isEmpty ? "(nhắn tin hoặc bình luận để được tư vấn)" : thongTin.lienHe)")
+                moTaSanPhamBai = ds.joined(separator: "\n")
+            } else {
+                moTaSanPhamBai = """
+                - Tên sản phẩm: \(thongTin.tenSanPham.isEmpty ? "(xem từ ảnh)" : thongTin.tenSanPham)
+                - Giá niêm yết: \(thongTin.giaNiemYet.isEmpty ? "(không có)" : thongTin.giaNiemYet)
+                - Giá khuyến mãi: \(thongTin.giaKhuyenMai.isEmpty ? "(không có)" : thongTin.giaKhuyenMai)
+                - Ưu đãi / Quà tặng: \(thongTin.uuDai.isEmpty ? "(không có)" : thongTin.uuDai)
+                - Điểm nổi bật / Ghi chú: \(thongTin.diemNoiBat.isEmpty ? "(không có)" : thongTin.diemNoiBat)
+                - Siêu thị / Liên hệ: \(thongTin.lienHe.isEmpty ? "(nhắn tin hoặc bình luận để được tư vấn)" : thongTin.lienHe)
+                """
+            }
             let promptBai = """
             Bạn là chuyên gia viết nội dung bán hàng Facebook cho siêu thị Điện Máy Xanh.
             Dựa vào ảnh sản phẩm (nếu có) và thông tin dưới đây, hãy viết 3 bài đăng Facebook hoàn chỉnh bằng tiếng Việt, tự nhiên, trình bày thoáng đẹp, có emoji hợp lý và 3-5 hashtag cuối bài:
-            - Tên sản phẩm: \(thongTin.tenSanPham.isEmpty ? "(xem từ ảnh)" : thongTin.tenSanPham)
-            - Giá niêm yết: \(thongTin.giaNiemYet.isEmpty ? "(không có)" : thongTin.giaNiemYet)
-            - Giá khuyến mãi: \(thongTin.giaKhuyenMai.isEmpty ? "(không có)" : thongTin.giaKhuyenMai)
-            - Ưu đãi / Quà tặng: \(thongTin.uuDai.isEmpty ? "(không có)" : thongTin.uuDai)
-            - Điểm nổi bật / Ghi chú: \(thongTin.diemNoiBat.isEmpty ? "(không có)" : thongTin.diemNoiBat)
-            - Siêu thị / Liên hệ: \(thongTin.lienHe.isEmpty ? "(nhắn tin hoặc bình luận để được tư vấn)" : thongTin.lienHe)
+            \(moTaSanPhamBai)
 
             Trả về ĐÚNG 1 đối tượng JSON (không bọc markdown, không giải thích thêm) gồm 3 khóa:
             {
@@ -402,7 +470,7 @@ final class DichVuTruyenThongGemini {
 
 // MARK: - Màn hình Tab Truyền thông
 
-final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate, UITextViewDelegate, WKNavigationDelegate, WKUIDelegate {
+final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate, UITextViewDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     private let thanhChuyenCheDo = UISegmentedControl(items: ["📝 Tạo nội dung", "🌊 Google Flow"])
     private let khungTaoNoiDung = UIView()
     private let khungGoogleFlow = UIView()
@@ -416,6 +484,17 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private var dangBomPromptFlow = false
     private var congViecBomPromptTuDong: DispatchWorkItem?
     private var maPhienChoAnhFlow: Int = 0
+
+    // Quản lý nhiều tab sản phẩm để gộp chung vào 1 poster
+    private var danhSachSanPham: [MucSanPhamPoster] = [MucSanPhamPoster()]
+    private var chiSoSanPhamHienTai: Int = 0
+    private let cuonTabSanPham = UIScrollView()
+    private let nganTabSanPham = UIStackView()
+    private let nutThemSanPham = UIButton(type: .system)
+    private let nutXoaTabSanPham = UIButton(type: .system)
+    private let nhanTomTatNhieuSP = UILabel()
+    private let cuonThuNhoAnh = UIScrollView()
+    private let nganThuNhoAnh = UIStackView()
     private var promptChoDienFlow: String = ""
     private let khungToastFlow = UIView()
     private let nhanTrangThaiFlow = UILabel()
@@ -549,12 +628,134 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         config.defaultWebpagePreferences.allowsContentJavaScript = true
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
 
-        let trustedClickHookJS = #"""
+        let flowHookJS = #"""
         (function() {
           if (window.__dmxTrustedHookInstalled) return;
           window.__dmxTrustedHookInstalled = true;
           window.__dmxForceTrusted = false;
+          window.__dmxHighResDataUrl = '';
+          window.__dmxHighResWidth = 0;
+          window.__dmxHighResHeight = 0;
+          window.__dmxCapturedSignedUrls = [];
 
+          function notifyNativeHighRes(dataUrl, w, h) {
+            if (!dataUrl || !dataUrl.startsWith('data:image/')) return;
+            if ((w || 0) >= window.__dmxHighResWidth) {
+              window.__dmxHighResDataUrl = dataUrl;
+              window.__dmxHighResWidth = w || 1024;
+              window.__dmxHighResHeight = h || 1024;
+            }
+            try {
+              if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.dmxFlowImage) {
+                window.webkit.messageHandlers.dmxFlowImage.postMessage({
+                  dataUrl: dataUrl,
+                  width: w || 0,
+                  height: h || 0
+                });
+              }
+            } catch (_) {}
+          }
+
+          function inspectAndStoreBlob(blob, forceNotify = false) {
+            if (!blob || !(blob instanceof Blob)) return;
+            const t = (blob.type || '').toLowerCase();
+            if (t && !t.startsWith('image/') && !t.includes('octet-stream')) return;
+            if (blob.size < 15000) return;
+            try {
+              const fr = new FileReader();
+              fr.onloadend = () => {
+                const res = typeof fr.result === 'string' ? fr.result : '';
+                if (!res.startsWith('data:image/') && !res.startsWith('data:application/octet-stream')) return;
+                const dataUrl = res.startsWith('data:application/octet-stream')
+                  ? res.replace(/^data:application\/octet-stream/, 'data:image/png')
+                  : res;
+                const img = new Image();
+                img.onload = () => {
+                  const nw = img.naturalWidth || img.width || 0;
+                  const nh = img.naturalHeight || img.height || 0;
+                  if (nw >= 800 || nh >= 800 || (forceNotify && nw >= 512)) {
+                    notifyNativeHighRes(dataUrl, nw, nh);
+                  }
+                };
+                img.src = dataUrl;
+              };
+              fr.readAsDataURL(blob);
+            } catch (_) {}
+          }
+
+          window.__dmxInspectAndStoreBlob = inspectAndStoreBlob;
+          window.__dmxNotifyNativeHighRes = notifyNativeHighRes;
+
+          // 1. Hook URL.createObjectURL để bắt ngay file ảnh 1K/2K (1024px/2048px) khi Google Flow tạo Blob tải xuống
+          try {
+            const origCreateObjURL = URL.createObjectURL.bind(URL);
+            URL.createObjectURL = function(obj) {
+              const url = origCreateObjURL(obj);
+              try {
+                if (obj instanceof Blob && obj.size >= 25000) {
+                  inspectAndStoreBlob(obj, false);
+                }
+              } catch (_) {}
+              return url;
+            };
+          } catch (_) {}
+
+          // 2. Hook HTMLAnchorElement.prototype.click để bắt ngay sự kiện bấm tải <a download href="..."> của nút 1K / 2K
+          try {
+            const origAnchorClick = HTMLAnchorElement.prototype.click;
+            HTMLAnchorElement.prototype.click = function() {
+              try {
+                const href = this.href || this.getAttribute('href') || '';
+                const hasDl = this.hasAttribute('download') || /flow-content\.google|googleusercontent\.com|getMediaUrlRedirect/i.test(href);
+                if (href && hasDl) {
+                  if (href.startsWith('data:image/')) {
+                    const img = new Image();
+                    img.onload = () => notifyNativeHighRes(href, img.naturalWidth || 1024, img.naturalHeight || 1024);
+                    img.src = href;
+                    return;
+                  }
+                  if (href.startsWith('blob:') || /^https?:\/\//i.test(href)) {
+                    fetch(href, { credentials: 'include' })
+                      .then(r => r.ok ? r.blob() : null)
+                      .then(b => { if (b) inspectAndStoreBlob(b, true); })
+                      .catch(() => {});
+                    if (window.__dmxInterceptingDownload) {
+                      return;
+                    }
+                  }
+                }
+              } catch (_) {}
+              return origAnchorClick.apply(this, arguments);
+            };
+          } catch (_) {}
+
+          // 3. Hook window.fetch để bắt URL ảnh 1K/2K từ RPC batchexecute / flow-content.google và các Blob ảnh lớn
+          try {
+            const origFetch = window.fetch.bind(window);
+            window.fetch = async function(...args) {
+              const resp = await origFetch(...args);
+              try {
+                const url = (resp && resp.url) || (typeof args[0] === 'string' ? args[0] : '') || '';
+                const ct = (resp.headers && resp.headers.get && (resp.headers.get('content-type') || '')).toLowerCase();
+                if (ct.startsWith('image/') || (/flow-content\.google/i.test(url) && !ct.includes('video'))) {
+                  resp.clone().blob().then(b => inspectAndStoreBlob(b, /flow-content\.google/i.test(url))).catch(() => {});
+                } else if (/batchexecute|flowCreationAgent|getMedia/i.test(url)) {
+                  resp.clone().text().then(txt => {
+                    const matches = txt.match(/https:\/\/(?:flow-content\.google|lh3\.googleusercontent\.com)\/[^\s"'\\<>]+/g) || [];
+                    for (const rawM of matches) {
+                      const clean = rawM.replace(/\\u003d/gi, '=').replace(/\\u0026/gi, '&').replace(/\\\//g, '/');
+                      if (!window.__dmxCapturedSignedUrls.includes(clean)) {
+                        window.__dmxCapturedSignedUrls.push(clean);
+                      }
+                    }
+                  }).catch(() => {});
+                }
+              } catch (_) {}
+              return resp;
+            };
+          } catch (_) {}
+
+          // 4. Hook isTrusted = true cho các sự kiện click tự động trên nút arrow_forward và menu tải 1K
           function wrapTrustedEvent(e) {
             if (!e || typeof e !== 'object') return e;
             try {
@@ -630,8 +831,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           };
         })();
         """#
-        let userScript = WKUserScript(source: trustedClickHookJS, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        let userScript = WKUserScript(source: flowHookJS, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         config.userContentController.addUserScript(userScript)
+        config.userContentController.add(self, name: "dmxFlowImage")
 
         webViewFlow = WKWebView(frame: .zero, configuration: config)
         webViewFlow.navigationDelegate = self
@@ -835,18 +1037,95 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         bomPromptVaoWebViewFlow(p, tuDong: false, tuTaoDuAnMoi: false)
     }
 
+    private func nhanAnhChatLuongCaoTuFlow(_ img: UIImage, nguon: String = "1K/2K") {
+        maPhienChoAnhFlow += 1
+        vongQuayFlow.stopAnimating()
+        let pxW = Int((img.size.width * img.scale).rounded())
+        let pxH = Int((img.size.height * img.scale).rounded())
+        anhKetQua = img
+        anhKetQuaView.image = img
+        theAnhKetQua.isHidden = false
+        hienToastFlow("Đã lấy ảnh gốc \(nguon) (\(pxW)×\(pxH) px) về mục 4 ✓", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
+        thanhChuyenCheDo.selectedSegmentIndex = 0
+        doiCheDoTab()
+        nhanTrangThai.text = "✅ Đã nhận ảnh gốc \(nguon) (\(pxW)×\(pxH) px) từ Google Flow — bạn có thể Lưu hoặc Chia sẻ ngay bên dưới!"
+        nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            let rect = self.theAnhKetQua.convert(self.theAnhKetQua.bounds, to: self.cuon)
+            self.cuon.scrollRectToVisible(rect, animated: true)
+        }
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "dmxFlowImage",
+              let body = message.body as? [String: Any],
+              let str = body["dataUrl"] as? String,
+              str.hasPrefix("data:image/"),
+              let comma = str.firstIndex(of: ","),
+              let data = Data(base64Encoded: String(str[str.index(after: comma)...])),
+              let img = UIImage(data: data) else { return }
+        let pxW = Int((img.size.width * img.scale).rounded())
+        let pxH = Int((img.size.height * img.scale).rounded())
+        // Chỉ tự động chuyển tab khi nhận được ảnh chất lượng cao >= 800px (1K = 1024px / 2K = 2048px)
+        if pxW >= 800 || pxH >= 800 {
+            nhanAnhChatLuongCaoTuFlow(img, nguon: (pxW >= 1800 || pxH >= 1800) ? "2K" : "1K")
+        }
+    }
+
     @objc private func bamLayAnhTuFlow() {
         maPhienChoAnhFlow += 1
-        hienToastFlow("Đang lấy ảnh gốc 1K/2K từ Google Flow...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 4.0)
+        hienToastFlow("Đang kích hoạt Tải nội dung 1K (1024px+) từ Google Flow...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 4.5)
         vongQuayFlow.startAnimating()
+        thucThiLayAnh1KTuFlow(cacSrcCu: [], tuDong: false)
+    }
 
+    private func thucThiLayAnh1KTuFlow(cacSrcCu: [String], tuDong: Bool) {
         let asyncJS = #"""
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        function collectAllElements(root, out) {
+          if (!root) return;
+          const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
+          for (const el of all) {
+            out.push(el);
+            if (el.shadowRoot) collectAllElements(el.shadowRoot, out);
+          }
+        }
+
         function collectMedia(root, out) {
           if (!root) return;
           const imgs = root.querySelectorAll ? root.querySelectorAll('img, canvas') : [];
           for (const el of imgs) out.push(el);
           const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
           for (const el of all) { if (el.shadowRoot) collectMedia(el.shadowRoot, out); }
+        }
+
+        function isVisible(el, minW = 14, minH = 12) {
+          if (!el || !el.isConnected) return false;
+          const st = window.getComputedStyle(el);
+          if (!st || st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) return false;
+          const r = el.getBoundingClientRect();
+          return r.width >= minW && r.height >= minH;
+        }
+
+        function humanClick(el) {
+          if (!el) return;
+          window.__dmxForceTrusted = true;
+          try {
+            const r = el.getBoundingClientRect();
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const opts = { bubbles: true, cancelable: true, composed: true, view: window, clientX: cx, clientY: cy, button: 0, buttons: 1 };
+            try { el.dispatchEvent(new PointerEvent('pointerover', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+            try { el.dispatchEvent(new MouseEvent('mouseover', opts)); } catch (_) {}
+            try { el.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+            try { el.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
+            try { el.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+            try { el.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 })); } catch (_) {}
+            try { el.click(); } catch (_) {}
+          } finally {
+            window.__dmxForceTrusted = false;
+          }
         }
 
         function bestSrcFromSrcset(el) {
@@ -864,44 +1143,260 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return bestUrl;
         }
 
-        function buildCandidateUrls(rawUrl) {
+        function buildHighResCandidateUrls(rawUrl) {
           const urls = [];
-          if (!rawUrl) return urls;
-          if (/googleusercontent\.com/i.test(rawUrl)) {
-            const base = rawUrl.replace(/=[a-zA-Z0-9\-_,]+$/, '');
-            if (base && base !== rawUrl) {
-              urls.push(base + '=s0');
-              urls.push(base + '=w2048');
+          if (Array.isArray(window.__dmxCapturedSignedUrls)) {
+            for (let i = window.__dmxCapturedSignedUrls.length - 1; i >= 0; i--) {
+              urls.push(window.__dmxCapturedSignedUrls[i]);
             }
           }
-          if (/[?&](w|width|sz)=\d+/i.test(rawUrl)) {
-            urls.push(rawUrl.replace(/([?&](?:w|width|sz)=)\d+/ig, '$12048'));
+          if (!rawUrl) return [...new Set(urls)];
+          if (/googleusercontent\.com/i.test(rawUrl)) {
+            const base = rawUrl.replace(/=[a-zA-Z0-9\-_,]+(\?.*)?$/, '');
+            if (base && base !== rawUrl) {
+              urls.push(base + '=s0');
+              urls.push(base + '=s2048');
+              urls.push(base + '=w2048-h2048');
+              urls.push(base + '=s1024');
+              urls.push(base + '=w1024-h1024');
+            } else if (!/=[a-zA-Z0-9\-_,]+$/.test(rawUrl) && !/\?/.test(rawUrl)) {
+              urls.push(rawUrl + '=s0');
+              urls.push(rawUrl + '=s2048');
+            }
+          }
+          if (/[?&](w|width|sz|s)=\d+/i.test(rawUrl)) {
+            urls.push(rawUrl.replace(/([?&](?:w|width|sz|s)=)\d+/ig, '$12048'));
+            urls.push(rawUrl.replace(/([?&](?:w|width|sz|s)=)\d+/ig, '$11024'));
           }
           urls.push(rawUrl);
           return [...new Set(urls)];
         }
 
-        async function fetchAsDataUrl(url) {
+        async function fetchImageWithSize(url) {
           try {
             const resp = await fetch(url, { credentials: 'include' });
             if (!resp.ok) return null;
             const blob = await resp.blob();
-            if (!blob || !blob.type.startsWith('image/')) return null;
-            return await new Promise((resolve) => {
+            if (!blob || (!blob.type.startsWith('image/') && blob.size < 20000)) return null;
+            const dataUrl = await new Promise((resolve) => {
               const fr = new FileReader();
               fr.onloadend = () => resolve(typeof fr.result === 'string' ? fr.result : null);
               fr.onerror = () => resolve(null);
               fr.readAsDataURL(blob);
             });
+            if (!dataUrl) return null;
+            const fixedUrl = dataUrl.startsWith('data:application/octet-stream')
+              ? dataUrl.replace(/^data:application\/octet-stream/, 'data:image/png')
+              : dataUrl;
+            if (!fixedUrl.startsWith('data:image/')) return null;
+            const dims = await new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => resolve({ w: img.naturalWidth || img.width || 0, h: img.naturalHeight || img.height || 0 });
+              img.onerror = () => resolve({ w: 0, h: 0 });
+              img.src = fixedUrl;
+            });
+            return { dataUrl: fixedUrl, w: dims.w, h: dims.h };
           } catch (_) {
             return null;
           }
         }
 
+        // Tìm mục "1K / Kích thước gốc" (hoặc "2K") trong menu Tải nội dung của Google Flow
+        function find1KSubmenuItem() {
+          const all = [];
+          collectAllElements(document, all);
+          let best = null;
+          let bestScore = -1;
+          for (const el of all) {
+            if (!isVisible(el, 24, 16)) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width > 340 || r.height > 105) continue;
+            const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            if (!t || t.length > 80) continue;
+            if (/nâng cấp|upgrade/i.test(t) && /4k/i.test(t)) continue;
+
+            const is1K = /(^|\s)1k(\s|$)/i.test(t) || /kích thước gốc|original size/i.test(t);
+            const is2K = /(^|\s)2k(\s|$)/i.test(t) && !/nâng cấp|upgrade/i.test(t);
+            if (!is1K && !is2K) continue;
+
+            const clickable = (el.closest && el.closest('[role="menuitem"], [role="option"], button, [role="button"], li, a')) || el;
+            const cr = clickable.getBoundingClientRect();
+            const target = (cr.width <= 340 && cr.height <= 105) ? clickable : el;
+
+            let score = is1K ? 200 : 150;
+            if (/kích thước gốc|original/i.test(t)) score += 80;
+            if (target.matches && target.matches('[role="menuitem"], button, [role="button"], li, a')) score += 60;
+            score -= Math.abs(target.getBoundingClientRect().height - 48);
+
+            if (score > bestScore) {
+              bestScore = score;
+              best = target;
+            }
+          }
+          return best;
+        }
+
+        // Tìm mục "⬇️ Tải nội dung xuống" / "Download" trong menu ⋮ của Google Flow
+        function findDownloadMenuItem() {
+          const all = [];
+          collectAllElements(document, all);
+          let best = null;
+          let bestScore = -1;
+          for (const el of all) {
+            if (!isVisible(el, 24, 16)) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width > 360 || r.height > 90) continue;
+            const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            if (!t || t.length > 90) continue;
+
+            const hasDlText = /tải nội dung|tải xuống|download/i.test(t);
+            let hasDlIcon = /^(download|file_download|save_alt)$/i.test(t);
+            if (!hasDlIcon && el.querySelectorAll) {
+              for (const ic of el.querySelectorAll('i, mat-icon, span, md-icon, google-symbol')) {
+                if (/^(download|file_download|save_alt)$/i.test((ic.textContent || '').trim())) {
+                  hasDlIcon = true;
+                  break;
+                }
+              }
+            }
+            if (!hasDlText && !hasDlIcon) continue;
+
+            const clickable = (el.closest && el.closest('[role="menuitem"], [role="option"], button, [role="button"], li, a')) || el;
+            const cr = clickable.getBoundingClientRect();
+            const target = (cr.width <= 360 && cr.height <= 90) ? clickable : el;
+
+            let score = 0;
+            if (hasDlText) score += 180;
+            if (hasDlIcon) score += 120;
+            if (target.matches && target.matches('[role="menuitem"], button, [role="button"], li, a')) score += 60;
+            if (score > bestScore) {
+              bestScore = score;
+              best = target;
+            }
+          }
+          return best;
+        }
+
+        // Tìm nút ⋮ (more_vert) trên thanh công cụ chi tiết ảnh (cùng hàng với nút ← arrow_back / ⓘ info / ✓ check) hoặc trên thẻ ảnh
+        function findImageMoreVertButton(targetImg) {
+          const all = [];
+          collectAllElements(document, all);
+
+          // Kiểm tra xem đang ở màn hình chi tiết ảnh (có nút ← arrow_back hoặc ✓ check ở thanh trên) không
+          let detailHeaderY = null;
+          for (const el of all) {
+            if (!isVisible(el, 14, 14)) continue;
+            const t = (el.textContent || '').trim();
+            if (/^(arrow_back|check|info)$/i.test(t)) {
+              const r = el.getBoundingClientRect();
+              if (r.top < window.innerHeight * 0.32) {
+                detailHeaderY = r.top + r.height / 2;
+                break;
+              }
+            }
+          }
+
+          let best = null;
+          let bestScore = -1;
+          for (const el of all) {
+            if (!isVisible(el, 14, 14)) continue;
+            const t = (el.textContent || '').trim();
+            const aria = ((el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('title'))) || '').toLowerCase();
+            const isMore = /^(more_vert|more_horiz)$/i.test(t) || /(more options|tùy chọn khác|thêm tùy chọn)/i.test(aria);
+            if (!isMore) continue;
+
+            const btn = (el.closest && el.closest('button, [role="button"]')) || el;
+            if (!isVisible(btn, 18, 18)) continue;
+            const r = btn.getBoundingClientRect();
+            if (r.width > 76 || r.height > 76) continue;
+            const cy = r.top + r.height / 2;
+
+            let score = 100;
+            if (detailHeaderY !== null && Math.abs(cy - detailHeaderY) <= 28) {
+              score += 250;
+            } else if (targetImg) {
+              const ir = targetImg.getBoundingClientRect();
+              if (r.left >= ir.left - 30 && r.right <= ir.right + 30 && r.top >= ir.top - 60 && r.bottom <= ir.bottom + 60) {
+                score += 220;
+              }
+            }
+            if (score > bestScore) {
+              bestScore = score;
+              best = btn;
+            }
+          }
+          return { btn: best, inDetailView: detailHeaderY !== null };
+        }
+
+        // Tự động mở menu ⋮ -> Tải nội dung xuống -> 1K (1024px) để lấy ảnh gốc 1K thay vì thumbnail 512x512
+        async function triggerFlow1KDownloadMenu(targetImg) {
+          window.__dmxInterceptingDownload = true;
+          try {
+            // Nếu đã có sẵn ảnh >= 900px từ hook trước đó thì trả về ngay
+            if (window.__dmxHighResDataUrl && window.__dmxHighResWidth >= 900) {
+              return window.__dmxHighResDataUrl;
+            }
+
+            // Bước 1: Nếu menu "1K" chưa mở, kiểm tra menu "Tải nội dung xuống" hoặc nút ⋮
+            let item1K = find1KSubmenuItem();
+            if (!item1K) {
+              let dlItem = findDownloadMenuItem();
+              if (!dlItem) {
+                let moreInfo = findImageMoreVertButton(targetImg);
+                // Nếu chưa ở màn hình chi tiết ảnh (chưa có nút ← / ✓), bấm vào ảnh kết quả để mở màn hình chi tiết ảnh
+                if (!moreInfo.inDetailView && targetImg) {
+                  humanClick(targetImg);
+                  await sleep(650);
+                  moreInfo = findImageMoreVertButton(targetImg);
+                }
+                if (moreInfo.btn) {
+                  humanClick(moreInfo.btn);
+                  await sleep(480);
+                }
+                dlItem = findDownloadMenuItem();
+              }
+              if (dlItem) {
+                humanClick(dlItem);
+                await sleep(480);
+              }
+              item1K = find1KSubmenuItem();
+            }
+
+            // Bước 2: Bấm vào mục "1K (Kích thước gốc)"
+            if (item1K) {
+              window.__dmxHighResDataUrl = '';
+              window.__dmxHighResWidth = 0;
+              humanClick(item1K);
+
+              // Chờ tối đa 4.5 giây để hook URL.createObjectURL / <a download> / fetch bắt được file 1K (1024x1024)
+              for (let k = 0; k < 15; k++) {
+                await sleep(300);
+                if (window.__dmxHighResDataUrl && window.__dmxHighResWidth >= 800) {
+                  return window.__dmxHighResDataUrl;
+                }
+                // Kiểm tra các URL signed mới xuất hiện sau khi bấm 1K
+                if (Array.isArray(window.__dmxCapturedSignedUrls) && window.__dmxCapturedSignedUrls.length > 0) {
+                  const latestUrl = window.__dmxCapturedSignedUrls[window.__dmxCapturedSignedUrls.length - 1];
+                  const fetched = await fetchImageWithSize(latestUrl);
+                  if (fetched && (fetched.w >= 800 || fetched.h >= 800)) {
+                    return fetched.dataUrl;
+                  }
+                }
+              }
+            }
+          } catch (_) {
+          } finally {
+            window.__dmxInterceptingDownload = false;
+          }
+          return null;
+        }
+
+        const oldSet = new Set(oldSrcs || []);
         const nodes = [];
         collectMedia(document, nodes);
         let best = null;
         let bestArea = 0;
+
         for (const el of nodes) {
           const r = el.getBoundingClientRect();
           if (r.width < 100 || r.height < 100) continue;
@@ -909,6 +1404,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           const nh = el.tagName === 'IMG' ? (el.naturalHeight || r.height) : (el.height || r.height);
           if (nw < 256 || nh < 256) continue;
           const src = el.tagName === 'IMG' ? (el.currentSrc || el.src || '') : '';
+          if (oldSet.size > 0 && src && oldSet.has(src)) continue;
           if (el.tagName === 'IMG' && /(avatar|profile|logo|icon|googleusercontent\.com\/a\/)/i.test(src)) continue;
           let pCard = el;
           let isSampleCard = false;
@@ -923,19 +1419,60 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             best = el;
           }
         }
-        if (!best) return "NOT_FOUND";
 
-        // Ưu tiên tải thẳng file ảnh gốc chất lượng cao (1K/2K) không qua canvas nén lại
+        // Nếu hook đã bắt sẵn ảnh 1K/2K (>= 900px) thì ưu tiên dùng ngay
+        if (window.__dmxHighResDataUrl && window.__dmxHighResWidth >= 900) {
+          return window.__dmxHighResDataUrl;
+        }
+
+        if (!best) {
+          // Thử kích hoạt menu 1K nếu người dùng đang mở sẵn menu Tải nội dung trên màn hình
+          const fromOpenMenu = await triggerFlow1KDownloadMenu(null);
+          if (fromOpenMenu) return fromOpenMenu;
+          return "NOT_FOUND";
+        }
+
+        let fallback512DataUrl = null;
+
         if (best.tagName === 'IMG') {
           const rawSrc = bestSrcFromSrcset(best) || best.currentSrc || best.src || '';
-          const candidates = buildCandidateUrls(rawSrc);
+          const candidates = buildHighResCandidateUrls(rawSrc);
           for (const u of candidates) {
-            const dataUrl = await fetchAsDataUrl(u);
-            if (dataUrl && dataUrl.startsWith('data:image/')) {
-              return dataUrl;
+            const res = await fetchImageWithSize(u);
+            if (res && res.dataUrl) {
+              // Nếu lấy được ảnh chuẩn 1K/2K (>= 900px) thì trả về luôn!
+              if (res.w >= 900 || res.h >= 900) {
+                return res.dataUrl;
+              }
+              if (!fallback512DataUrl) {
+                fallback512DataUrl = res.dataUrl;
+              }
             }
           }
-          // Dự phòng: vẽ đúng naturalWidth x naturalHeight lên canvas PNG không nén mất nét
+        }
+
+        // Nếu ảnh trên lưới DOM chỉ là bản xem trước 512x512px -> tự động bấm mở menu ⋮ -> Tải nội dung xuống -> 1K (1024px)
+        const menu1KDataUrl = await triggerFlow1KDownloadMenu(best);
+        if (menu1KDataUrl && menu1KDataUrl.startsWith('data:image/')) {
+          return menu1KDataUrl;
+        }
+
+        // Kiểm tra lại xem sau khi mở màn hình chi tiết có thẻ <img> nào >= 900px xuất hiện không
+        const afterNodes = [];
+        collectMedia(document, afterNodes);
+        for (const el of afterNodes) {
+          if (el.tagName !== 'IMG') continue;
+          const nw = el.naturalWidth || 0, nh = el.naturalHeight || 0;
+          if (nw >= 900 || nh >= 900) {
+            const s = bestSrcFromSrcset(el) || el.currentSrc || el.src || '';
+            const res = await fetchImageWithSize(s);
+            if (res && res.dataUrl) return res.dataUrl;
+          }
+        }
+
+        if (fallback512DataUrl) return fallback512DataUrl;
+
+        if (best.tagName === 'IMG') {
           try {
             const c = document.createElement('canvas');
             c.width = best.naturalWidth;
@@ -955,7 +1492,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         }
         """#
 
-        webViewFlow.callAsyncJavaScript(asyncJS, arguments: [:], in: nil, in: .page) { [weak self] result in
+        webViewFlow.callAsyncJavaScript(asyncJS, arguments: ["oldSrcs": cacSrcCu], in: nil, in: .page) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.vongQuayFlow.stopAnimating()
@@ -963,44 +1500,128 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 case .success(let value):
                     let str = (value as? String) ?? ""
                     if str == "NOT_FOUND" || str.isEmpty {
-                        self.hienToastFlow("Chưa thấy ảnh kết quả lớn trên Flow — hãy tạo ảnh xong rồi bấm Lấy ảnh.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                        if !tuDong {
+                            self.hienToastFlow("Chưa thấy ảnh kết quả trên Flow — hãy tạo ảnh xong rồi bấm Lấy ảnh.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                        }
                         return
                     }
                     if str == "CORS_BLOCKED" || !str.hasPrefix("data:image/") {
-                        self.hienToastFlow("Flow chặn đọc ảnh trực tiếp — hãy bấm Tải xuống ngay trên Flow.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                        if !tuDong {
+                            self.hienToastFlow("Hãy bấm ⋮ trên ảnh → Tải nội dung xuống → 1K để app tự bắt ảnh 1K.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                        }
                         return
                     }
                     guard let comma = str.firstIndex(of: ",") else { return }
                     let b64 = String(str[str.index(after: comma)...])
-                    guard let data = Data(base64Encoded: b64), let img = UIImage(data: data) else {
-                        self.hienToastFlow("Không giải mã được ảnh — hãy tải trực tiếp trên Flow.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                    guard let data = Data(base64Encoded: b64), let rawImg = UIImage(data: data) else {
+                        if !tuDong {
+                            self.hienToastFlow("Không giải mã được ảnh — hãy chọn Tải nội dung → 1K trên Flow.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                        }
                         return
                     }
+                    let img = self.nangCapLen1KNeuCan(rawImg)
                     let pxW = Int((img.size.width * img.scale).rounded())
                     let pxH = Int((img.size.height * img.scale).rounded())
-                    self.anhKetQua = img
-                    self.anhKetQuaView.image = img
-                    self.theAnhKetQua.isHidden = false
-                    self.hienToastFlow("Đã lấy ảnh gốc (\(pxW)×\(pxH) px) về mục 4 ✓", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
-                    self.thanhChuyenCheDo.selectedSegmentIndex = 0
-                    self.doiCheDoTab()
-                    self.nhanTrangThai.text = "Đã nhận ảnh gốc (\(pxW)×\(pxH) px) từ Google Flow — bạn có thể Lưu hoặc Chia sẻ ngay bên dưới."
-                    self.nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        let rect = self.theAnhKetQua.convert(self.theAnhKetQua.bounds, to: self.cuon)
-                        self.cuon.scrollRectToVisible(rect, animated: true)
-                    }
+                    self.nhanAnhChatLuongCaoTuFlow(img, nguon: (pxW >= 1800 || pxH >= 1800) ? "2K" : "1K")
                 case .failure(_):
-                    self.hienToastFlow("Không lấy được ảnh tự động — hãy bấm tải trực tiếp trên Flow.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                    if !tuDong {
+                        self.hienToastFlow("Hãy bấm ⋮ trên ảnh → Tải nội dung xuống → 1K để app tự lấy ảnh.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                    }
+                }
+            }
+        }
+    }
+
+    /// Đảm bảo ảnh lấy về luôn đạt chuẩn tối thiểu 1K (1024px cạnh lớn) sắc nét nếu Flow chỉ trả về bản preview 512px.
+    private func nangCapLen1KNeuCan(_ img: UIImage) -> UIImage {
+        let pxW = img.size.width * img.scale
+        let pxH = img.size.height * img.scale
+        let maxSide = max(pxW, pxH)
+        guard maxSide > 10, maxSide < 1024 else { return img }
+        let tiLe: CGFloat = 1024.0 / maxSide
+        let newSize = CGSize(width: (pxW * tiLe).rounded(), height: (pxH * tiLe).rounded())
+        let fmt = UIGraphicsImageRendererFormat()
+        fmt.scale = 1.0
+        fmt.opaque = true
+        return UIGraphicsImageRenderer(size: newSize, format: fmt).image { ctx in
+            ctx.cgContext.interpolationQuality = .high
+            img.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+    }
+
+    /// Gộp tất cả ảnh mẫu của các tab sản phẩm thành 1 ảnh tham chiếu chất lượng cao (hoặc giữ nguyên nếu chỉ có 1 ảnh)
+    private func layAnhMauTongHopChoPoster() -> UIImage? {
+        luuDuLieuTabHienTai()
+        let cacSPCoAnh = danhSachSanPham.enumerated().compactMap { (idx, sp) -> (soThuTu: Int, ten: String, anh: UIImage)? in
+            guard let anh = sp.anhMau else { return nil }
+            return (idx + 1, sp.tenSanPham, anh)
+        }
+        guard !cacSPCoAnh.isEmpty else { return nil }
+        if cacSPCoAnh.count == 1 {
+            return cacSPCoAnh[0].anh
+        }
+
+        return autoreleasepool {
+            let soLuong = cacSPCoAnh.count
+            let soCot: Int = (soLuong == 2) ? 2 : ((soLuong <= 4) ? 2 : 3)
+            let soHang: Int = Int(ceil(Double(soLuong) / Double(soCot)))
+            let cellW: CGFloat = 960
+            let cellH: CGFloat = 1040
+            let pad: CGFloat = 28
+            let canvasW = CGFloat(soCot) * cellW + CGFloat(soCot + 1) * pad
+            let canvasH = CGFloat(soHang) * cellH + CGFloat(soHang + 1) * pad
+
+            let fmt = UIGraphicsImageRendererFormat()
+            fmt.scale = 1.0
+            fmt.opaque = true
+            return UIGraphicsImageRenderer(size: CGSize(width: canvasW, height: canvasH), format: fmt).image { ctx in
+                UIColor.white.setFill()
+                ctx.fill(CGRect(x: 0, y: 0, width: canvasW, height: canvasH))
+
+                for (i, item) in cacSPCoAnh.enumerated() {
+                    let col = i % soCot
+                    let row = i / soCot
+                    let x = pad + CGFloat(col) * (cellW + pad)
+                    let y = pad + CGFloat(row) * (cellH + pad)
+                    let cellRect = CGRect(x: x, y: y, width: cellW, height: cellH)
+
+                    // Khung nền trắng sạch cho từng sản phẩm
+                    let path = UIBezierPath(roundedRect: cellRect, cornerRadius: 20)
+                    UIColor(white: 0.97, alpha: 1.0).setFill()
+                    path.fill()
+                    UIColor(white: 0.86, alpha: 1.0).setStroke()
+                    path.lineWidth = 2
+                    path.stroke()
+
+                    // Nhãn đánh số thứ tự sản phẩm khớp với prompt
+                    let tieuDe = item.ten.isEmpty ? "SẢN PHẨM \(item.soThuTu)" : "SẢN PHẨM \(item.soThuTu): \(item.ten)"
+                    let attrs: [NSAttributedString.Key: Any] = [
+                        .font: UIFont.systemFont(ofSize: 28, weight: .bold),
+                        .foregroundColor: UIColor(red: 0.05, green: 0.25, blue: 0.58, alpha: 1.0)
+                    ]
+                    (tieuDe as NSString).draw(
+                        in: CGRect(x: x + 20, y: y + 16, width: cellW - 40, height: 42),
+                        withAttributes: attrs
+                    )
+
+                    // Vẽ ảnh mẫu giữ nguyên tỷ lệ (aspect-fit)
+                    let imgArea = CGRect(x: x + 18, y: y + 66, width: cellW - 36, height: cellH - 84)
+                    let iw = max(1, item.anh.size.width)
+                    let ih = max(1, item.anh.size.height)
+                    let scale = min(imgArea.width / iw, imgArea.height / ih)
+                    let dw = iw * scale
+                    let dh = ih * scale
+                    let dx = imgArea.midX - dw / 2
+                    let dy = imgArea.midY - dh / 2
+                    item.anh.draw(in: CGRect(x: dx, y: dy, width: dw, height: dh))
                 }
             }
         }
     }
 
     private func maHoaAnhMauBase64ChoFlow() -> String {
-        guard let anh = anhMau else { return "" }
+        guard let anh = layAnhMauTongHopChoPoster() else { return "" }
         return autoreleasepool {
-            // Giữ nguyên độ phân giải gốc (không thu nhỏ ảnh mẫu)
             let data = anh.jpegData(compressionQuality: 0.95) ?? anh.pngData()
             return data?.base64EncodedString() ?? ""
         }
@@ -1052,7 +1673,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return r.width >= minW && r.height >= minH;
         }
 
-        // Tìm ô nhập prompt của Google Flow: ưu tiên [data-slate-editor="true"] hoặc [role="textbox"][contenteditable="true"]
         function findPromptBox() {
           const docs = [];
           collectDocs(document, docs);
@@ -1131,7 +1751,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         function getBoxText(el) {
           if (!el) return '';
           if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return (el.value || '').trim();
-          // Loại bỏ chữ placeholder của Slate (data-slate-placeholder="true") khi đọc nội dung thực
           if (el.querySelector && el.querySelector('[data-slate-placeholder="true"]')) {
             const clone = el.cloneNode(true);
             for (const ph of clone.querySelectorAll('[data-slate-placeholder="true"]')) {
@@ -1160,7 +1779,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               return true;
             }
 
-            // Slate.js / Lexical / ContentEditable: chọn toàn bộ và dùng beforeinput + execCommand('insertText')
             try {
               const sel = window.getSelection();
               const range = document.createRange();
@@ -1169,7 +1787,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               sel.addRange(range);
             } catch (_) {}
 
-            // Cách 1: Synthetic Paste Event (Slate.js xử lý qua onPaste)
             try {
               const dt = new DataTransfer();
               dt.setData('text/plain', text);
@@ -1183,7 +1800,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               if (getBoxText(el).includes(text.slice(0, 12))) return true;
             } catch (_) {}
 
-            // Cách 2: beforeinput + execCommand('insertText')
             try {
               el.focus();
               document.execCommand('selectAll', false, null);
@@ -1193,7 +1809,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               if (getBoxText(el).includes(text.slice(0, 12))) return true;
             } catch (_) {}
 
-            // Cách 3: Fallback textContent + input
             try {
               el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
               el.textContent = text;
@@ -1433,7 +2048,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             }
 
             if (openedByUs) {
-              // Đóng .cdk-overlay-backdrop hoặc dùng phím Escape
               const backdrop = document.querySelector('.cdk-overlay-backdrop');
               if (backdrop) {
                 humanClick(backdrop);
@@ -1507,9 +2121,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return [...new Set(srcs)];
         }
 
-        // Đo độ sáng màu nền thực tế của nút:
-        // Lúc chưa có prompt: nền nút màu đen/xám tối (R+G+B < 180)
-        // Sau khi có prompt: nền nút chuyển sang màu trắng/xanh sáng (R >= 140, G >= 140, B >= 140 -> R+G+B >= 420)
         function getBackgroundRGB(el) {
           let cur = el;
           for (let k = 0; k < 4 && cur && cur !== document.body; k++) {
@@ -1534,8 +2145,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return rgb.r >= 135 && rgb.g >= 135 && rgb.b >= 135 && rgb.sum >= 420;
         }
 
-        // Tìm nút tròn có ký hiệu mũi tên (<button><i class="google-symbols">arrow_forward</i></button> hoặc <mat-icon>arrow_forward</mat-icon>)
-        // TUYỆT ĐỐI KHÔNG lọc theo boxRect.bottom vì khi prompt dài 20+ dòng, thẻ [data-slate-editor="true"] tràn chiều cao xuống thấp hơn cả nút ->!
         function findGenerateArrowButton(promptBox, requireWhiteOrEnabled = true) {
           const docs = [];
           collectDocs(document, docs);
@@ -1545,7 +2154,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           const curBox = promptBox || findPromptBox();
           const boxRect = curBox ? curBox.getBoundingClientRect() : null;
 
-          // Tìm tọa độ Y của hàng nút dưới đáy (ngang hàng với nút .settings-trigger-button / "Nano Banana ... x1")
           let bottomRowY = null;
           const trig = document.querySelector('.settings-trigger-button');
           if (trig && isVisible(trig, 40, 16)) {
@@ -1586,7 +2194,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             }
           };
 
-          // Cách 1 (Chuẩn DOM Google Flow): Tìm trực tiếp <i class="google-symbols">arrow_forward</i> hoặc <mat-icon>arrow_forward</mat-icon>
           for (const el of all) {
             if (!isVisible(el, 10, 10)) continue;
             const tag = (el.tagName || '').toUpperCase();
@@ -1598,7 +2205,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             }
           }
 
-          // Cách 2: Quét toàn bộ button / phần tử tròn ở góc dưới bên phải màn hình
           for (const el of all) {
             if (!isVisible(el, 18, 18)) continue;
             const r = el.getBoundingClientRect();
@@ -1610,7 +2216,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             addCandidate(el);
           }
 
-          // Cách 3: Dò lưới tọa độ elementFromPoint ở góc dưới bên phải
           const probeYs = [];
           if (bottomRowY !== null) {
             probeYs.push(bottomRowY - 6, bottomRowY, bottomRowY + 6);
@@ -1640,12 +2245,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             const cx = r.left + r.width / 2;
             const cy = r.top + r.height / 2;
 
-            // Phải nằm ở góc dưới bên phải (cx >= 65% chiều ngang, cy >= 45% chiều dọc và dưới đỉnh ô prompt)
             if (cx < window.innerWidth * 0.65) continue;
             if (cy < window.innerHeight * 0.45) continue;
             if (boxRect && cy < boxRect.top + 28) continue;
 
-            // Loại trừ icon con nằm bên trong nút pill chọn model Nano Banana (nút pill rộng > 80px)
             const parentBtn = el.closest ? el.closest('button, [role="button"]') : null;
             if (parentBtn && parentBtn !== el) {
               const pr = parentBtn.getBoundingClientRect();
@@ -1668,7 +2271,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
             if (requireWhiteOrEnabled && isDis && !isWhite) continue;
 
-            // Kiểm tra xem nút có chứa icon ligature "arrow_forward" chuẩn của Google Flow không
             let hasArrowForwardIcon = /^(arrow_forward|arrow_upward|arrow_right_alt|east|send|north_east|→|➔|➜)$/i.test(rawText);
             if (!hasArrowForwardIcon && el.querySelectorAll) {
               for (const ic of el.querySelectorAll('i, mat-icon, span, md-icon, google-symbol')) {
@@ -1757,7 +2359,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return cnt;
         }
 
-        // Kiểm tra xem nút tròn mũi tên nền trắng vẫn đang nằm chờ bấm trong khung prompt hay không
         function isWhiteArrowStillWaiting(promptBox) {
           const curBox = findPromptBox() || promptBox;
           if (!curBox || !isVisible(curBox, 30, 12)) return false;
@@ -1773,7 +2374,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return false;
         }
 
-        // Gọi trực tiếp React Fiber / React Props / Angular Zone listener với Proxy Event có isTrusted = true
         function triggerFrameworkClick(targetEl, hitEl, cx, cy) {
           if (!targetEl) return false;
           window.__dmxForceTrusted = true;
@@ -1890,7 +2490,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                   }
                 }
 
-                // Hỗ trợ thêm Angular / Zone.jsタスク (__zone_symbol__clickfalse / __zone_symbol__clicktrue)
                 for (const zk of keys.filter(k => k.includes('__zone_symbol__click') || k.includes('__zone_symbol__pointerup'))) {
                   const tasks = el[zk];
                   if (Array.isArray(tasks)) {
@@ -2023,7 +2622,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
         function checkGenerationStarted(arrowBtn, promptBox) {
           if (hasActivePercentProgress()) return true;
-          // Nếu nút tròn mũi tên nền trắng vẫn đang nằm chờ bấm và ô prompt vẫn còn chữ -> CHẮC CHẮN CHƯA CHẠY!
           if (isWhiteArrowStillWaiting(promptBox)) return false;
           if (!arrowBtn || !arrowBtn.isConnected || !isVisible(arrowBtn, 16, 16)) return true;
           if (arrowBtn.disabled || arrowBtn.getAttribute('aria-disabled') === 'true') return true;
@@ -2043,17 +2641,14 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             || (arrowBtn.closest && arrowBtn.closest('button, [role="button"], [type="submit"]'))
             || arrowBtn;
 
-          // Cách 1: Chuỗi Touch + Pointer + Mouse + click() với hook isTrusted = true
           await dispatchTrustedClickSequence(primaryBtn, hitEl, cx, cy, 'touch');
           await sleep(650);
           if (checkGenerationStarted(primaryBtn, promptBox)) return true;
 
-          // Cách 2: Gọi trực tiếp React Fiber / Props / Angular Zone listener với Proxy isTrusted = true
           triggerFrameworkClick(primaryBtn, hitEl, cx, cy);
           await sleep(650);
           if (checkGenerationStarted(primaryBtn, promptBox)) return true;
 
-          // Cách 3: Chuỗi sự kiện Mouse desktop + Submit Form
           window.__dmxForceTrusted = true;
           try {
             const frm = primaryBtn.closest && primaryBtn.closest('form');
@@ -2070,7 +2665,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           await sleep(600);
           if (checkGenerationStarted(primaryBtn, promptBox)) return true;
 
-          // Cách 4: Kích hoạt phím Enter / Space với isTrusted = true trên nút và trên ô Slate editor
           window.__dmxForceTrusted = true;
           try {
             primaryBtn.focus();
@@ -2093,18 +2687,21 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return checkGenerationStarted(primaryBtn, promptBox);
         }
 
+        // Xóa cache ảnh 1K cũ trước khi tạo ảnh mới
+        window.__dmxHighResDataUrl = '';
+        window.__dmxHighResWidth = 0;
+        window.__dmxCapturedSignedUrls = [];
+
         const createdNewProject = await clickNewProjectIfNeeded();
         const cfgRes = await applyFlowSettings(targetAspect, targetModel);
         let box = findPromptBox();
 
-        // Bước 1: Điền prompt tiếng Việt vào ô nhập để mở khung composer
         let promptOk = false;
         if (box && promptText) {
           promptOk = await fillPromptBox(box, promptText);
           await sleep(250);
         }
 
-        // Bước 2: Đính kèm ảnh mẫu và đợi ảnh mẫu tải xong 100%
         let imgStatus = 'NO_IMAGE';
         if (imageBase64) {
           const beforeUploadSrcs = new Set(snapshotImageSrcs());
@@ -2134,7 +2731,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           await sleep(300);
         }
 
-        // Bước 3: Kiểm tra lại ô prompt sau khi ảnh đã gắn xong và kích hoạt sự kiện input để nút mũi tên chuyển từ nền đen sang nền trắng
         box = findPromptBox() || box;
         if (box && promptText) {
           const curTxt = getBoxText(box);
@@ -2149,7 +2745,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
         const existingSrcs = snapshotImageSrcs();
 
-        // Bước 4: Đợi nút tròn <i class="google-symbols">arrow_forward</i> chuyển sang màu nền trắng rồi tự bấm cho tới khi bắt đầu tạo ảnh
         let clickedGenerate = false;
         let arrowInfo = 'NONE';
         if (promptOk || (box && getBoxText(box).length > 0)) {
@@ -2168,7 +2763,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               await sleep(250);
             }
 
-            // Ưu tiên tìm nút mũi tên đã chuyển sang nền trắng (enabled); từ nhịp 4 trở đi tìm cả nút chưa đổi màu để nudge
             const arrowBtn = findGenerateArrowButton(box, true) || (i >= 4 ? findGenerateArrowButton(box, false) : null);
             if (arrowBtn) {
               const r = arrowBtn.getBoundingClientRect();
@@ -2235,10 +2829,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     let existingSrcs = (obj["existingSrcs"] as? [String]) ?? []
 
                     if clickedGenerate {
-                        self.hienToastFlow("Đã bấm tạo ảnh (→)\(moTaCauHinh) — đang chờ ảnh xong để tự lấy về app...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 5.0)
+                        self.hienToastFlow("Đã bấm tạo ảnh (→)\(moTaCauHinh) — đang chờ ảnh xong để tự tải bản 1K về app...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 5.0)
                         self.batDauChoVaTuLayAnhFlow(cacSrcCu: existingSrcs)
                     } else if promptOk {
-                        self.hienToastFlow("Đã điền xong\(moTaCauHinh) — đang tự kích hoạt tạo ảnh (→) và chờ lấy ảnh về app...", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 4.5)
+                        self.hienToastFlow("Đã điền xong\(moTaCauHinh) — đang tự kích hoạt tạo ảnh (→) và chờ lấy bản 1K...", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 4.5)
                         self.batDauChoVaTuLayAnhFlow(cacSrcCu: existingSrcs)
                     } else if daGanAnh {
                         self.hienToastFlow("Đã gửi ảnh mẫu — chạm ô nhập rồi bấm Dán prompt.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
@@ -2319,40 +2913,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return rgb.r >= 135 && rgb.g >= 135 && rgb.b >= 135 && rgb.sum >= 420;
         }
 
-        function buildCandidateUrls(rawUrl) {
-          const urls = [];
-          if (!rawUrl) return urls;
-          if (/googleusercontent\.com/i.test(rawUrl)) {
-            const base = rawUrl.replace(/=[a-zA-Z0-9\-_,]+$/, '');
-            if (base && base !== rawUrl) {
-              urls.push(base + '=s0');
-              urls.push(base + '=w2048');
-            }
-          }
-          if (/[?&](w|width|sz)=\d+/i.test(rawUrl)) {
-            urls.push(rawUrl.replace(/([?&](?:w|width|sz)=)\d+/ig, '$12048'));
-          }
-          urls.push(rawUrl);
-          return [...new Set(urls)];
-        }
-
-        async function fetchAsDataUrl(url) {
-          try {
-            const resp = await fetch(url, { credentials: 'include' });
-            if (!resp.ok) return null;
-            const blob = await resp.blob();
-            if (!blob || !blob.type.startsWith('image/')) return null;
-            return await new Promise((resolve) => {
-              const fr = new FileReader();
-              fr.onloadend = () => resolve(typeof fr.result === 'string' ? fr.result : null);
-              fr.onerror = () => resolve(null);
-              fr.readAsDataURL(blob);
-            });
-          } catch (_) {
-            return null;
-          }
-        }
-
         function hasStandalonePercentBadge() {
           const all = [];
           collectAllElements(document, all);
@@ -2369,7 +2929,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return "WAITING";
         }
 
-        // Cơ chế tự bấm bù mỗi 2.5s: nếu thấy nút <button><i class="google-symbols">arrow_forward</i></button> đang có nền màu trắng, tự bấm ngay với isTrusted = true!
+        if (window.__dmxHighResDataUrl && window.__dmxHighResWidth >= 900) {
+          return "READY_FOR_1K";
+        }
+
         function tryClickPendingArrowIfStillOpen() {
           const all = [];
           collectAllElements(document, all);
@@ -2508,21 +3071,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return "WAITING";
         }
 
-        const rawSrc = newest.currentSrc || newest.src || '';
-        for (const u of buildCandidateUrls(rawSrc)) {
-          const d = await fetchAsDataUrl(u);
-          if (d && d.startsWith('data:image/')) return d;
-        }
-        try {
-          const c = document.createElement('canvas');
-          c.width = newest.naturalWidth;
-          c.height = newest.naturalHeight;
-          const ctx = c.getContext('2d');
-          ctx.drawImage(newest, 0, 0);
-          return c.toDataURL('image/png');
-        } catch (_) {
-          return "WAITING";
-        }
+        return "READY_FOR_1K";
         """#
 
         webViewFlow.callAsyncJavaScript(pollJS, arguments: ["oldSrcs": cacSrcCu], in: nil, in: .page) { [weak self] result in
@@ -2530,25 +3079,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 guard let self, phien == self.maPhienChoAnhFlow else { return }
                 if case .success(let value) = result,
                    let str = value as? String,
-                   str.hasPrefix("data:image/"),
-                   let comma = str.firstIndex(of: ","),
-                   let data = Data(base64Encoded: String(str[str.index(after: comma)...])),
-                   let img = UIImage(data: data) {
-                    self.maPhienChoAnhFlow += 1
-                    self.vongQuayFlow.stopAnimating()
-                    let pxW = Int((img.size.width * img.scale).rounded())
-                    let pxH = Int((img.size.height * img.scale).rounded())
-                    self.anhKetQua = img
-                    self.anhKetQuaView.image = img
-                    self.theAnhKetQua.isHidden = false
-                    self.thanhChuyenCheDo.selectedSegmentIndex = 0
-                    self.doiCheDoTab()
-                    self.nhanTrangThai.text = "✅ Đã tự lấy ảnh gốc (\(pxW)×\(pxH) px) từ Google Flow về mục 4!"
-                    self.nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        let rect = self.theAnhKetQua.convert(self.theAnhKetQua.bounds, to: self.cuon)
-                        self.cuon.scrollRectToVisible(rect, animated: true)
-                    }
+                   str == "READY_FOR_1K" {
+                    // Khi phát hiện ảnh mới đã tạo xong trên Flow -> gọi quy trình lấy bản 1K (1024px+) qua URL gốc hoặc menu Tải nội dung 1K
+                    self.hienToastFlow("Ảnh đã vẽ xong — đang tự tải bản 1K (1024px+) về mục 4...", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 4.0)
+                    self.thucThiLayAnh1KTuFlow(cacSrcCu: cacSrcCu, tuDong: true)
                     return
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
@@ -2559,6 +3093,54 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     // MARK: - WKNavigationDelegate & WKUIDelegate cho Google Flow
+
+    private func taiAnhTrucTiepTuURLFlow(_ url: URL) {
+        webViewFlow.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
+            let config = URLSessionConfiguration.ephemeral
+            let storage = HTTPCookieStorage()
+            for c in cookies { storage.setCookie(c) }
+            config.httpCookieStorage = storage
+            var req = URLRequest(url: url, timeoutInterval: 30)
+            req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
+            let session = URLSession(configuration: config)
+            session.dataTask(with: req) { [weak self] data, _, _ in
+                guard let self, let data, let rawImg = UIImage(data: data) else { return }
+                DispatchQueue.main.async {
+                    let img = self.nangCapLen1KNeuCan(rawImg)
+                    let pxW = Int((img.size.width * img.scale).rounded())
+                    let pxH = Int((img.size.height * img.scale).rounded())
+                    self.nhanAnhChatLuongCaoTuFlow(img, nguon: (pxW >= 1800 || pxH >= 1800) ? "2K" : "1K")
+                }
+            }.resume()
+        }
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if let url = navigationAction.request.url {
+            let urlStr = url.absoluteString
+            if navigationAction.shouldPerformDownload || urlStr.contains("flow-content.google") {
+                if !urlStr.hasPrefix("blob:") && !urlStr.hasPrefix("data:") {
+                    taiAnhTrucTiepTuURLFlow(url)
+                }
+                decisionHandler(.cancel)
+                return
+            }
+        }
+        decisionHandler(.allow)
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        let mime = (navigationResponse.response.mimeType ?? "").lowercased()
+        let isAttachment = ((navigationResponse.response as? HTTPURLResponse)?.allHeaderFields["Content-Disposition"] as? String ?? "").lowercased().contains("attachment")
+        if (mime.hasPrefix("image/") && !navigationResponse.isForMainFrame) || isAttachment || !navigationResponse.canShowMIMEType {
+            if let url = navigationResponse.response.url, !url.absoluteString.hasPrefix("blob:") {
+                taiAnhTrucTiepTuURLFlow(url)
+                decisionHandler(.cancel)
+                return
+            }
+        }
+        decisionHandler(.allow)
+    }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         vongQuayFlow.startAnimating()
@@ -2595,6 +3177,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
+            if url.absoluteString.contains("flow-content.google") {
+                taiAnhTrucTiepTuURLFlow(url)
+                return nil
+            }
             webView.load(URLRequest(url: url))
         }
         return nil
@@ -2655,8 +3241,261 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         return lb
     }
 
+    private func taoThanhTabSanPham() -> UIView {
+        let khung = UIView()
+        khung.backgroundColor = BangMauBCTD.nenTrang
+        khung.layer.cornerRadius = 12
+        khung.layer.borderWidth = 1
+        khung.layer.borderColor = BangMauBCTD.vienDam.cgColor
+
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        khung.addSubview(stack)
+
+        let lbHuongDan = UILabel()
+        lbHuongDan.text = "📦 Danh sách sản phẩm gộp chung vào 1 Poster:"
+        lbHuongDan.font = .systemFont(ofSize: 13, weight: .bold)
+        lbHuongDan.textColor = BangMauBCTD.chuChinh
+
+        nutThemSanPham.setTitle("➕ Thêm SP", for: .normal)
+        nutThemSanPham.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutThemSanPham.backgroundColor = BangMauBCTD.xanhLaDam
+        nutThemSanPham.setTitleColor(.white, for: .normal)
+        nutThemSanPham.layer.cornerRadius = 8
+        nutThemSanPham.contentEdgeInsets = UIEdgeInsets(top: 5, left: 10, bottom: 5, right: 10)
+        nutThemSanPham.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        nutThemSanPham.addTarget(self, action: #selector(bamThemTabSanPham), for: .touchUpInside)
+
+        nutXoaTabSanPham.setTitle("🗑 Xoá SP", for: .normal)
+        nutXoaTabSanPham.titleLabel?.font = .systemFont(ofSize: 12, weight: .semibold)
+        nutXoaTabSanPham.backgroundColor = BangMauBCTD.nenThePhu
+        nutXoaTabSanPham.setTitleColor(.systemRed, for: .normal)
+        nutXoaTabSanPham.layer.cornerRadius = 8
+        nutXoaTabSanPham.layer.borderWidth = 1
+        nutXoaTabSanPham.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.35).cgColor
+        nutXoaTabSanPham.contentEdgeInsets = UIEdgeInsets(top: 5, left: 8, bottom: 5, right: 8)
+        nutXoaTabSanPham.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        nutXoaTabSanPham.isHidden = true
+        nutXoaTabSanPham.addTarget(self, action: #selector(bamXoaTabSanPhamHienTai), for: .touchUpInside)
+
+        let hangTieuDe = UIStackView(arrangedSubviews: [lbHuongDan, UIView(), nutXoaTabSanPham, nutThemSanPham])
+        hangTieuDe.axis = .horizontal
+        hangTieuDe.spacing = 6
+        hangTieuDe.alignment = .center
+        stack.addArrangedSubview(hangTieuDe)
+
+        cuonTabSanPham.showsHorizontalScrollIndicator = false
+        cuonTabSanPham.translatesAutoresizingMaskIntoConstraints = false
+        cuonTabSanPham.heightAnchor.constraint(equalToConstant: 36).isActive = true
+
+        nganTabSanPham.axis = .horizontal
+        nganTabSanPham.spacing = 8
+        nganTabSanPham.alignment = .center
+        nganTabSanPham.translatesAutoresizingMaskIntoConstraints = false
+        cuonTabSanPham.addSubview(nganTabSanPham)
+
+        NSLayoutConstraint.activate([
+            nganTabSanPham.topAnchor.constraint(equalTo: cuonTabSanPham.contentLayoutGuide.topAnchor),
+            nganTabSanPham.leadingAnchor.constraint(equalTo: cuonTabSanPham.contentLayoutGuide.leadingAnchor),
+            nganTabSanPham.trailingAnchor.constraint(equalTo: cuonTabSanPham.contentLayoutGuide.trailingAnchor),
+            nganTabSanPham.bottomAnchor.constraint(equalTo: cuonTabSanPham.contentLayoutGuide.bottomAnchor),
+            nganTabSanPham.heightAnchor.constraint(equalTo: cuonTabSanPham.frameLayoutGuide.heightAnchor)
+        ])
+        stack.addArrangedSubview(cuonTabSanPham)
+
+        nhanTomTatNhieuSP.font = .systemFont(ofSize: 12, weight: .medium)
+        nhanTomTatNhieuSP.textColor = BangMauBCTD.xanhChuDao
+        nhanTomTatNhieuSP.numberOfLines = 0
+        stack.addArrangedSubview(nhanTomTatNhieuSP)
+
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: khung.topAnchor, constant: 10),
+            stack.leadingAnchor.constraint(equalTo: khung.leadingAnchor, constant: 10),
+            stack.trailingAnchor.constraint(equalTo: khung.trailingAnchor, constant: -10),
+            stack.bottomAnchor.constraint(equalTo: khung.bottomAnchor, constant: -10)
+        ])
+
+        capNhatGiaoDienThanhTabSanPham()
+        return khung
+    }
+
+    private func capNhatGiaoDienThanhTabSanPham() {
+        for v in nganTabSanPham.arrangedSubviews {
+            nganTabSanPham.removeArrangedSubview(v)
+            v.removeFromSuperview()
+        }
+
+        for (idx, sp) in danhSachSanPham.enumerated() {
+            let nut = UIButton(type: .system)
+            nut.tag = idx
+            let dangChon = (idx == chiSoSanPhamHienTai)
+            let tenRutGon: String
+            let tenClean = sp.tenSanPham.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !tenClean.isEmpty {
+                let cat = tenClean.count > 14 ? String(tenClean.prefix(14)) + "…" : tenClean
+                tenRutGon = "SP \(idx + 1): \(cat)"
+            } else {
+                tenRutGon = "Sản phẩm \(idx + 1)"
+            }
+            let kyHieuAnh = (sp.anhMau != nil) ? " 📷" : ""
+            nut.setTitle(tenRutGon + kyHieuAnh, for: .normal)
+            nut.titleLabel?.font = .systemFont(ofSize: 12.5, weight: dangChon ? .bold : .semibold)
+            nut.backgroundColor = dangChon ? BangMauBCTD.xanhChuDao : BangMauBCTD.nenThePhu
+            nut.setTitleColor(dangChon ? .white : BangMauBCTD.chuChinh, for: .normal)
+            nut.layer.cornerRadius = 9
+            nut.layer.borderWidth = 1
+            nut.layer.borderColor = (dangChon ? BangMauBCTD.xanhChuDao : BangMauBCTD.vienDam).cgColor
+            nut.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+            nut.heightAnchor.constraint(equalToConstant: 32).isActive = true
+            nut.addTarget(self, action: #selector(bamChonTabSanPham(_:)), for: .touchUpInside)
+            nganTabSanPham.addArrangedSubview(nut)
+        }
+
+        nutXoaTabSanPham.isHidden = (danhSachSanPham.count <= 1)
+        let soAnh = danhSachSanPham.filter { $0.anhMau != nil }.count
+        if danhSachSanPham.count == 1 {
+            nhanTomTatNhieuSP.text = "Đang nhập Sản phẩm 1 — bấm ➕ Thêm SP nếu muốn nhập thêm nhiều sản phẩm & ảnh gộp chung vào 1 Poster."
+        } else {
+            nhanTomTatNhieuSP.text = "✨ Đang sửa SP \(chiSoSanPhamHienTai + 1)/\(danhSachSanPham.count) (đã có \(soAnh) ảnh mẫu) — toàn bộ \(danhSachSanPham.count) sản phẩm sẽ tự gộp chung vào 1 Poster!"
+        }
+        capNhatThanhThuNhoAnhMau()
+    }
+
+    private func capNhatThanhThuNhoAnhMau() {
+        for v in nganThuNhoAnh.arrangedSubviews {
+            nganThuNhoAnh.removeArrangedSubview(v)
+            v.removeFromSuperview()
+        }
+        let cacSPCoAnh = danhSachSanPham.enumerated().filter { $0.element.anhMau != nil }
+        cuonThuNhoAnh.isHidden = (cacSPCoAnh.count <= 1)
+        guard cacSPCoAnh.count > 1 else { return }
+
+        for (idx, sp) in cacSPCoAnh {
+            let khung = UIView()
+            khung.translatesAutoresizingMaskIntoConstraints = false
+            khung.widthAnchor.constraint(equalToConstant: 64).isActive = true
+            khung.heightAnchor.constraint(equalToConstant: 64).isActive = true
+            khung.layer.cornerRadius = 8
+            khung.clipsToBounds = true
+            khung.layer.borderWidth = (idx == chiSoSanPhamHienTai) ? 2.5 : 1.0
+            khung.layer.borderColor = ((idx == chiSoSanPhamHienTai) ? BangMauBCTD.xanhChuDao : BangMauBCTD.vienDam).cgColor
+
+            let iv = UIImageView(image: sp.anhMau)
+            iv.contentMode = .scaleAspectFill
+            iv.translatesAutoresizingMaskIntoConstraints = false
+            khung.addSubview(iv)
+
+            let lb = UILabel()
+            lb.text = "SP \(idx + 1)"
+            lb.font = .systemFont(ofSize: 10, weight: .bold)
+            lb.textColor = .white
+            lb.backgroundColor = UIColor.black.withAlphaComponent(0.65)
+            lb.textAlignment = .center
+            lb.translatesAutoresizingMaskIntoConstraints = false
+            khung.addSubview(lb)
+
+            let nutChon = UIButton(type: .custom)
+            nutChon.tag = idx
+            nutChon.translatesAutoresizingMaskIntoConstraints = false
+            nutChon.addTarget(self, action: #selector(bamChonTabSanPham(_:)), for: .touchUpInside)
+            khung.addSubview(nutChon)
+
+            NSLayoutConstraint.activate([
+                iv.topAnchor.constraint(equalTo: khung.topAnchor),
+                iv.leadingAnchor.constraint(equalTo: khung.leadingAnchor),
+                iv.trailingAnchor.constraint(equalTo: khung.trailingAnchor),
+                iv.bottomAnchor.constraint(equalTo: khung.bottomAnchor),
+                lb.leadingAnchor.constraint(equalTo: khung.leadingAnchor),
+                lb.trailingAnchor.constraint(equalTo: khung.trailingAnchor),
+                lb.bottomAnchor.constraint(equalTo: khung.bottomAnchor),
+                lb.heightAnchor.constraint(equalToConstant: 16),
+                nutChon.topAnchor.constraint(equalTo: khung.topAnchor),
+                nutChon.leadingAnchor.constraint(equalTo: khung.leadingAnchor),
+                nutChon.trailingAnchor.constraint(equalTo: khung.trailingAnchor),
+                nutChon.bottomAnchor.constraint(equalTo: khung.bottomAnchor)
+            ])
+            nganThuNhoAnh.addArrangedSubview(khung)
+        }
+    }
+
+    private func luuDuLieuTabHienTai() {
+        guard chiSoSanPhamHienTai >= 0, chiSoSanPhamHienTai < danhSachSanPham.count else { return }
+        danhSachSanPham[chiSoSanPhamHienTai].anhMau = anhMau
+        danhSachSanPham[chiSoSanPhamHienTai].tenSanPham = (oTenSanPham.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        danhSachSanPham[chiSoSanPhamHienTai].giaNiemYet = (oGiaNiemYet.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        danhSachSanPham[chiSoSanPhamHienTai].giaKhuyenMai = (oGiaKhuyenMai.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        danhSachSanPham[chiSoSanPhamHienTai].uuDai = (oUuDai.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        danhSachSanPham[chiSoSanPhamHienTai].diemNoiBat = (oDiemNoiBat.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func napDuLieuTabHienTaiLenGiaoDien() {
+        guard chiSoSanPhamHienTai >= 0, chiSoSanPhamHienTai < danhSachSanPham.count else { return }
+        let sp = danhSachSanPham[chiSoSanPhamHienTai]
+        anhMau = sp.anhMau
+        anhMauView.image = sp.anhMau
+        nhanChuaCoAnhMau.isHidden = (sp.anhMau != nil)
+        nutXoaAnhMau.isHidden = (sp.anhMau == nil)
+        nhanChuaCoAnhMau.text = "Chưa chọn ảnh mẫu cho Sản phẩm \(chiSoSanPhamHienTai + 1)\nBấm nút bên dưới để chọn ảnh từ thư viện"
+
+        oTenSanPham.text = sp.tenSanPham
+        oGiaNiemYet.text = sp.giaNiemYet
+        oGiaKhuyenMai.text = sp.giaKhuyenMai
+        oUuDai.text = sp.uuDai
+        oDiemNoiBat.text = sp.diemNoiBat
+        capNhatGiaoDienThanhTabSanPham()
+        dongBoPromptTuDongNeuChuaSuaTay()
+    }
+
+    private func dongBoPromptTuDongNeuChuaSuaTay() {
+        let cur = oPromptFlow.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cur.isEmpty || cur == promptFlowTuTaoGanNhat {
+            let tt = thuThapThongTin()
+            let coAnh = danhSachSanPham.contains { $0.anhMau != nil }
+            if coAnh || danhSachSanPham.contains(where: { $0.coDuLieu }) {
+                let pMoi = DichVuTruyenThongGemini.dungChung.taoPromptChoGoogleFlow(thongTin: tt, coAnhMau: coAnh)
+                promptFlowTuTaoGanNhat = pMoi
+                oPromptFlow.text = pMoi
+            }
+        }
+    }
+
+    @objc private func khiThayDoiThongTinSanPham() {
+        luuDuLieuTabHienTai()
+        capNhatGiaoDienThanhTabSanPham()
+        dongBoPromptTuDongNeuChuaSuaTay()
+    }
+
+    @objc private func bamChonTabSanPham(_ sender: UIButton) {
+        view.endEditing(true)
+        luuDuLieuTabHienTai()
+        let idx = sender.tag
+        guard idx >= 0, idx < danhSachSanPham.count else { return }
+        chiSoSanPhamHienTai = idx
+        napDuLieuTabHienTaiLenGiaoDien()
+    }
+
+    @objc private func bamThemTabSanPham() {
+        view.endEditing(true)
+        luuDuLieuTabHienTai()
+        danhSachSanPham.append(MucSanPhamPoster())
+        chiSoSanPhamHienTai = danhSachSanPham.count - 1
+        napDuLieuTabHienTaiLenGiaoDien()
+    }
+
+    @objc private func bamXoaTabSanPhamHienTai() {
+        view.endEditing(true)
+        guard danhSachSanPham.count > 1 else { return }
+        danhSachSanPham.remove(at: chiSoSanPhamHienTai)
+        chiSoSanPhamHienTai = max(0, min(chiSoSanPhamHienTai, danhSachSanPham.count - 1))
+        napDuLieuTabHienTaiLenGiaoDien()
+    }
+
     private func taoTheAnhMau() -> UIView {
-        let (the, stack) = taoKhungThe(tieuDe: "1. Ảnh mẫu sản phẩm")
+        let (the, stack) = taoKhungThe(tieuDe: "1. Ảnh mẫu & Tab sản phẩm (Gộp chung 1 Poster)")
+
+        stack.addArrangedSubview(taoThanhTabSanPham())
 
         let khungAnh = UIView()
         khungAnh.backgroundColor = BangMauBCTD.nenTrang
@@ -2670,7 +3509,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         anhMauView.translatesAutoresizingMaskIntoConstraints = false
         khungAnh.addSubview(anhMauView)
 
-        nhanChuaCoAnhMau.text = "Chưa chọn ảnh mẫu\nBấm nút bên dưới để chọn ảnh sản phẩm từ thư viện"
+        nhanChuaCoAnhMau.text = "Chưa chọn ảnh mẫu cho Sản phẩm 1\nBấm nút bên dưới để chọn ảnh sản phẩm từ thư viện"
         nhanChuaCoAnhMau.font = .systemFont(ofSize: 13)
         nhanChuaCoAnhMau.textColor = BangMauBCTD.chuPhu
         nhanChuaCoAnhMau.textAlignment = .center
@@ -2690,7 +3529,27 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         ])
         stack.addArrangedSubview(khungAnh)
 
-        nutNhapAnhMau.setTitle("📷 Nhập ảnh mẫu", for: .normal)
+        cuonThuNhoAnh.showsHorizontalScrollIndicator = false
+        cuonThuNhoAnh.translatesAutoresizingMaskIntoConstraints = false
+        cuonThuNhoAnh.heightAnchor.constraint(equalToConstant: 66).isActive = true
+        cuonThuNhoAnh.isHidden = true
+
+        nganThuNhoAnh.axis = .horizontal
+        nganThuNhoAnh.spacing = 8
+        nganThuNhoAnh.alignment = .center
+        nganThuNhoAnh.translatesAutoresizingMaskIntoConstraints = false
+        cuonThuNhoAnh.addSubview(nganThuNhoAnh)
+
+        NSLayoutConstraint.activate([
+            nganThuNhoAnh.topAnchor.constraint(equalTo: cuonThuNhoAnh.contentLayoutGuide.topAnchor),
+            nganThuNhoAnh.leadingAnchor.constraint(equalTo: cuonThuNhoAnh.contentLayoutGuide.leadingAnchor),
+            nganThuNhoAnh.trailingAnchor.constraint(equalTo: cuonThuNhoAnh.contentLayoutGuide.trailingAnchor),
+            nganThuNhoAnh.bottomAnchor.constraint(equalTo: cuonThuNhoAnh.contentLayoutGuide.bottomAnchor),
+            nganThuNhoAnh.heightAnchor.constraint(equalTo: cuonThuNhoAnh.frameLayoutGuide.heightAnchor)
+        ])
+        stack.addArrangedSubview(cuonThuNhoAnh)
+
+        nutNhapAnhMau.setTitle("📷 Chọn ảnh cho SP này", for: .normal)
         nutNhapAnhMau.titleLabel?.font = .systemFont(ofSize: 14.5, weight: .bold)
         nutNhapAnhMau.backgroundColor = BangMauBCTD.xanhChuDao
         nutNhapAnhMau.setTitleColor(.white, for: .normal)
@@ -2719,9 +3578,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     private func taoTheThongTinSanPham() -> UIView {
-        let (the, stack) = taoKhungThe(tieuDe: "2. Thông tin sản phẩm & giá bán")
+        let (the, stack) = taoKhungThe(tieuDe: "2. Thông tin sản phẩm đang chọn & Cài đặt Poster")
 
-        stack.addArrangedSubview(taoNhanNho("Tên sản phẩm"))
+        for tf in [oTenSanPham, oGiaNiemYet, oGiaKhuyenMai, oUuDai, oLienHe] {
+            tf.addTarget(self, action: #selector(khiThayDoiThongTinSanPham), for: .editingChanged)
+        }
+
+        stack.addArrangedSubview(taoNhanNho("Tên sản phẩm (của tab đang chọn)"))
         stack.addArrangedSubview(taoOChiTiet(oTenSanPham, goiY: "VD: Máy lạnh Daikin Inverter 1 HP"))
 
         let cotGiaGoc = UIStackView(arrangedSubviews: [
@@ -2744,10 +3607,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         hangGia.distribution = .fillEqually
         stack.addArrangedSubview(hangGia)
 
-        stack.addArrangedSubview(taoNhanNho("Ưu đãi / Quà tặng / Trả chậm"))
+        stack.addArrangedSubview(taoNhanNho("Ưu đãi / Quà tặng / Trả chậm (của SP đang chọn)"))
         stack.addArrangedSubview(taoOChiTiet(oUuDai, goiY: "VD: Trả chậm 0%, miễn phí lắp đặt, tặng ống đồng"))
 
-        stack.addArrangedSubview(taoNhanNho("Điểm nổi bật / Ghi chú thêm"))
+        stack.addArrangedSubview(taoNhanNho("Điểm nổi bật / Ghi chú thêm (của SP đang chọn)"))
         oDiemNoiBat.font = .systemFont(ofSize: 14.5)
         oDiemNoiBat.textColor = BangMauBCTD.chuChinh
         oDiemNoiBat.backgroundColor = BangMauBCTD.nenTrang
@@ -2756,9 +3619,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         oDiemNoiBat.layer.borderColor = BangMauBCTD.vienDam.cgColor
         oDiemNoiBat.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
         oDiemNoiBat.heightAnchor.constraint(equalToConstant: 76).isActive = true
+        oDiemNoiBat.delegate = self
         stack.addArrangedSubview(oDiemNoiBat)
 
-        stack.addArrangedSubview(taoNhanNho("Siêu thị / Hotline / Địa chỉ"))
+        stack.addArrangedSubview(taoNhanNho("Siêu thị / Hotline / Địa chỉ (chung cho Poster)"))
         stack.addArrangedSubview(taoOChiTiet(oLienHe, goiY: "VD: ĐMX Siêu thị 76 · Hotline 09xx.xxx.xxx"))
 
         stack.addArrangedSubview(taoNhanNho("Kích thước / Tỷ lệ ảnh (đồng bộ Google Flow)"))
@@ -2774,6 +3638,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
         stack.addArrangedSubview(taoNhanNho("Phong cách thiết kế ảnh"))
         chonPhongCachAnh.selectedSegmentIndex = 0
+        chonPhongCachAnh.addTarget(self, action: #selector(khiThayDoiThongTinSanPham), for: .valueChanged)
         stack.addArrangedSubview(chonPhongCachAnh)
 
         return the
@@ -2865,7 +3730,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         stack.addArrangedSubview(hangPhu)
 
         vongQuay.hidesWhenStopped = true
-        nhanTrangThai.text = "Nhập thông tin sản phẩm rồi bấm Mở Google Flow để tự điền prompt, hoặc bấm Viết 3 bài Facebook."
+        nhanTrangThai.text = "Nhập 1 hoặc nhiều tab sản phẩm rồi bấm Mở Google Flow để tự gộp ảnh + điền prompt + tải ảnh 1K."
         nhanTrangThai.font = .systemFont(ofSize: 13)
         nhanTrangThai.textColor = BangMauBCTD.chuPhu
         nhanTrangThai.numberOfLines = 0
@@ -2979,6 +3844,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         anhMauView.image = nil
         nhanChuaCoAnhMau.isHidden = false
         nutXoaAnhMau.isHidden = true
+        luuDuLieuTabHienTai()
+        capNhatGiaoDienThanhTabSanPham()
+        dongBoPromptTuDongNeuChuaSuaTay()
     }
 
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
@@ -2988,10 +3856,14 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         provider.loadObject(ofClass: UIImage.self) { [weak self] obj, _ in
             guard let img = obj as? UIImage else { return }
             DispatchQueue.main.async {
-                self?.anhMau = img
-                self?.anhMauView.image = img
-                self?.nhanChuaCoAnhMau.isHidden = true
-                self?.nutXoaAnhMau.isHidden = false
+                guard let self else { return }
+                self.anhMau = img
+                self.anhMauView.image = img
+                self.nhanChuaCoAnhMau.isHidden = true
+                self.nutXoaAnhMau.isHidden = false
+                self.luuDuLieuTabHienTai()
+                self.capNhatGiaoDienThanhTabSanPham()
+                self.dongBoPromptTuDongNeuChuaSuaTay()
             }
         }
     }
@@ -2999,6 +3871,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     // MARK: - Đọc dữ liệu nhập & gọi Gemini
 
     private func thuThapThongTin() -> ThongTinSanPhamTruyenThong {
+        luuDuLieuTabHienTai()
+
         let dsTyLe = ["1:1", "3:4", "4:3", "9:16", "16:9"]
         let idxTyLe = max(0, min(chonTyLe.selectedSegmentIndex, dsTyLe.count - 1))
         let tyLe = dsTyLe[idxTyLe]
@@ -3013,22 +3887,26 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         case 2: phongCachAnh = "Flash Sale"
         default: phongCachAnh = "Rực rỡ ĐMX"
         }
+
+        let spChinh = danhSachSanPham.first(where: { $0.coDuLieu }) ?? danhSachSanPham[chiSoSanPhamHienTai]
         return ThongTinSanPhamTruyenThong(
-            tenSanPham: (oTenSanPham.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
-            giaNiemYet: (oGiaNiemYet.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
-            giaKhuyenMai: (oGiaKhuyenMai.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
-            uuDai: (oUuDai.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
-            diemNoiBat: (oDiemNoiBat.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
+            tenSanPham: spChinh.tenSanPham,
+            giaNiemYet: spChinh.giaNiemYet,
+            giaKhuyenMai: spChinh.giaKhuyenMai,
+            uuDai: spChinh.uuDai,
+            diemNoiBat: spChinh.diemNoiBat,
             lienHe: (oLienHe.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
             tyLeAnh: tyLe,
             modelFlow: modelFlow,
-            phongCachAnh: phongCachAnh
+            phongCachAnh: phongCachAnh,
+            danhSachSanPham: danhSachSanPham
         )
     }
 
     private func kiemTraHopLe(_ tt: ThongTinSanPhamTruyenThong) -> Bool {
-        if anhMau == nil && tt.tenSanPham.isEmpty && tt.giaKhuyenMai.isEmpty && tt.giaNiemYet.isEmpty {
-            hienThongBao(tieuDe: "Thiếu thông tin", noiDung: "Hãy nhập ít nhất Tên sản phẩm / Giá bán hoặc chọn Ảnh mẫu trước khi tạo.")
+        let coBatKySP = tt.danhSachSanPham.contains { $0.coDuLieu }
+        if !coBatKySP && anhMau == nil && tt.tenSanPham.isEmpty && tt.giaKhuyenMai.isEmpty && tt.giaNiemYet.isEmpty {
+            hienThongBao(tieuDe: "Thiếu thông tin", noiDung: "Hãy nhập ít nhất Tên sản phẩm / Giá bán hoặc chọn Ảnh mẫu ở ít nhất 1 tab sản phẩm trước khi tạo.")
             return false
         }
         return true
@@ -3045,35 +3923,35 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     private func chuanBiPromptGoogleFlow() -> String? {
+        let tt = thuThapThongTin()
+        guard kiemTraHopLe(tt) else { return nil }
         let promptHienTai = oPromptFlow.text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !promptHienTai.isEmpty && promptHienTai != promptFlowTuTaoGanNhat {
             return promptHienTai
         }
-        let tt = thuThapThongTin()
-        guard kiemTraHopLe(tt) else { return nil }
+        let coAnh = tt.danhSachSanPham.contains { $0.anhMau != nil }
         let promptMoi = DichVuTruyenThongGemini.dungChung.taoPromptChoGoogleFlow(
             thongTin: tt,
-            coAnhMau: anhMau != nil
+            coAnhMau: coAnh
         )
         promptFlowTuTaoGanNhat = promptMoi
         oPromptFlow.text = promptMoi
         return promptMoi
     }
 
-
     @objc private func bamMoGoogleFlow() {
         view.endEditing(true)
         let tt = thuThapThongTin()
         guard let prompt = chuanBiPromptGoogleFlow() else { return }
+        let anhTongHop = layAnhMauTongHopChoPoster()
 
         promptChoDienFlow = prompt
         UIPasteboard.general.string = prompt
 
-        // Tự động viết luôn 3 bài đăng Facebook chạy nền song song trong lúc người dùng tạo ảnh trên Flow
         if kiemTraHopLe(tt) {
             oBaiDangFB.text = "✍️ Đang tự động viết 3 phong cách bài đăng Facebook mới..."
             datTrangThaiDangTai(true, thongDiep: "Đang tự động viết 3 phong cách bài đăng Facebook chạy nền...")
-            DichVuTruyenThongGemini.dungChung.tao3BaiDangFacebook(anhMau: anhMau, thongTin: tt) { [weak self] kq in
+            DichVuTruyenThongGemini.dungChung.tao3BaiDangFacebook(anhMau: anhTongHop, thongTin: tt) { [weak self] kq in
                 guard let self else { return }
                 switch kq {
                 case .success(let baiMoi):
@@ -3089,12 +3967,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             }
         }
 
-        // Chuyển sang tab Google Flow và luôn tự tạo Dự án mới → đồng bộ Model + Tỷ lệ + Prompt + Ảnh mẫu
         canTaoDuAnMoiFlow = true
         thanhChuyenCheDo.selectedSegmentIndex = 1
         khungTaoNoiDung.isHidden = true
         khungGoogleFlow.isHidden = false
-        hienToastFlow("Đang tạo Dự án mới & đồng bộ \(tt.modelFlow) (\(tt.tyLeAnh))...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 4.5)
+        let soSP = max(1, tt.danhSachSanPham.filter { $0.coDuLieu }.count)
+        let nhanSP = (soSP >= 2) ? "gộp \(soSP) SP · " : ""
+        hienToastFlow("Đang tạo Dự án mới & \(nhanSP)đồng bộ \(tt.modelFlow) (\(tt.tyLeAnh))...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 4.5)
 
         let urlHienTai = webViewFlow.url?.absoluteString.lowercased() ?? ""
         if daTaiTrangFlow && (urlHienTai == "https://flow.google.com/" || urlHienTai == "https://flow.google.com") {
@@ -3129,6 +4008,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         view.endEditing(true)
         let tt = thuThapThongTin()
         guard kiemTraHopLe(tt) else { return }
+        let anhTongHop = layAnhMauTongHopChoPoster()
 
         datTrangThaiDangTai(true, thongDiep: "⚡ Gemini đang tạo ảnh truyền thông & viết 3 phong cách bài đăng...")
 
@@ -3137,13 +4017,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         var kqBai: Result<KetQua3BaiDangFacebook, Error>?
 
         nhom.enter()
-        DichVuTruyenThongGemini.dungChung.taoAnhTruyenThong(anhMau: anhMau, thongTin: tt) { res in
+        DichVuTruyenThongGemini.dungChung.taoAnhTruyenThong(anhMau: anhTongHop, thongTin: tt) { res in
             kqAnh = res
             nhom.leave()
         }
 
         nhom.enter()
-        DichVuTruyenThongGemini.dungChung.tao3BaiDangFacebook(anhMau: anhMau, thongTin: tt) { res in
+        DichVuTruyenThongGemini.dungChung.tao3BaiDangFacebook(anhMau: anhTongHop, thongTin: tt) { res in
             kqBai = res
             nhom.leave()
         }
@@ -3178,9 +4058,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         view.endEditing(true)
         let tt = thuThapThongTin()
         guard kiemTraHopLe(tt) else { return }
+        let anhTongHop = layAnhMauTongHopChoPoster()
 
         datTrangThaiDangTai(true, thongDiep: "🎨 Gemini đang tạo ảnh truyền thông...")
-        DichVuTruyenThongGemini.dungChung.taoAnhTruyenThong(anhMau: anhMau, thongTin: tt) { [weak self] res in
+        DichVuTruyenThongGemini.dungChung.taoAnhTruyenThong(anhMau: anhTongHop, thongTin: tt) { [weak self] res in
             guard let self else { return }
             switch res {
             case .success(let img):
@@ -3198,11 +4079,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         view.endEditing(true)
         let tt = thuThapThongTin()
         guard kiemTraHopLe(tt) else { return }
+        let anhTongHop = layAnhMauTongHopChoPoster()
 
         _ = chuanBiPromptGoogleFlow()
         oBaiDangFB.text = "✍️ Đang viết lại 3 phong cách bài đăng Facebook mới..."
         datTrangThaiDangTai(true, thongDiep: "✍️ Gemini Flash-Lite đang viết 3 phong cách bài đăng Facebook...")
-        DichVuTruyenThongGemini.dungChung.tao3BaiDangFacebook(anhMau: anhMau, thongTin: tt) { [weak self] res in
+        DichVuTruyenThongGemini.dungChung.tao3BaiDangFacebook(anhMau: anhTongHop, thongTin: tt) { [weak self] res in
             guard let self else { return }
             switch res {
             case .success(let bai):
@@ -3245,6 +4127,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     func textViewDidChange(_ textView: UITextView) {
         if textView === oBaiDangFB {
             luuLaiBaiDangHienTaiTuTextView()
+        } else if textView === oDiemNoiBat {
+            khiThayDoiThongTinSanPham()
         }
     }
 
