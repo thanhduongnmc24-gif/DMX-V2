@@ -1218,7 +1218,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
             if (t.length < 2 || t.length > 65) continue;
             const hasModel = /(nano banana|imagen|veo|banana)/i.test(t);
-            const hasCount = /x[1-4]/i.test(t);
+            const hasCount = /\bx[1-4]\b/i.test(t);
             if (!hasModel && !hasCount) continue;
 
             let score = 0;
@@ -1282,8 +1282,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 const t = norm(el.innerText || el.textContent).toLowerCase();
                 if (t.length > 45) continue;
                 for (const tg of targets) {
-                  if (t === tg || t.endsWith(' ' + tg) || t.includes('
-' + tg)) return el;
+                  if (t === tg || t.endsWith(' ' + tg) || t.includes('\n' + tg)) return el;
                 }
               }
               return null;
@@ -1330,7 +1329,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 const r = el.getBoundingClientRect();
                 if (r.width < 120 || r.height > 72) continue;
                 if (r.top > window.innerHeight * 0.86) continue;
-                if (/(nano banana|imagen|veo)/i.test(t) && !/x[1-4]/i.test(t)) {
+                if (/(nano banana|imagen|veo)/i.test(t) && !/\bx[1-4]\b/i.test(t)) {
                   dropdownBtn = el;
                   break;
                 }
@@ -1565,9 +1564,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             const fullMeta = (ariaMeta + ' ' + rawText).toLowerCase();
 
             // Loại trừ nút Đóng (×), nút Thêm (+), nút Tải lên / Xóa
-            if (/^(x|×|✕|✖|\+|add|close|đóng|hủy|cancel|clear|xoá|xóa|delete|remove)$/i.test(rawText)) continue;
+            if (/^(x|×|\u2715|\u2716|\+|add|close|đóng|hủy|cancel|clear|xoá|xóa|delete|remove)$/i.test(rawText)) continue;
             if (/(^|\s)(close|đóng|dismiss|cancel|remove|delete|xoá|xóa|add|upload|attach|tải lên|thêm|×)(\s|$)/i.test(fullMeta)) continue;
-            if (/(nano banana|imagen|veo)/i.test(rawText) || /x[1-4]/i.test(rawText)) continue;
+            if (/(nano banana|imagen|veo)/i.test(rawText) || /\bx[1-4]\b/i.test(rawText)) continue;
 
             let score = 0;
 
@@ -2221,7 +2220,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             if (r.width < 65 || r.width > 330 || r.height < 18 || r.height > 68) continue;
             if (r.top < boxRect.top - 10) continue;
             const t = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
-            if (t.length <= 65 && (/(nano banana|imagen|veo|banana)/i.test(t) || /x[1-4]/i.test(t))) {
+            if (t.length <= 65 && (/(nano banana|imagen|veo|banana)/i.test(t) || /\bx[1-4]\b/i.test(t))) {
               pillRect = r;
               break;
             }
