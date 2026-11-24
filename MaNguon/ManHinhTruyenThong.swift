@@ -140,62 +140,80 @@ final class DichVuTruyenThongGemini {
         let moTaPhongCach: String
         switch thongTin.phongCachAnh {
         case "Sang trọng":
-            moTaPhongCach = "Phong cách hiện đại, sang trọng, nền sáng tinh tế (xanh navy đậm kết hợp trắng/vàng ánh kim), bố cục thoáng, sạch, chuẩn thương hiệu cao cấp."
+            moTaPhongCach = "Phong cách Key Visual thương hiệu cao cấp (Luxury Commercial Studio): nền xanh navy trầm hoặc trắng ngọc trai sang trọng kết hợp ánh sáng rim-light vàng champagne tinh tế, vật phẩm đặt trên bục trưng bày 3D tối giản có phản chiếu nhẹ, bố cục thoáng đạt, đẳng cấp."
         case "Flash Sale":
-            moTaPhongCach = "Phong cách Flash Sale rực lửa, năng lượng cao (đỏ cam - vàng rực), tem giá sốc lớn, thu hút ánh nhìn ngay lập tức trên Facebook."
+            moTaPhongCach = "Phong cách Đại Tiệc Khuyến Mãi / Flash Sale bùng nổ: nền chuyển sắc đỏ ruby - cam rực rỡ kết hợp tia sáng năng lượng 3D hiện đại, huy hiệu giá sốc tương phản cực mạnh, thu hút thị giác tức thì khi lướt bảng tin Facebook."
         default:
-            moTaPhongCach = "Phong cách quảng cáo điện máy rực rỡ, chuyên nghiệp (xanh dương đậm kết hợp vàng nổi bật và trắng sạch sẽ), bố cục cân đối, dễ đọc trên điện thoại."
+            moTaPhongCach = "Phong cách Poster Quảng Cáo Bán Lẻ & Điện Máy hiện đại, rực rỡ, chuyên nghiệp: nền xanh dương sâu (Deep Royal Blue) chuyển sắc mượt kết hợp điểm nhấn vàng kim nổi bật và khung thẻ trắng tinh khiết, ánh sáng studio 3D sắc nét, bố cục cân đối chuẩn tỷ lệ vàng, cực kỳ dễ đọc trên màn hình điện thoại."
         }
 
         let cacSP = thongTin.danhSachSanPham.filter { $0.coDuLieu }
         if cacSP.count >= 2 {
-            var moTaTungSP: [String] = []
-            for (idx, sp) in cacSP.enumerated() {
-                var dong: [String] = ["• SẢN PHẨM \(idx + 1):"]
-                if !sp.tenSanPham.isEmpty { dong.append("  - Tên sản phẩm: \"\(sp.tenSanPham)\"") }
-                if !sp.giaNiemYet.isEmpty { dong.append("  - Giá niêm yết (gạch ngang): \"\(sp.giaNiemYet)\"") }
-                if !sp.giaKhuyenMai.isEmpty { dong.append("  - Giá khuyến mãi / Giá sốc (to, đậm, nổi bật): \"\(sp.giaKhuyenMai)\"") }
-                if !sp.uuDai.isEmpty { dong.append("  - Ưu đãi / Quà tặng: \"\(sp.uuDai)\"") }
-                if !sp.diemNoiBat.isEmpty { dong.append("  - Điểm nổi bật: \"\(sp.diemNoiBat)\"") }
-                moTaTungSP.append(dong.joined(separator: "\n"))
+            var moTaTungKhoi: [String] = []
+            for sp in cacSP {
+                var dong: [String] = []
+                let tenHienThi = sp.tenSanPham.isEmpty ? "Mặt hàng khuyến mãi" : sp.tenSanPham
+                dong.append("• Nhóm thông tin đi kèm của \"\(tenHienThi)\":")
+                if !sp.tenSanPham.isEmpty {
+                    dong.append("  - Tên hiển thị rõ nét: \"\(sp.tenSanPham)\"")
+                }
+                if !sp.giaKhuyenMai.isEmpty {
+                    dong.append("  - Giá ưu đãi (cỡ chữ lớn, in đậm nổi bật trong khung giá): \"\(sp.giaKhuyenMai)\"")
+                }
+                if !sp.giaNiemYet.isEmpty {
+                    dong.append("  - Giá gốc (cỡ chữ nhỏ hơn, gạch ngang gọn gàng): \"\(sp.giaNiemYet)\"")
+                }
+                if !sp.uuDai.isEmpty {
+                    dong.append("  - Huy hiệu ưu đãi / quà tặng: \"\(sp.uuDai)\"")
+                }
+                if !sp.diemNoiBat.isEmpty {
+                    dong.append("  - Điểm nổi bật ngắn gọn: \"\(sp.diemNoiBat)\"")
+                }
+                moTaTungKhoi.append(dong.joined(separator: "\n"))
             }
             if !thongTin.lienHe.isEmpty {
-                moTaTungSP.append("• Thông tin cửa hàng / liên hệ ở chân poster: \"\(thongTin.lienHe)\"")
+                moTaTungKhoi.append("• Thanh thông tin cửa hàng / hotline ở chân poster: \"\(thongTin.lienHe)\"")
             }
+
             let soAnh = cacSP.filter { $0.anhMau != nil }.count
-            let nguonNhieuSP = (coAnhMau || soAnh > 0)
-                ? "Ảnh mẫu đính kèm chứa hình ảnh thực tế của \(max(1, soAnh)) sản phẩm (được ghép theo thứ tự SẢN PHẨM 1, SẢN PHẨM 2...). Hãy tách nền gọn gàng từng sản phẩm, giữ nguyên 100% hình dáng, màu sắc, chi tiết thật của từng sản phẩm và GỘP TẤT CẢ \(cacSP.count) SẢN PHẨM VÀO CHUNG 1 POSTER quảng cáo thống nhất (không giữ khung chia ô thô của ảnh mẫu mà bố trí các sản phẩm thành bố cục poster khuyến mãi chuyên nghiệp, mỗi sản phẩm đặt cạnh đúng bảng tên và giá bán tương ứng của sản phẩm đó)."
-                : "Tạo hình ảnh sắc nét, chân thực cho cả \(cacSP.count) sản phẩm và gộp chung vào 1 poster quảng cáo chuyên nghiệp, mỗi sản phẩm đi kèm đúng khung tên và giá bán tương ứng."
+            let huongDanXuLyAnh = (coAnhMau || soAnh > 0)
+                ? "Xử lý hình ảnh từ ảnh tham chiếu đính kèm: Tự động tách bỏ hoàn toàn bàn tay người cầm, phông nền tạp phía sau và phần viền đen/khung thừa của ảnh chụp màn hình. Chỉ trích xuất đúng từng sản phẩm/mã QR thật, tái tạo ánh sáng studio thương mại sắc nét, giữ nguyên 100% kiểu dáng, logo, màu sắc bao bì và chi tiết mã QR của từng món. Tuyệt đối KHÔNG giữ lại khung ghép chia ô thô của ảnh gốc mà hãy hòa trộn tất cả vào chung một không gian sân khấu poster 3D thống nhất, sang trọng."
+                : "Dựng hình ảnh 3D studio chân thực, sắc nét chuẩn nhiếp ảnh thương mại cho toàn bộ các mặt hàng và bố trí hài hòa trên cùng một sân khấu poster quảng cáo thống nhất."
 
             return """
-            Thiết kế 1 poster tổng hợp (combo nhiều sản phẩm) truyền thông bán hàng chuyên nghiệp đăng Facebook bằng tiếng Việt có dấu chuẩn xác 100%, chữ rõ nét, không sai chính tả, không bị chồng chữ.
-            \(nguonNhieuSP)
+            Thiết kế 01 Poster Quảng Cáo Thương Mại chất lượng cao (4K Commercial Advertising Key Visual) đăng Facebook bằng tiếng Việt có dấu chuẩn xác 100%, chữ in sắc nét, không sai chính tả, không đè chữ.
+            \(huongDanXuLyAnh)
             \(moTaPhongCach)
-            Các nội dung chữ BẮT BUỘC hiển thị rõ ràng, chính xác từng ký tự cho từng sản phẩm trên poster:
-            \(moTaTungSP.joined(separator: "\n"))
-            Yêu cầu bố cục: chia vùng/thẻ sản phẩm cân đối cho cả \(cacSP.count) sản phẩm trong cùng 1 poster, sản phẩm sắc nét, khung giá khuyến mãi của từng sản phẩm cực kỳ dễ đọc, phông chữ sans-serif đậm rõ dấu tiếng Việt, không thêm watermark lạ, không thừa chữ rác tiếng Anh.
+            Nội dung chữ BẮT BUỘC hiển thị chính xác từng ký tự, đặt đúng cạnh từng mặt hàng tương ứng:
+            \(moTaTungKhoi.joined(separator: "\n"))
+            Quy tắc thẩm mỹ & bố cục bắt buộc:
+            - Tuyệt đối KHÔNG viết các chữ đánh số thứ tự như "Sản phẩm 1", "Sản phẩm 2", "SP 1", "SP 2", "Mặt hàng 1" lên ảnh poster; chỉ hiển thị trực tiếp tên thật và mức giá của từng món.
+            - Nếu có hình mã QR trong ảnh mẫu, hãy đặt mã QR trong khung thẻ trắng bo góc tinh tế, sắc nét, phẳng phiu ở vị trí cân đối để khách hàng quét được ngay.
+            - Sử dụng phông chữ không chân (modern geometric bold sans-serif) dày dặn, rõ dấu tiếng Việt, độ tương phản cao, không sinh chữ tiếng Anh vô nghĩa và không chèn watermark lạ.
             """
         }
 
         var chiTiet: [String] = []
-        if !thongTin.tenSanPham.isEmpty { chiTiet.append("- Tên sản phẩm nổi bật: \"\(thongTin.tenSanPham)\"") }
-        if !thongTin.giaNiemYet.isEmpty { chiTiet.append("- Giá niêm yết (gạch ngang nhỏ hơn): \"\(thongTin.giaNiemYet)\"") }
-        if !thongTin.giaKhuyenMai.isEmpty { chiTiet.append("- Giá khuyến mãi / Giá sốc (to, đậm, nổi bật nhất): \"\(thongTin.giaKhuyenMai)\"") }
-        if !thongTin.uuDai.isEmpty { chiTiet.append("- Ưu đãi / Quà tặng (huy hiệu / khung nổi bật): \"\(thongTin.uuDai)\"") }
-        if !thongTin.diemNoiBat.isEmpty { chiTiet.append("- Điểm nổi bật (tối đa 2-3 nhãn ngắn gọn): \"\(thongTin.diemNoiBat)\"") }
-        if !thongTin.lienHe.isEmpty { chiTiet.append("- Thông tin cửa hàng / liên hệ ở chân poster: \"\(thongTin.lienHe)\"") }
+        if !thongTin.tenSanPham.isEmpty { chiTiet.append("- Tiêu đề tên sản phẩm nổi bật: \"\(thongTin.tenSanPham)\"") }
+        if !thongTin.giaKhuyenMai.isEmpty { chiTiet.append("- Giá khuyến mãi / Giá ưu đãi (cỡ chữ lớn, in đậm nổi bật nhất trong khung giá): \"\(thongTin.giaKhuyenMai)\"") }
+        if !thongTin.giaNiemYet.isEmpty { chiTiet.append("- Giá niêm yết (cỡ chữ nhỏ hơn, có đường gạch ngang gọn gàng): \"\(thongTin.giaNiemYet)\"") }
+        if !thongTin.uuDai.isEmpty { chiTiet.append("- Huy hiệu ưu đãi / Quà tặng: \"\(thongTin.uuDai)\"") }
+        if !thongTin.diemNoiBat.isEmpty { chiTiet.append("- Điểm nổi bật (2-3 cụm từ ngắn gọn, súc tích): \"\(thongTin.diemNoiBat)\"") }
+        if !thongTin.lienHe.isEmpty { chiTiet.append("- Thanh thông tin cửa hàng / liên hệ ở chân poster: \"\(thongTin.lienHe)\"") }
 
         let nguonSanPham = coAnhMau
-            ? "Giữ nguyên chính xác hình dáng, màu sắc và chi tiết của sản phẩm trong ảnh mẫu đính kèm; tách nền gọn gàng và đặt sản phẩm làm trung tâm nổi bật trong poster."
-            : "Tạo hình ảnh sản phẩm sắc nét, chân thực như chụp studio chuyên nghiệp làm trung tâm nổi bật trong poster."
+            ? "Xử lý hình ảnh từ ảnh mẫu đính kèm: Tự động tách bỏ hoàn toàn bàn tay người cầm, phông nền tạp phía sau hoặc viền thừa chụp màn hình; chỉ giữ lại đúng sản phẩm thật, làm phẳng và tái tạo ánh sáng studio thương mại 3D sắc nét, giữ nguyên 100% hình dáng, màu sắc, tem nhãn bao bì và đặt sản phẩm trên bục trưng bày nổi bật ở trung tâm poster."
+            : "Dựng hình ảnh sản phẩm chân thực, sắc nét chuẩn nhiếp ảnh studio thương mại (commercial product photography) đặt trên bục trưng bày nổi bật ở trung tâm poster."
 
         return """
-        Thiết kế một poster ảnh truyền thông bán hàng chuyên nghiệp đăng Facebook bằng tiếng Việt có dấu chuẩn xác 100%, chữ rõ nét, không sai chính tả, không bị chồng chữ.
+        Thiết kế 01 Poster Quảng Cáo Thương Mại chất lượng cao (4K Commercial Advertising Key Visual) đăng Facebook bằng tiếng Việt có dấu chuẩn xác 100%, chữ in sắc nét, không sai chính tả, không bị chồng chữ.
         \(nguonSanPham)
         \(moTaPhongCach)
-        Các nội dung chữ BẮT BUỘC hiển thị rõ ràng, chính xác từng ký tự trên poster:
+        Nội dung chữ BẮT BUỘC hiển thị rõ ràng, chính xác từng ký tự trên poster:
         \(chiTiet.joined(separator: "\n"))
-        Yêu cầu bố cục: sản phẩm sắc nét ở vùng trung tâm/bên phải, khung giá khuyến mãi cực kỳ dễ đọc, phông chữ sans-serif đậm rõ dấu tiếng Việt, không thêm watermark lạ, không thừa chữ rác tiếng Anh.
+        Quy tắc thẩm mỹ & bố cục bắt buộc:
+        - Phân cấp thị giác 3 tầng chuẩn mực: Sản phẩm sắc nét có ánh sáng viền (rim-light) và đổ bóng tự nhiên ở trung tâm; cụm tiêu đề & bảng giá khuyến mãi tương phản cao cực kỳ dễ đọc; chân poster gọn gàng.
+        - Tuyệt đối KHÔNG viết các chữ thừa như "Sản phẩm 1", "SP 1" lên ảnh; sử dụng phông chữ sans-serif hiện đại, dày dặn, rõ dấu tiếng Việt, không thêm chữ tiếng Anh vô nghĩa hay watermark lạ.
         """
     }
 
@@ -633,12 +651,39 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           if (window.__dmxTrustedHookInstalled) return;
           window.__dmxTrustedHookInstalled = true;
           window.__dmxForceTrusted = false;
+          window.__dmxUploadingSample = false;
+          window.__dmxInterceptingDownload = false;
+          window.__dmxDownloadWindowUntil = 0;
           window.__dmxHighResDataUrl = '';
           window.__dmxHighResWidth = 0;
           window.__dmxHighResHeight = 0;
           window.__dmxCapturedSignedUrls = [];
+          window.__dmxSampleBlobUrls = new Set();
+          window.__dmxBaselineSrcs = new Set();
+
+          function isDownloadCaptureAllowed() {
+            if (window.__dmxUploadingSample) return false;
+            if (window.__dmxInterceptingDownload) return true;
+            if (Date.now() < (window.__dmxDownloadWindowUntil || 0)) return true;
+            return false;
+          }
+
+          // Tự động mở cửa sổ bắt file tải 1K/2K trong 15 giây khi người dùng hoặc script bấm vào nút "1K", "2K", "Tải nội dung xuống"
+          document.addEventListener('click', function(ev) {
+            try {
+              if (window.__dmxUploadingSample) return;
+              const el = ev.target;
+              if (!el) return;
+              const container = (el.closest && el.closest('[role="menuitem"], [role="option"], button, [role="button"], li, a')) || el;
+              const txt = ((container.innerText || container.textContent || '') + ' ' + (el.innerText || el.textContent || '')).replace(/\s+/g, ' ').trim().toLowerCase();
+              if (/(^|\s)(1k|2k)(\s|$)|kích thước gốc|đã tăng độ phân giải|tải nội dung|tải xuống|download|file_download|save_alt/i.test(txt)) {
+                window.__dmxDownloadWindowUntil = Date.now() + 15000;
+              }
+            } catch (_) {}
+          }, true);
 
           function notifyNativeHighRes(dataUrl, w, h) {
+            if (!isDownloadCaptureAllowed()) return;
             if (!dataUrl || !dataUrl.startsWith('data:image/')) return;
             if ((w || 0) >= window.__dmxHighResWidth) {
               window.__dmxHighResDataUrl = dataUrl;
@@ -657,13 +702,16 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
 
           function inspectAndStoreBlob(blob, forceNotify = false) {
+            if (!isDownloadCaptureAllowed()) return;
             if (!blob || !(blob instanceof Blob)) return;
+            if (blob.name && /san-pham-dmx|dmx_sample/i.test(blob.name)) return;
             const t = (blob.type || '').toLowerCase();
             if (t && !t.startsWith('image/') && !t.includes('octet-stream')) return;
-            if (blob.size < 15000) return;
+            if (blob.size < 18000) return;
             try {
               const fr = new FileReader();
               fr.onloadend = () => {
+                if (!isDownloadCaptureAllowed()) return;
                 const res = typeof fr.result === 'string' ? fr.result : '';
                 if (!res.startsWith('data:image/') && !res.startsWith('data:application/octet-stream')) return;
                 const dataUrl = res.startsWith('data:application/octet-stream')
@@ -671,6 +719,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                   : res;
                 const img = new Image();
                 img.onload = () => {
+                  if (!isDownloadCaptureAllowed()) return;
                   const nw = img.naturalWidth || img.width || 0;
                   const nh = img.naturalHeight || img.height || 0;
                   if (nw >= 800 || nh >= 800 || (forceNotify && nw >= 512)) {
@@ -686,13 +735,18 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           window.__dmxInspectAndStoreBlob = inspectAndStoreBlob;
           window.__dmxNotifyNativeHighRes = notifyNativeHighRes;
 
-          // 1. Hook URL.createObjectURL để bắt ngay file ảnh 1K/2K (1024px/2048px) khi Google Flow tạo Blob tải xuống
+          // 1. Hook URL.createObjectURL: loại trừ hoàn toàn ảnh mẫu upload, chỉ bắt Blob khi đang thực hiện Tải xuống 1K/2K
           try {
             const origCreateObjURL = URL.createObjectURL.bind(URL);
             URL.createObjectURL = function(obj) {
               const url = origCreateObjURL(obj);
               try {
-                if (obj instanceof Blob && obj.size >= 25000) {
+                if (window.__dmxUploadingSample || (obj && obj.name && /san-pham-dmx|dmx_sample/i.test(obj.name))) {
+                  window.__dmxSampleBlobUrls.add(url);
+                  window.__dmxBaselineSrcs.add(url);
+                  return url;
+                }
+                if (isDownloadCaptureAllowed() && (obj instanceof Blob) && obj.size >= 25000) {
                   inspectAndStoreBlob(obj, false);
                 }
               } catch (_) {}
@@ -706,21 +760,24 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             HTMLAnchorElement.prototype.click = function() {
               try {
                 const href = this.href || this.getAttribute('href') || '';
-                const hasDl = this.hasAttribute('download') || /flow-content\.google|googleusercontent\.com|getMediaUrlRedirect/i.test(href);
-                if (href && hasDl) {
-                  if (href.startsWith('data:image/')) {
-                    const img = new Image();
-                    img.onload = () => notifyNativeHighRes(href, img.naturalWidth || 1024, img.naturalHeight || 1024);
-                    img.src = href;
-                    return;
-                  }
-                  if (href.startsWith('blob:') || /^https?:\/\//i.test(href)) {
-                    fetch(href, { credentials: 'include' })
-                      .then(r => r.ok ? r.blob() : null)
-                      .then(b => { if (b) inspectAndStoreBlob(b, true); })
-                      .catch(() => {});
-                    if (window.__dmxInterceptingDownload) {
+                if (href && !window.__dmxUploadingSample && !window.__dmxSampleBlobUrls.has(href)) {
+                  const hasDl = this.hasAttribute('download') || /flow-content\.google|googleusercontent\.com|getMediaUrlRedirect/i.test(href);
+                  if (hasDl) {
+                    window.__dmxDownloadWindowUntil = Date.now() + 15000;
+                    if (href.startsWith('data:image/')) {
+                      const img = new Image();
+                      img.onload = () => notifyNativeHighRes(href, img.naturalWidth || 1024, img.naturalHeight || 1024);
+                      img.src = href;
                       return;
+                    }
+                    if (href.startsWith('blob:') || /^https?:\/\//i.test(href)) {
+                      fetch(href, { credentials: 'include' })
+                        .then(r => r.ok ? r.blob() : null)
+                        .then(b => { if (b) inspectAndStoreBlob(b, true); })
+                        .catch(() => {});
+                      if (window.__dmxInterceptingDownload) {
+                        return;
+                      }
                     }
                   }
                 }
@@ -729,13 +786,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             };
           } catch (_) {}
 
-          // 3. Hook window.fetch để bắt URL ảnh 1K/2K từ RPC batchexecute / flow-content.google và các Blob ảnh lớn
+          // 3. Hook window.fetch: chỉ bắt ảnh tải về khi đang ở chế độ tải 1K/2K (không bao giờ bắt nhầm ảnh mẫu đang upload)
           try {
             const origFetch = window.fetch.bind(window);
             window.fetch = async function(...args) {
               const resp = await origFetch(...args);
               try {
+                if (!isDownloadCaptureAllowed()) return resp;
                 const url = (resp && resp.url) || (typeof args[0] === 'string' ? args[0] : '') || '';
+                if (window.__dmxBaselineSrcs.has(url) || window.__dmxSampleBlobUrls.has(url)) return resp;
                 const ct = (resp.headers && resp.headers.get && (resp.headers.get('content-type') || '')).toLowerCase();
                 if (ct.startsWith('image/') || (/flow-content\.google/i.test(url) && !ct.includes('video'))) {
                   resp.clone().blob().then(b => inspectAndStoreBlob(b, /flow-content\.google/i.test(url))).catch(() => {});
@@ -744,7 +803,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     const matches = txt.match(/https:\/\/(?:flow-content\.google|lh3\.googleusercontent\.com)\/[^\s"'\\<>]+/g) || [];
                     for (const rawM of matches) {
                       const clean = rawM.replace(/\\u003d/gi, '=').replace(/\\u0026/gi, '&').replace(/\\\//g, '/');
-                      if (!window.__dmxCapturedSignedUrls.includes(clean)) {
+                      if (!window.__dmxBaselineSrcs.has(clean) && !window.__dmxCapturedSignedUrls.includes(clean)) {
                         window.__dmxCapturedSignedUrls.push(clean);
                       }
                     }
@@ -1404,12 +1463,17 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           const nh = el.tagName === 'IMG' ? (el.naturalHeight || r.height) : (el.height || r.height);
           if (nw < 256 || nh < 256) continue;
           const src = el.tagName === 'IMG' ? (el.currentSrc || el.src || '') : '';
-          if (oldSet.size > 0 && src && oldSet.has(src)) continue;
+          if (src && (oldSet.has(src) || (window.__dmxBaselineSrcs && window.__dmxBaselineSrcs.has(src)) || (window.__dmxSampleBlobUrls && window.__dmxSampleBlobUrls.has(src)))) continue;
+          if (r.width < 135 || r.height < 135) continue;
           if (el.tagName === 'IMG' && /(avatar|profile|logo|icon|googleusercontent\.com\/a\/)/i.test(src)) continue;
           let pCard = el;
           let isSampleCard = false;
-          for (let k = 0; k < 5 && pCard; k++) {
+          for (let k = 0; k < 7 && pCard && pCard !== document.body; k++) {
             if (((pCard.innerText || pCard.textContent || '').toLowerCase()).includes('san-pham-dmx')) { isSampleCard = true; break; }
+            if (pCard.querySelector && pCard.querySelector('[data-slate-editor="true"], [contenteditable="true"], textarea')) {
+              isSampleCard = true;
+              break;
+            }
             pCard = pCard.parentElement;
           }
           if (isSampleCard) continue;
@@ -1420,8 +1484,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
-        // Nếu hook đã bắt sẵn ảnh 1K/2K (>= 900px) thì ưu tiên dùng ngay
-        if (window.__dmxHighResDataUrl && window.__dmxHighResWidth >= 900) {
+        // Chỉ dùng window.__dmxHighResDataUrl nếu đó là ảnh mới tải về (không phải ảnh mẫu)
+        if (!window.__dmxUploadingSample && window.__dmxHighResDataUrl && window.__dmxHighResWidth >= 900) {
           return window.__dmxHighResDataUrl;
         }
 
@@ -1549,25 +1613,22 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         }
     }
 
-    /// Gộp tất cả ảnh mẫu của các tab sản phẩm thành 1 ảnh tham chiếu chất lượng cao (hoặc giữ nguyên nếu chỉ có 1 ảnh)
+    /// Gộp tất cả ảnh mẫu của các tab sản phẩm thành 1 ảnh tham chiếu sạch (TUYỆT ĐỐI KHÔNG chèn chữ "SẢN PHẨM 1/2" hay khung viền thô lên ảnh)
     private func layAnhMauTongHopChoPoster() -> UIImage? {
         luuDuLieuTabHienTai()
-        let cacSPCoAnh = danhSachSanPham.enumerated().compactMap { (idx, sp) -> (soThuTu: Int, ten: String, anh: UIImage)? in
-            guard let anh = sp.anhMau else { return nil }
-            return (idx + 1, sp.tenSanPham, anh)
-        }
-        guard !cacSPCoAnh.isEmpty else { return nil }
-        if cacSPCoAnh.count == 1 {
-            return cacSPCoAnh[0].anh
+        let cacAnh = danhSachSanPham.compactMap { $0.anhMau }
+        guard !cacAnh.isEmpty else { return nil }
+        if cacAnh.count == 1 {
+            return thuGonAnhThamChieu(cacAnh[0], canhToiDa: 1200)
         }
 
         return autoreleasepool {
-            let soLuong = cacSPCoAnh.count
+            let soLuong = cacAnh.count
             let soCot: Int = (soLuong == 2) ? 2 : ((soLuong <= 4) ? 2 : 3)
             let soHang: Int = Int(ceil(Double(soLuong) / Double(soCot)))
-            let cellW: CGFloat = 960
-            let cellH: CGFloat = 1040
-            let pad: CGFloat = 28
+            let cellW: CGFloat = 600
+            let cellH: CGFloat = 600
+            let pad: CGFloat = 20
             let canvasW = CGFloat(soCot) * cellW + CGFloat(soCot + 1) * pad
             let canvasH = CGFloat(soHang) * cellH + CGFloat(soHang + 1) * pad
 
@@ -1575,54 +1636,53 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             fmt.scale = 1.0
             fmt.opaque = true
             return UIGraphicsImageRenderer(size: CGSize(width: canvasW, height: canvasH), format: fmt).image { ctx in
+                ctx.cgContext.interpolationQuality = .high
                 UIColor.white.setFill()
                 ctx.fill(CGRect(x: 0, y: 0, width: canvasW, height: canvasH))
 
-                for (i, item) in cacSPCoAnh.enumerated() {
+                for (i, anh) in cacAnh.enumerated() {
                     let col = i % soCot
                     let row = i / soCot
                     let x = pad + CGFloat(col) * (cellW + pad)
                     let y = pad + CGFloat(row) * (cellH + pad)
-                    let cellRect = CGRect(x: x, y: y, width: cellW, height: cellH)
+                    let imgArea = CGRect(x: x + 8, y: y + 8, width: cellW - 16, height: cellH - 16)
 
-                    // Khung nền trắng sạch cho từng sản phẩm
-                    let path = UIBezierPath(roundedRect: cellRect, cornerRadius: 20)
-                    UIColor(white: 0.97, alpha: 1.0).setFill()
-                    path.fill()
-                    UIColor(white: 0.86, alpha: 1.0).setStroke()
-                    path.lineWidth = 2
-                    path.stroke()
-
-                    // Nhãn đánh số thứ tự sản phẩm khớp với prompt
-                    let tieuDe = item.ten.isEmpty ? "SẢN PHẨM \(item.soThuTu)" : "SẢN PHẨM \(item.soThuTu): \(item.ten)"
-                    let attrs: [NSAttributedString.Key: Any] = [
-                        .font: UIFont.systemFont(ofSize: 28, weight: .bold),
-                        .foregroundColor: UIColor(red: 0.05, green: 0.25, blue: 0.58, alpha: 1.0)
-                    ]
-                    (tieuDe as NSString).draw(
-                        in: CGRect(x: x + 20, y: y + 16, width: cellW - 40, height: 42),
-                        withAttributes: attrs
-                    )
-
-                    // Vẽ ảnh mẫu giữ nguyên tỷ lệ (aspect-fit)
-                    let imgArea = CGRect(x: x + 18, y: y + 66, width: cellW - 36, height: cellH - 84)
-                    let iw = max(1, item.anh.size.width)
-                    let ih = max(1, item.anh.size.height)
+                    let iw = max(1, anh.size.width)
+                    let ih = max(1, anh.size.height)
                     let scale = min(imgArea.width / iw, imgArea.height / ih)
                     let dw = iw * scale
                     let dh = ih * scale
                     let dx = imgArea.midX - dw / 2
                     let dy = imgArea.midY - dh / 2
-                    item.anh.draw(in: CGRect(x: dx, y: dy, width: dw, height: dh))
+                    anh.draw(in: CGRect(x: dx, y: dy, width: dw, height: dh))
                 }
             }
+        }
+    }
+
+    private func thuGonAnhThamChieu(_ img: UIImage, canhToiDa: CGFloat = 1200) -> UIImage {
+        let w = img.size.width
+        let h = img.size.height
+        let maxSide = max(w, h)
+        guard maxSide > canhToiDa else { return img }
+        let tiLe = canhToiDa / maxSide
+        let newSize = CGSize(width: (w * tiLe).rounded(), height: (h * tiLe).rounded())
+        let fmt = UIGraphicsImageRendererFormat()
+        fmt.scale = 1.0
+        fmt.opaque = true
+        return UIGraphicsImageRenderer(size: newSize, format: fmt).image { ctx in
+            ctx.cgContext.interpolationQuality = .high
+            UIColor.white.setFill()
+            ctx.fill(CGRect(origin: .zero, size: newSize))
+            img.draw(in: CGRect(origin: .zero, size: newSize))
         }
     }
 
     private func maHoaAnhMauBase64ChoFlow() -> String {
         guard let anh = layAnhMauTongHopChoPoster() else { return "" }
         return autoreleasepool {
-            let data = anh.jpegData(compressionQuality: 0.95) ?? anh.pngData()
+            let anhGon = thuGonAnhThamChieu(anh, canhToiDa: 1280)
+            let data = anhGon.jpegData(compressionQuality: 0.86) ?? anhGon.pngData()
             return data?.base64EncodedString() ?? ""
         }
     }
@@ -2687,7 +2747,30 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return checkGenerationStarted(primaryBtn, promptBox);
         }
 
-        // Xóa cache ảnh 1K cũ trước khi tạo ảnh mới
+        function hasUploadSpinnerOrBusy(promptBox) {
+          const docs = [];
+          collectDocs(document, docs);
+          const all = [];
+          for (const d of docs) collectAllElements(d, all);
+          const boxRect = promptBox ? promptBox.getBoundingClientRect() : null;
+          for (const el of all) {
+            if (!isVisible(el, 8, 8)) continue;
+            const r = el.getBoundingClientRect();
+            if (boxRect && r.top < boxRect.top - 120) continue;
+            const tag = (el.tagName || '').toUpperCase();
+            const role = (el.getAttribute && el.getAttribute('role')) || '';
+            const cls = (typeof el.className === 'string' ? el.className : '').toLowerCase();
+            if (tag === 'MAT-PROGRESS-SPINNER' || tag === 'MAT-SPINNER' || role === 'progressbar' || el.getAttribute('aria-busy') === 'true' || cls.includes('progress-spinner') || cls.includes('loading-spinner')) {
+              return true;
+            }
+          }
+          return false;
+        }
+
+        // Khóa bắt ảnh trong suốt quá trình chuẩn bị, điền prompt và upload ảnh mẫu
+        window.__dmxUploadingSample = true;
+        window.__dmxInterceptingDownload = false;
+        window.__dmxDownloadWindowUntil = 0;
         window.__dmxHighResDataUrl = '';
         window.__dmxHighResWidth = 0;
         window.__dmxCapturedSignedUrls = [];
@@ -2705,28 +2788,49 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         let imgStatus = 'NO_IMAGE';
         if (imageBase64) {
           const beforeUploadSrcs = new Set(snapshotImageSrcs());
+          for (const s of beforeUploadSrcs) window.__dmxBaselineSrcs.add(s);
+
           imgStatus = await attachSampleImage(imageBase64, box);
 
-          let sawProgress = false;
-          let stableReadyTicks = 0;
-          for (let i = 0; i < 80; i++) {
-            await sleep(300);
+          // Chờ ảnh mẫu upload hoàn tất lên máy chủ Google Flow:
+          // Khi ảnh đang upload, nút mũi tên (→) sẽ bị khóa/nền đen hoặc có vòng xoay tiến trình.
+          // Chỉ khi ảnh đã xuất hiện VÀ không còn spinner VÀ nút (→) đã sáng trắng/mở khóa ổn định mới kết thúc chờ upload.
+          let readyWhiteTicks = 0;
+          let mediaSeenTicks = 0;
+          for (let i = 0; i < 90; i++) {
+            await sleep(320);
             box = findPromptBox() || box;
-            const uploadingPct = hasActivePercentProgress();
-            if (uploadingPct) {
-              sawProgress = true;
-              stableReadyTicks = 0;
+            const curSrcs = snapshotImageSrcs();
+            for (const s of curSrcs) window.__dmxBaselineSrcs.add(s);
+
+            if (hasActivePercentProgress() || hasUploadSpinnerOrBusy(box)) {
+              readyWhiteTicks = 0;
               continue;
             }
+
             const newMediaCount = countNewUploadedMedia(beforeUploadSrcs, box);
-            if (newMediaCount > 0 && (sawProgress || i >= 6)) {
-              stableReadyTicks += 1;
-              if (stableReadyTicks >= 4) {
+            if (newMediaCount > 0) {
+              mediaSeenTicks += 1;
+            }
+
+            const arrowCandidate = findGenerateArrowButton(box, false);
+            const arrowWhiteAndEnabled = !!(
+              arrowCandidate &&
+              isWhiteBackgroundButton(arrowCandidate) &&
+              !arrowCandidate.disabled &&
+              arrowCandidate.getAttribute('aria-disabled') !== 'true'
+            );
+
+            if (newMediaCount > 0 && arrowWhiteAndEnabled && i >= 5) {
+              readyWhiteTicks += 1;
+              if (readyWhiteTicks >= 4) {
                 break;
               }
+            } else if (mediaSeenTicks >= 14 && arrowWhiteAndEnabled) {
+              break;
             }
           }
-          await sleep(450);
+          await sleep(500);
         } else {
           await sleep(300);
         }
@@ -2740,15 +2844,24 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             promptOk = true;
             await nudgePromptBox(box);
           }
-          await sleep(300);
+          await sleep(320);
         }
 
+        // Chụp lại toàn bộ URL ảnh hiện có (bao gồm cả URL ảnh mẫu vừa upload xong) để loại trừ tuyệt đối khi lấy ảnh kết quả
         const existingSrcs = snapshotImageSrcs();
+        for (const s of existingSrcs) window.__dmxBaselineSrcs.add(s);
 
         let clickedGenerate = false;
         let arrowInfo = 'NONE';
         if (promptOk || (box && getBoxText(box).length > 0)) {
-          for (let i = 0; i < 30; i++) {
+          for (let i = 0; i < 32; i++) {
+            const snapNow = snapshotImageSrcs();
+            if (i < 3) {
+              for (const s of snapNow) {
+                if (!existingSrcs.includes(s)) existingSrcs.push(s);
+                window.__dmxBaselineSrcs.add(s);
+              }
+            }
             if (hasActivePercentProgress()) {
               clickedGenerate = true;
               break;
@@ -2763,7 +2876,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               await sleep(250);
             }
 
-            const arrowBtn = findGenerateArrowButton(box, true) || (i >= 4 ? findGenerateArrowButton(box, false) : null);
+            const arrowBtn = findGenerateArrowButton(box, true) || (i >= 5 ? findGenerateArrowButton(box, false) : null);
             if (arrowBtn) {
               const r = arrowBtn.getBoundingClientRect();
               const rgb = getBackgroundRGB(arrowBtn);
@@ -2771,9 +2884,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               const isWhite = isWhiteBackgroundButton(arrowBtn);
               const isDis = !!(arrowBtn.disabled || arrowBtn.getAttribute('aria-disabled') === 'true');
 
-              if ((!isWhite || isDis) && i < 6) {
+              if ((!isWhite || isDis) && i < 10) {
                 await nudgePromptBox(box);
-                await sleep(350);
+                await sleep(380);
                 continue;
               }
 
@@ -2788,9 +2901,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 try { box.click(); box.focus(); } catch (_) {}
               }
             }
-            await sleep(350);
+            await sleep(380);
           }
         }
+
+        window.__dmxGenerationStartTime = Date.now();
+        window.__dmxSawGenerationProgress = false;
+        setTimeout(() => { window.__dmxUploadingSample = false; }, 2500);
 
         return JSON.stringify({
           promptOk,
@@ -2925,12 +3042,18 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
           return false;
         }
+        if (window.__dmxUploadingSample) {
+          return "WAITING";
+        }
         if (hasStandalonePercentBadge()) {
+          window.__dmxSawGenerationProgress = true;
           return "WAITING";
         }
 
-        if (window.__dmxHighResDataUrl && window.__dmxHighResWidth >= 900) {
-          return "READY_FOR_1K";
+        // Không nhận kết quả giả nếu mới bấm nút tạo chưa đầy 4.5 giây và chưa từng thấy badge % tiến trình
+        const elapsedSinceGen = Date.now() - (window.__dmxGenerationStartTime || 0);
+        if (!window.__dmxSawGenerationProgress && elapsedSinceGen < 4500) {
+          return "WAITING";
         }
 
         function tryClickPendingArrowIfStillOpen() {
@@ -3032,10 +3155,21 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         }
 
         function isSampleUploadCard(imgEl) {
+          if (!imgEl) return true;
+          const src = imgEl.currentSrc || imgEl.src || '';
+          if (src && ((window.__dmxBaselineSrcs && window.__dmxBaselineSrcs.has(src)) || (window.__dmxSampleBlobUrls && window.__dmxSampleBlobUrls.has(src)))) {
+            return true;
+          }
+          const r = imgEl.getBoundingClientRect();
+          // Ảnh mẫu đính kèm trong ô nhập prompt luôn có kích thước hiển thị nhỏ (< 135px) hoặc nằm trong khung chứa editor
+          if (r.width < 135 || r.height < 135) return true;
           let p = imgEl;
-          for (let k = 0; k < 5 && p; k++) {
+          for (let k = 0; k < 7 && p && p !== document.body; k++) {
             const t = (p.innerText || p.textContent || '').toLowerCase();
             if (t.includes('san-pham-dmx')) return true;
+            if (p.querySelector && p.querySelector('[data-slate-editor="true"], [contenteditable="true"], textarea')) {
+              return true;
+            }
             p = p.parentElement;
           }
           return false;
@@ -3281,31 +3415,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         ])
         stack.addArrangedSubview(cuonTabSanPham)
 
-        nutThemSanPham.setTitle("➕ Thêm sản phẩm thứ 2", for: .normal)
-        nutThemSanPham.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nutThemSanPham.backgroundColor = BangMauBCTD.xanhLaDam
-        nutThemSanPham.setTitleColor(.white, for: .normal)
-        nutThemSanPham.layer.cornerRadius = 9
-        nutThemSanPham.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        nutThemSanPham.addTarget(self, action: #selector(bamThemTabSanPham), for: .touchUpInside)
 
-        nutXoaTabSanPham.setTitle("🗑 Xoá SP", for: .normal)
-        nutXoaTabSanPham.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .semibold)
-        nutXoaTabSanPham.backgroundColor = BangMauBCTD.nenThePhu
-        nutXoaTabSanPham.setTitleColor(.systemRed, for: .normal)
-        nutXoaTabSanPham.layer.cornerRadius = 9
-        nutXoaTabSanPham.layer.borderWidth = 1
-        nutXoaTabSanPham.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.35).cgColor
-        nutXoaTabSanPham.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        nutXoaTabSanPham.widthAnchor.constraint(equalToConstant: 96).isActive = true
-        nutXoaTabSanPham.isHidden = true
-        nutXoaTabSanPham.addTarget(self, action: #selector(bamXoaTabSanPhamHienTai), for: .touchUpInside)
-
-        let hangNutTab = UIStackView(arrangedSubviews: [nutThemSanPham, nutXoaTabSanPham])
-        hangNutTab.axis = .horizontal
-        hangNutTab.spacing = 8
-        hangNutTab.alignment = .fill
-        stack.addArrangedSubview(hangNutTab)
 
         nhanTomTatNhieuSP.font = .systemFont(ofSize: 12, weight: .medium)
         nhanTomTatNhieuSP.textColor = BangMauBCTD.xanhChuDao
@@ -3355,9 +3465,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             nganTabSanPham.addArrangedSubview(nut)
         }
 
-        // Nút "+ Thêm SP" nằm ngay cạnh tab sản phẩm cuối cùng trên thanh cuộn ngang
+        // Duy nhất 1 nút "+ Thêm SP" nằm ngay cạnh tab sản phẩm cuối cùng trên thanh cuộn ngang
         let nutCongNhanh = UIButton(type: .system)
-        nutCongNhanh.setTitle("＋ Thêm SP \(danhSachSanPham.count + 1)", for: .normal)
+        nutCongNhanh.setTitle("＋ Thêm SP", for: .normal)
         nutCongNhanh.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
         nutCongNhanh.backgroundColor = BangMauBCTD.xanhLaDam.withAlphaComponent(0.12)
         nutCongNhanh.setTitleColor(BangMauBCTD.xanhLaDam, for: .normal)
@@ -3369,15 +3479,26 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         nutCongNhanh.addTarget(self, action: #selector(bamThemTabSanPham), for: .touchUpInside)
         nganTabSanPham.addArrangedSubview(nutCongNhanh)
 
-        nutThemSanPham.setTitle("➕ Thêm sản phẩm thứ \(danhSachSanPham.count + 1) vào Poster", for: .normal)
-        nutXoaTabSanPham.setTitle("🗑 Xoá SP \(chiSoSanPhamHienTai + 1)", for: .normal)
-        nutXoaTabSanPham.isHidden = (danhSachSanPham.count <= 1)
+        if danhSachSanPham.count > 1 {
+            let nutXoaNhanh = UIButton(type: .system)
+            nutXoaNhanh.setTitle("🗑 Xoá tab này", for: .normal)
+            nutXoaNhanh.titleLabel?.font = .systemFont(ofSize: 12, weight: .semibold)
+            nutXoaNhanh.backgroundColor = UIColor.systemRed.withAlphaComponent(0.08)
+            nutXoaNhanh.setTitleColor(.systemRed, for: .normal)
+            nutXoaNhanh.layer.cornerRadius = 9
+            nutXoaNhanh.layer.borderWidth = 1
+            nutXoaNhanh.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.35).cgColor
+            nutXoaNhanh.contentEdgeInsets = UIEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+            nutXoaNhanh.heightAnchor.constraint(equalToConstant: 34).isActive = true
+            nutXoaNhanh.addTarget(self, action: #selector(bamXoaTabSanPhamHienTai), for: .touchUpInside)
+            nganTabSanPham.addArrangedSubview(nutXoaNhanh)
+        }
 
         let soAnh = danhSachSanPham.filter { $0.anhMau != nil }.count
         if danhSachSanPham.count == 1 {
-            nhanTomTatNhieuSP.text = "Đang nhập Sản phẩm 1 — bấm nút ➕ Thêm sản phẩm ở trên nếu muốn gộp nhiều sản phẩm & ảnh vào chung 1 Poster."
+            nhanTomTatNhieuSP.text = "Bấm ＋ Thêm SP trên thanh tab nếu muốn gộp thêm sản phẩm & ảnh vào chung 1 Poster."
         } else {
-            nhanTomTatNhieuSP.text = "✨ Đang sửa SP \(chiSoSanPhamHienTai + 1)/\(danhSachSanPham.count) (đã có \(soAnh) ảnh mẫu) — toàn bộ \(danhSachSanPham.count) sản phẩm sẽ tự gộp chung vào 1 Poster!"
+            nhanTomTatNhieuSP.text = "✨ Đang chọn tab \(chiSoSanPhamHienTai + 1)/\(danhSachSanPham.count) (đã có \(soAnh) ảnh mẫu) — toàn bộ sẽ tự gộp chung vào 1 Poster."
         }
         capNhatThanhThuNhoAnhMau()
     }
@@ -3407,8 +3528,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             khung.addSubview(iv)
 
             let lb = UILabel()
-            lb.text = "SP \(idx + 1)"
-            lb.font = .systemFont(ofSize: 10, weight: .bold)
+            let tenNgan = sp.tenSanPham.trimmingCharacters(in: .whitespacesAndNewlines)
+            lb.text = tenNgan.isEmpty ? "#\(idx + 1)" : String(tenNgan.prefix(8))
+            lb.font = .systemFont(ofSize: 9.5, weight: .bold)
             lb.textColor = .white
             lb.backgroundColor = UIColor.black.withAlphaComponent(0.65)
             lb.textAlignment = .center
@@ -3503,10 +3625,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         napDuLieuTabHienTaiLenGiaoDien()
     }
 
-    @objc private func bamThemTabSanPhamTuThe2() {
-        bamThemTabSanPham()
-        cuon.setContentOffset(.zero, animated: true)
-    }
+
 
     @objc private func bamXoaTabSanPhamHienTai() {
         view.endEditing(true)
@@ -3646,17 +3765,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         oDiemNoiBat.delegate = self
         stack.addArrangedSubview(oDiemNoiBat)
 
-        let nutThemSPOThe2 = UIButton(type: .system)
-        nutThemSPOThe2.setTitle("➕ Thêm sản phẩm khác vào chung Poster", for: .normal)
-        nutThemSPOThe2.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
-        nutThemSPOThe2.backgroundColor = BangMauBCTD.xanhLaDam.withAlphaComponent(0.12)
-        nutThemSPOThe2.setTitleColor(BangMauBCTD.xanhLaDam, for: .normal)
-        nutThemSPOThe2.layer.cornerRadius = 10
-        nutThemSPOThe2.layer.borderWidth = 1.2
-        nutThemSPOThe2.layer.borderColor = BangMauBCTD.xanhLaDam.cgColor
-        nutThemSPOThe2.heightAnchor.constraint(equalToConstant: 38).isActive = true
-        nutThemSPOThe2.addTarget(self, action: #selector(bamThemTabSanPhamTuThe2), for: .touchUpInside)
-        stack.addArrangedSubview(nutThemSPOThe2)
+
 
         stack.addArrangedSubview(taoNhanNho("Siêu thị / Hotline / Địa chỉ (chung cho Poster)"))
         stack.addArrangedSubview(taoOChiTiet(oLienHe, goiY: "VD: ĐMX Siêu thị 76 · Hotline 09xx.xxx.xxx"))
