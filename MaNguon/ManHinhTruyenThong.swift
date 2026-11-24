@@ -1,5 +1,7 @@
 import UIKit
 import PhotosUI
+import WebKit
+import SafariServices
 
 struct ThongTinSanPhamTruyenThong {
     var tenSanPham: String
@@ -24,6 +26,7 @@ final class DichVuTruyenThongGemini {
     private init() {}
 
     private let cacModelTaoAnh: [String] = [
+        "gemini-nano-banana-2.1",
         "gemini-3.1-flash-image-preview",
         "gemini-3.1-flash-image",
         "gemini-3-pro-image-preview",
@@ -31,11 +34,11 @@ final class DichVuTruyenThongGemini {
     ]
 
     private let cacModelVietBai: [String] = [
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite-preview",
+        "gemini-3.8-flash",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
-        "gemini-2.0-flash"
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3.5-flash-lite"
     ]
 
     private func thuGonAnhMau(_ anh: UIImage) -> Data? {
@@ -321,7 +324,7 @@ final class DichVuTruyenThongGemini {
             "contents": [["parts": parts]],
             "generationConfig": [
                 "temperature": 0.8,
-                "maxOutputTokens": 4096,
+                "maxOutputTokens": 6144,
                 "responseMimeType": "application/json"
             ]
         ]
@@ -330,7 +333,7 @@ final class DichVuTruyenThongGemini {
             return
         }
 
-        var req = URLRequest(url: url, timeoutInterval: 30)
+        var req = URLRequest(url: url, timeoutInterval: 45)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = bodyData
@@ -397,9 +400,27 @@ final class DichVuTruyenThongGemini {
 
 // MARK: - Màn hình Tab Truyền thông
 
-final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate, UITextViewDelegate {
+final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate, UITextViewDelegate, WKNavigationDelegate, WKUIDelegate {
+    private let thanhChuyenCheDo = UISegmentedControl(items: ["📝 Tạo nội dung", "🌊 Google Flow"])
+    private let khungTaoNoiDung = UIView()
+    private let khungGoogleFlow = UIView()
     private let cuon = UIScrollView()
     private let ngan = UIStackView()
+
+    // Trình duyệt Google Flow nhúng ngay trong tab Truyền thông
+    private var webViewFlow: WKWebView!
+    private var daTaiTrangFlow = false
+    private var promptChoDienFlow: String = ""
+    private let nhanTrangThaiFlow = UILabel()
+    private let vongQuayFlow = UIActivityIndicatorView(style: .medium)
+    private let nutFlowLui = UIButton(type: .system)
+    private let nutFlowTien = UIButton(type: .system)
+    private let nutFlowTaiLai = UIButton(type: .system)
+    private let nutFlowTrangChu = UIButton(type: .system)
+    private let nutFlowDienPrompt = UIButton(type: .system)
+    private let nutFlowLayAnh = UIButton(type: .system)
+    private let nutFlowCopyPrompt = UIButton(type: .system)
+    private let nutFlowSafariTrongApp = UIButton(type: .system)
 
     // Ảnh mẫu
     private var anhMau: UIImage?
@@ -458,10 +479,38 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     private func dungGiaoDien() {
+        thanhChuyenCheDo.selectedSegmentIndex = 0
+        thanhChuyenCheDo.translatesAutoresizingMaskIntoConstraints = false
+        thanhChuyenCheDo.addTarget(self, action: #selector(doiCheDoTab), for: .valueChanged)
+        view.addSubview(thanhChuyenCheDo)
+
+        khungTaoNoiDung.translatesAutoresizingMaskIntoConstraints = false
+        khungGoogleFlow.translatesAutoresizingMaskIntoConstraints = false
+        khungGoogleFlow.isHidden = true
+        view.addSubview(khungTaoNoiDung)
+        view.addSubview(khungGoogleFlow)
+
+        NSLayoutConstraint.activate([
+            thanhChuyenCheDo.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
+            thanhChuyenCheDo.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            thanhChuyenCheDo.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            thanhChuyenCheDo.heightAnchor.constraint(equalToConstant: 34),
+
+            khungTaoNoiDung.topAnchor.constraint(equalTo: thanhChuyenCheDo.bottomAnchor, constant: 8),
+            khungTaoNoiDung.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            khungTaoNoiDung.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            khungTaoNoiDung.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            khungGoogleFlow.topAnchor.constraint(equalTo: thanhChuyenCheDo.bottomAnchor, constant: 8),
+            khungGoogleFlow.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            khungGoogleFlow.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            khungGoogleFlow.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+
         cuon.translatesAutoresizingMaskIntoConstraints = false
         cuon.keyboardDismissMode = .interactive
         cuon.alwaysBounceVertical = true
-        view.addSubview(cuon)
+        khungTaoNoiDung.addSubview(cuon)
 
         ngan.axis = .vertical
         ngan.spacing = 14
@@ -469,12 +518,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         cuon.addSubview(ngan)
 
         NSLayoutConstraint.activate([
-            cuon.topAnchor.constraint(equalTo: view.topAnchor),
-            cuon.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            cuon.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            cuon.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            cuon.topAnchor.constraint(equalTo: khungTaoNoiDung.topAnchor),
+            cuon.leadingAnchor.constraint(equalTo: khungTaoNoiDung.leadingAnchor),
+            cuon.trailingAnchor.constraint(equalTo: khungTaoNoiDung.trailingAnchor),
+            cuon.bottomAnchor.constraint(equalTo: khungTaoNoiDung.bottomAnchor),
 
-            ngan.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 14),
+            ngan.topAnchor.constraint(equalTo: cuon.contentLayoutGuide.topAnchor, constant: 8),
             ngan.leadingAnchor.constraint(equalTo: cuon.frameLayoutGuide.leadingAnchor, constant: 14),
             ngan.trailingAnchor.constraint(equalTo: cuon.frameLayoutGuide.trailingAnchor, constant: -14),
             ngan.bottomAnchor.constraint(equalTo: cuon.contentLayoutGuide.bottomAnchor, constant: -28)
@@ -485,6 +534,413 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         ngan.addArrangedSubview(taoTheHanhDong())
         ngan.addArrangedSubview(taoTheAnhKetQua())
         ngan.addArrangedSubview(taoTheBaiDangFacebook())
+
+        dungKhungGoogleFlow()
+    }
+
+    private func dungKhungGoogleFlow() {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .default()
+        config.allowsInlineMediaPlayback = true
+        config.defaultWebpagePreferences.allowsContentJavaScript = true
+        config.preferences.javaScriptCanOpenWindowsAutomatically = true
+
+        webViewFlow = WKWebView(frame: .zero, configuration: config)
+        webViewFlow.navigationDelegate = self
+        webViewFlow.uiDelegate = self
+        webViewFlow.allowsBackForwardNavigationGestures = true
+        webViewFlow.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+        webViewFlow.translatesAutoresizingMaskIntoConstraints = false
+
+        for (nut, icon, action) in [
+            (nutFlowLui, "chevron.left", #selector(bamFlowLui)),
+            (nutFlowTien, "chevron.right", #selector(bamFlowTien)),
+            (nutFlowTaiLai, "arrow.clockwise", #selector(bamFlowTaiLai)),
+            (nutFlowTrangChu, "house", #selector(bamFlowTrangChu))
+        ] {
+            nut.setImage(UIImage(systemName: icon), for: .normal)
+            nut.tintColor = BangMauBCTD.xanhChuDao
+            nut.widthAnchor.constraint(equalToConstant: 32).isActive = true
+            nut.heightAnchor.constraint(equalToConstant: 32).isActive = true
+            nut.addTarget(self, action: action, for: .touchUpInside)
+        }
+
+        nutFlowDienPrompt.setTitle("✨ Điền Prompt", for: .normal)
+        nutFlowDienPrompt.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
+        nutFlowDienPrompt.backgroundColor = BangMauBCTD.xanhLaDam
+        nutFlowDienPrompt.setTitleColor(.white, for: .normal)
+        nutFlowDienPrompt.layer.cornerRadius = 8
+        nutFlowDienPrompt.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        nutFlowDienPrompt.addTarget(self, action: #selector(bamDienPromptVaoFlow), for: .touchUpInside)
+
+        nutFlowCopyPrompt.setTitle("📋 Copy", for: .normal)
+        nutFlowCopyPrompt.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutFlowCopyPrompt.backgroundColor = BangMauBCTD.nenTrang
+        nutFlowCopyPrompt.setTitleColor(BangMauBCTD.xanhChuDao, for: .normal)
+        nutFlowCopyPrompt.layer.cornerRadius = 8
+        nutFlowCopyPrompt.layer.borderWidth = 1
+        nutFlowCopyPrompt.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutFlowCopyPrompt.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        nutFlowCopyPrompt.addTarget(self, action: #selector(bamCopyPromptTrongFlow), for: .touchUpInside)
+
+        nutFlowSafariTrongApp.setTitle("🔒 Safari trong app", for: .normal)
+        nutFlowSafariTrongApp.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        nutFlowSafariTrongApp.backgroundColor = BangMauBCTD.nenTrang
+        nutFlowSafariTrongApp.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutFlowSafariTrongApp.layer.cornerRadius = 8
+        nutFlowSafariTrongApp.layer.borderWidth = 1
+        nutFlowSafariTrongApp.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutFlowSafariTrongApp.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        nutFlowSafariTrongApp.addTarget(self, action: #selector(bamMoSafariTrongApp), for: .touchUpInside)
+
+        let hangDieuHuong = UIStackView(arrangedSubviews: [nutFlowLui, nutFlowTien, nutFlowTaiLai, nutFlowTrangChu, UIView(), nutFlowSafariTrongApp])
+        hangDieuHuong.axis = .horizontal
+        hangDieuHuong.spacing = 4
+        hangDieuHuong.alignment = .center
+
+        nutFlowLayAnh.setTitle("📥 Lấy ảnh về app", for: .normal)
+        nutFlowLayAnh.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutFlowLayAnh.backgroundColor = BangMauBCTD.xanhChuDao
+        nutFlowLayAnh.setTitleColor(.white, for: .normal)
+        nutFlowLayAnh.layer.cornerRadius = 8
+        nutFlowLayAnh.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        nutFlowLayAnh.addTarget(self, action: #selector(bamLayAnhTuFlow), for: .touchUpInside)
+
+        let hangPrompt = UIStackView(arrangedSubviews: [nutFlowDienPrompt, nutFlowLayAnh, nutFlowCopyPrompt])
+        hangPrompt.axis = .horizontal
+        hangPrompt.spacing = 6
+        hangPrompt.distribution = .fill
+        nutFlowDienPrompt.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        nutFlowLayAnh.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        nutFlowDienPrompt.widthAnchor.constraint(equalTo: nutFlowLayAnh.widthAnchor).isActive = true
+        nutFlowCopyPrompt.widthAnchor.constraint(equalToConstant: 72).isActive = true
+
+        vongQuayFlow.hidesWhenStopped = true
+        nhanTrangThaiFlow.text = "Mở dự án trong Google Flow rồi bấm "Điền Prompt" nếu chưa tự điền."
+        nhanTrangThaiFlow.font = .systemFont(ofSize: 12)
+        nhanTrangThaiFlow.textColor = BangMauBCTD.chuPhu
+        nhanTrangThaiFlow.numberOfLines = 2
+
+        let hangTrangThai = UIStackView(arrangedSubviews: [vongQuayFlow, nhanTrangThaiFlow])
+        hangTrangThai.axis = .horizontal
+        hangTrangThai.spacing = 6
+        hangTrangThai.alignment = .center
+
+        let thanhCongCu = UIStackView(arrangedSubviews: [hangDieuHuong, hangPrompt, hangTrangThai])
+        thanhCongCu.axis = .vertical
+        thanhCongCu.spacing = 6
+        thanhCongCu.translatesAutoresizingMaskIntoConstraints = false
+
+        let nenCongCu = UIView()
+        nenCongCu.backgroundColor = BangMauBCTD.nenThePhu
+        nenCongCu.translatesAutoresizingMaskIntoConstraints = false
+        nenCongCu.addSubview(thanhCongCu)
+
+        khungGoogleFlow.addSubview(nenCongCu)
+        khungGoogleFlow.addSubview(webViewFlow)
+
+        NSLayoutConstraint.activate([
+            nenCongCu.topAnchor.constraint(equalTo: khungGoogleFlow.topAnchor),
+            nenCongCu.leadingAnchor.constraint(equalTo: khungGoogleFlow.leadingAnchor),
+            nenCongCu.trailingAnchor.constraint(equalTo: khungGoogleFlow.trailingAnchor),
+
+            thanhCongCu.topAnchor.constraint(equalTo: nenCongCu.topAnchor, constant: 6),
+            thanhCongCu.leadingAnchor.constraint(equalTo: nenCongCu.leadingAnchor, constant: 10),
+            thanhCongCu.trailingAnchor.constraint(equalTo: nenCongCu.trailingAnchor, constant: -10),
+            thanhCongCu.bottomAnchor.constraint(equalTo: nenCongCu.bottomAnchor, constant: -6),
+
+            webViewFlow.topAnchor.constraint(equalTo: nenCongCu.bottomAnchor),
+            webViewFlow.leadingAnchor.constraint(equalTo: khungGoogleFlow.leadingAnchor),
+            webViewFlow.trailingAnchor.constraint(equalTo: khungGoogleFlow.trailingAnchor),
+            webViewFlow.bottomAnchor.constraint(equalTo: khungGoogleFlow.bottomAnchor)
+        ])
+    }
+
+    @objc private func doiCheDoTab() {
+        view.endEditing(true)
+        let dangMoFlow = (thanhChuyenCheDo.selectedSegmentIndex == 1)
+        khungTaoNoiDung.isHidden = dangMoFlow
+        khungGoogleFlow.isHidden = !dangMoFlow
+        if dangMoFlow && !daTaiTrangFlow {
+            taiTrangGoogleFlow()
+        }
+    }
+
+    private func taiTrangGoogleFlow() {
+        daTaiTrangFlow = true
+        guard let url = URL(string: "https://flow.google.com/") else { return }
+        webViewFlow.load(URLRequest(url: url))
+    }
+
+    @objc private func bamFlowLui() {
+        if webViewFlow.canGoBack { webViewFlow.goBack() }
+    }
+
+    @objc private func bamFlowTien() {
+        if webViewFlow.canGoForward { webViewFlow.goForward() }
+    }
+
+    @objc private func bamFlowTaiLai() {
+        webViewFlow.reload()
+    }
+
+    @objc private func bamFlowTrangChu() {
+        taiTrangGoogleFlow()
+    }
+
+    @objc private func bamCopyPromptTrongFlow() {
+        let p = layPromptHienCoChoFlow()
+        guard !p.isEmpty else {
+            nhanTrangThaiFlow.text = "Chưa có prompt. Chuyển sang tab Tạo nội dung để nhập sản phẩm."
+            nhanTrangThaiFlow.textColor = .systemOrange
+            return
+        }
+        UIPasteboard.general.string = p
+        nhanTrangThaiFlow.text = "Đã sao chép prompt vào bộ nhớ tạm."
+        nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
+    }
+
+    @objc private func bamMoSafariTrongApp() {
+        let p = layPromptHienCoChoFlow()
+        if !p.isEmpty {
+            UIPasteboard.general.string = p
+        }
+        guard let url = URL(string: "https://flow.google.com/") else { return }
+        let sf = SFSafariViewController(url: url)
+        sf.modalPresentationStyle = .pageSheet
+        present(sf, animated: true)
+    }
+
+    private func layPromptHienCoChoFlow() -> String {
+        if !promptChoDienFlow.isEmpty { return promptChoDienFlow }
+        let p = oPromptFlow.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !p.isEmpty {
+            promptChoDienFlow = p
+            return p
+        }
+        return ""
+    }
+
+    @objc private func bamDienPromptVaoFlow() {
+        let p = layPromptHienCoChoFlow()
+        guard !p.isEmpty else {
+            nhanTrangThaiFlow.text = "Chưa có prompt. Quay lại tab Tạo nội dung nhập thông tin trước nhé."
+            nhanTrangThaiFlow.textColor = .systemOrange
+            return
+        }
+        UIPasteboard.general.string = p
+        bomPromptVaoWebViewFlow(p, tuDong: false)
+    }
+
+    @objc private func bamLayAnhTuFlow() {
+        nhanTrangThaiFlow.text = "Đang tìm và lấy ảnh kết quả từ Google Flow..."
+        nhanTrangThaiFlow.textColor = BangMauBCTD.xanhChuDao
+        vongQuayFlow.startAnimating()
+
+        let asyncJS = """
+        function collectMedia(root, out) {
+          if (!root) return;
+          const imgs = root.querySelectorAll ? root.querySelectorAll('img, canvas') : [];
+          for (const el of imgs) out.push(el);
+          const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
+          for (const el of all) { if (el.shadowRoot) collectMedia(el.shadowRoot, out); }
+        }
+        const nodes = [];
+        collectMedia(document, nodes);
+        let best = null;
+        let bestArea = 0;
+        for (const el of nodes) {
+          const r = el.getBoundingClientRect();
+          if (r.width < 120 || r.height < 120) continue;
+          const nw = el.tagName === 'IMG' ? (el.naturalWidth || r.width) : (el.width || r.width);
+          const nh = el.tagName === 'IMG' ? (el.naturalHeight || r.height) : (el.height || r.height);
+          if (nw < 256 || nh < 256) continue;
+          const src = el.tagName === 'IMG' ? (el.currentSrc || el.src || '') : '';
+          if (el.tagName === 'IMG' && /(avatar|profile|logo|icon|googleusercontent\.com\/a\/)/i.test(src)) continue;
+          const area = nw * nh;
+          if (area >= bestArea) {
+            bestArea = area;
+            best = el;
+          }
+        }
+        if (!best) return "NOT_FOUND";
+        try {
+          if (best.tagName === 'CANVAS') {
+            return best.toDataURL('image/png');
+          }
+          const c = document.createElement('canvas');
+          c.width = best.naturalWidth;
+          c.height = best.naturalHeight;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(best, 0, 0);
+          return c.toDataURL('image/png');
+        } catch (_) {}
+        try {
+          const src = best.currentSrc || best.src;
+          if (!src) return "CORS_BLOCKED";
+          const resp = await fetch(src, { credentials: 'include' });
+          const blob = await resp.blob();
+          return await new Promise((resolve) => {
+            const fr = new FileReader();
+            fr.onloadend = () => resolve(typeof fr.result === 'string' ? fr.result : 'CORS_BLOCKED');
+            fr.onerror = () => resolve('CORS_BLOCKED');
+            fr.readAsDataURL(blob);
+          });
+        } catch (_) {
+          return "CORS_BLOCKED";
+        }
+        """
+
+        webViewFlow.callAsyncJavaScript(asyncJS, arguments: [:], in: nil, in: .page) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.vongQuayFlow.stopAnimating()
+                switch result {
+                case .success(let value):
+                    let str = (value as? String) ?? ""
+                    if str == "NOT_FOUND" || str.isEmpty {
+                        self.nhanTrangThaiFlow.text = "Chưa thấy ảnh kết quả lớn trên Flow. Hãy bấm tạo ảnh xong rồi bấm Lấy ảnh về app."
+                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                        return
+                    }
+                    if str == "CORS_BLOCKED" || !str.hasPrefix("data:image/") {
+                        self.nhanTrangThaiFlow.text = "Flow chặn đọc ảnh trực tiếp — bạn hãy bấm nút Tải xuống ngay trên giao diện Flow nhé."
+                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                        return
+                    }
+                    guard let comma = str.firstIndex(of: ",") else { return }
+                    let b64 = String(str[str.index(after: comma)...])
+                    guard let data = Data(base64Encoded: b64), let img = UIImage(data: data) else {
+                        self.nhanTrangThaiFlow.text = "Không giải mã được ảnh từ Flow. Hãy tải trực tiếp trên Flow."
+                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                        return
+                    }
+                    self.anhKetQua = img
+                    self.anhKetQuaView.image = img
+                    self.theAnhKetQua.isHidden = false
+                    self.nhanTrangThaiFlow.text = "Đã lấy ảnh từ Google Flow về mục 4 ✓"
+                    self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
+                    self.thanhChuyenCheDo.selectedSegmentIndex = 0
+                    self.doiCheDoTab()
+                    self.nhanTrangThai.text = "Đã nhận ảnh từ Google Flow — bạn có thể Lưu hoặc Chia sẻ ngay bên dưới."
+                    self.nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+                case .failure(let err):
+                    self.nhanTrangThaiFlow.text = "Không lấy được ảnh tự động (\(err.localizedDescription)). Hãy bấm tải trực tiếp trên Flow."
+                    self.nhanTrangThaiFlow.textColor = .systemOrange
+                }
+            }
+        }
+    }
+
+    private func bomPromptVaoWebViewFlow(_ prompt: String, tuDong: Bool) {
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: [prompt], options: []),
+              let jsonArr = String(data: jsonData, encoding: .utf8) else { return }
+
+        let js = """
+        (function() {
+          const text = (\(jsonArr))[0];
+          function collect(root, out) {
+            if (!root) return;
+            const list = root.querySelectorAll ? root.querySelectorAll('textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]') : [];
+            for (const el of list) out.push(el);
+            const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
+            for (const el of all) { if (el.shadowRoot) collect(el.shadowRoot, out); }
+          }
+          function visible(el) {
+            if (!el || !el.isConnected) return false;
+            const st = window.getComputedStyle(el);
+            if (!st || st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) return false;
+            const r = el.getBoundingClientRect();
+            return r.width >= 80 && r.height >= 24;
+          }
+          const cands = [];
+          collect(document, cands);
+          let best = null, bestScore = -1;
+          for (const el of cands) {
+            if (!visible(el) || el.disabled || el.readOnly || el.getAttribute('aria-disabled') === 'true') continue;
+            const meta = ((el.getAttribute('placeholder')||'') + ' ' + (el.getAttribute('aria-label')||'') + ' ' + (el.getAttribute('data-placeholder')||'') + ' ' + (el.id||'')).toLowerCase();
+            if (/(search|tìm kiếm|rename|project name|tên dự án|title)/i.test(meta)) continue;
+            let score = 0;
+            const r = el.getBoundingClientRect();
+            if (el.tagName === 'TEXTAREA') score += 40;
+            if (el.getAttribute('contenteditable') === 'true' || el.getAttribute('role') === 'textbox') score += 30;
+            if (/(prompt|describe|create|imagine|generate|what|idea|scene|mô tả|nhập|tạo)/i.test(meta)) score += 60;
+            if (r.width >= 180) score += 20;
+            if (r.top > window.innerHeight * 0.3) score += 15;
+            if (score > bestScore) { bestScore = score; best = el; }
+          }
+          if (!best) return "NOT_FOUND";
+          best.focus();
+          if (best.tagName === 'TEXTAREA' || best.tagName === 'INPUT') {
+            const proto = best.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+            if (setter) setter.call(best, text); else best.value = text;
+            best.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+            best.dispatchEvent(new Event('change', { bubbles: true }));
+            return "FILLED";
+          }
+          const sel = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(best);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          const ok = document.execCommand && document.execCommand('insertText', false, text);
+          if (!ok || (best.innerText || best.textContent || '').trim().length < Math.min(10, text.length)) {
+            best.textContent = text;
+            best.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+            best.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          return "FILLED";
+        })();
+        """
+
+        webViewFlow.evaluateJavaScript(js) { [weak self] ketQua, _ in
+            guard let self else { return }
+            let kq = (ketQua as? String) ?? ""
+            if kq == "FILLED" {
+                self.nhanTrangThaiFlow.text = "Đã tự điền prompt vào Google Flow ✓"
+                self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
+            } else if !tuDong {
+                self.nhanTrangThaiFlow.text = "Chưa thấy ô nhập prompt (hãy mở một dự án trong Flow rồi bấm Điền Prompt lại, hoặc bấm Dán)."
+                self.nhanTrangThaiFlow.textColor = .systemOrange
+            }
+        }
+    }
+
+    // MARK: - WKNavigationDelegate & WKUIDelegate cho Google Flow
+
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        vongQuayFlow.startAnimating()
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        vongQuayFlow.stopAnimating()
+        webView.evaluateJavaScript("document.body ? document.body.innerText : ''") { [weak self] res, _ in
+            guard let self else { return }
+            let bodyText = (res as? String) ?? ""
+            if bodyText.localizedCaseInsensitiveContains("disallowed_useragent") {
+                self.nhanTrangThaiFlow.text = "Google chặn đăng nhập ở khung này — hãy bấm nút "🔒 Safari trong app" ở góc phải trên."
+                self.nhanTrangThaiFlow.textColor = .systemRed
+                return
+            }
+            if !self.promptChoDienFlow.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                    guard let self, !self.promptChoDienFlow.isEmpty else { return }
+                    self.bomPromptVaoWebViewFlow(self.promptChoDienFlow, tuDong: true)
+                }
+            }
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        vongQuayFlow.stopAnimating()
+    }
+
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
+            webView.load(URLRequest(url: url))
+        }
+        return nil
     }
 
     // MARK: - Các thẻ giao diện
@@ -662,7 +1118,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private func taoTheHanhDong() -> UIView {
         let (the, stack) = taoKhungThe(tieuDe: "3. Tạo ảnh Google Flow & 3 bài đăng Facebook")
 
-        nutMoGoogleFlow.setTitle("🌊 Mở Google Flow (Tự điền Prompt)", for: .normal)
+        nutMoGoogleFlow.setTitle("🌊 Mở Google Flow ngay trong app", for: .normal)
         nutMoGoogleFlow.titleLabel?.font = .systemFont(ofSize: 15.5, weight: .heavy)
         nutMoGoogleFlow.backgroundColor = BangMauBCTD.xanhLaDam
         nutMoGoogleFlow.setTitleColor(.white, for: .normal)
@@ -681,7 +1137,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         nutCopyPromptFlow.heightAnchor.constraint(equalToConstant: 38).isActive = true
         nutCopyPromptFlow.addTarget(self, action: #selector(bamCopyPromptFlow), for: .touchUpInside)
 
-        nutHuongDanFlow.setTitle("⚙️ Cách bật tự điền", for: .normal)
+        nutHuongDanFlow.setTitle("🔒 Safari trong app", for: .normal)
         nutHuongDanFlow.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
         nutHuongDanFlow.backgroundColor = BangMauBCTD.nenTrang
         nutHuongDanFlow.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
@@ -934,31 +1390,25 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         return promptMoi
     }
 
-    private func maHoaBase64URL(_ text: String) -> String {
-        let data = Data(text.utf8)
-        return data.base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
-    }
 
     @objc private func bamMoGoogleFlow() {
         view.endEditing(true)
         guard let prompt = chuanBiPromptGoogleFlow() else { return }
 
-        // Lưu thêm vào clipboard làm phương án dự phòng 1 chạm dán
+        promptChoDienFlow = prompt
         UIPasteboard.general.string = prompt
 
-        let encoded = maHoaBase64URL(prompt)
-        let urlStr = "https://flow.google.com/#dmx_prompt=\(encoded)"
-        guard let url = URL(string: urlStr) else {
-            hienThongBao(tieuDe: "Lỗi mở liên kết", noiDung: "Không tạo được liên kết Google Flow.")
-            return
-        }
+        // Chuyển ngay sang tab Google Flow tích hợp trong app DMX
+        thanhChuyenCheDo.selectedSegmentIndex = 1
+        doiCheDoTab()
 
-        nhanTrangThai.text = "Đang mở Google Flow trên Safari (đã gửi prompt tự điền + copy dự phòng)."
-        nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
-        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        nhanTrangThaiFlow.text = "Đã chuẩn bị prompt — đang tự điền vào Google Flow..."
+        nhanTrangThaiFlow.textColor = BangMauBCTD.xanhChuDao
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self else { return }
+            self.bomPromptVaoWebViewFlow(prompt, tuDong: true)
+        }
     }
 
     @objc private func bamCopyPromptFlow() {
@@ -970,16 +1420,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     @objc private func bamHuongDanFlow() {
-        let msg = """
-        Để Safari tự điền prompt khi mở Google Flow, bạn chỉ cần bật tiện ích 1 lần duy nhất:
-
-        1. Mở Cài đặt (Settings) trên iPhone → Ứng dụng → Safari → Phần mở rộng (Extensions).
-        2. Bật "DMX Flow Prompt".
-        3. Ở mục quyền trang web "flow.google.com", chọn "Cho phép" (Allow).
-
-        Sau đó quay lại app ĐMX bấm "Mở Google Flow (Tự điền Prompt)". Khi mở hoặc tạo dự án trên Flow, tiện ích sẽ tự điền prompt sẵn vào ô nhập.
-        """
-        hienThongBao(tieuDe: "Hướng dẫn bật tự điền Flow", noiDung: msg)
+        view.endEditing(true)
+        if let prompt = chuanBiPromptGoogleFlow() {
+            promptChoDienFlow = prompt
+            UIPasteboard.general.string = prompt
+        }
+        bamMoSafariTrongApp()
     }
 
     @objc private func bamTaoTatCa() {
