@@ -1434,8 +1434,18 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           promptOk = await fillPromptBox(box, promptText);
         }
         function hasActivePercentProgress() {
-          const txt = document.body?.innerText || '';
-          return /\b(?:[0-9]|[1-9][0-9]|100)%/.test(txt);
+          const docs = [];
+          collectDocs(document, docs);
+          const all = [];
+          for (const d of docs) collectAllElements(d, all);
+          for (const el of all) {
+            if (!isVisible(el)) continue;
+            if (el.children && el.children.length > 0) continue;
+            if (el.closest && el.closest('textarea, [contenteditable], [data-slate-editor], [role="textbox"]')) continue;
+            const t = (el.textContent || '').trim();
+            if (/^(?:[0-9]|[1-9][0-9]|100)%$/.test(t)) return true;
+          }
+          return false;
         }
 
         function countLoadedLargeImgs(excludeSet) {
@@ -1623,9 +1633,20 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
-        // Nếu Flow vẫn đang hiển thị tiến độ % tạo ảnh -> tiếp tục chờ
-        const bodyText = document.body?.innerText || '';
-        if (/\b(?:[0-9]|[1-9][0-9]|100)%/.test(bodyText)) {
+        // Nếu Flow vẫn đang hiển thị huy hiệu tiến độ % tạo ảnh (chỉ tính nhãn đứng riêng "XX%" ngoài ô prompt) -> tiếp tục chờ
+        function hasStandalonePercentBadge() {
+          const nodes = document.querySelectorAll('*');
+          for (const el of nodes) {
+            if (el.children && el.children.length > 0) continue;
+            if (el.closest && el.closest('textarea, [contenteditable], [data-slate-editor], [role="textbox"]')) continue;
+            const st = window.getComputedStyle(el);
+            if (!st || st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) continue;
+            const t = (el.textContent || '').trim();
+            if (/^(?:[0-9]|[1-9][0-9]|100)%$/.test(t)) return true;
+          }
+          return false;
+        }
+        if (hasStandalonePercentBadge()) {
           return "WAITING";
         }
 
