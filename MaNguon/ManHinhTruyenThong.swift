@@ -3205,6 +3205,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         lb.text = tieuDe
         lb.font = .systemFont(ofSize: 15, weight: .bold)
         lb.textColor = BangMauBCTD.chuChinh
+        lb.numberOfLines = 0
         stack.addArrangedSubview(lb)
 
         NSLayoutConstraint.activate([
@@ -3258,37 +3259,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         lbHuongDan.text = "📦 Danh sách sản phẩm gộp chung vào 1 Poster:"
         lbHuongDan.font = .systemFont(ofSize: 13, weight: .bold)
         lbHuongDan.textColor = BangMauBCTD.chuChinh
-
-        nutThemSanPham.setTitle("➕ Thêm SP", for: .normal)
-        nutThemSanPham.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
-        nutThemSanPham.backgroundColor = BangMauBCTD.xanhLaDam
-        nutThemSanPham.setTitleColor(.white, for: .normal)
-        nutThemSanPham.layer.cornerRadius = 8
-        nutThemSanPham.contentEdgeInsets = UIEdgeInsets(top: 5, left: 10, bottom: 5, right: 10)
-        nutThemSanPham.heightAnchor.constraint(equalToConstant: 30).isActive = true
-        nutThemSanPham.addTarget(self, action: #selector(bamThemTabSanPham), for: .touchUpInside)
-
-        nutXoaTabSanPham.setTitle("🗑 Xoá SP", for: .normal)
-        nutXoaTabSanPham.titleLabel?.font = .systemFont(ofSize: 12, weight: .semibold)
-        nutXoaTabSanPham.backgroundColor = BangMauBCTD.nenThePhu
-        nutXoaTabSanPham.setTitleColor(.systemRed, for: .normal)
-        nutXoaTabSanPham.layer.cornerRadius = 8
-        nutXoaTabSanPham.layer.borderWidth = 1
-        nutXoaTabSanPham.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.35).cgColor
-        nutXoaTabSanPham.contentEdgeInsets = UIEdgeInsets(top: 5, left: 8, bottom: 5, right: 8)
-        nutXoaTabSanPham.heightAnchor.constraint(equalToConstant: 30).isActive = true
-        nutXoaTabSanPham.isHidden = true
-        nutXoaTabSanPham.addTarget(self, action: #selector(bamXoaTabSanPhamHienTai), for: .touchUpInside)
-
-        let hangTieuDe = UIStackView(arrangedSubviews: [lbHuongDan, UIView(), nutXoaTabSanPham, nutThemSanPham])
-        hangTieuDe.axis = .horizontal
-        hangTieuDe.spacing = 6
-        hangTieuDe.alignment = .center
-        stack.addArrangedSubview(hangTieuDe)
+        lbHuongDan.numberOfLines = 0
+        stack.addArrangedSubview(lbHuongDan)
 
         cuonTabSanPham.showsHorizontalScrollIndicator = false
         cuonTabSanPham.translatesAutoresizingMaskIntoConstraints = false
-        cuonTabSanPham.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        cuonTabSanPham.heightAnchor.constraint(equalToConstant: 38).isActive = true
 
         nganTabSanPham.axis = .horizontal
         nganTabSanPham.spacing = 8
@@ -3304,6 +3280,32 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             nganTabSanPham.heightAnchor.constraint(equalTo: cuonTabSanPham.frameLayoutGuide.heightAnchor)
         ])
         stack.addArrangedSubview(cuonTabSanPham)
+
+        nutThemSanPham.setTitle("➕ Thêm sản phẩm thứ 2", for: .normal)
+        nutThemSanPham.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutThemSanPham.backgroundColor = BangMauBCTD.xanhLaDam
+        nutThemSanPham.setTitleColor(.white, for: .normal)
+        nutThemSanPham.layer.cornerRadius = 9
+        nutThemSanPham.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        nutThemSanPham.addTarget(self, action: #selector(bamThemTabSanPham), for: .touchUpInside)
+
+        nutXoaTabSanPham.setTitle("🗑 Xoá SP", for: .normal)
+        nutXoaTabSanPham.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .semibold)
+        nutXoaTabSanPham.backgroundColor = BangMauBCTD.nenThePhu
+        nutXoaTabSanPham.setTitleColor(.systemRed, for: .normal)
+        nutXoaTabSanPham.layer.cornerRadius = 9
+        nutXoaTabSanPham.layer.borderWidth = 1
+        nutXoaTabSanPham.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.35).cgColor
+        nutXoaTabSanPham.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        nutXoaTabSanPham.widthAnchor.constraint(equalToConstant: 96).isActive = true
+        nutXoaTabSanPham.isHidden = true
+        nutXoaTabSanPham.addTarget(self, action: #selector(bamXoaTabSanPhamHienTai), for: .touchUpInside)
+
+        let hangNutTab = UIStackView(arrangedSubviews: [nutThemSanPham, nutXoaTabSanPham])
+        hangNutTab.axis = .horizontal
+        hangNutTab.spacing = 8
+        hangNutTab.alignment = .fill
+        stack.addArrangedSubview(hangNutTab)
 
         nhanTomTatNhieuSP.font = .systemFont(ofSize: 12, weight: .medium)
         nhanTomTatNhieuSP.textColor = BangMauBCTD.xanhChuDao
@@ -3348,15 +3350,32 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             nut.layer.borderWidth = 1
             nut.layer.borderColor = (dangChon ? BangMauBCTD.xanhChuDao : BangMauBCTD.vienDam).cgColor
             nut.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
-            nut.heightAnchor.constraint(equalToConstant: 32).isActive = true
+            nut.heightAnchor.constraint(equalToConstant: 34).isActive = true
             nut.addTarget(self, action: #selector(bamChonTabSanPham(_:)), for: .touchUpInside)
             nganTabSanPham.addArrangedSubview(nut)
         }
 
+        // Nút "+ Thêm SP" nằm ngay cạnh tab sản phẩm cuối cùng trên thanh cuộn ngang
+        let nutCongNhanh = UIButton(type: .system)
+        nutCongNhanh.setTitle("＋ Thêm SP \(danhSachSanPham.count + 1)", for: .normal)
+        nutCongNhanh.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutCongNhanh.backgroundColor = BangMauBCTD.xanhLaDam.withAlphaComponent(0.12)
+        nutCongNhanh.setTitleColor(BangMauBCTD.xanhLaDam, for: .normal)
+        nutCongNhanh.layer.cornerRadius = 9
+        nutCongNhanh.layer.borderWidth = 1.2
+        nutCongNhanh.layer.borderColor = BangMauBCTD.xanhLaDam.cgColor
+        nutCongNhanh.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+        nutCongNhanh.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        nutCongNhanh.addTarget(self, action: #selector(bamThemTabSanPham), for: .touchUpInside)
+        nganTabSanPham.addArrangedSubview(nutCongNhanh)
+
+        nutThemSanPham.setTitle("➕ Thêm sản phẩm thứ \(danhSachSanPham.count + 1) vào Poster", for: .normal)
+        nutXoaTabSanPham.setTitle("🗑 Xoá SP \(chiSoSanPhamHienTai + 1)", for: .normal)
         nutXoaTabSanPham.isHidden = (danhSachSanPham.count <= 1)
+
         let soAnh = danhSachSanPham.filter { $0.anhMau != nil }.count
         if danhSachSanPham.count == 1 {
-            nhanTomTatNhieuSP.text = "Đang nhập Sản phẩm 1 — bấm ➕ Thêm SP nếu muốn nhập thêm nhiều sản phẩm & ảnh gộp chung vào 1 Poster."
+            nhanTomTatNhieuSP.text = "Đang nhập Sản phẩm 1 — bấm nút ➕ Thêm sản phẩm ở trên nếu muốn gộp nhiều sản phẩm & ảnh vào chung 1 Poster."
         } else {
             nhanTomTatNhieuSP.text = "✨ Đang sửa SP \(chiSoSanPhamHienTai + 1)/\(danhSachSanPham.count) (đã có \(soAnh) ảnh mẫu) — toàn bộ \(danhSachSanPham.count) sản phẩm sẽ tự gộp chung vào 1 Poster!"
         }
@@ -3482,6 +3501,11 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         danhSachSanPham.append(MucSanPhamPoster())
         chiSoSanPhamHienTai = danhSachSanPham.count - 1
         napDuLieuTabHienTaiLenGiaoDien()
+    }
+
+    @objc private func bamThemTabSanPhamTuThe2() {
+        bamThemTabSanPham()
+        cuon.setContentOffset(.zero, animated: true)
     }
 
     @objc private func bamXoaTabSanPhamHienTai() {
@@ -3621,6 +3645,18 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         oDiemNoiBat.heightAnchor.constraint(equalToConstant: 76).isActive = true
         oDiemNoiBat.delegate = self
         stack.addArrangedSubview(oDiemNoiBat)
+
+        let nutThemSPOThe2 = UIButton(type: .system)
+        nutThemSPOThe2.setTitle("➕ Thêm sản phẩm khác vào chung Poster", for: .normal)
+        nutThemSPOThe2.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutThemSPOThe2.backgroundColor = BangMauBCTD.xanhLaDam.withAlphaComponent(0.12)
+        nutThemSPOThe2.setTitleColor(BangMauBCTD.xanhLaDam, for: .normal)
+        nutThemSPOThe2.layer.cornerRadius = 10
+        nutThemSPOThe2.layer.borderWidth = 1.2
+        nutThemSPOThe2.layer.borderColor = BangMauBCTD.xanhLaDam.cgColor
+        nutThemSPOThe2.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        nutThemSPOThe2.addTarget(self, action: #selector(bamThemTabSanPhamTuThe2), for: .touchUpInside)
+        stack.addArrangedSubview(nutThemSPOThe2)
 
         stack.addArrangedSubview(taoNhanNho("Siêu thị / Hotline / Địa chỉ (chung cho Poster)"))
         stack.addArrangedSubview(taoOChiTiet(oLienHe, goiY: "VD: ĐMX Siêu thị 76 · Hotline 09xx.xxx.xxx"))
