@@ -565,7 +565,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             nut.addTarget(self, action: action, for: .touchUpInside)
         }
 
-        nutFlowDienPrompt.setTitle("✨ Điền Prompt", for: .normal)
+        nutFlowDienPrompt.setTitle("✨ Điền Prompt + Ảnh", for: .normal)
         nutFlowDienPrompt.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
         nutFlowDienPrompt.backgroundColor = BangMauBCTD.xanhLaDam
         nutFlowDienPrompt.setTitleColor(.white, for: .normal)
@@ -832,77 +832,326 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         }
     }
 
+    private func maHoaAnhMauBase64ChoFlow() -> String {
+        guard let anh = anhMau else { return "" }
+        return autoreleasepool {
+            let maxSide: CGFloat = 1280
+            let w = anh.size.width
+            let h = anh.size.height
+            let data: Data?
+            if max(w, h) > maxSide, w > 10, h > 10 {
+                let tiLe = maxSide / max(w, h)
+                let size = CGSize(width: (w * tiLe).rounded(), height: (h * tiLe).rounded())
+                let fmt = UIGraphicsImageRendererFormat.default()
+                fmt.scale = 1.0
+                fmt.opaque = true
+                let imgGon = UIGraphicsImageRenderer(size: size, format: fmt).image { _ in
+                    anh.draw(in: CGRect(origin: .zero, size: size))
+                }
+                data = imgGon.jpegData(compressionQuality: 0.88)
+            } else {
+                data = anh.jpegData(compressionQuality: 0.88)
+            }
+            return data?.base64EncodedString() ?? ""
+        }
+    }
+
     private func bomPromptVaoWebViewFlow(_ prompt: String, tuDong: Bool) {
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: [prompt], options: []),
-              let jsonArr = String(data: jsonData, encoding: .utf8) else { return }
+        let anhB64 = maHoaAnhMauBase64ChoFlow()
+        let args: [String: Any] = [
+            "promptText": prompt,
+            "imageBase64": anhB64
+        ]
 
-        let js = """
-        (function() {
-          const text = (\(jsonArr))[0];
-          function collect(root, out) {
-            if (!root) return;
-            const list = root.querySelectorAll ? root.querySelectorAll('textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]') : [];
-            for (const el of list) out.push(el);
-            const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
-            for (const el of all) { if (el.shadowRoot) collect(el.shadowRoot, out); }
+        let asyncJS = #"""
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        function collectDocs(doc, out) {
+          if (!doc) return;
+          out.push(doc);
+          const frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
+          for (const f of frames) {
+            try { if (f.contentDocument) collectDocs(f.contentDocument, out); } catch (_) {}
           }
-          function visible(el) {
-            if (!el || !el.isConnected) return false;
-            const st = window.getComputedStyle(el);
-            if (!st || st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) return false;
+        }
+
+        function collectAllElements(root, out) {
+          if (!root) return;
+          const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
+          for (const el of all) {
+            out.push(el);
+            if (el.shadowRoot) collectAllElements(el.shadowRoot, out);
+          }
+        }
+
+        function isVisible(el) {
+          if (!el || !el.isConnected) return false;
+          const st = window.getComputedStyle(el);
+          if (!st || st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) return false;
+          const r = el.getBoundingClientRect();
+          return r.width >= 30 && r.height >= 12;
+        }
+
+        function findPromptBox() {
+          const docs = [];
+          collectDocs(document, docs);
+          const allEls = [];
+          for (const d of docs) collectAllElements(d, allEls);
+
+          let best = null;
+          let bestScore = -1;
+
+          for (const el of allEls) {
+            const tag = (el.tagName || '').toUpperCase();
+            const ceAttr = (el.getAttribute && el.getAttribute('contenteditable')) || '';
+            const role = (el.getAttribute && el.getAttribute('role')) || '';
+            const isEditable = tag === 'TEXTAREA'
+              || el.isContentEditable === true
+              || (ceAttr !== '' && ceAttr !== 'false')
+              || role === 'textbox'
+              || el.hasAttribute('data-slate-editor');
+
+            if (!isEditable) continue;
+            if (!isVisible(el)) continue;
+            if (el.disabled || el.readOnly || el.getAttribute('aria-disabled') === 'true') continue;
+
+            // Bỏ qua nếu có phần tử con trực tiếp cũng là contenteditable (tránh chọn wrapper ngoài)
+            if (tag !== 'TEXTAREA' && el.querySelector && el.querySelector('[contenteditable="true"], [contenteditable="plaintext-only"], [data-slate-editor="true"], textarea')) {
+              continue;
+            }
+
+            const meta = [
+              el.getAttribute('placeholder') || '',
+              el.getAttribute('aria-label') || '',
+              el.getAttribute('data-placeholder') || '',
+              el.id || '',
+              typeof el.className === 'string' ? el.className : '',
+              el.closest ? (el.closest('form, section, div')?.innerText || '').slice(0, 120) : ''
+            ].join(' ').toLowerCase();
+
+            if (/(^|\s)(search|tìm kiếm|rename|project name|tên dự án)(\s|$)/i.test(meta) && !/(tạo|create|prompt|những gì|describe)/i.test(meta)) {
+              continue;
+            }
+
             const r = el.getBoundingClientRect();
-            return r.width >= 80 && r.height >= 24;
-          }
-          const cands = [];
-          collect(document, cands);
-          let best = null, bestScore = -1;
-          for (const el of cands) {
-            if (!visible(el) || el.disabled || el.readOnly || el.getAttribute('aria-disabled') === 'true') continue;
-            const meta = ((el.getAttribute('placeholder')||'') + ' ' + (el.getAttribute('aria-label')||'') + ' ' + (el.getAttribute('data-placeholder')||'') + ' ' + (el.id||'')).toLowerCase();
-            if (/(search|tìm kiếm|rename|project name|tên dự án|title)/i.test(meta)) continue;
             let score = 0;
-            const r = el.getBoundingClientRect();
-            if (el.tagName === 'TEXTAREA') score += 40;
-            if (el.getAttribute('contenteditable') === 'true' || el.getAttribute('role') === 'textbox') score += 30;
-            if (/(prompt|describe|create|imagine|generate|what|idea|scene|mô tả|nhập|tạo)/i.test(meta)) score += 60;
-            if (r.width >= 180) score += 20;
-            if (r.top > window.innerHeight * 0.3) score += 15;
-            if (score > bestScore) { bestScore = score; best = el; }
-          }
-          if (!best) return "NOT_FOUND";
-          best.focus();
-          if (best.tagName === 'TEXTAREA' || best.tagName === 'INPUT') {
-            const proto = best.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-            if (setter) setter.call(best, text); else best.value = text;
-            best.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
-            best.dispatchEvent(new Event('change', { bubbles: true }));
-            return "FILLED";
-          }
-          const sel = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(best);
-          sel.removeAllRanges();
-          sel.addRange(range);
-          const ok = document.execCommand && document.execCommand('insertText', false, text);
-          if (!ok || (best.innerText || best.textContent || '').trim().length < Math.min(10, text.length)) {
-            best.textContent = text;
-            best.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
-            best.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-          return "FILLED";
-        })();
-        """
+            if (tag === 'TEXTAREA') score += 45;
+            if (el.hasAttribute('data-slate-editor')) score += 60;
+            if (el.isContentEditable || role === 'textbox') score += 40;
+            if (/(bạn muốn tạo|what do you want|prompt|describe|create|imagine|generate|nhập|mô tả)/i.test(meta)) score += 80;
+            if (r.top > window.innerHeight * 0.45) score += 35; // Ô nhập Flow nằm ở nửa dưới màn hình
+            if (r.width >= 150) score += 20;
+            score += Math.min(r.width / 20, 20);
 
-        webViewFlow.evaluateJavaScript(js) { [weak self] ketQua, _ in
-            guard let self else { return }
-            let kq = (ketQua as? String) ?? ""
-            if kq == "FILLED" {
-                self.nhanTrangThaiFlow.text = "Đã tự điền prompt vào Google Flow ✓"
-                self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
-            } else if !tuDong {
-                self.nhanTrangThaiFlow.text = "Chưa thấy ô nhập prompt (hãy mở một dự án trong Flow rồi bấm Điền Prompt lại, hoặc bấm Dán)."
-                self.nhanTrangThaiFlow.textColor = .systemOrange
+            if (score > bestScore) {
+              bestScore = score;
+              best = el;
+            }
+          }
+
+          // Fallback: tìm chữ placeholder "Bạn muốn tạo những gì" rồi tìm ô nhập gần nhất
+          if (!best) {
+            for (const el of allEls) {
+              if (!isVisible(el)) continue;
+              const txt = (el.textContent || '').trim().toLowerCase();
+              if (txt.includes('bạn muốn tạo những gì') || txt.includes('what do you want to create')) {
+                let p = el;
+                for (let k = 0; k < 5 && p; k++) {
+                  const ed = p.querySelector && p.querySelector('textarea, [contenteditable], [role="textbox"], [data-slate-editor]');
+                  if (ed) { best = ed; break; }
+                  p = p.parentElement;
+                }
+                if (best) break;
+              }
+            }
+          }
+          return best;
+        }
+
+        function getBoxText(el) {
+          if (!el) return '';
+          if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return (el.value || '').trim();
+          return (el.innerText || el.textContent || '').trim();
+        }
+
+        async function fillPromptBox(el, text) {
+          if (!el || !text) return false;
+          el.scrollIntoView({ block: 'center' });
+          el.click();
+          el.focus();
+          await sleep(80);
+
+          if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+            const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+            if (setter) setter.call(el, text); else el.value = text;
+            el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+
+          // Rich-text editor (Slate / Lexical / ProseMirror / TipTap)
+          try {
+            const sel = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          } catch (_) {}
+
+          // Cách 1: Synthetic Paste Event (Slate.js & Lexical xử lý chuẩn nhất)
+          try {
+            const dt = new DataTransfer();
+            dt.setData('text/plain', text);
+            const pasteEvt = new ClipboardEvent('paste', {
+              clipboardData: dt,
+              bubbles: true,
+              cancelable: true
+            });
+            el.dispatchEvent(pasteEvt);
+            await sleep(100);
+            if (getBoxText(el).includes(text.slice(0, 12))) return true;
+          } catch (_) {}
+
+          // Cách 2: execCommand('insertText')
+          try {
+            el.focus();
+            document.execCommand('selectAll', false, null);
+            document.execCommand('insertText', false, text);
+            await sleep(80);
+            if (getBoxText(el).includes(text.slice(0, 12))) return true;
+          } catch (_) {}
+
+          // Cách 3: beforeinput + textContent + input
+          try {
+            el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+            el.textContent = text;
+            el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }
+
+        async function attachSampleImage(b64, promptBox) {
+          if (!b64) return 'NO_IMAGE';
+          try {
+            const bin = atob(b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            const file = new File([bytes], 'san-pham-dmx.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+
+            // Cách 1: Tìm <input type="file"> (kể cả input ẩn)
+            const docs = [];
+            collectDocs(document, docs);
+            const allEls = [];
+            for (const d of docs) collectAllElements(d, allEls);
+            const fileInputs = allEls.filter(el => (el.tagName || '').toUpperCase() === 'INPUT' && el.type === 'file');
+
+            for (const inp of fileInputs) {
+              const acc = (inp.accept || '').toLowerCase();
+              if (acc && !acc.includes('image') && !acc.includes('*')) continue;
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              inp.files = dt.files;
+              inp.dispatchEvent(new Event('input', { bubbles: true }));
+              inp.dispatchEvent(new Event('change', { bubbles: true }));
+              return 'ATTACHED_INPUT';
+            }
+
+            // Cách 2: Thả ảnh (DragEvent 'drop') vào vùng dropzone của Google Flow ("thả nội dung nghe nhìn")
+            const dropTargets = [];
+            if (promptBox) {
+              dropTargets.push(promptBox);
+              if (promptBox.parentElement) dropTargets.push(promptBox.parentElement);
+            }
+            const mainEl = document.querySelector('main') || document.body;
+            if (mainEl) dropTargets.push(mainEl);
+
+            for (const target of dropTargets) {
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              for (const evType of ['dragenter', 'dragover', 'drop']) {
+                const ev = new DragEvent(evType, {
+                  bubbles: true,
+                  cancelable: true,
+                  dataTransfer: dt
+                });
+                target.dispatchEvent(ev);
+              }
+            }
+
+            // Cách 3: Paste ảnh trực tiếp vào ô prompt (Flow hỗ trợ dán ảnh)
+            if (promptBox) {
+              const dtPaste = new DataTransfer();
+              dtPaste.items.add(file);
+              const pasteImg = new ClipboardEvent('paste', {
+                clipboardData: dtPaste,
+                bubbles: true,
+                cancelable: true
+              });
+              promptBox.dispatchEvent(pasteImg);
+            }
+            return 'ATTACHED_DROP';
+          } catch (e) {
+            return 'IMG_ERR:' + String(e);
+          }
+        }
+
+        const box = findPromptBox();
+        let promptOk = false;
+        if (box && promptText) {
+          promptOk = await fillPromptBox(box, promptText);
+        }
+        let imgStatus = 'NO_IMAGE';
+        if (imageBase64) {
+          imgStatus = await attachSampleImage(imageBase64, box);
+        }
+        return JSON.stringify({ promptOk, imgStatus, foundBox: !!box });
+        """#
+
+        webViewFlow.callAsyncJavaScript(asyncJS, arguments: args, in: nil, in: .page) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch result {
+                case .success(let val):
+                    let raw = (val as? String) ?? ""
+                    guard let d = raw.data(using: .utf8),
+                          let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else {
+                        if !tuDong {
+                            self.nhanTrangThaiFlow.text = "Đã sao chép prompt — chạm ô nhập trên Flow rồi bấm Dán."
+                            self.nhanTrangThaiFlow.textColor = .systemOrange
+                        }
+                        return
+                    }
+                    let promptOk = (obj["promptOk"] as? Bool) ?? false
+                    let imgStatus = (obj["imgStatus"] as? String) ?? "NO_IMAGE"
+                    let daGanAnh = imgStatus.hasPrefix("ATTACHED_")
+
+                    if promptOk && daGanAnh {
+                        self.nhanTrangThaiFlow.text = "Đã điền Prompt & gửi Ảnh mẫu vào Google Flow ✓"
+                        self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
+                    } else if promptOk {
+                        if anhB64.isEmpty {
+                            self.nhanTrangThaiFlow.text = "Đã điền Prompt vào Google Flow ✓ (chưa chọn ảnh mẫu ở tab Tạo nội dung)."
+                        } else {
+                            self.nhanTrangThaiFlow.text = "Đã điền Prompt ✓ — nếu ảnh mẫu chưa hiện, chạm nút + trên Flow để chọn ảnh."
+                        }
+                        self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
+                    } else if daGanAnh {
+                        self.nhanTrangThaiFlow.text = "Đã gửi ảnh mẫu — chạm ô nhập trên Flow rồi bấm Dán prompt."
+                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                    } else if !tuDong {
+                        self.nhanTrangThaiFlow.text = "Chưa bắt được ô nhập Flow (đã copy sẵn prompt — chạm vào ô nhập rồi chọn Dán)."
+                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                    }
+                case .failure(_):
+                    if !tuDong {
+                        self.nhanTrangThaiFlow.text = "Đã copy sẵn prompt — bạn chạm vào ô nhập trên Flow rồi chọn Dán."
+                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                    }
+                }
             }
         }
     }
