@@ -406,20 +406,18 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private let cuon = UIScrollView()
     private let ngan = UIStackView()
 
-    // Trình duyệt Google Flow nhúng ngay trong tab Truyền thông
+    // Trình duyệt Google Flow nhúng ngay trong tab Truyền thông (gọn 1 hàng tối đa diện tích)
     private var webViewFlow: WKWebView!
     private var daTaiTrangFlow = false
+    private var canTaoDuAnMoiFlow = false
     private var promptChoDienFlow: String = ""
+    private let khungToastFlow = UIView()
     private let nhanTrangThaiFlow = UILabel()
     private let vongQuayFlow = UIActivityIndicatorView(style: .medium)
-    private let nutFlowLui = UIButton(type: .system)
-    private let nutFlowTien = UIButton(type: .system)
-    private let nutFlowTaiLai = UIButton(type: .system)
-    private let nutFlowTrangChu = UIButton(type: .system)
+    private var congViecAnToastFlow: DispatchWorkItem?
     private let nutFlowDienPrompt = UIButton(type: .system)
     private let nutFlowLayAnh = UIButton(type: .system)
-    private let nutFlowCopyPrompt = UIButton(type: .system)
-    private let nutFlowSafariTrongApp = UIButton(type: .system)
+    private let nutFlowMenuPhu = UIButton(type: .system)
 
     // Ảnh mẫu
     private var anhMau: UIImage?
@@ -491,17 +489,17 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         view.addSubview(khungGoogleFlow)
 
         NSLayoutConstraint.activate([
-            thanhChuyenCheDo.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
-            thanhChuyenCheDo.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-            thanhChuyenCheDo.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-            thanhChuyenCheDo.heightAnchor.constraint(equalToConstant: 34),
+            thanhChuyenCheDo.topAnchor.constraint(equalTo: view.topAnchor, constant: 4),
+            thanhChuyenCheDo.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            thanhChuyenCheDo.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            thanhChuyenCheDo.heightAnchor.constraint(equalToConstant: 30),
 
-            khungTaoNoiDung.topAnchor.constraint(equalTo: thanhChuyenCheDo.bottomAnchor, constant: 8),
+            khungTaoNoiDung.topAnchor.constraint(equalTo: thanhChuyenCheDo.bottomAnchor, constant: 6),
             khungTaoNoiDung.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             khungTaoNoiDung.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             khungTaoNoiDung.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            khungGoogleFlow.topAnchor.constraint(equalTo: thanhChuyenCheDo.bottomAnchor, constant: 8),
+            khungGoogleFlow.topAnchor.constraint(equalTo: thanhChuyenCheDo.bottomAnchor, constant: 4),
             khungGoogleFlow.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             khungGoogleFlow.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             khungGoogleFlow.bottomAnchor.constraint(equalTo: view.bottomAnchor)
@@ -552,108 +550,132 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         webViewFlow.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
         webViewFlow.translatesAutoresizingMaskIntoConstraints = false
 
-        for (nut, icon, action) in [
-            (nutFlowLui, "chevron.left", #selector(bamFlowLui)),
-            (nutFlowTien, "chevron.right", #selector(bamFlowTien)),
-            (nutFlowTaiLai, "arrow.clockwise", #selector(bamFlowTaiLai)),
-            (nutFlowTrangChu, "house", #selector(bamFlowTrangChu))
-        ] {
-            nut.setImage(UIImage(systemName: icon), for: .normal)
-            nut.tintColor = BangMauBCTD.xanhChuDao
-            nut.widthAnchor.constraint(equalToConstant: 32).isActive = true
-            nut.heightAnchor.constraint(equalToConstant: 32).isActive = true
-            nut.addTarget(self, action: action, for: .touchUpInside)
-        }
-
         nutFlowDienPrompt.setTitle("✨ Điền + Ảnh", for: .normal)
         nutFlowDienPrompt.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
         nutFlowDienPrompt.backgroundColor = BangMauBCTD.xanhLaDam
         nutFlowDienPrompt.setTitleColor(.white, for: .normal)
         nutFlowDienPrompt.layer.cornerRadius = 8
-        nutFlowDienPrompt.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        nutFlowDienPrompt.heightAnchor.constraint(equalToConstant: 32).isActive = true
         nutFlowDienPrompt.addTarget(self, action: #selector(bamDienPromptVaoFlow), for: .touchUpInside)
 
-        nutFlowCopyPrompt.setTitle("📋 Copy", for: .normal)
-        nutFlowCopyPrompt.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
-        nutFlowCopyPrompt.backgroundColor = BangMauBCTD.nenTrang
-        nutFlowCopyPrompt.setTitleColor(BangMauBCTD.xanhChuDao, for: .normal)
-        nutFlowCopyPrompt.layer.cornerRadius = 8
-        nutFlowCopyPrompt.layer.borderWidth = 1
-        nutFlowCopyPrompt.layer.borderColor = BangMauBCTD.vienDam.cgColor
-        nutFlowCopyPrompt.heightAnchor.constraint(equalToConstant: 34).isActive = true
-        nutFlowCopyPrompt.addTarget(self, action: #selector(bamCopyPromptTrongFlow), for: .touchUpInside)
-
-        nutFlowSafariTrongApp.setTitle("🔒 Safari trong app", for: .normal)
-        nutFlowSafariTrongApp.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
-        nutFlowSafariTrongApp.backgroundColor = BangMauBCTD.nenTrang
-        nutFlowSafariTrongApp.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
-        nutFlowSafariTrongApp.layer.cornerRadius = 8
-        nutFlowSafariTrongApp.layer.borderWidth = 1
-        nutFlowSafariTrongApp.layer.borderColor = BangMauBCTD.vienDam.cgColor
-        nutFlowSafariTrongApp.heightAnchor.constraint(equalToConstant: 34).isActive = true
-        nutFlowSafariTrongApp.addTarget(self, action: #selector(bamMoSafariTrongApp), for: .touchUpInside)
-
-        let hangDieuHuong = UIStackView(arrangedSubviews: [nutFlowLui, nutFlowTien, nutFlowTaiLai, nutFlowTrangChu, UIView(), nutFlowSafariTrongApp])
-        hangDieuHuong.axis = .horizontal
-        hangDieuHuong.spacing = 4
-        hangDieuHuong.alignment = .center
-
-        nutFlowLayAnh.setTitle("📥 Lấy ảnh về app", for: .normal)
-        nutFlowLayAnh.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutFlowLayAnh.setTitle("📥 Lấy ảnh", for: .normal)
+        nutFlowLayAnh.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
         nutFlowLayAnh.backgroundColor = BangMauBCTD.xanhChuDao
         nutFlowLayAnh.setTitleColor(.white, for: .normal)
         nutFlowLayAnh.layer.cornerRadius = 8
-        nutFlowLayAnh.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        nutFlowLayAnh.heightAnchor.constraint(equalToConstant: 32).isActive = true
         nutFlowLayAnh.addTarget(self, action: #selector(bamLayAnhTuFlow), for: .touchUpInside)
 
-        let hangPrompt = UIStackView(arrangedSubviews: [nutFlowDienPrompt, nutFlowLayAnh, nutFlowCopyPrompt])
-        hangPrompt.axis = .horizontal
-        hangPrompt.spacing = 6
-        hangPrompt.distribution = .fill
-        nutFlowDienPrompt.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        nutFlowLayAnh.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        nutFlowDienPrompt.widthAnchor.constraint(equalTo: nutFlowLayAnh.widthAnchor).isActive = true
-        nutFlowCopyPrompt.widthAnchor.constraint(equalToConstant: 72).isActive = true
+        nutFlowMenuPhu.setImage(UIImage(systemName: "ellipsis.circle.fill"), for: .normal)
+        nutFlowMenuPhu.tintColor = BangMauBCTD.xanhChuDao
+        nutFlowMenuPhu.backgroundColor = BangMauBCTD.nenTrang
+        nutFlowMenuPhu.layer.cornerRadius = 8
+        nutFlowMenuPhu.layer.borderWidth = 1
+        nutFlowMenuPhu.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutFlowMenuPhu.widthAnchor.constraint(equalToConstant: 34).isActive = true
+        nutFlowMenuPhu.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        nutFlowMenuPhu.showsMenuAsPrimaryAction = true
+        nutFlowMenuPhu.menu = taoMenuPhuFlow()
 
         vongQuayFlow.hidesWhenStopped = true
-        nhanTrangThaiFlow.text = "Mở dự án trong Google Flow rồi bấm “Điền Prompt” nếu chưa tự điền."
-        nhanTrangThaiFlow.font = .systemFont(ofSize: 12)
-        nhanTrangThaiFlow.textColor = BangMauBCTD.chuPhu
-        nhanTrangThaiFlow.numberOfLines = 2
+        vongQuayFlow.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
 
-        let hangTrangThai = UIStackView(arrangedSubviews: [vongQuayFlow, nhanTrangThaiFlow])
-        hangTrangThai.axis = .horizontal
-        hangTrangThai.spacing = 6
-        hangTrangThai.alignment = .center
-
-        let thanhCongCu = UIStackView(arrangedSubviews: [hangDieuHuong, hangPrompt, hangTrangThai])
-        thanhCongCu.axis = .vertical
-        thanhCongCu.spacing = 6
-        thanhCongCu.translatesAutoresizingMaskIntoConstraints = false
+        let hangGom = UIStackView(arrangedSubviews: [nutFlowDienPrompt, nutFlowLayAnh, vongQuayFlow, nutFlowMenuPhu])
+        hangGom.axis = .horizontal
+        hangGom.spacing = 6
+        hangGom.alignment = .center
+        hangGom.translatesAutoresizingMaskIntoConstraints = false
+        nutFlowDienPrompt.widthAnchor.constraint(equalTo: nutFlowLayAnh.widthAnchor).isActive = true
 
         let nenCongCu = UIView()
         nenCongCu.backgroundColor = BangMauBCTD.nenThePhu
         nenCongCu.translatesAutoresizingMaskIntoConstraints = false
-        nenCongCu.addSubview(thanhCongCu)
+        nenCongCu.addSubview(hangGom)
+
+        // Toast nổi bán trong suốt ở mép trên WebView, tự ẩn sau vài giây để không che diện tích Flow
+        khungToastFlow.backgroundColor = UIColor.black.withAlphaComponent(0.78)
+        khungToastFlow.layer.cornerRadius = 10
+        khungToastFlow.clipsToBounds = true
+        khungToastFlow.alpha = 0
+        khungToastFlow.isUserInteractionEnabled = false
+        khungToastFlow.translatesAutoresizingMaskIntoConstraints = false
+
+        nhanTrangThaiFlow.font = .systemFont(ofSize: 12, weight: .semibold)
+        nhanTrangThaiFlow.textColor = .white
+        nhanTrangThaiFlow.numberOfLines = 2
+        nhanTrangThaiFlow.textAlignment = .center
+        nhanTrangThaiFlow.translatesAutoresizingMaskIntoConstraints = false
+        khungToastFlow.addSubview(nhanTrangThaiFlow)
 
         khungGoogleFlow.addSubview(nenCongCu)
         khungGoogleFlow.addSubview(webViewFlow)
+        khungGoogleFlow.addSubview(khungToastFlow)
 
         NSLayoutConstraint.activate([
             nenCongCu.topAnchor.constraint(equalTo: khungGoogleFlow.topAnchor),
             nenCongCu.leadingAnchor.constraint(equalTo: khungGoogleFlow.leadingAnchor),
             nenCongCu.trailingAnchor.constraint(equalTo: khungGoogleFlow.trailingAnchor),
 
-            thanhCongCu.topAnchor.constraint(equalTo: nenCongCu.topAnchor, constant: 6),
-            thanhCongCu.leadingAnchor.constraint(equalTo: nenCongCu.leadingAnchor, constant: 10),
-            thanhCongCu.trailingAnchor.constraint(equalTo: nenCongCu.trailingAnchor, constant: -10),
-            thanhCongCu.bottomAnchor.constraint(equalTo: nenCongCu.bottomAnchor, constant: -6),
+            hangGom.topAnchor.constraint(equalTo: nenCongCu.topAnchor, constant: 4),
+            hangGom.leadingAnchor.constraint(equalTo: nenCongCu.leadingAnchor, constant: 10),
+            hangGom.trailingAnchor.constraint(equalTo: nenCongCu.trailingAnchor, constant: -10),
+            hangGom.bottomAnchor.constraint(equalTo: nenCongCu.bottomAnchor, constant: -4),
 
             webViewFlow.topAnchor.constraint(equalTo: nenCongCu.bottomAnchor),
             webViewFlow.leadingAnchor.constraint(equalTo: khungGoogleFlow.leadingAnchor),
             webViewFlow.trailingAnchor.constraint(equalTo: khungGoogleFlow.trailingAnchor),
-            webViewFlow.bottomAnchor.constraint(equalTo: khungGoogleFlow.bottomAnchor)
+            webViewFlow.bottomAnchor.constraint(equalTo: khungGoogleFlow.bottomAnchor),
+
+            khungToastFlow.topAnchor.constraint(equalTo: webViewFlow.topAnchor, constant: 8),
+            khungToastFlow.leadingAnchor.constraint(greaterThanOrEqualTo: khungGoogleFlow.leadingAnchor, constant: 14),
+            khungToastFlow.trailingAnchor.constraint(lessThanOrEqualTo: khungGoogleFlow.trailingAnchor, constant: -14),
+            khungToastFlow.centerXAnchor.constraint(equalTo: khungGoogleFlow.centerXAnchor),
+
+            nhanTrangThaiFlow.topAnchor.constraint(equalTo: khungToastFlow.topAnchor, constant: 6),
+            nhanTrangThaiFlow.leadingAnchor.constraint(equalTo: khungToastFlow.leadingAnchor, constant: 12),
+            nhanTrangThaiFlow.trailingAnchor.constraint(equalTo: khungToastFlow.trailingAnchor, constant: -12),
+            nhanTrangThaiFlow.bottomAnchor.constraint(equalTo: khungToastFlow.bottomAnchor, constant: -6)
         ])
+    }
+
+    private func taoMenuPhuFlow() -> UIMenu {
+        return UIMenu(title: "Tùy chọn Google Flow", children: [
+            UIAction(title: "Tạo dự án mới & Điền ngay", image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
+                self?.bamTaoDuAnMoiVaDien()
+            },
+            UIAction(title: "Copy Prompt dự phòng", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
+                self?.bamCopyPromptTrongFlow()
+            },
+            UIAction(title: "Tải lại trang", image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in
+                self?.webViewFlow.reload()
+            },
+            UIAction(title: "Trang chủ Flow", image: UIImage(systemName: "house")) { [weak self] _ in
+                self?.taiTrangGoogleFlow()
+            },
+            UIAction(title: "Quay lại trang trước", image: UIImage(systemName: "chevron.left")) { [weak self] _ in
+                if self?.webViewFlow.canGoBack == true { self?.webViewFlow.goBack() }
+            },
+            UIAction(title: "Mở bằng Safari trong app", image: UIImage(systemName: "safari")) { [weak self] _ in
+                self?.bamMoSafariTrongApp()
+            }
+        ])
+    }
+
+    private func hienToastFlow(_ thongDiep: String, mauNen: UIColor = UIColor.black.withAlphaComponent(0.8), giuLau: TimeInterval = 3.0) {
+        congViecAnToastFlow?.cancel()
+        nhanTrangThaiFlow.text = thongDiep
+        nhanTrangThaiFlow.textColor = .white
+        khungToastFlow.backgroundColor = mauNen
+        UIView.animate(withDuration: 0.2) {
+            self.khungToastFlow.alpha = 1
+        }
+        let congViec = DispatchWorkItem { [weak self] in
+            UIView.animate(withDuration: 0.3) {
+                self?.khungToastFlow.alpha = 0
+            }
+        }
+        congViecAnToastFlow = congViec
+        DispatchQueue.main.asyncAfter(deadline: .now() + giuLau, execute: congViec)
     }
 
     @objc private func doiCheDoTab() {
@@ -672,32 +694,24 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         webViewFlow.load(URLRequest(url: url))
     }
 
-    @objc private func bamFlowLui() {
-        if webViewFlow.canGoBack { webViewFlow.goBack() }
-    }
-
-    @objc private func bamFlowTien() {
-        if webViewFlow.canGoForward { webViewFlow.goForward() }
-    }
-
-    @objc private func bamFlowTaiLai() {
-        webViewFlow.reload()
-    }
-
-    @objc private func bamFlowTrangChu() {
+    private func bamTaoDuAnMoiVaDien() {
+        let p = layPromptHienCoChoFlow()
+        canTaoDuAnMoiFlow = true
+        hienToastFlow("Đang tạo dự án mới trên Google Flow...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 4.5)
         taiTrangGoogleFlow()
+        if !p.isEmpty {
+            promptChoDienFlow = p
+        }
     }
 
     @objc private func bamCopyPromptTrongFlow() {
         let p = layPromptHienCoChoFlow()
         guard !p.isEmpty else {
-            nhanTrangThaiFlow.text = "Chưa có prompt. Chuyển sang tab Tạo nội dung để nhập sản phẩm."
-            nhanTrangThaiFlow.textColor = .systemOrange
+            hienToastFlow("Chưa có prompt — nhập thông tin ở tab Tạo nội dung trước.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
             return
         }
         UIPasteboard.general.string = p
-        nhanTrangThaiFlow.text = "Đã sao chép prompt vào bộ nhớ tạm."
-        nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
+        hienToastFlow("Đã sao chép prompt vào bộ nhớ tạm ✓", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
     }
 
     @objc private func bamMoSafariTrongApp() {
@@ -724,17 +738,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     @objc private func bamDienPromptVaoFlow() {
         let p = layPromptHienCoChoFlow()
         guard !p.isEmpty else {
-            nhanTrangThaiFlow.text = "Chưa có prompt. Quay lại tab Tạo nội dung nhập thông tin trước nhé."
-            nhanTrangThaiFlow.textColor = .systemOrange
+            hienToastFlow("Chưa có prompt — nhập sản phẩm ở tab Tạo nội dung trước.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
             return
         }
         UIPasteboard.general.string = p
-        bomPromptVaoWebViewFlow(p, tuDong: false)
+        bomPromptVaoWebViewFlow(p, tuDong: false, tuTaoDuAnMoi: false)
     }
 
     @objc private func bamLayAnhTuFlow() {
-        nhanTrangThaiFlow.text = "Đang tìm và lấy ảnh gốc chất lượng cao (1K/2K) từ Google Flow..."
-        nhanTrangThaiFlow.textColor = BangMauBCTD.xanhChuDao
+        hienToastFlow("Đang lấy ảnh gốc 1K/2K từ Google Flow...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 4.0)
         vongQuayFlow.startAnimating()
 
         let asyncJS = #"""
@@ -851,20 +863,17 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 case .success(let value):
                     let str = (value as? String) ?? ""
                     if str == "NOT_FOUND" || str.isEmpty {
-                        self.nhanTrangThaiFlow.text = "Chưa thấy ảnh kết quả lớn trên Flow. Hãy bấm tạo ảnh xong rồi bấm Lấy ảnh về app."
-                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                        self.hienToastFlow("Chưa thấy ảnh kết quả lớn trên Flow — hãy tạo ảnh xong rồi bấm Lấy ảnh.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                         return
                     }
                     if str == "CORS_BLOCKED" || !str.hasPrefix("data:image/") {
-                        self.nhanTrangThaiFlow.text = "Flow chặn đọc ảnh trực tiếp — bạn hãy bấm nút Tải xuống ngay trên giao diện Flow nhé."
-                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                        self.hienToastFlow("Flow chặn đọc ảnh trực tiếp — hãy bấm Tải xuống ngay trên Flow.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                         return
                     }
                     guard let comma = str.firstIndex(of: ",") else { return }
                     let b64 = String(str[str.index(after: comma)...])
                     guard let data = Data(base64Encoded: b64), let img = UIImage(data: data) else {
-                        self.nhanTrangThaiFlow.text = "Không giải mã được ảnh từ Flow. Hãy tải trực tiếp trên Flow."
-                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                        self.hienToastFlow("Không giải mã được ảnh — hãy tải trực tiếp trên Flow.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                         return
                     }
                     let pxW = Int((img.size.width * img.scale).rounded())
@@ -872,8 +881,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     self.anhKetQua = img
                     self.anhKetQuaView.image = img
                     self.theAnhKetQua.isHidden = false
-                    self.nhanTrangThaiFlow.text = "Đã lấy ảnh gốc (\(pxW)×\(pxH) px) từ Google Flow về mục 4 ✓"
-                    self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
+                    self.hienToastFlow("Đã lấy ảnh gốc (\(pxW)×\(pxH) px) về mục 4 ✓", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
                     self.thanhChuyenCheDo.selectedSegmentIndex = 0
                     self.doiCheDoTab()
                     self.nhanTrangThai.text = "Đã nhận ảnh gốc (\(pxW)×\(pxH) px) từ Google Flow — bạn có thể Lưu hoặc Chia sẻ ngay bên dưới."
@@ -883,8 +891,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                         self.cuon.scrollRectToVisible(rect, animated: true)
                     }
                 case .failure(let err):
-                    self.nhanTrangThaiFlow.text = "Không lấy được ảnh tự động (\(err.localizedDescription)). Hãy bấm tải trực tiếp trên Flow."
-                    self.nhanTrangThaiFlow.textColor = .systemOrange
+                    self.hienToastFlow("Không lấy được ảnh tự động — hãy bấm tải trực tiếp trên Flow.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                 }
             }
         }
@@ -899,14 +906,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         }
     }
 
-    private func bomPromptVaoWebViewFlow(_ prompt: String, tuDong: Bool) {
+    private func bomPromptVaoWebViewFlow(_ prompt: String, tuDong: Bool, tuTaoDuAnMoi: Bool = false) {
         let tt = thuThapThongTin()
         let anhB64 = maHoaAnhMauBase64ChoFlow()
         let args: [String: Any] = [
             "promptText": prompt,
             "imageBase64": anhB64,
             "targetAspect": tt.tyLeAnh,
-            "targetModel": tt.modelFlow
+            "targetModel": tt.modelFlow,
+            "autoNewProject": tuTaoDuAnMoi
         ]
 
         let asyncJS = #"""
@@ -1296,6 +1304,59 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return { aspectOk, modelOk };
         }
 
+        // Nếu đang ở trang chủ Google Flow và có nút "+ Dự án mới" / "New project" -> tự bấm tạo dự án mới rồi chờ ô nhập xuất hiện!
+        async function clickNewProjectIfNeeded() {
+          const findNewProjBtn = () => {
+            const docs = [];
+            collectDocs(document, docs);
+            const all = [];
+            for (const d of docs) collectAllElements(d, all);
+            for (const el of all) {
+              if (!isVisible(el)) continue;
+              if (!el.matches || !el.matches('button, a, [role="button"]')) continue;
+              const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              if (t.length > 50) continue;
+              if (t.includes('dự án mới') || t.includes('new project') || t === '+ dự án mới' || t === '+ new project') {
+                return el;
+              }
+            }
+            return null;
+          };
+
+          let boxNow = findPromptBox();
+          if (!autoNewProject && boxNow) return false;
+
+          // Chờ nút "Dự án mới" hiện ra (tối đa 5 giây)
+          let btn = null;
+          for (let i = 0; i < 20; i++) {
+            btn = findNewProjBtn();
+            if (btn) break;
+            if (!autoNewProject && findPromptBox()) return false;
+            await sleep(250);
+          }
+          if (!btn) return false;
+
+          const r = btn.getBoundingClientRect();
+          const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+          const opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, button: 0 };
+          try { btn.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+          try { btn.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
+          try { btn.dispatchEvent(new PointerEvent('pointerup', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+          try { btn.dispatchEvent(new MouseEvent('mouseup', opts)); } catch (_) {}
+          try { btn.click(); } catch (_) {}
+
+          // Chờ trang dự án mới tải xong và hiện ô nhập prompt (tối đa 8 giây)
+          for (let i = 0; i < 32; i++) {
+            await sleep(250);
+            if (findPromptBox()) {
+              await sleep(350);
+              return true;
+            }
+          }
+          return true;
+        }
+
+        const createdNewProject = await clickNewProjectIfNeeded();
         const cfgRes = await applyFlowSettings(targetAspect, targetModel);
         const box = findPromptBox();
         let promptOk = false;
@@ -1324,8 +1385,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     guard let d = raw.data(using: .utf8),
                           let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else {
                         if !tuDong {
-                            self.nhanTrangThaiFlow.text = "Đã sao chép prompt — chạm ô nhập trên Flow rồi bấm Dán."
-                            self.nhanTrangThaiFlow.textColor = .systemOrange
+                            self.hienToastFlow("Đã copy prompt — chạm ô nhập trên Flow rồi bấm Dán.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                         }
                         return
                     }
@@ -1337,26 +1397,17 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     let moTaCauHinh = (aspectOk || modelOk) ? " (\(tt.modelFlow) · \(tt.tyLeAnh))" : ""
 
                     if promptOk && daGanAnh {
-                        self.nhanTrangThaiFlow.text = "Đã điền Prompt, Ảnh mẫu\(moTaCauHinh) ✓"
-                        self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
+                        self.hienToastFlow("Đã điền Prompt, Ảnh mẫu\(moTaCauHinh) ✓", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
                     } else if promptOk {
-                        if anhB64.isEmpty {
-                            self.nhanTrangThaiFlow.text = "Đã điền Prompt vào Google Flow ✓ (chưa chọn ảnh mẫu ở tab Tạo nội dung)."
-                        } else {
-                            self.nhanTrangThaiFlow.text = "Đã điền Prompt ✓ — nếu ảnh mẫu chưa hiện, chạm nút + trên Flow để chọn ảnh."
-                        }
-                        self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
+                        self.hienToastFlow("Đã điền Prompt\(moTaCauHinh) ✓", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
                     } else if daGanAnh {
-                        self.nhanTrangThaiFlow.text = "Đã gửi ảnh mẫu — chạm ô nhập trên Flow rồi bấm Dán prompt."
-                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                        self.hienToastFlow("Đã gửi ảnh mẫu — chạm ô nhập rồi bấm Dán prompt.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                     } else if !tuDong {
-                        self.nhanTrangThaiFlow.text = "Chưa bắt được ô nhập Flow (đã copy sẵn prompt — chạm vào ô nhập rồi chọn Dán)."
-                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                        self.hienToastFlow("Chưa thấy ô nhập Flow (đã copy sẵn prompt để Dán).", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                     }
                 case .failure(_):
                     if !tuDong {
-                        self.nhanTrangThaiFlow.text = "Đã copy sẵn prompt — bạn chạm vào ô nhập trên Flow rồi chọn Dán."
-                        self.nhanTrangThaiFlow.textColor = .systemOrange
+                        self.hienToastFlow("Đã copy sẵn prompt — chạm ô nhập trên Flow rồi bấm Dán.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                     }
                 }
             }
@@ -1375,14 +1426,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             guard let self else { return }
             let bodyText = (res as? String) ?? ""
             if bodyText.localizedCaseInsensitiveContains("disallowed_useragent") {
-                self.nhanTrangThaiFlow.text = "Google chặn đăng nhập ở khung này — hãy bấm nút “🔒 Safari trong app” ở góc phải trên."
-                self.nhanTrangThaiFlow.textColor = .systemRed
+                self.hienToastFlow("Google chặn đăng nhập — bấm nút ⋯ góc trên phải → Mở bằng Safari trong app.", mauNen: UIColor.systemRed.withAlphaComponent(0.92), giuLau: 5.0)
                 return
             }
             if !self.promptChoDienFlow.isEmpty {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                let taoMoi = self.canTaoDuAnMoiFlow
+                self.canTaoDuAnMoiFlow = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                     guard let self, !self.promptChoDienFlow.isEmpty else { return }
-                    self.bomPromptVaoWebViewFlow(self.promptChoDienFlow, tuDong: true)
+                    self.bomPromptVaoWebViewFlow(self.promptChoDienFlow, tuDong: true, tuTaoDuAnMoi: taoMoi)
                 }
             }
         }
@@ -1875,8 +1927,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     self.hienThiBaiDangTheoPhongCachHienTai()
                     self.datTrangThaiDangTai(false, thongDiep: "Đã viết xong 3 phong cách bài đăng Facebook ✓", mau: BangMauBCTD.xanhLaDam)
                     if self.thanhChuyenCheDo.selectedSegmentIndex == 1 {
-                        self.nhanTrangThaiFlow.text = "✓ Đã viết xong 3 bài FB (xem ở tab Tạo nội dung). Bấm “✨ Điền + Ảnh” để đồng bộ Flow."
-                        self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
+                        self.hienToastFlow("✓ Đã viết xong 3 bài FB (xem ở tab Tạo nội dung)", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 2.5)
                     }
                 case .failure(let err):
                     self.datTrangThaiDangTai(false, thongDiep: "⚠️ Lỗi viết bài nền: \(err.localizedDescription)", mau: .systemRed)
@@ -1884,16 +1935,22 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             }
         }
 
-        // Chuyển ngay sang tab Google Flow tích hợp trong app DMX
+        // Chuyển sang tab Google Flow và luôn tự tạo Dự án mới → đồng bộ Model + Tỷ lệ + Prompt + Ảnh mẫu
+        canTaoDuAnMoiFlow = true
         thanhChuyenCheDo.selectedSegmentIndex = 1
-        doiCheDoTab()
+        khungTaoNoiDung.isHidden = true
+        khungGoogleFlow.isHidden = false
+        hienToastFlow("Đang tạo Dự án mới & đồng bộ \(tt.modelFlow) (\(tt.tyLeAnh))...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 4.5)
 
-        nhanTrangThaiFlow.text = "Đang tự viết 3 bài FB ở nền & đồng bộ \(tt.modelFlow) (\(tt.tyLeAnh)) vào Flow..."
-        nhanTrangThaiFlow.textColor = BangMauBCTD.xanhChuDao
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self else { return }
-            self.bomPromptVaoWebViewFlow(prompt, tuDong: true)
+        let urlHienTai = webViewFlow.url?.absoluteString.lowercased() ?? ""
+        if daTaiTrangFlow && (urlHienTai == "https://flow.google.com/" || urlHienTai == "https://flow.google.com") {
+            canTaoDuAnMoiFlow = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self else { return }
+                self.bomPromptVaoWebViewFlow(prompt, tuDong: true, tuTaoDuAnMoi: true)
+            }
+        } else {
+            taiTrangGoogleFlow()
         }
     }
 
