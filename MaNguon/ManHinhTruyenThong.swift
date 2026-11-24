@@ -549,6 +549,90 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         config.defaultWebpagePreferences.allowsContentJavaScript = true
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
 
+        let trustedClickHookJS = #"""
+        (function() {
+          if (window.__dmxTrustedHookInstalled) return;
+          window.__dmxTrustedHookInstalled = true;
+          window.__dmxForceTrusted = false;
+
+          function wrapTrustedEvent(e) {
+            if (!e || typeof e !== 'object') return e;
+            try {
+              return new Proxy(e, {
+                get(target, prop) {
+                  if (prop === 'isTrusted') return true;
+                  if (prop === 'nativeEvent') {
+                    const ne = Reflect.get(target, prop, target);
+                    return ne ? wrapTrustedEvent(ne) : wrapTrustedEvent(target);
+                  }
+                  const val = Reflect.get(target, prop, target);
+                  return typeof val === 'function' ? val.bind(target) : val;
+                }
+              });
+            } catch (_) {
+              return e;
+            }
+          }
+          window.__dmxWrapTrustedEvent = wrapTrustedEvent;
+
+          try {
+            const desc = Object.getOwnPropertyDescriptor(Event.prototype, 'isTrusted');
+            if (desc && desc.get) {
+              const origGet = desc.get;
+              Object.defineProperty(Event.prototype, 'isTrusted', {
+                get: function() {
+                  if (window.__dmxForceTrusted) return true;
+                  try { return origGet.call(this); } catch (_) { return true; }
+                },
+                configurable: true,
+                enumerable: true
+              });
+            }
+          } catch (_) {}
+
+          const origAdd = EventTarget.prototype.addEventListener;
+          const origRemove = EventTarget.prototype.removeEventListener;
+          const wrapMap = new WeakMap();
+
+          EventTarget.prototype.addEventListener = function(type, listener, options) {
+            if (!listener) return origAdd.call(this, type, listener, options);
+            let byType = wrapMap.get(listener);
+            if (!byType) {
+              byType = new Map();
+              wrapMap.set(listener, byType);
+            }
+            let wrapped = byType.get(type);
+            if (!wrapped) {
+              if (typeof listener === 'function') {
+                wrapped = function(e) {
+                  const arg = (window.__dmxForceTrusted && e) ? wrapTrustedEvent(e) : e;
+                  return listener.call(this, arg);
+                };
+              } else if (typeof listener === 'object' && typeof listener.handleEvent === 'function') {
+                wrapped = {
+                  handleEvent: function(e) {
+                    const arg = (window.__dmxForceTrusted && e) ? wrapTrustedEvent(e) : e;
+                    return listener.handleEvent(arg);
+                  }
+                };
+              } else {
+                wrapped = listener;
+              }
+              byType.set(type, wrapped);
+            }
+            return origAdd.call(this, type, wrapped, options);
+          };
+
+          EventTarget.prototype.removeEventListener = function(type, listener, options) {
+            const byType = listener ? wrapMap.get(listener) : null;
+            const wrapped = byType ? byType.get(type) : null;
+            return origRemove.call(this, type, wrapped || listener, options);
+          };
+        })();
+        """#
+        let userScript = WKUserScript(source: trustedClickHookJS, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        config.userContentController.addUserScript(userScript)
+
         webViewFlow = WKWebView(frame: .zero, configuration: config)
         webViewFlow.navigationDelegate = self
         webViewFlow.uiDelegate = self
@@ -960,7 +1044,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
-        function isVisible(el, minW = 20, minH = 12) {
+        function isVisible(el, minW = 16, minH = 12) {
           if (!el || !el.isConnected) return false;
           const st = window.getComputedStyle(el);
           if (!st || st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) return false;
@@ -968,6 +1052,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return r.width >= minW && r.height >= minH;
         }
 
+        // Tìm ô nhập prompt của Google Flow: ưu tiên [data-slate-editor="true"] hoặc [role="textbox"][contenteditable="true"]
         function findPromptBox() {
           const docs = [];
           collectDocs(document, docs);
@@ -981,11 +1066,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             const tag = (el.tagName || '').toUpperCase();
             const ceAttr = (el.getAttribute && el.getAttribute('contenteditable')) || '';
             const role = (el.getAttribute && el.getAttribute('role')) || '';
-            const isEditable = tag === 'TEXTAREA'
+            const isSlate = !!(el.hasAttribute && el.hasAttribute('data-slate-editor'));
+            const isEditable = isSlate
+              || tag === 'TEXTAREA'
               || el.isContentEditable === true
               || (ceAttr !== '' && ceAttr !== 'false')
-              || role === 'textbox'
-              || (el.hasAttribute && el.hasAttribute('data-slate-editor'));
+              || role === 'textbox';
 
             if (!isEditable) continue;
             if (!isVisible(el, 30, 12)) continue;
@@ -1010,11 +1096,11 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
             const r = el.getBoundingClientRect();
             let score = 0;
-            if (tag === 'TEXTAREA') score += 45;
-            if (el.hasAttribute && el.hasAttribute('data-slate-editor')) score += 60;
-            if (el.isContentEditable || role === 'textbox') score += 40;
+            if (isSlate) score += 90;
+            if (el.isContentEditable || role === 'textbox') score += 50;
+            if (tag === 'TEXTAREA') score += 35;
             if (/(bạn muốn tạo|what do you want|prompt|describe|create|imagine|generate|nhập|mô tả)/i.test(meta)) score += 80;
-            if (r.top > window.innerHeight * 0.35) score += 35;
+            if (r.top > window.innerHeight * 0.25) score += 35;
             if (r.width >= 150) score += 20;
             score += Math.min(r.width / 20, 20);
 
@@ -1031,7 +1117,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               if (txt.includes('bạn muốn tạo những gì') || txt.includes('what do you want to create')) {
                 let p = el;
                 for (let k = 0; k < 5 && p; k++) {
-                  const ed = p.querySelector && p.querySelector('textarea, [contenteditable], [role="textbox"], [data-slate-editor]');
+                  const ed = p.querySelector && p.querySelector('[data-slate-editor], [contenteditable="true"], [role="textbox"], textarea');
                   if (ed) { best = ed; break; }
                   p = p.parentElement;
                 }
@@ -1045,74 +1131,89 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         function getBoxText(el) {
           if (!el) return '';
           if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return (el.value || '').trim();
+          // Loại bỏ chữ placeholder của Slate (data-slate-placeholder="true") khi đọc nội dung thực
+          if (el.querySelector && el.querySelector('[data-slate-placeholder="true"]')) {
+            const clone = el.cloneNode(true);
+            for (const ph of clone.querySelectorAll('[data-slate-placeholder="true"]')) {
+              ph.remove();
+            }
+            return (clone.innerText || clone.textContent || '').trim();
+          }
           return (el.innerText || el.textContent || '').trim();
         }
 
         async function fillPromptBox(el, text) {
           if (!el || !text) return false;
-          el.scrollIntoView({ block: 'center' });
-          el.click();
-          el.focus();
-          await sleep(80);
-
-          if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-            const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-            if (setter) setter.call(el, text); else el.value = text;
-            el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            return true;
-          }
-
+          window.__dmxForceTrusted = true;
           try {
-            const sel = window.getSelection();
-            const range = document.createRange();
-            range.selectNodeContents(el);
-            sel.removeAllRanges();
-            sel.addRange(range);
-          } catch (_) {}
-
-          // Cách 1: Synthetic Paste Event
-          try {
-            const dt = new DataTransfer();
-            dt.setData('text/plain', text);
-            const pasteEvt = new ClipboardEvent('paste', {
-              clipboardData: dt,
-              bubbles: true,
-              cancelable: true
-            });
-            el.dispatchEvent(pasteEvt);
-            await sleep(100);
-            if (getBoxText(el).includes(text.slice(0, 12))) return true;
-          } catch (_) {}
-
-          // Cách 2: execCommand('insertText')
-          try {
+            el.scrollIntoView({ block: 'center' });
+            el.click();
             el.focus();
-            document.execCommand('selectAll', false, null);
-            document.execCommand('insertText', false, text);
             await sleep(80);
-            if (getBoxText(el).includes(text.slice(0, 12))) return true;
-          } catch (_) {}
 
-          // Cách 3: beforeinput + textContent + input
-          try {
-            el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
-            el.textContent = text;
-            el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            return true;
-          } catch (_) {
-            return false;
+            if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+              const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+              const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+              if (setter) setter.call(el, text); else el.value = text;
+              el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+              return true;
+            }
+
+            // Slate.js / Lexical / ContentEditable: chọn toàn bộ và dùng beforeinput + execCommand('insertText')
+            try {
+              const sel = window.getSelection();
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              sel.removeAllRanges();
+              sel.addRange(range);
+            } catch (_) {}
+
+            // Cách 1: Synthetic Paste Event (Slate.js xử lý qua onPaste)
+            try {
+              const dt = new DataTransfer();
+              dt.setData('text/plain', text);
+              const pasteEvt = new ClipboardEvent('paste', {
+                clipboardData: dt,
+                bubbles: true,
+                cancelable: true
+              });
+              el.dispatchEvent(pasteEvt);
+              await sleep(100);
+              if (getBoxText(el).includes(text.slice(0, 12))) return true;
+            } catch (_) {}
+
+            // Cách 2: beforeinput + execCommand('insertText')
+            try {
+              el.focus();
+              document.execCommand('selectAll', false, null);
+              el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+              document.execCommand('insertText', false, text);
+              await sleep(90);
+              if (getBoxText(el).includes(text.slice(0, 12))) return true;
+            } catch (_) {}
+
+            // Cách 3: Fallback textContent + input
+            try {
+              el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+              el.textContent = text;
+              el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+              return true;
+            } catch (_) {
+              return false;
+            }
+          } finally {
+            window.__dmxForceTrusted = false;
           }
         }
 
-        // Kích hoạt sự kiện gõ thêm ký tự trắng vào cuối ô prompt để Slate/Lexical/React mở khóa nút -> sau khi gắn ảnh
         async function nudgePromptBox(el) {
           if (!el) return;
+          window.__dmxForceTrusted = true;
           try {
             el.focus();
-            await sleep(50);
+            await sleep(40);
             if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
               const cur = el.value || '';
               const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -1129,22 +1230,26 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 sel.removeAllRanges();
                 sel.addRange(range);
               } catch (_) {}
+              el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: ' ' }));
               document.execCommand('insertText', false, ' ');
               el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ' ' }));
             }
-            await sleep(60);
-          } catch (_) {}
+            await sleep(50);
+          } catch (_) {
+          } finally {
+            window.__dmxForceTrusted = false;
+          }
         }
 
         async function attachSampleImage(b64, promptBox) {
           if (!b64) return 'NO_IMAGE';
+          window.__dmxForceTrusted = true;
           try {
             const bin = atob(b64);
             const bytes = new Uint8Array(bin.length);
             for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
             const file = new File([bytes], 'san-pham-dmx.jpg', { type: 'image/jpeg', lastModified: Date.now() });
 
-            // Cách 1: Tìm <input type="file"> (giữ nguyên thứ tự ưu tiên chuẩn đã hoạt động ổn định)
             const docs = [];
             collectDocs(document, docs);
             const allEls = [];
@@ -1162,7 +1267,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               return 'ATTACHED_INPUT';
             }
 
-            // Cách 2: Thả ảnh (DragEvent 'drop')
             const dropTargets = [];
             if (promptBox) {
               dropTargets.push(promptBox);
@@ -1184,7 +1288,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               }
             }
 
-            // Cách 3: Paste ảnh trực tiếp vào ô prompt
             if (promptBox) {
               const dtPaste = new DataTransfer();
               dtPaste.items.add(file);
@@ -1198,20 +1301,27 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             return 'ATTACHED_DROP';
           } catch (e) {
             return 'IMG_ERR:' + String(e);
+          } finally {
+            window.__dmxForceTrusted = false;
           }
         }
 
         function humanClick(el) {
           if (!el) return;
-          const r = el.getBoundingClientRect();
-          const cx = r.left + r.width / 2;
-          const cy = r.top + r.height / 2;
-          const opts = { bubbles: true, cancelable: true, composed: true, view: window, clientX: cx, clientY: cy, button: 0, buttons: 1 };
-          try { el.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
-          try { el.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
-          try { el.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
-          try { el.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 })); } catch (_) {}
-          try { el.click(); } catch (_) {}
+          window.__dmxForceTrusted = true;
+          try {
+            const r = el.getBoundingClientRect();
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const opts = { bubbles: true, cancelable: true, composed: true, view: window, clientX: cx, clientY: cy, button: 0, buttons: 1 };
+            try { el.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+            try { el.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
+            try { el.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+            try { el.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 })); } catch (_) {}
+            try { el.click(); } catch (_) {}
+          } finally {
+            window.__dmxForceTrusted = false;
+          }
         }
 
         async function applyFlowSettings(aspect, modelName) {
@@ -1254,10 +1364,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             const optSelector = '[role="option"], [role="menuitem"], [role="menuitemradio"], button, li';
 
             let openedByUs = false;
-            let pillBtn = null;
-            if (!findButtonByLabel([aspect], btnSelector)) {
-              const vis = getAllVis();
-              for (const el of vis) {
+            let pillBtn = document.querySelector('.settings-trigger-button');
+            if (!pillBtn || !isVisible(pillBtn, 40, 16)) {
+              pillBtn = null;
+              for (const el of getAllVis()) {
                 if (!el.matches || !el.matches('button, [role="button"]')) continue;
                 const t = norm(el.innerText || el.textContent);
                 const r = el.getBoundingClientRect();
@@ -1268,16 +1378,16 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                   break;
                 }
               }
-              if (pillBtn) {
-                humanClick(pillBtn);
-                openedByUs = true;
-                await sleep(320);
-              }
+            }
+            if (!findButtonByLabel([aspect], btnSelector) && pillBtn) {
+              humanClick(pillBtn);
+              openedByUs = true;
+              await sleep(320);
             }
 
             const imgTab = findButtonByLabel(['Hình ảnh', 'Image', 'Images'], btnSelector);
             if (imgTab) {
-              const alreadySelected = imgTab.getAttribute('aria-selected') === 'true' || imgTab.getAttribute('data-state') === 'active';
+              const alreadySelected = imgTab.getAttribute('aria-selected') === 'true' || imgTab.getAttribute('data-state') === 'active' || imgTab.getAttribute('aria-checked') === 'true';
               if (!alreadySelected) {
                 humanClick(imgTab);
                 await sleep(220);
@@ -1323,7 +1433,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             }
 
             if (openedByUs) {
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+              // Đóng .cdk-overlay-backdrop hoặc dùng phím Escape
+              const backdrop = document.querySelector('.cdk-overlay-backdrop');
+              if (backdrop) {
+                humanClick(backdrop);
+              } else {
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+              }
               await sleep(160);
               if (findButtonByLabel([aspect], btnSelector) && pillBtn && isVisible(pillBtn, 40, 16)) {
                 humanClick(pillBtn);
@@ -1391,8 +1507,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return [...new Set(srcs)];
         }
 
-        // Đo độ sáng màu nền của nút (nút tròn mũi tên -> khi sẵn sàng có màu xanh nhạt/trắng sáng R+G+B > 350 trên nền tối)
-        function getBackgroundBrightness(el) {
+        // Đo độ sáng màu nền thực tế của nút:
+        // Lúc chưa có prompt: nền nút màu đen/xám tối (R+G+B < 180)
+        // Sau khi có prompt: nền nút chuyển sang màu trắng/xanh sáng (R >= 140, G >= 140, B >= 140 -> R+G+B >= 420)
+        function getBackgroundRGB(el) {
           let cur = el;
           for (let k = 0; k < 4 && cur && cur !== document.body; k++) {
             try {
@@ -1401,18 +1519,24 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               if (m) {
                 const r = parseInt(m[1], 10), g = parseInt(m[2], 10), b = parseInt(m[3], 10);
                 const a = m[4] !== undefined ? parseFloat(m[4]) : 1.0;
-                if (a >= 0.35 && (r + g + b) > 90) {
-                  return r + g + b;
+                if (a >= 0.35 && (r + g + b) > 30) {
+                  return { r, g, b, sum: r + g + b };
                 }
               }
             } catch (_) {}
             cur = cur.parentElement;
           }
-          return 0;
+          return { r: 0, g: 0, b: 0, sum: 0 };
         }
 
-        // Tìm nút tròn có ký hiệu mũi tên (->) ở góc dưới bên phải khung prompt của Google Flow
-        function findGenerateArrowButton(promptBox, allowDisabled = false) {
+        function isWhiteBackgroundButton(el) {
+          const rgb = getBackgroundRGB(el);
+          return rgb.r >= 135 && rgb.g >= 135 && rgb.b >= 135 && rgb.sum >= 420;
+        }
+
+        // Tìm nút tròn có ký hiệu mũi tên (<button><i class="google-symbols">arrow_forward</i></button> hoặc <mat-icon>arrow_forward</mat-icon>)
+        // TUYỆT ĐỐI KHÔNG lọc theo boxRect.bottom vì khi prompt dài 20+ dòng, thẻ [data-slate-editor="true"] tràn chiều cao xuống thấp hơn cả nút ->!
+        function findGenerateArrowButton(promptBox, requireWhiteOrEnabled = true) {
           const docs = [];
           collectDocs(document, docs);
           const all = [];
@@ -1421,29 +1545,40 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           const curBox = promptBox || findPromptBox();
           const boxRect = curBox ? curBox.getBoundingClientRect() : null;
 
-          // Tìm tọa độ Y của hàng nút đáy (dựa vào chữ "Nano Banana" hoặc "x1..x4" hoặc nút "+" góc dưới trái)
+          // Tìm tọa độ Y của hàng nút dưới đáy (ngang hàng với nút .settings-trigger-button / "Nano Banana ... x1")
           let bottomRowY = null;
-          for (const el of all) {
-            if (!isVisible(el, 18, 14)) continue;
-            const r = el.getBoundingClientRect();
-            if (r.height > 68) continue;
-            if (boxRect && r.top < boxRect.top - 5) continue;
-            if (!boxRect && r.top < window.innerHeight * 0.45) continue;
-            const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-            if (t.length >= 2 && t.length <= 45 && (/(nano banana|imagen|veo)/i.test(t) || /\bx[1-4]\b/i.test(t))) {
-              bottomRowY = r.top + r.height / 2;
-              break;
+          const trig = document.querySelector('.settings-trigger-button');
+          if (trig && isVisible(trig, 40, 16)) {
+            const tr = trig.getBoundingClientRect();
+            bottomRowY = tr.top + tr.height / 2;
+          } else {
+            for (const el of all) {
+              if (!isVisible(el, 40, 16)) continue;
+              const r = el.getBoundingClientRect();
+              if (r.height > 68 || r.top < window.innerHeight * 0.45) continue;
+              const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+              if (t.length >= 2 && t.length <= 50 && (/(nano banana|imagen|veo)/i.test(t) || /\bx[1-4]\b/i.test(t))) {
+                bottomRowY = r.top + r.height / 2;
+                break;
+              }
             }
           }
 
           const candidateSet = new Set();
-          const addCandidateChain = (node) => {
+          const addCandidate = (node) => {
             if (!node || !node.isConnected) return;
+            const btn = node.closest ? node.closest('button, [role="button"], [type="submit"]') : null;
+            if (btn && isVisible(btn, 18, 18)) {
+              const br = btn.getBoundingClientRect();
+              if (br.width >= 20 && br.width <= 80 && br.height >= 20 && br.height <= 80) {
+                candidateSet.add(btn);
+              }
+            }
             let cur = node;
-            for (let k = 0; k < 6 && cur && cur !== document.body && cur !== document.documentElement; k++) {
-              if (isVisible(cur, 18, 18)) {
+            for (let k = 0; k < 5 && cur && cur !== document.body && cur !== document.documentElement; k++) {
+              if (isVisible(cur, 20, 20)) {
                 const r = cur.getBoundingClientRect();
-                if (r.width >= 20 && r.width <= 76 && r.height >= 20 && r.height <= 76) {
+                if (r.width >= 20 && r.width <= 80 && r.height >= 20 && r.height <= 80) {
                   candidateSet.add(cur);
                 }
               }
@@ -1451,139 +1586,113 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             }
           };
 
-          // 1. Quét lưới tọa độ elementFromPoint ở góc dưới bên phải của khung prompt
-          const minProbeX = Math.floor(window.innerWidth * 0.70);
-          const maxProbeX = Math.max(minProbeX + 10, window.innerWidth - 8);
-          const probeYs = [];
-          if (bottomRowY !== null) {
-            probeYs.push(bottomRowY - 8, bottomRowY, bottomRowY + 8);
-          }
-          if (boxRect) {
-            for (let py = Math.max(boxRect.bottom - 6, window.innerHeight * 0.45); py <= Math.min(window.innerHeight - 10, boxRect.bottom + 90); py += 12) {
-              probeYs.push(py);
-            }
-          } else {
-            for (let py = Math.floor(window.innerHeight * 0.70); py <= window.innerHeight - 15; py += 15) {
-              probeYs.push(py);
-            }
-          }
-          for (const py of probeYs) {
-            if (py < 0 || py > window.innerHeight) continue;
-            for (let px = minProbeX; px <= maxProbeX; px += 8) {
-              try {
-                const hit = document.elementFromPoint(px, py);
-                if (hit) addCandidateChain(hit);
-              } catch (_) {}
+          // Cách 1 (Chuẩn DOM Google Flow): Tìm trực tiếp <i class="google-symbols">arrow_forward</i> hoặc <mat-icon>arrow_forward</mat-icon>
+          for (const el of all) {
+            if (!isVisible(el, 10, 10)) continue;
+            const tag = (el.tagName || '').toUpperCase();
+            if (tag === 'I' || tag === 'MAT-ICON' || tag === 'SPAN' || tag === 'MD-ICON' || tag === 'GOOGLE-SYMBOL' || tag === 'BUTTON') {
+              const txt = (el.textContent || '').trim();
+              if (/^(arrow_forward|arrow_upward|arrow_right_alt|east|send|north_east|→|➔|➜)$/i.test(txt)) {
+                addCandidate(el);
+              }
             }
           }
 
-          // 2. Quét toàn bộ phần tử DOM & Shadow DOM ở nửa phải màn hình
+          // Cách 2: Quét toàn bộ button / phần tử tròn ở góc dưới bên phải màn hình
           for (const el of all) {
-            if (!isVisible(el, 14, 14)) continue;
+            if (!isVisible(el, 18, 18)) continue;
             const r = el.getBoundingClientRect();
             const cx = r.left + r.width / 2;
             const cy = r.top + r.height / 2;
-            if (cx < window.innerWidth * 0.62) continue;
-            if (boxRect && cy < boxRect.top + 16) continue;
-            if (!boxRect && cy < window.innerHeight * 0.45) continue;
-            addCandidateChain(el);
+            if (cx < window.innerWidth * 0.60) continue;
+            if (cy < window.innerHeight * 0.45) continue;
+            if (boxRect && cy < boxRect.top + 28) continue;
+            addCandidate(el);
+          }
+
+          // Cách 3: Dò lưới tọa độ elementFromPoint ở góc dưới bên phải
+          const probeYs = [];
+          if (bottomRowY !== null) {
+            probeYs.push(bottomRowY - 6, bottomRowY, bottomRowY + 6);
+          }
+          for (let py = Math.floor(window.innerHeight * 0.65); py <= window.innerHeight - 14; py += 14) {
+            probeYs.push(py);
+          }
+          for (const py of probeYs) {
+            if (py < 0 || py > window.innerHeight) continue;
+            for (let px = Math.floor(window.innerWidth * 0.72); px <= window.innerWidth - 8; px += 8) {
+              try {
+                const hit = document.elementFromPoint(px, py);
+                if (hit) addCandidate(hit);
+              } catch (_) {}
+            }
           }
 
           let best = null;
           let bestScore = -1;
 
-          for (const rawEl of candidateSet) {
-            // Nếu rawEl là icon bên trong 1 thẻ button, kiểm tra thẻ button cha
-            const btnParent = rawEl.closest ? rawEl.closest('button, [role="button"], [type="submit"]') : null;
-            let el = rawEl;
-            if (btnParent && isVisible(btnParent, 20, 20)) {
-              const pr = btnParent.getBoundingClientRect();
-              const pText = (btnParent.innerText || btnParent.textContent || '').replace(/\s+/g, ' ').trim();
-              // Nếu thẻ button cha là nút pill rộng chứa tên model "Nano Banana ... x1" (và không chứa 2 button con riêng biệt) -> rawEl chỉ là icon phụ bên trong nút model pill, bỏ qua!
-              const childBtns = btnParent.querySelectorAll ? btnParent.querySelectorAll('button, [role="button"]') : [];
-              if (pr.width > 78 && childBtns.length <= 1 && (/(nano banana|imagen|veo)/i.test(pText) || /\bx[1-4]\b/i.test(pText))) {
-                continue;
-              }
-              if (pr.width >= 20 && pr.width <= 76 && pr.height >= 20 && pr.height <= 76) {
-                el = btnParent;
-              }
-            }
-
-            if (!isVisible(el, 22, 22)) continue;
+          for (const el of candidateSet) {
+            if (!isVisible(el, 20, 20)) continue;
             const r = el.getBoundingClientRect();
-            if (r.width < 22 || r.width > 76 || r.height < 22 || r.height > 76) continue;
-            if (Math.abs(r.width - r.height) > 22) continue;
+            if (r.width < 20 || r.width > 80 || r.height < 20 || r.height > 80) continue;
+            if (Math.abs(r.width - r.height) > 24) continue;
 
             const cx = r.left + r.width / 2;
             const cy = r.top + r.height / 2;
 
-            // Nút mũi tên -> luôn nằm ở góc phải (cx >= 68% chiều ngang màn hình)
-            if (cx < window.innerWidth * 0.68) continue;
+            // Phải nằm ở góc dưới bên phải (cx >= 65% chiều ngang, cy >= 45% chiều dọc và dưới đỉnh ô prompt)
+            if (cx < window.innerWidth * 0.65) continue;
+            if (cy < window.innerHeight * 0.45) continue;
+            if (boxRect && cy < boxRect.top + 28) continue;
 
-            // Phải nằm bên dưới vùng soạn thảo chữ của ô prompt (loại bỏ triệt để nút × ở góc trên phải của khung prompt)
-            if (boxRect && cy < boxRect.bottom - 28) continue;
-            if (!boxRect && cy < window.innerHeight * 0.50) continue;
-
-            const isDis = !!(el.disabled || el.getAttribute('aria-disabled') === 'true');
-            if (!allowDisabled && isDis) continue;
-
-            const rawText = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-            // Bỏ qua nếu bản thân phần tử là nhãn của nút chọn model hoặc nút × / +
-            if (/(nano banana|imagen|veo)/i.test(rawText) || /\bx[1-4]\b/i.test(rawText)) continue;
-            if (/^(x|×|\u2715|\u2716|\+)$/i.test(rawText)) continue;
-
-            const ariaLabel = ((el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('title') || '')).toLowerCase();
-            if (/^(close|đóng|dismiss|cancel|hủy)$/i.test(ariaLabel.trim())) continue;
-
-            const fullMeta = (ariaLabel + ' ' + rawText).toLowerCase();
-            let score = 0;
-
-            // 1. Cùng hàng ngang với thanh nút đáy (Nano Banana / x1)
-            if (bottomRowY !== null) {
-              const dy = Math.abs(cy - bottomRowY);
-              if (dy <= 26) {
-                score += 240 - dy * 3;
-              } else if (dy > 55) {
+            // Loại trừ icon con nằm bên trong nút pill chọn model Nano Banana (nút pill rộng > 80px)
+            const parentBtn = el.closest ? el.closest('button, [role="button"]') : null;
+            if (parentBtn && parentBtn !== el) {
+              const pr = parentBtn.getBoundingClientRect();
+              const pTxt = (parentBtn.innerText || parentBtn.textContent || '').replace(/\s+/g, ' ').trim();
+              const childBtns = parentBtn.querySelectorAll ? parentBtn.querySelectorAll('button, [role="button"]') : [];
+              if (pr.width > 80 && childBtns.length <= 1 && (/(nano banana|imagen|veo)/i.test(pTxt) || /\bx[1-4]\b/i.test(pTxt))) {
                 continue;
               }
             }
 
-            // 2. Nằm ngay sát dưới đáy ô nhập prompt
-            if (boxRect && cy >= boxRect.bottom - 24 && cy <= boxRect.bottom + 120) {
-              score += 140;
+            const rawText = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            if (/(nano banana|imagen|veo)/i.test(rawText) || /\bx[1-4]\b/i.test(rawText)) continue;
+            if (/^(x|×|\u2715|\u2716|\+|close|đóng|add|thêm)$/i.test(rawText)) continue;
+
+            const ariaLabel = ((el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('title') || '')).toLowerCase();
+            if (/^(close|đóng|dismiss|cancel|hủy)$/i.test(ariaLabel.trim())) continue;
+
+            const isDis = !!(el.disabled || el.getAttribute('aria-disabled') === 'true');
+            const isWhite = isWhiteBackgroundButton(el);
+
+            if (requireWhiteOrEnabled && isDis && !isWhite) continue;
+
+            // Kiểm tra xem nút có chứa icon ligature "arrow_forward" chuẩn của Google Flow không
+            let hasArrowForwardIcon = /^(arrow_forward|arrow_upward|arrow_right_alt|east|send|north_east|→|➔|➜)$/i.test(rawText);
+            if (!hasArrowForwardIcon && el.querySelectorAll) {
+              for (const ic of el.querySelectorAll('i, mat-icon, span, md-icon, google-symbol')) {
+                const it = (ic.textContent || '').trim();
+                if (/^(arrow_forward|arrow_upward|arrow_right_alt|east|send|north_east|→|➔|➜)$/i.test(it)) {
+                  hasArrowForwardIcon = true;
+                  break;
+                }
+              }
             }
 
-            // 3. Nút tròn có màu nền sáng nổi bật (màu xanh nhạt/trắng đặc trưng của nút -> trên nền tối Google Flow)
-            const brightness = getBackgroundBrightness(el);
-            if (brightness >= 340) {
-              score += 200;
-            } else if (brightness >= 180) {
-              score += 70;
+            let score = 0;
+            if (hasArrowForwardIcon) score += 500;
+            if (isWhite) score += 320;
+            if (!isDis) score += 100;
+
+            if (bottomRowY !== null) {
+              const dy = Math.abs(cy - bottomRowY);
+              if (dy <= 28) score += 220 - dy * 3;
             }
 
-            // 4. Có ký hiệu mũi tên (Material Icon ligature / ký tự -> / nhãn Tạo)
-            if (/(arrow_forward|arrow_right|arrow_right_alt|east|send|arrow_upward|north_east|trending_flat|sub_directory_arrow_right|generate|create|submit|tạo|gửi|→|➔|➜|➝)/i.test(fullMeta)) {
-              score += 180;
-            }
-
-            // 5. Có chứa thẻ <svg>, <path>, hoặc icon bên trong
-            const hasIcon = !!(
-              (el.tagName || '').toUpperCase() === 'SVG'
-              || (el.querySelector && el.querySelector('svg, path, i, mat-icon, md-icon, [class*="symbol"], [class*="icon"]'))
-            );
-            if (hasIcon) score += 70;
-
-            // 6. Là thẻ <button> / [role="button"] và có bo tròn
-            if (el.matches && el.matches('button, [role="button"], [type="submit"]')) score += 110;
-            try {
-              const br = window.getComputedStyle(el).borderRadius || '';
-              if (br.includes('50%') || br.includes('999') || parseFloat(br) >= 12) score += 50;
-            } catch (_) {}
-
-            if (!isDis) score += 50;
-
-            // 7. Ưu tiên tuyệt đối phần tử nằm sát mép phải nhất của khung prompt
-            score += (r.right / Math.max(1, window.innerWidth)) * 120;
+            if (el.matches && el.matches('button, [role="button"], [type="submit"]')) score += 120;
+            if (el.querySelector && el.querySelector('svg, path, i, mat-icon')) score += 60;
+            score += (r.right / Math.max(1, window.innerWidth)) * 100;
 
             if (score > bestScore) {
               bestScore = score;
@@ -1593,7 +1702,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return best;
         }
 
-        // Chỉ tính phần trăm đang chạy từ 1%..99% (không tính 0% hoặc 100%)
         function hasActivePercentProgress() {
           const docs = [];
           collectDocs(document, docs);
@@ -1630,9 +1738,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           if (promptBox) {
             const boxRect = promptBox.getBoundingClientRect();
             let card = promptBox.parentElement;
-            for (let k = 0; k < 5 && card && card !== document.body; k++) {
+            for (let k = 0; k < 6 && card && card !== document.body; k++) {
               const cr = card.getBoundingClientRect();
-              if (cr.height >= boxRect.height + 50) break;
+              if (cr.top < boxRect.top - 25) break;
               card = card.parentElement;
             }
             if (card && card.querySelectorAll) {
@@ -1649,12 +1757,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return cnt;
         }
 
-        // Kiểm tra xem nút tròn mũi tên màu sáng vẫn đang nằm chờ bấm trong khung prompt hay không
-        function isArrowStillWaitingToClick(promptBox) {
+        // Kiểm tra xem nút tròn mũi tên nền trắng vẫn đang nằm chờ bấm trong khung prompt hay không
+        function isWhiteArrowStillWaiting(promptBox) {
           const curBox = findPromptBox() || promptBox;
           if (!curBox || !isVisible(curBox, 30, 12)) return false;
-          if (getBoxText(curBox).length < 12) return false;
-          const btn = findGenerateArrowButton(curBox, false);
+          if (getBoxText(curBox).length < 10) return false;
+          const btn = findGenerateArrowButton(curBox, true);
           if (!btn || !isVisible(btn, 20, 20)) return false;
           if (btn.disabled || btn.getAttribute('aria-disabled') === 'true') return false;
           const txt = (btn.innerText || btn.textContent || '').toLowerCase();
@@ -1665,225 +1773,261 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return false;
         }
 
+        // Gọi trực tiếp React Fiber / React Props / Angular Zone listener với Proxy Event có isTrusted = true
         function triggerFrameworkClick(targetEl, hitEl, cx, cy) {
           if (!targetEl) return false;
+          window.__dmxForceTrusted = true;
           let called = false;
-          const chain = [];
-          let cur = hitEl || targetEl;
-          for (let k = 0; k < 6 && cur && cur !== document.body; k++) {
-            if (!chain.includes(cur)) chain.push(cur);
-            cur = cur.parentElement;
-          }
-          if (!chain.includes(targetEl)) chain.unshift(targetEl);
-          if (targetEl.querySelectorAll) {
-            for (const ch of targetEl.querySelectorAll('*')) {
-              if (!chain.includes(ch)) chain.push(ch);
+          try {
+            const wrapTrusted = window.__dmxWrapTrustedEvent || ((e) => e);
+            const chain = [];
+            let cur = hitEl || targetEl;
+            for (let k = 0; k < 7 && cur && cur !== document.body; k++) {
+              if (!chain.includes(cur)) chain.push(cur);
+              cur = cur.parentElement;
             }
-          }
-
-          for (const el of chain) {
-            try {
-              const keys = Object.keys(el);
-              const propsKey = keys.find(k => k.startsWith('__reactProps$'));
-              const fiberKey = keys.find(k => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
-              const propsList = [];
-              if (propsKey && el[propsKey]) propsList.push(el[propsKey]);
-              if (fiberKey && el[fiberKey]) {
-                if (el[fiberKey].memoizedProps) propsList.push(el[fiberKey].memoizedProps);
-                if (el[fiberKey].pendingProps) propsList.push(el[fiberKey].pendingProps);
+            if (!chain.includes(targetEl)) chain.unshift(targetEl);
+            if (targetEl.querySelectorAll) {
+              for (const ch of targetEl.querySelectorAll('*')) {
+                if (!chain.includes(ch)) chain.push(ch);
               }
+            }
 
-              for (const props of propsList) {
-                if (!props) continue;
-                const makeEvt = (type) => {
-                  const nativeEvt = new MouseEvent(type, {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window,
-                    clientX: cx,
-                    clientY: cy,
-                    button: 0,
-                    buttons: 1,
-                    detail: 1
-                  });
-                  return {
-                    type,
-                    nativeEvent: nativeEvt,
-                    currentTarget: el,
-                    target: hitEl || el,
-                    bubbles: true,
-                    cancelable: true,
-                    defaultPrevented: false,
-                    isTrusted: true,
+            const makeSynthEvt = (type, currentEl) => {
+              const rawNative = new MouseEvent(type, {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                view: window,
+                clientX: cx,
+                clientY: cy,
+                button: 0,
+                buttons: 1,
+                detail: 1
+              });
+              const trustedNative = wrapTrusted(rawNative);
+              return {
+                type,
+                nativeEvent: trustedNative,
+                currentTarget: currentEl,
+                target: hitEl || currentEl,
+                bubbles: true,
+                cancelable: true,
+                defaultPrevented: false,
+                isTrusted: true,
+                clientX: cx,
+                clientY: cy,
+                pageX: cx,
+                pageY: cy,
+                screenX: cx,
+                screenY: cy,
+                button: 0,
+                buttons: 1,
+                detail: 1,
+                pointerId: 1,
+                pointerType: 'touch',
+                isPrimary: true,
+                preventDefault() { this.defaultPrevented = true; try { rawNative.preventDefault(); } catch (_) {} },
+                stopPropagation() { try { rawNative.stopPropagation(); } catch (_) {} },
+                stopImmediatePropagation() { try { rawNative.stopImmediatePropagation(); } catch (_) {} },
+                persist() {},
+                isDefaultPrevented() { return this.defaultPrevented; },
+                isPropagationStopped() { return false; }
+              };
+            };
+
+            for (const el of chain) {
+              try {
+                const keys = Object.keys(el);
+                const propsKey = keys.find(k => k.startsWith('__reactProps$'));
+                const fiberKey = keys.find(k => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
+                const propsList = [];
+                if (propsKey && el[propsKey]) propsList.push({ props: el[propsKey], node: el });
+                if (fiberKey && el[fiberKey]) {
+                  let f = el[fiberKey];
+                  for (let depth = 0; depth < 8 && f; depth++) {
+                    if (f.memoizedProps) propsList.push({ props: f.memoizedProps, node: el });
+                    if (f.pendingProps && f.pendingProps !== f.memoizedProps) propsList.push({ props: f.pendingProps, node: el });
+                    f = f.return;
+                  }
+                }
+
+                for (const item of propsList) {
+                  const props = item.props;
+                  if (!props) continue;
+                  if (typeof props.onPointerDown === 'function') {
+                    try { props.onPointerDown(makeSynthEvt('pointerdown', item.node)); } catch (_) {}
+                  }
+                  if (typeof props.onMouseDown === 'function') {
+                    try { props.onMouseDown(makeSynthEvt('mousedown', item.node)); } catch (_) {}
+                  }
+                  if (typeof props.onPointerUp === 'function') {
+                    try { props.onPointerUp(makeSynthEvt('pointerup', item.node)); } catch (_) {}
+                  }
+                  if (typeof props.onMouseUp === 'function') {
+                    try { props.onMouseUp(makeSynthEvt('mouseup', item.node)); } catch (_) {}
+                  }
+                  if (typeof props.onTouchEnd === 'function') {
+                    try { props.onTouchEnd(makeSynthEvt('touchend', item.node)); } catch (_) {}
+                  }
+                  if (typeof props.onPressStart === 'function') {
+                    try { props.onPressStart({ type: 'pressstart', pointerType: 'touch', target: item.node, currentTarget: item.node, clientX: cx, clientY: cy, continuePropagation() {} }); } catch (_) {}
+                  }
+                  if (typeof props.onPressEnd === 'function') {
+                    try { props.onPressEnd({ type: 'pressend', pointerType: 'touch', target: item.node, currentTarget: item.node, clientX: cx, clientY: cy, continuePropagation() {} }); } catch (_) {}
+                  }
+                  if (typeof props.onPress === 'function') {
+                    try {
+                      props.onPress({ type: 'press', pointerType: 'touch', target: item.node, currentTarget: item.node, clientX: cx, clientY: cy, continuePropagation() {} });
+                      called = true;
+                    } catch (_) {}
+                  }
+                  if (typeof props.onClick === 'function') {
+                    try {
+                      props.onClick(makeSynthEvt('click', item.node));
+                      called = true;
+                    } catch (_) {}
+                  }
+                }
+
+                // Hỗ trợ thêm Angular / Zone.jsタスク (__zone_symbol__clickfalse / __zone_symbol__clicktrue)
+                for (const zk of keys.filter(k => k.includes('__zone_symbol__click') || k.includes('__zone_symbol__pointerup'))) {
+                  const tasks = el[zk];
+                  if (Array.isArray(tasks)) {
+                    for (const t of tasks) {
+                      const fn = (t && (t.callback || t.invoke || t)) || null;
+                      if (typeof fn === 'function') {
+                        try { fn.call(el, makeSynthEvt('click', el).nativeEvent); called = true; } catch (_) {}
+                      }
+                    }
+                  }
+                }
+              } catch (_) {}
+            }
+          } finally {
+            window.__dmxForceTrusted = false;
+          }
+          return called;
+        }
+
+        async function dispatchTrustedClickSequence(targetEl, hitEl, cx, cy, pointerType = 'touch') {
+          window.__dmxForceTrusted = true;
+          try {
+            const iconEl = (targetEl && targetEl.querySelector && targetEl.querySelector('i, mat-icon, svg, span')) || hitEl || targetEl;
+            const nodes = [];
+            if (iconEl) nodes.push(iconEl);
+            if (hitEl && !nodes.includes(hitEl)) nodes.push(hitEl);
+            if (targetEl && !nodes.includes(targetEl)) nodes.push(targetEl);
+
+            const opts = {
+              bubbles: true,
+              cancelable: true,
+              composed: true,
+              view: window,
+              clientX: cx,
+              clientY: cy,
+              screenX: cx,
+              screenY: cy,
+              button: 0,
+              buttons: 1,
+              detail: 1
+            };
+            const ptrOpts = {
+              ...opts,
+              pointerId: 1,
+              width: 10,
+              height: 10,
+              pressure: 0.5,
+              pointerType,
+              isPrimary: true
+            };
+
+            const leaf = iconEl || hitEl || targetEl;
+            if (!leaf) return;
+
+            try { leaf.dispatchEvent(new PointerEvent('pointerover', ptrOpts)); } catch (_) {}
+            try { leaf.dispatchEvent(new MouseEvent('mouseover', opts)); } catch (_) {}
+            try { leaf.dispatchEvent(new PointerEvent('pointerdown', ptrOpts)); } catch (_) {}
+
+            if (pointerType === 'touch') {
+              try {
+                if (typeof Touch !== 'undefined' && typeof TouchEvent !== 'undefined') {
+                  const touchObj = new Touch({
+                    identifier: 1,
+                    target: leaf,
                     clientX: cx,
                     clientY: cy,
                     pageX: cx,
                     pageY: cy,
                     screenX: cx,
                     screenY: cy,
-                    button: 0,
-                    buttons: 1,
-                    detail: 1,
-                    pointerId: 1,
-                    pointerType: 'touch',
-                    isPrimary: true,
-                    preventDefault() { this.defaultPrevented = true; try { nativeEvt.preventDefault(); } catch (_) {} },
-                    stopPropagation() { try { nativeEvt.stopPropagation(); } catch (_) {} },
-                    stopImmediatePropagation() { try { nativeEvt.stopImmediatePropagation(); } catch (_) {} },
-                    persist() {},
-                    isDefaultPrevented() { return this.defaultPrevented; },
-                    isPropagationStopped() { return false; }
-                  };
-                };
-
-                if (typeof props.onPointerDown === 'function') {
-                  try { props.onPointerDown(makeEvt('pointerdown')); } catch (_) {}
+                    radiusX: 5,
+                    radiusY: 5,
+                    force: 0.5
+                  });
+                  leaf.dispatchEvent(new TouchEvent('touchstart', {
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true,
+                    view: window,
+                    touches: [touchObj],
+                    targetTouches: [touchObj],
+                    changedTouches: [touchObj]
+                  }));
                 }
-                if (typeof props.onMouseDown === 'function') {
-                  try { props.onMouseDown(makeEvt('mousedown')); } catch (_) {}
-                }
-                if (typeof props.onPointerUp === 'function') {
-                  try { props.onPointerUp(makeEvt('pointerup')); } catch (_) {}
-                }
-                if (typeof props.onMouseUp === 'function') {
-                  try { props.onMouseUp(makeEvt('mouseup')); } catch (_) {}
-                }
-                if (typeof props.onTouchEnd === 'function') {
-                  try { props.onTouchEnd(makeEvt('touchend')); } catch (_) {}
-                }
-                if (typeof props.onPressStart === 'function') {
-                  try { props.onPressStart({ type: 'pressstart', pointerType: 'touch', target: el, currentTarget: el, clientX: cx, clientY: cy, continuePropagation() {} }); } catch (_) {}
-                }
-                if (typeof props.onPressEnd === 'function') {
-                  try { props.onPressEnd({ type: 'pressend', pointerType: 'touch', target: el, currentTarget: el, clientX: cx, clientY: cy, continuePropagation() {} }); } catch (_) {}
-                }
-                if (typeof props.onPress === 'function') {
-                  try {
-                    props.onPress({ type: 'press', pointerType: 'touch', target: el, currentTarget: el, clientX: cx, clientY: cy, continuePropagation() {} });
-                    called = true;
-                  } catch (_) {}
-                }
-                if (typeof props.onClick === 'function') {
-                  try {
-                    props.onClick(makeEvt('click'));
-                    called = true;
-                  } catch (_) {}
-                }
-              }
-            } catch (_) {}
-          }
-          return called;
-        }
+              } catch (_) {}
+            }
 
-        function dispatchFullClickSequence(targetEl, hitEl, cx, cy, pointerType = 'touch') {
-          const nodes = [];
-          if (hitEl) nodes.push(hitEl);
-          if (targetEl && !nodes.includes(targetEl)) nodes.push(targetEl);
+            try { leaf.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
+            await sleep(45);
 
-          const opts = {
-            bubbles: true,
-            cancelable: true,
-            composed: true,
-            view: window,
-            clientX: cx,
-            clientY: cy,
-            screenX: cx,
-            screenY: cy,
-            button: 0,
-            buttons: 1,
-            detail: 1
-          };
-          const ptrOpts = {
-            ...opts,
-            pointerId: 1,
-            width: 10,
-            height: 10,
-            pressure: 0.5,
-            pointerType,
-            isPrimary: true
-          };
+            if (pointerType === 'touch') {
+              try {
+                if (typeof Touch !== 'undefined' && typeof TouchEvent !== 'undefined') {
+                  const touchObj = new Touch({
+                    identifier: 1,
+                    target: leaf,
+                    clientX: cx,
+                    clientY: cy,
+                    pageX: cx,
+                    pageY: cy,
+                    screenX: cx,
+                    screenY: cy,
+                    radiusX: 5,
+                    radiusY: 5,
+                    force: 0.0
+                  });
+                  leaf.dispatchEvent(new TouchEvent('touchend', {
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true,
+                    view: window,
+                    touches: [],
+                    targetTouches: [],
+                    changedTouches: [touchObj]
+                  }));
+                }
+              } catch (_) {}
+            }
 
-          const el = hitEl || targetEl;
-          if (!el) return;
-
-          try { el.dispatchEvent(new PointerEvent('pointerover', ptrOpts)); } catch (_) {}
-          try { el.dispatchEvent(new MouseEvent('mouseover', opts)); } catch (_) {}
-          try { el.dispatchEvent(new PointerEvent('pointerdown', ptrOpts)); } catch (_) {}
-
-          if (pointerType === 'touch') {
-            try {
-              if (typeof Touch !== 'undefined' && typeof TouchEvent !== 'undefined') {
-                const touchObj = new Touch({
-                  identifier: 1,
-                  target: el,
-                  clientX: cx,
-                  clientY: cy,
-                  pageX: cx,
-                  pageY: cy,
-                  screenX: cx,
-                  screenY: cy,
-                  radiusX: 5,
-                  radiusY: 5,
-                  force: 0.5
-                });
-                el.dispatchEvent(new TouchEvent('touchstart', {
-                  bubbles: true,
-                  cancelable: true,
-                  composed: true,
-                  view: window,
-                  touches: [touchObj],
-                  targetTouches: [touchObj],
-                  changedTouches: [touchObj]
-                }));
-              }
-            } catch (_) {}
-          }
-
-          try { el.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
-
-          if (pointerType === 'touch') {
-            try {
-              if (typeof Touch !== 'undefined' && typeof TouchEvent !== 'undefined') {
-                const touchObj = new Touch({
-                  identifier: 1,
-                  target: el,
-                  clientX: cx,
-                  clientY: cy,
-                  pageX: cx,
-                  pageY: cy,
-                  screenX: cx,
-                  screenY: cy,
-                  radiusX: 5,
-                  radiusY: 5,
-                  force: 0.0
-                });
-                el.dispatchEvent(new TouchEvent('touchend', {
-                  bubbles: true,
-                  cancelable: true,
-                  composed: true,
-                  view: window,
-                  touches: [],
-                  targetTouches: [],
-                  changedTouches: [touchObj]
-                }));
-              }
-            } catch (_) {}
-          }
-
-          try { el.dispatchEvent(new PointerEvent('pointerup', { ...ptrOpts, buttons: 0, pressure: 0 })); } catch (_) {}
-          try { el.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 })); } catch (_) {}
-          try { el.dispatchEvent(new MouseEvent('click', { ...opts, buttons: 0 })); } catch (_) {}
-          for (const n of nodes) {
-            try { if (typeof n.click === 'function') n.click(); } catch (_) {}
+            try { leaf.dispatchEvent(new PointerEvent('pointerup', { ...ptrOpts, buttons: 0, pressure: 0 })); } catch (_) {}
+            try { leaf.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 })); } catch (_) {}
+            try { leaf.dispatchEvent(new MouseEvent('click', { ...opts, buttons: 0 })); } catch (_) {}
+            for (const n of nodes) {
+              try { if (typeof n.click === 'function') n.click(); } catch (_) {}
+            }
+          } finally {
+            window.__dmxForceTrusted = false;
           }
         }
 
         function checkGenerationStarted(arrowBtn, promptBox) {
           if (hasActivePercentProgress()) return true;
-          // Nếu nút tròn mũi tên màu sáng vẫn đang hiển thị cùng với prompt trong ô nhập -> CHẮC CHẮN CHƯA CHẠY!
-          if (isArrowStillWaitingToClick(promptBox)) return false;
+          // Nếu nút tròn mũi tên nền trắng vẫn đang nằm chờ bấm và ô prompt vẫn còn chữ -> CHẮC CHẮN CHƯA CHẠY!
+          if (isWhiteArrowStillWaiting(promptBox)) return false;
           if (!arrowBtn || !arrowBtn.isConnected || !isVisible(arrowBtn, 16, 16)) return true;
           if (arrowBtn.disabled || arrowBtn.getAttribute('aria-disabled') === 'true') return true;
+          if (!isWhiteBackgroundButton(arrowBtn)) return true;
           const curBox = (promptBox && promptBox.isConnected) ? promptBox : findPromptBox();
           if (!curBox || !isVisible(curBox, 24, 12) || getBoxText(curBox).length === 0) return true;
           return false;
@@ -1899,29 +2043,35 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             || (arrowBtn.closest && arrowBtn.closest('button, [role="button"], [type="submit"]'))
             || arrowBtn;
 
-          // Cách 1: Click trực tiếp + chuỗi Touch/Pointer/Mouse chuẩn iOS
-          dispatchFullClickSequence(primaryBtn, hitEl, cx, cy, 'touch');
-          await sleep(700);
-          if (checkGenerationStarted(primaryBtn, promptBox)) return true;
-
-          // Cách 2: Gọi trực tiếp React / Aria / Radix handler (onClick, onPress, onPointerUp...)
-          triggerFrameworkClick(primaryBtn, hitEl, cx, cy);
-          await sleep(700);
-          if (checkGenerationStarted(primaryBtn, promptBox)) return true;
-
-          // Cách 3: Gửi chuỗi sự kiện Mouse desktop + Submit Form
-          const frm = primaryBtn.closest && primaryBtn.closest('form');
-          if (frm) {
-            try {
-              if (frm.requestSubmit) frm.requestSubmit(primaryBtn);
-              else frm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-            } catch (_) {}
-          }
-          dispatchFullClickSequence(primaryBtn, hitEl, cx, cy, 'mouse');
+          // Cách 1: Chuỗi Touch + Pointer + Mouse + click() với hook isTrusted = true
+          await dispatchTrustedClickSequence(primaryBtn, hitEl, cx, cy, 'touch');
           await sleep(650);
           if (checkGenerationStarted(primaryBtn, promptBox)) return true;
 
-          // Cách 4: Kích hoạt phím Enter trên nút mũi tên và trên ô prompt
+          // Cách 2: Gọi trực tiếp React Fiber / Props / Angular Zone listener với Proxy isTrusted = true
+          triggerFrameworkClick(primaryBtn, hitEl, cx, cy);
+          await sleep(650);
+          if (checkGenerationStarted(primaryBtn, promptBox)) return true;
+
+          // Cách 3: Chuỗi sự kiện Mouse desktop + Submit Form
+          window.__dmxForceTrusted = true;
+          try {
+            const frm = primaryBtn.closest && primaryBtn.closest('form');
+            if (frm) {
+              try {
+                if (frm.requestSubmit) frm.requestSubmit(primaryBtn);
+                else frm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+              } catch (_) {}
+            }
+          } finally {
+            window.__dmxForceTrusted = false;
+          }
+          await dispatchTrustedClickSequence(primaryBtn, hitEl, cx, cy, 'mouse');
+          await sleep(600);
+          if (checkGenerationStarted(primaryBtn, promptBox)) return true;
+
+          // Cách 4: Kích hoạt phím Enter / Space với isTrusted = true trên nút và trên ô Slate editor
+          window.__dmxForceTrusted = true;
           try {
             primaryBtn.focus();
             for (const k of [{ key: 'Enter', code: 'Enter', kc: 13 }, { key: ' ', code: 'Space', kc: 32 }]) {
@@ -1929,16 +2079,17 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               primaryBtn.dispatchEvent(new KeyboardEvent('keypress', { key: k.key, code: k.code, keyCode: k.kc, which: k.kc, bubbles: true, cancelable: true }));
               primaryBtn.dispatchEvent(new KeyboardEvent('keyup', { key: k.key, code: k.code, keyCode: k.kc, which: k.kc, bubbles: true, cancelable: true }));
             }
-          } catch (_) {}
-          if (promptBox) {
-            try {
+            if (promptBox) {
               promptBox.focus();
               promptBox.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
               promptBox.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
               promptBox.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
-            } catch (_) {}
+            }
+          } catch (_) {
+          } finally {
+            window.__dmxForceTrusted = false;
           }
-          await sleep(650);
+          await sleep(600);
           return checkGenerationStarted(primaryBtn, promptBox);
         }
 
@@ -1946,7 +2097,14 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         const cfgRes = await applyFlowSettings(targetAspect, targetModel);
         let box = findPromptBox();
 
-        // Bước 1: Nếu có ảnh mẫu, tải ảnh mẫu lên TRƯỚC và đợi ảnh mẫu gắn xong 100% vào khung prompt
+        // Bước 1: Điền prompt tiếng Việt vào ô nhập để mở khung composer
+        let promptOk = false;
+        if (box && promptText) {
+          promptOk = await fillPromptBox(box, promptText);
+          await sleep(250);
+        }
+
+        // Bước 2: Đính kèm ảnh mẫu và đợi ảnh mẫu tải xong 100%
         let imgStatus = 'NO_IMAGE';
         if (imageBase64) {
           const beforeUploadSrcs = new Set(snapshotImageSrcs());
@@ -1964,22 +2122,20 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               continue;
             }
             const newMediaCount = countNewUploadedMedia(beforeUploadSrcs, box);
-            // Bắt buộc phải thấy ảnh mới xuất hiện (newMediaCount > 0) và hết % tải lên, ổn định ít nhất 4 nhịp (~1.2s) sau tối thiểu 7 nhịp đầu (~2.1s)
-            if (newMediaCount > 0 && (sawProgress || i >= 7)) {
+            if (newMediaCount > 0 && (sawProgress || i >= 6)) {
               stableReadyTicks += 1;
               if (stableReadyTicks >= 4) {
                 break;
               }
             }
           }
-          await sleep(500);
+          await sleep(450);
         } else {
           await sleep(300);
         }
 
-        // Bước 2: Sau khi ảnh mẫu đã tải lên và khung prompt mở rộng ổn định, điền prompt tiếng Việt vào ô nhập
+        // Bước 3: Kiểm tra lại ô prompt sau khi ảnh đã gắn xong và kích hoạt sự kiện input để nút mũi tên chuyển từ nền đen sang nền trắng
         box = findPromptBox() || box;
-        let promptOk = false;
         if (box && promptText) {
           const curTxt = getBoxText(box);
           if (!curTxt || !curTxt.includes(promptText.slice(0, 15))) {
@@ -1988,24 +2144,22 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             promptOk = true;
             await nudgePromptBox(box);
           }
-          await sleep(350);
+          await sleep(300);
         }
 
-        // Chụp toàn bộ src ảnh ĐÃ CÓ (bao gồm cả ảnh mẫu vừa tải lên 100%) trước khi bấm nút ->
         const existingSrcs = snapshotImageSrcs();
 
-        // Bước 3: Tìm và bấm nút tròn có ký hiệu mũi tên (->) cho tới khi thực sự bắt đầu tạo ảnh
+        // Bước 4: Đợi nút tròn <i class="google-symbols">arrow_forward</i> chuyển sang màu nền trắng rồi tự bấm cho tới khi bắt đầu tạo ảnh
         let clickedGenerate = false;
         let arrowInfo = 'NONE';
         if (promptOk || (box && getBoxText(box).length > 0)) {
-          for (let i = 0; i < 28; i++) {
+          for (let i = 0; i < 30; i++) {
             if (hasActivePercentProgress()) {
               clickedGenerate = true;
               break;
             }
             box = findPromptBox() || box;
-            if (box && promptText && getBoxText(box).length < 12) {
-              // Nếu ô prompt đã trống sau lần bấm trước -> đã gửi lệnh tạo ảnh thành công
+            if (box && promptText && getBoxText(box).length < 10) {
               if (i > 0 && arrowInfo !== 'NONE') {
                 clickedGenerate = true;
                 break;
@@ -2014,16 +2168,21 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               await sleep(250);
             }
 
-            const arrowBtn = findGenerateArrowButton(box, false) || (i >= 4 ? findGenerateArrowButton(box, true) : null);
+            // Ưu tiên tìm nút mũi tên đã chuyển sang nền trắng (enabled); từ nhịp 4 trở đi tìm cả nút chưa đổi màu để nudge
+            const arrowBtn = findGenerateArrowButton(box, true) || (i >= 4 ? findGenerateArrowButton(box, false) : null);
             if (arrowBtn) {
               const r = arrowBtn.getBoundingClientRect();
-              arrowInfo = `${arrowBtn.tagName}(${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)},b=${getBackgroundBrightness(arrowBtn)})`;
+              const rgb = getBackgroundRGB(arrowBtn);
+              arrowInfo = `${arrowBtn.tagName}(${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)},rgb=${rgb.r}/${rgb.g}/${rgb.b})`;
+              const isWhite = isWhiteBackgroundButton(arrowBtn);
               const isDis = !!(arrowBtn.disabled || arrowBtn.getAttribute('aria-disabled') === 'true');
-              if (isDis && i < 6) {
+
+              if ((!isWhite || isDis) && i < 6) {
                 await nudgePromptBox(box);
                 await sleep(350);
                 continue;
               }
+
               const started = await clickArrowButtonAndVerify(arrowBtn, box);
               if (started) {
                 clickedGenerate = true;
@@ -2130,7 +2289,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           for (const el of all) { if (el.shadowRoot) collectImgs(el.shadowRoot, out); }
         }
 
-        function isVisible(el, minW = 20, minH = 12) {
+        function isVisible(el, minW = 16, minH = 12) {
           if (!el || !el.isConnected) return false;
           const st = window.getComputedStyle(el);
           if (!st || st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) return false;
@@ -2138,7 +2297,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return r.width >= minW && r.height >= minH;
         }
 
-        function getBackgroundBrightness(el) {
+        function getBackgroundRGB(el) {
           let cur = el;
           for (let k = 0; k < 4 && cur && cur !== document.body; k++) {
             try {
@@ -2147,12 +2306,17 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               if (m) {
                 const r = parseInt(m[1], 10), g = parseInt(m[2], 10), b = parseInt(m[3], 10);
                 const a = m[4] !== undefined ? parseFloat(m[4]) : 1.0;
-                if (a >= 0.35 && (r + g + b) > 90) return r + g + b;
+                if (a >= 0.35 && (r + g + b) > 30) return { r, g, b, sum: r + g + b };
               }
             } catch (_) {}
             cur = cur.parentElement;
           }
-          return 0;
+          return { r: 0, g: 0, b: 0, sum: 0 };
+        }
+
+        function isWhiteBackgroundButton(el) {
+          const rgb = getBackgroundRGB(el);
+          return rgb.r >= 135 && rgb.g >= 135 && rgb.b >= 135 && rgb.sum >= 420;
         }
 
         function buildCandidateUrls(rawUrl) {
@@ -2189,7 +2353,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
-        // Chỉ tính huy hiệu tiến độ đang chạy từ 1%..99%
         function hasStandalonePercentBadge() {
           const all = [];
           collectAllElements(document, all);
@@ -2206,14 +2369,14 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return "WAITING";
         }
 
-        // Tự động tìm và bấm nút tròn mũi tên (->) nếu khung prompt vẫn đang mở chờ bấm
+        // Cơ chế tự bấm bù mỗi 2.5s: nếu thấy nút <button><i class="google-symbols">arrow_forward</i></button> đang có nền màu trắng, tự bấm ngay với isTrusted = true!
         function tryClickPendingArrowIfStillOpen() {
           const all = [];
           collectAllElements(document, all);
           let activeBox = null;
           for (const ed of all) {
             const tag = (ed.tagName || '').toUpperCase();
-            const isEd = tag === 'TEXTAREA' || ed.isContentEditable || (ed.getAttribute && ed.getAttribute('role') === 'textbox') || (ed.hasAttribute && ed.hasAttribute('data-slate-editor'));
+            const isEd = (ed.hasAttribute && ed.hasAttribute('data-slate-editor')) || tag === 'TEXTAREA' || ed.isContentEditable || (ed.getAttribute && ed.getAttribute('role') === 'textbox');
             if (!isEd || !isVisible(ed, 100, 20)) continue;
             const txt = (ed.value || ed.innerText || ed.textContent || '').trim();
             if (txt.length >= 15) { activeBox = ed; break; }
@@ -2224,73 +2387,84 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           let best = null;
           let bestScore = -1;
           for (const rawEl of all) {
-            if (!isVisible(rawEl, 18, 18)) continue;
-            const btnParent = rawEl.closest ? rawEl.closest('button, [role="button"], [type="submit"]') : null;
-            let el = rawEl;
-            if (btnParent && isVisible(btnParent, 20, 20)) {
-              const pr = btnParent.getBoundingClientRect();
-              const pText = (btnParent.innerText || btnParent.textContent || '').replace(/\s+/g, ' ').trim();
-              const childBtns = btnParent.querySelectorAll ? btnParent.querySelectorAll('button, [role="button"]') : [];
-              if (pr.width > 78 && childBtns.length <= 1 && (/(nano banana|imagen|veo)/i.test(pText) || /\bx[1-4]\b/i.test(pText))) {
-                continue;
-              }
-              if (pr.width >= 20 && pr.width <= 76 && pr.height >= 20 && pr.height <= 76) {
-                el = btnParent;
-              }
-            }
+            if (!isVisible(rawEl, 14, 14)) continue;
+            const el = (rawEl.closest && rawEl.closest('button, [role="button"], [type="submit"]')) || rawEl;
+            if (!isVisible(el, 20, 20)) continue;
             const r = el.getBoundingClientRect();
-            if (r.width < 22 || r.width > 76 || r.height < 22 || r.height > 76) continue;
-            if (Math.abs(r.width - r.height) > 22) continue;
+            if (r.width < 20 || r.width > 80 || r.height < 20 || r.height > 80) continue;
+            if (Math.abs(r.width - r.height) > 24) continue;
             const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-            if (cx < window.innerWidth * 0.68) continue;
-            if (cy < boxRect.bottom - 28) continue;
-            if (el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
+            if (cx < window.innerWidth * 0.65) continue;
+            if (cy < window.innerHeight * 0.45) continue;
+            if (cy < boxRect.top + 28) continue;
 
             const rawText = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
             if (/(nano banana|imagen|veo)/i.test(rawText) || /\bx[1-4]\b/i.test(rawText)) continue;
-            if (/^(x|×|\u2715|\u2716|\+)$/i.test(rawText)) continue;
+            if (/^(x|×|\u2715|\u2716|\+|close|đóng|add|thêm)$/i.test(rawText)) continue;
 
-            let score = (r.right / Math.max(1, window.innerWidth)) * 120;
-            const b = getBackgroundBrightness(el);
-            if (b >= 340) score += 200;
-            if (el.matches && el.matches('button, [role="button"], [type="submit"]')) score += 110;
-            if (/(arrow_forward|arrow_right|east|send|arrow_upward|generate|create|submit|tạo|gửi|→)/i.test(rawText + ' ' + (el.getAttribute('aria-label') || ''))) score += 160;
+            const isWhite = isWhiteBackgroundButton(el);
+            const isDis = !!(el.disabled || el.getAttribute('aria-disabled') === 'true');
+            if (isDis && !isWhite) continue;
+
+            let hasArrowIcon = /^(arrow_forward|arrow_upward|arrow_right_alt|east|send|north_east|→|➔|➜)$/i.test(rawText);
+            if (!hasArrowIcon && el.querySelectorAll) {
+              for (const ic of el.querySelectorAll('i, mat-icon, span, md-icon, google-symbol')) {
+                if (/^(arrow_forward|arrow_upward|arrow_right_alt|east|send|north_east|→|➔|➜)$/i.test((ic.textContent || '').trim())) {
+                  hasArrowIcon = true;
+                  break;
+                }
+              }
+            }
+
+            let score = (r.right / Math.max(1, window.innerWidth)) * 100;
+            if (hasArrowIcon) score += 500;
+            if (isWhite) score += 320;
+            if (el.matches && el.matches('button, [role="button"], [type="submit"]')) score += 120;
             if (score > bestScore) { bestScore = score; best = el; }
           }
           if (!best) return false;
 
-          const ar = best.getBoundingClientRect();
-          const cx = ar.left + ar.width / 2, cy = ar.top + ar.height / 2;
-          const hitEl = document.elementFromPoint(cx, cy) || best;
-          const opts = { bubbles: true, cancelable: true, composed: true, view: window, clientX: cx, clientY: cy, button: 0, buttons: 1 };
-          try { hitEl.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
-          try { hitEl.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
-          try { hitEl.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
-          try { hitEl.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 })); } catch (_) {}
-          try { best.click(); } catch (_) {}
+          window.__dmxForceTrusted = true;
           try {
-            const key = Object.keys(best).find(k => k.startsWith('__reactProps$'));
-            if (key && best[key] && typeof best[key].onClick === 'function') {
-              best[key].onClick({
-                type: 'click',
-                nativeEvent: new MouseEvent('click', opts),
-                currentTarget: best,
-                target: hitEl,
-                bubbles: true,
-                cancelable: true,
-                isTrusted: true,
-                clientX: cx,
-                clientY: cy,
-                button: 0,
-                preventDefault() {},
-                stopPropagation() {},
-                stopImmediatePropagation() {},
-                persist() {},
-                isDefaultPrevented() { return false; },
-                isPropagationStopped() { return false; }
-              });
-            }
-          } catch (_) {}
+            const ar = best.getBoundingClientRect();
+            const cx = ar.left + ar.width / 2, cy = ar.top + ar.height / 2;
+            const hitEl = document.elementFromPoint(cx, cy) || best;
+            const iconEl = (best.querySelector && best.querySelector('i, mat-icon, svg, span')) || hitEl;
+            const opts = { bubbles: true, cancelable: true, composed: true, view: window, clientX: cx, clientY: cy, button: 0, buttons: 1 };
+            try { iconEl.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+            try { iconEl.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
+            try { iconEl.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+            try { iconEl.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 })); } catch (_) {}
+            try { iconEl.click(); } catch (_) {}
+            try { best.click(); } catch (_) {}
+            try {
+              const wrapTrusted = window.__dmxWrapTrustedEvent || ((e) => e);
+              const keys = Object.keys(best);
+              const propsKey = keys.find(k => k.startsWith('__reactProps$'));
+              if (propsKey && best[propsKey] && typeof best[propsKey].onClick === 'function') {
+                best[propsKey].onClick({
+                  type: 'click',
+                  nativeEvent: wrapTrusted(new MouseEvent('click', opts)),
+                  currentTarget: best,
+                  target: iconEl,
+                  bubbles: true,
+                  cancelable: true,
+                  isTrusted: true,
+                  clientX: cx,
+                  clientY: cy,
+                  button: 0,
+                  preventDefault() {},
+                  stopPropagation() {},
+                  stopImmediatePropagation() {},
+                  persist() {},
+                  isDefaultPrevented() { return false; },
+                  isPropagationStopped() { return false; }
+                });
+              }
+            } catch (_) {}
+          } finally {
+            window.__dmxForceTrusted = false;
+          }
           return true;
         }
 
