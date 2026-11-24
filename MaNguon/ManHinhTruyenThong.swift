@@ -1,4 +1,5 @@
 import UIKit
+import Photos
 import PhotosUI
 import WebKit
 import SafariServices
@@ -780,13 +781,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         function buildCandidateUrls(rawUrl) {
           const urls = [];
           if (!rawUrl) return urls;
-          // Nếu là URL Google User Content có tham số thu nhỏ (=w..., =h..., =s...), thử bản gốc =s0 trước!
           if (/googleusercontent\.com/i.test(rawUrl)) {
-            const base = rawUrl.replace(/=[a-zA-Z0-9\-_]+$/, '');
+            const base = rawUrl.replace(/=[a-zA-Z0-9\-_,]+$/, '');
             if (base && base !== rawUrl) {
               urls.push(base + '=s0');
               urls.push(base + '=w2048');
             }
+          }
+          if (/[?&](w|width|sz)=\d+/i.test(rawUrl)) {
+            urls.push(rawUrl.replace(/([?&](?:w|width|sz)=)\d+/ig, '$12048'));
           }
           urls.push(rawUrl);
           return [...new Set(urls)];
@@ -1529,6 +1532,32 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
         // Chụp toàn bộ src ảnh ĐÃ CÓ (bao gồm cả ảnh mẫu san-pham-dmx.jpg vừa upload 100%)
         const existingSrcs = snapshotImageSrcs();
+        function triggerReactClick(el) {
+          if (!el) return false;
+          try {
+            const key = Object.keys(el).find(k => k.startsWith('__reactProps$'));
+            if (key && el[key] && typeof el[key].onClick === 'function') {
+              el[key].onClick({
+                preventDefault() {},
+                stopPropagation() {},
+                currentTarget: el,
+                target: el,
+                nativeEvent: new MouseEvent('click', { bubbles: true })
+              });
+              return true;
+            }
+          } catch (_) {}
+          return false;
+        }
+
+        function checkGenerationStarted(arrowBtn, promptBox) {
+          if (hasActivePercentProgress()) return true;
+          if (!arrowBtn || !arrowBtn.isConnected) return true;
+          if (arrowBtn.disabled || arrowBtn.getAttribute('aria-disabled') === 'true') return true;
+          if (promptBox && getBoxText(promptBox).length === 0) return true;
+          return false;
+        }
+
         let clickedGenerate = false;
         if (promptOk && uploadCompleted) {
           for (let i = 0; i < 16; i++) {
@@ -1541,40 +1570,39 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               const r = arrowBtn.getBoundingClientRect();
               const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
               arrowBtn.focus();
-              // Thử bấm trực tiếp vào nút -> (ưu tiên click chuẩn của React trước, tránh double-toggle)
+
+              // Cách 1: Click DOM chuẩn
               arrowBtn.click();
-              await sleep(700);
+              await sleep(900);
 
-              // Kiểm tra xem Flow đã bắt đầu tạo chưa (hiện % hoặc nút -> chuyển trạng thái disabled / ô prompt thu gọn)
-              const started = hasActivePercentProgress()
-                || arrowBtn.disabled
-                || arrowBtn.getAttribute('aria-disabled') === 'true'
-                || !arrowBtn.isConnected;
-
-              if (!started) {
-                // Dự phòng 1: bấm phần tử thực tại tọa độ (cx, cy) bằng đủ chuỗi Pointer/Mouse
-                const topEl = document.elementFromPoint(cx, cy) || arrowBtn;
-                clickButtonFully(topEl);
-                await sleep(600);
+              // Cách 2: Gọi thẳng React onClick handler trên nút -> (vượt giới hạn isTrusted của React)
+              if (!checkGenerationStarted(arrowBtn, box)) {
+                triggerReactClick(arrowBtn);
+                await sleep(900);
               }
 
-              const started2 = hasActivePercentProgress()
-                || arrowBtn.disabled
-                || arrowBtn.getAttribute('aria-disabled') === 'true'
-                || !arrowBtn.isConnected;
+              // Cách 3: Submit form chứa nút -> hoặc chạm tọa độ tâm nút
+              if (!checkGenerationStarted(arrowBtn, box)) {
+                const frm = arrowBtn.closest && arrowBtn.closest('form');
+                if (frm && frm.requestSubmit) {
+                  try { frm.requestSubmit(arrowBtn); } catch (_) {}
+                } else {
+                  const topEl = document.elementFromPoint(cx, cy) || arrowBtn;
+                  clickButtonFully(topEl);
+                }
+                await sleep(800);
+              }
 
-              if (!started2 && box) {
-                // Dự phòng 2: gửi phím Enter vào ô prompt
+              // Cách 4: Gửi phím Enter vào ô prompt
+              if (!checkGenerationStarted(arrowBtn, box) && box) {
                 box.focus();
                 box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+                box.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
                 box.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
-                await sleep(500);
+                await sleep(700);
               }
 
-              clickedGenerate = hasActivePercentProgress()
-                || arrowBtn.disabled
-                || arrowBtn.getAttribute('aria-disabled') === 'true'
-                || !arrowBtn.isConnected;
+              clickedGenerate = checkGenerationStarted(arrowBtn, box);
               break;
             }
             await sleep(250);
@@ -1618,10 +1646,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     if clickedGenerate {
                         self.hienToastFlow("Đã bấm tạo ảnh (→)\(moTaCauHinh) — đang chờ ảnh xong để tự lấy về app...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 5.0)
                         self.batDauChoVaTuLayAnhFlow(cacSrcCu: existingSrcs)
-                    } else if promptOk && daGanAnh {
-                        self.hienToastFlow("Đã điền Prompt, Ảnh mẫu\(moTaCauHinh) ✓ — bấm mũi tên → để tạo.", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
                     } else if promptOk {
-                        self.hienToastFlow("Đã điền Prompt\(moTaCauHinh) ✓ — bấm mũi tên → để tạo.", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
+                        self.hienToastFlow("Đã điền xong\(moTaCauHinh) — nếu chưa tự chạy, bấm mũi tên → (ảnh xong sẽ tự lấy về app).", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 4.5)
+                        self.batDauChoVaTuLayAnhFlow(cacSrcCu: existingSrcs)
+                    } else if false {
                     } else if daGanAnh {
                         self.hienToastFlow("Đã gửi ảnh mẫu — chạm ô nhập rồi bấm Dán prompt.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                     } else if !tuDong {
@@ -1666,11 +1694,14 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           const urls = [];
           if (!rawUrl) return urls;
           if (/googleusercontent\.com/i.test(rawUrl)) {
-            const base = rawUrl.replace(/=[a-zA-Z0-9\-_]+$/, '');
+            const base = rawUrl.replace(/=[a-zA-Z0-9\-_,]+$/, '');
             if (base && base !== rawUrl) {
               urls.push(base + '=s0');
               urls.push(base + '=w2048');
             }
+          }
+          if (/[?&](w|width|sz)=\d+/i.test(rawUrl)) {
+            urls.push(rawUrl.replace(/([?&](?:w|width|sz)=)\d+/ig, '$12048'));
           }
           urls.push(rawUrl);
           return [...new Set(urls)];
@@ -1814,10 +1845,11 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 self.hienToastFlow("Google chặn đăng nhập — bấm nút ⋯ góc trên phải → Mở bằng Safari trong app.", mauNen: UIColor.systemRed.withAlphaComponent(0.92), giuLau: 5.0)
                 return
             }
-            if !self.promptChoDienFlow.isEmpty {
+            let host = (webView.url?.host ?? "").lowercased()
+            if !self.promptChoDienFlow.isEmpty && (host.contains("flow.google.com") || host.contains("labs.google")) {
                 let taoMoi = self.canTaoDuAnMoiFlow
                 self.canTaoDuAnMoiFlow = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
                     guard let self, !self.promptChoDienFlow.isEmpty else { return }
                     self.bomPromptVaoWebViewFlow(self.promptChoDienFlow, tuDong: true, tuTaoDuAnMoi: taoMoi)
                 }
@@ -2493,16 +2525,52 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
     }
 
-    @objc private func bamLuuAnh() {
-        guard let img = anhKetQua else { return }
-        UIImageWriteToSavedPhotosAlbum(img, self, #selector(ketQuaLuuAnh(_:didFinishSavingWithError:contextInfo:)), nil)
+    private func chuanHoaDuLieuAnhDeLuu(_ img: UIImage) -> Data? {
+        return autoreleasepool {
+            // Vẽ lại ra CGImage chuẩn sRGB rồi xuất PNG (tránh lỗi -1 "Lỗi không xác định" của iOS khi lưu ảnh WebP/dữ liệu từ WebView)
+            let w = max(1, Int((img.size.width * img.scale).rounded()))
+            let h = max(1, Int((img.size.height * img.scale).rounded()))
+            let fmt = UIGraphicsImageRendererFormat()
+            fmt.scale = 1.0
+            fmt.opaque = false
+            let anhChuan = UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: fmt).image { _ in
+                img.draw(in: CGRect(x: 0, y: 0, width: w, height: h))
+            }
+            return anhChuan.pngData() ?? anhChuan.jpegData(compressionQuality: 0.96)
+        }
     }
 
-    @objc private func ketQuaLuuAnh(_ image: UIImage, didFinishSavingWithError error: Error?, contextInfo: UnsafeRawPointer) {
-        if let error {
-            hienThongBao(tieuDe: "Không lưu được ảnh", noiDung: error.localizedDescription)
-        } else {
-            hienThongBao(tieuDe: "Đã lưu ảnh", noiDung: "Ảnh truyền thông đã được lưu vào Thư viện ảnh của bạn.")
+    @objc private func bamLuuAnh() {
+        guard let img = anhKetQua else { return }
+        guard let dataAnh = chuanHoaDuLieuAnhDeLuu(img) else {
+            hienThongBao(tieuDe: "Không lưu được ảnh", noiDung: "Không chuyển đổi được dữ liệu ảnh để lưu.")
+            return
+        }
+
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { [weak self] status in
+            guard let self else { return }
+            guard status == .authorized || status == .limited else {
+                DispatchQueue.main.async {
+                    self.hienThongBao(
+                        tieuDe: "Chưa có quyền Thư viện ảnh",
+                        noiDung: "Vào Cài đặt → Tổng Hợp ĐMX → Ảnh và chọn “Chỉ thêm ảnh” hoặc “Truy cập đầy đủ” để lưu ảnh."
+                    )
+                }
+                return
+            }
+
+            PHPhotoLibrary.shared().performChanges({
+                let req = PHAssetCreationRequest.forAsset()
+                req.addResource(with: .photo, data: dataAnh, options: nil)
+            }) { thanhCong, loi in
+                DispatchQueue.main.async {
+                    if thanhCong {
+                        self.hienThongBao(tieuDe: "Đã lưu ảnh", noiDung: "Ảnh truyền thông đã được lưu vào Thư viện ảnh của bạn.")
+                    } else {
+                        self.hienThongBao(tieuDe: "Không lưu được ảnh", noiDung: loi?.localizedDescription ?? "Không ghi được vào Thư viện ảnh.")
+                    }
+                }
+            }
         }
     }
 
