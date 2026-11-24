@@ -35,16 +35,14 @@ final class DichVuTruyenThongGemini {
     ]
 
     private let cacModelVietBai: [String] = [
-        "gemini-3.8-flash",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-3.1-flash-lite-preview",
-        "gemini-3.5-flash-lite"
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.8-flash"
     ]
 
     private func thuGonAnhMau(_ anh: UIImage) -> Data? {
         return autoreleasepool {
-            let maxSide: CGFloat = 1280
+            let maxSide: CGFloat = 3072
             let w = anh.size.width
             let h = anh.size.height
             guard w > 10, h > 10 else { return anh.jpegData(compressionQuality: 0.85) }
@@ -324,7 +322,7 @@ final class DichVuTruyenThongGemini {
         let bodyObj: [String: Any] = [
             "contents": [["parts": parts]],
             "generationConfig": [
-                "temperature": 0.8,
+                "temperature": 0.9,
                 "maxOutputTokens": 6144,
                 "responseMimeType": "application/json"
             ]
@@ -438,7 +436,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private let oDiemNoiBat = UITextView()
     private let oLienHe = UITextField()
     private let chonTyLe = UISegmentedControl(items: ["1:1", "3:4", "4:3", "9:16", "16:9"])
-    private let chonModelFlow = UISegmentedControl(items: ["Nano Banana 2.1", "Nano Banana Pro", "Imagen 4"])
+    private let chonModelFlow = UISegmentedControl(items: ["Nano Banana 2.1", "Nano Banana 2 Lite", "Nano Banana Pro"])
     private let chonPhongCachAnh = UISegmentedControl(items: ["Rực rỡ ĐMX", "Sang trọng", "Flash Sale"])
 
     // Hành động & Trạng thái
@@ -735,7 +733,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     @objc private func bamLayAnhTuFlow() {
-        nhanTrangThaiFlow.text = "Đang tìm và lấy ảnh kết quả từ Google Flow..."
+        nhanTrangThaiFlow.text = "Đang tìm và lấy ảnh gốc chất lượng cao (1K/2K) từ Google Flow..."
         nhanTrangThaiFlow.textColor = BangMauBCTD.xanhChuDao
         vongQuayFlow.startAnimating()
 
@@ -747,13 +745,61 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
           for (const el of all) { if (el.shadowRoot) collectMedia(el.shadowRoot, out); }
         }
+
+        function bestSrcFromSrcset(el) {
+          const ss = el.getAttribute && el.getAttribute('srcset');
+          if (!ss) return '';
+          let bestUrl = '';
+          let bestW = 0;
+          for (const part of ss.split(',')) {
+            const segs = part.trim().split(/\s+/);
+            if (!segs[0]) continue;
+            const wMatch = (segs[1] || '').match(/(\d+)(w|x)/i);
+            const score = wMatch ? parseInt(wMatch[1], 10) : 1;
+            if (score >= bestW) { bestW = score; bestUrl = segs[0]; }
+          }
+          return bestUrl;
+        }
+
+        function buildCandidateUrls(rawUrl) {
+          const urls = [];
+          if (!rawUrl) return urls;
+          // Nếu là URL Google User Content có tham số thu nhỏ (=w..., =h..., =s...), thử bản gốc =s0 trước!
+          if (/googleusercontent\.com/i.test(rawUrl)) {
+            const base = rawUrl.replace(/=[a-zA-Z0-9\-_]+$/, '');
+            if (base && base !== rawUrl) {
+              urls.push(base + '=s0');
+              urls.push(base + '=w2048');
+            }
+          }
+          urls.push(rawUrl);
+          return [...new Set(urls)];
+        }
+
+        async function fetchAsDataUrl(url) {
+          try {
+            const resp = await fetch(url, { credentials: 'include' });
+            if (!resp.ok) return null;
+            const blob = await resp.blob();
+            if (!blob || !blob.type.startsWith('image/')) return null;
+            return await new Promise((resolve) => {
+              const fr = new FileReader();
+              fr.onloadend = () => resolve(typeof fr.result === 'string' ? fr.result : null);
+              fr.onerror = () => resolve(null);
+              fr.readAsDataURL(blob);
+            });
+          } catch (_) {
+            return null;
+          }
+        }
+
         const nodes = [];
         collectMedia(document, nodes);
         let best = null;
         let bestArea = 0;
         for (const el of nodes) {
           const r = el.getBoundingClientRect();
-          if (r.width < 120 || r.height < 120) continue;
+          if (r.width < 100 || r.height < 100) continue;
           const nw = el.tagName === 'IMG' ? (el.naturalWidth || r.width) : (el.width || r.width);
           const nh = el.tagName === 'IMG' ? (el.naturalHeight || r.height) : (el.height || r.height);
           if (nw < 256 || nh < 256) continue;
@@ -766,30 +812,34 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
         if (!best) return "NOT_FOUND";
-        try {
-          if (best.tagName === 'CANVAS') {
-            return best.toDataURL('image/png');
+
+        // Ưu tiên tải thẳng file ảnh gốc chất lượng cao (1K/2K) không qua canvas nén lại
+        if (best.tagName === 'IMG') {
+          const rawSrc = bestSrcFromSrcset(best) || best.currentSrc || best.src || '';
+          const candidates = buildCandidateUrls(rawSrc);
+          for (const u of candidates) {
+            const dataUrl = await fetchAsDataUrl(u);
+            if (dataUrl && dataUrl.startsWith('data:image/')) {
+              return dataUrl;
+            }
           }
-          const c = document.createElement('canvas');
-          c.width = best.naturalWidth;
-          c.height = best.naturalHeight;
-          const ctx = c.getContext('2d');
-          ctx.drawImage(best, 0, 0);
-          return c.toDataURL('image/png');
-        } catch (_) {}
-        try {
-          const src = best.currentSrc || best.src;
-          if (!src) return "CORS_BLOCKED";
-          const resp = await fetch(src, { credentials: 'include' });
-          const blob = await resp.blob();
-          return await new Promise((resolve) => {
-            const fr = new FileReader();
-            fr.onloadend = () => resolve(typeof fr.result === 'string' ? fr.result : 'CORS_BLOCKED');
-            fr.onerror = () => resolve('CORS_BLOCKED');
-            fr.readAsDataURL(blob);
-          });
-        } catch (_) {
-          return "CORS_BLOCKED";
+          // Dự phòng: vẽ đúng naturalWidth x naturalHeight lên canvas PNG không nén mất nét
+          try {
+            const c = document.createElement('canvas');
+            c.width = best.naturalWidth;
+            c.height = best.naturalHeight;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(best, 0, 0);
+            return c.toDataURL('image/png');
+          } catch (_) {
+            return "CORS_BLOCKED";
+          }
+        } else {
+          try {
+            return best.toDataURL('image/png');
+          } catch (_) {
+            return "CORS_BLOCKED";
+          }
         }
         """#
 
@@ -817,15 +867,21 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                         self.nhanTrangThaiFlow.textColor = .systemOrange
                         return
                     }
+                    let pxW = Int((img.size.width * img.scale).rounded())
+                    let pxH = Int((img.size.height * img.scale).rounded())
                     self.anhKetQua = img
                     self.anhKetQuaView.image = img
                     self.theAnhKetQua.isHidden = false
-                    self.nhanTrangThaiFlow.text = "Đã lấy ảnh từ Google Flow về mục 4 ✓"
+                    self.nhanTrangThaiFlow.text = "Đã lấy ảnh gốc (\(pxW)×\(pxH) px) từ Google Flow về mục 4 ✓"
                     self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
                     self.thanhChuyenCheDo.selectedSegmentIndex = 0
                     self.doiCheDoTab()
-                    self.nhanTrangThai.text = "Đã nhận ảnh từ Google Flow — bạn có thể Lưu hoặc Chia sẻ ngay bên dưới."
+                    self.nhanTrangThai.text = "Đã nhận ảnh gốc (\(pxW)×\(pxH) px) từ Google Flow — bạn có thể Lưu hoặc Chia sẻ ngay bên dưới."
                     self.nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        let rect = self.theAnhKetQua.convert(self.theAnhKetQua.bounds, to: self.cuon)
+                        self.cuon.scrollRectToVisible(rect, animated: true)
+                    }
                 case .failure(let err):
                     self.nhanTrangThaiFlow.text = "Không lấy được ảnh tự động (\(err.localizedDescription)). Hãy bấm tải trực tiếp trên Flow."
                     self.nhanTrangThaiFlow.textColor = .systemOrange
@@ -837,23 +893,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private func maHoaAnhMauBase64ChoFlow() -> String {
         guard let anh = anhMau else { return "" }
         return autoreleasepool {
-            let maxSide: CGFloat = 1280
-            let w = anh.size.width
-            let h = anh.size.height
-            let data: Data?
-            if max(w, h) > maxSide, w > 10, h > 10 {
-                let tiLe = maxSide / max(w, h)
-                let size = CGSize(width: (w * tiLe).rounded(), height: (h * tiLe).rounded())
-                let fmt = UIGraphicsImageRendererFormat.default()
-                fmt.scale = 1.0
-                fmt.opaque = true
-                let imgGon = UIGraphicsImageRenderer(size: size, format: fmt).image { _ in
-                    anh.draw(in: CGRect(origin: .zero, size: size))
-                }
-                data = imgGon.jpegData(compressionQuality: 0.88)
-            } else {
-                data = anh.jpegData(compressionQuality: 0.88)
-            }
+            // Giữ nguyên độ phân giải gốc (không thu nhỏ ảnh mẫu)
+            let data = anh.jpegData(compressionQuality: 0.95) ?? anh.pngData()
             return data?.base64EncodedString() ?? ""
         }
     }
@@ -1118,26 +1159,54 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
             const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
 
-            // Kiểm tra xem popup cài đặt đã mở sẵn chưa (có nút "Hình ảnh" / "16:9" / "1:1")
-            const findPopupAspectBtn = (target) => {
-              const els = getAllVis();
-              for (const el of els) {
-                const tag = (el.tagName || '').toUpperCase();
-                if (tag !== 'BUTTON' && el.getAttribute('role') !== 'button' && el.getAttribute('role') !== 'radio' && el.getAttribute('role') !== 'tab') continue;
-                const t = norm(el.innerText || el.textContent);
-                if (t === target) return el;
+            function humanClick(el) {
+              if (!el) return;
+              const r = el.getBoundingClientRect();
+              const cx = r.left + r.width / 2;
+              const cy = r.top + r.height / 2;
+              const opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, button: 0 };
+              try { el.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+              try { el.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
+              try { el.dispatchEvent(new PointerEvent('pointerup', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+              try { el.dispatchEvent(new MouseEvent('mouseup', opts)); } catch (_) {}
+              try { el.click(); } catch (_) {}
+            }
+
+            // Tìm nút theo nhãn chữ chính xác kể cả khi bên trong có Material Icon (vd: "crop_square 1:1" hoặc "image Hình ảnh")
+            function findButtonByLabel(exactLabels, rolesSelector) {
+              const targets = exactLabels.map(s => s.toLowerCase());
+              const vis = getAllVis();
+              // Ưu tiên 1: phần tử lá (span/div/p) có đúng chữ mục tiêu -> đi ngược lên nút cha
+              for (const el of vis) {
+                if (el.children && el.children.length > 0) continue;
+                const t = norm(el.textContent).toLowerCase();
+                if (!targets.includes(t)) continue;
+                const clickable = el.closest ? el.closest(rolesSelector) : null;
+                if (clickable && isVisible(clickable)) return clickable;
+                return el;
+              }
+              // Ưu tiên 2: nút có text kết thúc bằng hoặc chứa trọn từ mục tiêu (bỏ qua icon ligature đứng trước)
+              for (const el of vis) {
+                if (!el.matches || !el.matches(rolesSelector)) continue;
+                const t = norm(el.innerText || el.textContent).toLowerCase();
+                if (t.length > 45) continue;
+                for (const tg of targets) {
+                  if (t === tg || t.endsWith(' ' + tg) || t.includes('\n' + tg)) return el;
+                }
               }
               return null;
-            };
+            }
+
+            const btnSelector = 'button, [role="button"], [role="tab"], [role="radio"]';
+            const optSelector = '[role="option"], [role="menuitem"], [role="menuitemradio"], button, li';
 
             let openedByUs = false;
-            if (!findPopupAspectBtn(aspect)) {
-              // Tìm nút pill cài đặt ở đáy (chứa tên model như Nano Banana / Imagen / Veo hoặc x1..x4)
+            if (!findButtonByLabel([aspect], btnSelector)) {
+              // Tìm nút pill cài đặt ở đáy (chứa tên model Nano Banana / Imagen / Veo hoặc x1..x4)
               const vis = getAllVis();
               let pillBtn = null;
               for (const el of vis) {
-                const tag = (el.tagName || '').toUpperCase();
-                if (tag !== 'BUTTON' && el.getAttribute('role') !== 'button') continue;
+                if (!el.matches || !el.matches('button, [role="button"]')) continue;
                 const t = norm(el.innerText || el.textContent);
                 const r = el.getBoundingClientRect();
                 if (r.top < window.innerHeight * 0.5) continue;
@@ -1147,30 +1216,28 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 }
               }
               if (pillBtn) {
-                pillBtn.click();
+                humanClick(pillBtn);
                 openedByUs = true;
-                await sleep(260);
+                await sleep(320);
               }
             }
 
             // Bước A: Bấm tab "Hình ảnh" / "Image"
-            for (const el of getAllVis()) {
-              const tag = (el.tagName || '').toUpperCase();
-              if (tag !== 'BUTTON' && el.getAttribute('role') !== 'tab' && el.getAttribute('role') !== 'button') continue;
-              const t = norm(el.innerText || el.textContent).toLowerCase();
-              if (t === 'hình ảnh' || t === 'image' || t === 'images') {
-                el.click();
-                await sleep(160);
-                break;
+            const imgTab = findButtonByLabel(['Hình ảnh', 'Image', 'Images'], btnSelector);
+            if (imgTab) {
+              const alreadySelected = imgTab.getAttribute('aria-selected') === 'true' || imgTab.getAttribute('data-state') === 'active';
+              if (!alreadySelected) {
+                humanClick(imgTab);
+                await sleep(220);
               }
             }
 
             // Bước B: Chọn kích thước / tỷ lệ ảnh (1:1, 3:4, 4:3, 9:16, 16:9)
-            const aspectBtn = findPopupAspectBtn(aspect);
+            const aspectBtn = findButtonByLabel([aspect], btnSelector);
             if (aspectBtn) {
-              aspectBtn.click();
+              humanClick(aspectBtn);
               aspectOk = true;
-              await sleep(160);
+              await sleep(240);
             }
 
             // Bước C: Chọn model trong dropdown của popup
@@ -1178,13 +1245,11 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               const targetLow = modelName.toLowerCase();
               let dropdownBtn = null;
               for (const el of getAllVis()) {
-                const tag = (el.tagName || '').toUpperCase();
-                const role = (el.getAttribute('role') || '').toLowerCase();
-                if (tag !== 'BUTTON' && role !== 'combobox' && role !== 'button') continue;
+                if (!el.matches || !el.matches('button, [role="combobox"], [role="button"]')) continue;
                 const t = norm(el.innerText || el.textContent);
                 const r = el.getBoundingClientRect();
-                if (r.width < 120 || r.height > 70) continue;
-                if (r.top > window.innerHeight * 0.85) continue; // tránh bấm nhầm pill dưới đáy
+                if (r.width < 120 || r.height > 72) continue;
+                if (r.top > window.innerHeight * 0.86) continue;
                 if (/(nano banana|imagen|veo)/i.test(t) && !/\bx[1-4]\b/i.test(t)) {
                   dropdownBtn = el;
                   break;
@@ -1195,19 +1260,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 if (curModel.includes(targetLow)) {
                   modelOk = true;
                 } else {
-                  dropdownBtn.click();
-                  await sleep(220);
-                  for (const opt of getAllVis()) {
-                    const role = (opt.getAttribute('role') || '').toLowerCase();
-                    const tag = (opt.tagName || '').toUpperCase();
-                    if (role !== 'option' && role !== 'menuitem' && role !== 'menuitemradio' && tag !== 'LI' && tag !== 'BUTTON') continue;
-                    const ot = norm(opt.innerText || opt.textContent).toLowerCase();
-                    if (ot.includes(targetLow) && ot.length < 60) {
-                      opt.click();
-                      modelOk = true;
-                      await sleep(180);
-                      break;
-                    }
+                  humanClick(dropdownBtn);
+                  await sleep(280);
+                  const opt = findButtonByLabel([modelName], optSelector);
+                  if (opt) {
+                    humanClick(opt);
+                    modelOk = true;
+                    await sleep(220);
                   }
                 }
               }
@@ -1217,13 +1276,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             if (openedByUs) {
               let closed = false;
               for (const el of getAllVis()) {
-                const tag = (el.tagName || '').toUpperCase();
-                if (tag !== 'BUTTON' && el.getAttribute('role') !== 'button') continue;
+                if (!el.matches || !el.matches('button, [role="button"]')) continue;
                 const al = ((el.getAttribute('aria-label') || '') + ' ' + norm(el.innerText || el.textContent)).toLowerCase();
                 if (al === '×' || al === 'x' || al.includes('close') || al.includes('đóng')) {
                   const r = el.getBoundingClientRect();
                   if (r.width <= 60 && r.height <= 60 && r.top > window.innerHeight * 0.25) {
-                    el.click();
+                    humanClick(el);
                     closed = true;
                     break;
                   }
@@ -1232,7 +1290,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               if (!closed) {
                 document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
               }
-              await sleep(180);
+              await sleep(200);
             }
           } catch (_) {}
           return { aspectOk, modelOk };
@@ -1739,7 +1797,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         let idxTyLe = max(0, min(chonTyLe.selectedSegmentIndex, dsTyLe.count - 1))
         let tyLe = dsTyLe[idxTyLe]
 
-        let dsModelFlow = ["Nano Banana 2.1", "Nano Banana Pro", "Imagen 4"]
+        let dsModelFlow = ["Nano Banana 2.1", "Nano Banana 2 Lite", "Nano Banana Pro"]
         let idxModel = max(0, min(chonModelFlow.selectedSegmentIndex, dsModelFlow.count - 1))
         let modelFlow = dsModelFlow[idxModel]
 
@@ -1807,6 +1865,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
         // Tự động viết luôn 3 bài đăng Facebook chạy nền song song trong lúc người dùng tạo ảnh trên Flow
         if kiemTraHopLe(tt) {
+            oBaiDangFB.text = "✍️ Đang tự động viết 3 phong cách bài đăng Facebook mới..."
             datTrangThaiDangTai(true, thongDiep: "Đang tự động viết 3 phong cách bài đăng Facebook chạy nền...")
             DichVuTruyenThongGemini.dungChung.tao3BaiDangFacebook(anhMau: anhMau, thongTin: tt) { [weak self] kq in
                 guard let self else { return }
@@ -1929,15 +1988,19 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         let tt = thuThapThongTin()
         guard kiemTraHopLe(tt) else { return }
 
-        datTrangThaiDangTai(true, thongDiep: "✍️ Gemini đang viết 3 phong cách bài đăng Facebook...")
+        _ = chuanBiPromptGoogleFlow()
+        oBaiDangFB.text = "✍️ Đang viết lại 3 phong cách bài đăng Facebook mới..."
+        datTrangThaiDangTai(true, thongDiep: "✍️ Gemini Flash-Lite đang viết 3 phong cách bài đăng Facebook...")
         DichVuTruyenThongGemini.dungChung.tao3BaiDangFacebook(anhMau: anhMau, thongTin: tt) { [weak self] res in
             guard let self else { return }
             switch res {
             case .success(let bai):
                 self.baiDang = bai
                 self.hienThiBaiDangTheoPhongCachHienTai()
-                self.datTrangThaiDangTai(false, thongDiep: "✅ Đã viết xong 3 phong cách bài đăng Facebook!", mau: BangMauBCTD.xanhLaDam)
+                self.oBaiDangFB.setContentOffset(.zero, animated: false)
+                self.datTrangThaiDangTai(false, thongDiep: "✅ Đã cập nhật 3 phong cách bài đăng Facebook mới ở bên dưới!", mau: BangMauBCTD.xanhLaDam)
             case .failure(let err):
+                self.hienThiBaiDangTheoPhongCachHienTai()
                 self.datTrangThaiDangTai(false, thongDiep: "⚠️ Lỗi viết bài: \(err.localizedDescription)", mau: .systemRed)
             }
         }
