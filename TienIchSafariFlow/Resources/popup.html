@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DMX Flow Prompt</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0;
+      padding: 14px;
+      width: 280px;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    h1 {
+      font-size: 15px;
+      margin: 0 0 8px 0;
+      color: #0d6efd;
+    }
+    #status {
+      font-size: 13px;
+      color: #334155;
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+    #preview {
+      font-size: 12px;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px;
+      max-height: 110px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      margin-bottom: 10px;
+      display: none;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 10px;
+      background: #0d6efd;
+      color: #ffffff;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <h1>DMX Flow Prompt</h1>
+  <div id="status">Đang kiểm tra prompt từ app Tổng Hợp ĐMX...</div>
+  <div id="preview"></div>
+  <button id="btnFill" disabled>Điền Prompt vào Flow ngay</button>
+  <script src="popup.js"></script>
+</body>
+</html>

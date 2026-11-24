@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "DMX Flow Prompt",
+  "description": "Tự động điền prompt thiết kế ảnh truyền thông từ app Tổng Hợp ĐMX vào Google Flow.",
+  "version": "1.0.0",
+  "icons": {
+    "48": "icon-48.png",
+    "96": "icon-96.png",
+    "128": "icon-128.png"
+  },
+  "action": {
+    "default_title": "DMX Flow Prompt",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icon-48.png",
+      "96": "icon-96.png",
+      "128": "icon-128.png"
+    }
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://flow.google.com/*",
+    "https://labs.google/fx/tools/flow*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://flow.google.com/*",
+        "https://labs.google/fx/tools/flow*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
