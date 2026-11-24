@@ -413,6 +413,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private var webViewFlow: WKWebView!
     private var daTaiTrangFlow = false
     private var canTaoDuAnMoiFlow = false
+    private var dangBomPromptFlow = false
+    private var congViecBomPromptTuDong: DispatchWorkItem?
     private var maPhienChoAnhFlow: Int = 0
     private var promptChoDienFlow: String = ""
     private let khungToastFlow = UIView()
@@ -921,6 +923,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     private func bomPromptVaoWebViewFlow(_ prompt: String, tuDong: Bool, tuTaoDuAnMoi: Bool = false) {
+        if tuDong && dangBomPromptFlow {
+            return
+        }
+        dangBomPromptFlow = true
+        congViecBomPromptTuDong?.cancel()
+
         let tt = thuThapThongTin()
         let anhB64 = maHoaAnhMauBase64ChoFlow()
         let args: [String: Any] = [
@@ -952,12 +960,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
-        function isVisible(el) {
+        function isVisible(el, minW = 24, minH = 12) {
           if (!el || !el.isConnected) return false;
           const st = window.getComputedStyle(el);
           if (!st || st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) return false;
           const r = el.getBoundingClientRect();
-          return r.width >= 30 && r.height >= 12;
+          return r.width >= minW && r.height >= minH;
         }
 
         function findPromptBox() {
@@ -977,10 +985,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               || el.isContentEditable === true
               || (ceAttr !== '' && ceAttr !== 'false')
               || role === 'textbox'
-              || el.hasAttribute('data-slate-editor');
+              || (el.hasAttribute && el.hasAttribute('data-slate-editor'));
 
             if (!isEditable) continue;
-            if (!isVisible(el)) continue;
+            if (!isVisible(el, 30, 12)) continue;
             if (el.disabled || el.readOnly || el.getAttribute('aria-disabled') === 'true') continue;
 
             // Bỏ qua nếu có phần tử con trực tiếp cũng là contenteditable (tránh chọn wrapper ngoài)
@@ -1004,10 +1012,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             const r = el.getBoundingClientRect();
             let score = 0;
             if (tag === 'TEXTAREA') score += 45;
-            if (el.hasAttribute('data-slate-editor')) score += 60;
+            if (el.hasAttribute && el.hasAttribute('data-slate-editor')) score += 60;
             if (el.isContentEditable || role === 'textbox') score += 40;
             if (/(bạn muốn tạo|what do you want|prompt|describe|create|imagine|generate|nhập|mô tả)/i.test(meta)) score += 80;
-            if (r.top > window.innerHeight * 0.45) score += 35; // Ô nhập Flow nằm ở nửa dưới màn hình
+            if (r.top > window.innerHeight * 0.35) score += 35;
             if (r.width >= 150) score += 20;
             score += Math.min(r.width / 20, 20);
 
@@ -1020,7 +1028,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           // Fallback: tìm chữ placeholder "Bạn muốn tạo những gì" rồi tìm ô nhập gần nhất
           if (!best) {
             for (const el of allEls) {
-              if (!isVisible(el)) continue;
+              if (!isVisible(el, 30, 12)) continue;
               const txt = (el.textContent || '').trim().toLowerCase();
               if (txt.includes('bạn muốn tạo những gì') || txt.includes('what do you want to create')) {
                 let p = el;
@@ -1044,7 +1052,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
         async function fillPromptBox(el, text) {
           if (!el || !text) return false;
-          el.scrollIntoView({ block: 'center' });
+          el.scrollIntoView({ block: 'nearest' });
           el.click();
           el.focus();
           await sleep(80);
@@ -1102,6 +1110,30 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
+        // Kích hoạt nhẹ sự kiện input trên ô prompt để framework (React/Angular/Slate) cập nhật trạng thái nút mũi tên ->
+        async function nudgePromptBox(el) {
+          if (!el) return;
+          try {
+            el.focus();
+            await sleep(40);
+            if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+              const cur = el.value || '';
+              const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+              const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+              if (setter) setter.call(el, cur + ' '); else el.value = cur + ' ';
+              el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ' ' }));
+              if (setter) setter.call(el, cur); else el.value = cur;
+              el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'deleteContentBackward' }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
+              document.execCommand('insertText', false, ' ');
+              el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: ' ' }));
+            }
+            await sleep(40);
+            el.blur();
+          } catch (_) {}
+        }
+
         async function attachSampleImage(b64, promptBox) {
           if (!b64) return 'NO_IMAGE';
           try {
@@ -1110,47 +1142,29 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
             const file = new File([bytes], 'san-pham-dmx.jpg', { type: 'image/jpeg', lastModified: Date.now() });
 
-            // Cách 1: Tìm <input type="file"> (kể cả input ẩn)
+            // Cách 1: Tìm <input type="file"> (ưu tiên input gần khung prompt nhất)
             const docs = [];
             collectDocs(document, docs);
             const allEls = [];
             for (const d of docs) collectAllElements(d, allEls);
             const fileInputs = allEls.filter(el => (el.tagName || '').toUpperCase() === 'INPUT' && el.type === 'file');
 
-            for (const inp of fileInputs) {
-              const acc = (inp.accept || '').toLowerCase();
-              if (acc && !acc.includes('image') && !acc.includes('*')) continue;
+            if (fileInputs.length > 0) {
+              // Ưu tiên input ở cuối DOM (thường thuộc modal prompt) hoặc có accept image
+              const validInputs = fileInputs.filter(inp => {
+                const acc = (inp.accept || '').toLowerCase();
+                return !acc || acc.includes('image') || acc.includes('*') || acc.includes('jpg') || acc.includes('png');
+              });
+              const chosen = validInputs.length > 0 ? validInputs[validInputs.length - 1] : fileInputs[fileInputs.length - 1];
               const dt = new DataTransfer();
               dt.items.add(file);
-              inp.files = dt.files;
-              inp.dispatchEvent(new Event('input', { bubbles: true }));
-              inp.dispatchEvent(new Event('change', { bubbles: true }));
+              chosen.files = dt.files;
+              chosen.dispatchEvent(new Event('input', { bubbles: true }));
+              chosen.dispatchEvent(new Event('change', { bubbles: true }));
               return 'ATTACHED_INPUT';
             }
 
-            // Cách 2: Thả ảnh (DragEvent 'drop') vào vùng dropzone của Google Flow ("thả nội dung nghe nhìn")
-            const dropTargets = [];
-            if (promptBox) {
-              dropTargets.push(promptBox);
-              if (promptBox.parentElement) dropTargets.push(promptBox.parentElement);
-            }
-            const mainEl = document.querySelector('main') || document.body;
-            if (mainEl) dropTargets.push(mainEl);
-
-            for (const target of dropTargets) {
-              const dt = new DataTransfer();
-              dt.items.add(file);
-              for (const evType of ['dragenter', 'dragover', 'drop']) {
-                const ev = new DragEvent(evType, {
-                  bubbles: true,
-                  cancelable: true,
-                  dataTransfer: dt
-                });
-                target.dispatchEvent(ev);
-              }
-            }
-
-            // Cách 3: Paste ảnh trực tiếp vào ô prompt (Flow hỗ trợ dán ảnh)
+            // Cách 2: Paste ảnh trực tiếp vào ô prompt (Flow hỗ trợ dán ảnh)
             if (promptBox) {
               const dtPaste = new DataTransfer();
               dtPaste.items.add(file);
@@ -1160,11 +1174,69 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 cancelable: true
               });
               promptBox.dispatchEvent(pasteImg);
+              return 'ATTACHED_PASTE';
+            }
+
+            // Cách 3: Thả ảnh (DragEvent 'drop') vào vùng dropzone của Google Flow
+            const dropTarget = (promptBox && promptBox.parentElement) || document.querySelector('main') || document.body;
+            if (dropTarget) {
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              for (const evType of ['dragenter', 'dragover', 'drop']) {
+                const ev = new DragEvent(evType, {
+                  bubbles: true,
+                  cancelable: true,
+                  dataTransfer: dt
+                });
+                dropTarget.dispatchEvent(ev);
+              }
             }
             return 'ATTACHED_DROP';
           } catch (e) {
             return 'IMG_ERR:' + String(e);
           }
+        }
+
+        // Tìm thanh pill chọn model ở đáy khung prompt (vd: "🍌 Nano Banana 2.1 ▢ x1")
+        function findModelPillButton(promptBox) {
+          const docs = [];
+          collectDocs(document, docs);
+          const all = [];
+          for (const d of docs) collectAllElements(d, all);
+          const boxRect = promptBox ? promptBox.getBoundingClientRect() : null;
+
+          let best = null;
+          let bestScore = -1;
+          for (const el of all) {
+            if (!isVisible(el, 55, 18)) continue;
+            if (!el.matches || !el.matches('button, [role="button"], div, span')) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width < 65 || r.width > 330 || r.height < 18 || r.height > 68) continue;
+            if (boxRect && r.top < boxRect.top - 15) continue;
+            if (!boxRect && r.top < window.innerHeight * 0.35) continue;
+
+            const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            if (t.length < 2 || t.length > 65) continue;
+            const hasModel = /(nano banana|imagen|veo|banana)/i.test(t);
+            const hasCount = /x[1-4]/i.test(t);
+            if (!hasModel && !hasCount) continue;
+
+            let score = 0;
+            if (hasModel) score += 100;
+            if (hasCount) score += 70;
+            if (el.matches('button, [role="button"]')) score += 60;
+            if (boxRect && r.top >= boxRect.bottom - 25 && r.top <= boxRect.bottom + 120) score += 80;
+            // Ưu tiên nút pill bao trọn cụm nhưng không phải container lớn
+            score -= Math.abs(r.height - 38);
+
+            if (score > bestScore) {
+              bestScore = score;
+              best = (el.closest && el.closest('button, [role="button"]')) || el;
+              const br = best.getBoundingClientRect();
+              if (br.width > 340 || br.height > 75) best = el;
+            }
+          }
+          return best;
         }
 
         async function applyFlowSettings(aspect, modelName) {
@@ -1176,7 +1248,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               collectDocs(document, docs);
               const out = [];
               for (const d of docs) collectAllElements(d, out);
-              return out.filter(el => isVisible(el));
+              return out.filter(el => isVisible(el, 24, 12));
             };
 
             const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
@@ -1194,26 +1266,24 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               try { el.click(); } catch (_) {}
             }
 
-            // Tìm nút theo nhãn chữ chính xác kể cả khi bên trong có Material Icon (vd: "crop_square 1:1" hoặc "image Hình ảnh")
             function findButtonByLabel(exactLabels, rolesSelector) {
               const targets = exactLabels.map(s => s.toLowerCase());
               const vis = getAllVis();
-              // Ưu tiên 1: phần tử lá (span/div/p) có đúng chữ mục tiêu -> đi ngược lên nút cha
               for (const el of vis) {
                 if (el.children && el.children.length > 0) continue;
                 const t = norm(el.textContent).toLowerCase();
                 if (!targets.includes(t)) continue;
                 const clickable = el.closest ? el.closest(rolesSelector) : null;
-                if (clickable && isVisible(clickable)) return clickable;
+                if (clickable && isVisible(clickable, 24, 12)) return clickable;
                 return el;
               }
-              // Ưu tiên 2: nút có text kết thúc bằng hoặc chứa trọn từ mục tiêu (bỏ qua icon ligature đứng trước)
               for (const el of vis) {
                 if (!el.matches || !el.matches(rolesSelector)) continue;
                 const t = norm(el.innerText || el.textContent).toLowerCase();
                 if (t.length > 45) continue;
                 for (const tg of targets) {
-                  if (t === tg || t.endsWith(' ' + tg) || t.includes('\n' + tg)) return el;
+                  if (t === tg || t.endsWith(' ' + tg) || t.includes('
+' + tg)) return el;
                 }
               }
               return null;
@@ -1223,20 +1293,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             const optSelector = '[role="option"], [role="menuitem"], [role="menuitemradio"], button, li';
 
             let openedByUs = false;
+            let pillBtn = findModelPillButton(findPromptBox());
             if (!findButtonByLabel([aspect], btnSelector)) {
-              // Tìm nút pill cài đặt ở đáy (chứa tên model Nano Banana / Imagen / Veo hoặc x1..x4)
-              const vis = getAllVis();
-              let pillBtn = null;
-              for (const el of vis) {
-                if (!el.matches || !el.matches('button, [role="button"]')) continue;
-                const t = norm(el.innerText || el.textContent);
-                const r = el.getBoundingClientRect();
-                if (r.top < window.innerHeight * 0.5) continue;
-                if (/(nano banana|imagen|veo|banana)/i.test(t) || /\bx[1-4]\b/i.test(t)) {
-                  pillBtn = el;
-                  break;
-                }
-              }
               if (pillBtn) {
                 humanClick(pillBtn);
                 openedByUs = true;
@@ -1272,7 +1330,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 const r = el.getBoundingClientRect();
                 if (r.width < 120 || r.height > 72) continue;
                 if (r.top > window.innerHeight * 0.86) continue;
-                if (/(nano banana|imagen|veo)/i.test(t) && !/\bx[1-4]\b/i.test(t)) {
+                if (/(nano banana|imagen|veo)/i.test(t) && !/x[1-4]/i.test(t)) {
                   dropdownBtn = el;
                   break;
                 }
@@ -1294,25 +1352,14 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               }
             }
 
-            // Đóng popup cài đặt sau khi đã chọn xong
+            // Đóng popup cài đặt bằng phím Escape hoặc bấm lại nút pill (tránh bấm nhầm nút × đóng khung prompt)
             if (openedByUs) {
-              let closed = false;
-              for (const el of getAllVis()) {
-                if (!el.matches || !el.matches('button, [role="button"]')) continue;
-                const al = ((el.getAttribute('aria-label') || '') + ' ' + norm(el.innerText || el.textContent)).toLowerCase();
-                if (al === '×' || al === 'x' || al.includes('close') || al.includes('đóng')) {
-                  const r = el.getBoundingClientRect();
-                  if (r.width <= 60 && r.height <= 60 && r.top > window.innerHeight * 0.25) {
-                    humanClick(el);
-                    closed = true;
-                    break;
-                  }
-                }
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+              await sleep(160);
+              if (findButtonByLabel([aspect], btnSelector) && pillBtn && isVisible(pillBtn, 40, 16)) {
+                humanClick(pillBtn);
+                await sleep(180);
               }
-              if (!closed) {
-                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-              }
-              await sleep(200);
             }
           } catch (_) {}
           return { aspectOk, modelOk };
@@ -1326,7 +1373,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             const all = [];
             for (const d of docs) collectAllElements(d, all);
             for (const el of all) {
-              if (!isVisible(el)) continue;
+              if (!isVisible(el, 30, 14)) continue;
               if (!el.matches || !el.matches('button, a, [role="button"]')) continue;
               const t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
               if (t.length > 50) continue;
@@ -1340,7 +1387,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           let boxNow = findPromptBox();
           if (!autoNewProject && boxNow) return false;
 
-          // Chờ nút "Dự án mới" hiện ra (tối đa 5 giây)
           let btn = null;
           for (let i = 0; i < 20; i++) {
             btn = findNewProjBtn();
@@ -1359,7 +1405,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           try { btn.dispatchEvent(new MouseEvent('mouseup', opts)); } catch (_) {}
           try { btn.click(); } catch (_) {}
 
-          // Chờ trang dự án mới tải xong và hiện ô nhập prompt (tối đa 8 giây)
           for (let i = 0; i < 32; i++) {
             await sleep(250);
             if (findPromptBox()) {
@@ -1385,54 +1430,200 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return [...new Set(srcs)];
         }
 
-        function findGenerateArrowButton() {
+        // Kiểm tra màu nền sáng của nút tròn mũi tên (nút -> trên nền tối của Google Flow có màu xanh nhạt/trắng sáng)
+        function getBackgroundBrightness(el) {
+          let cur = el;
+          for (let k = 0; k < 3 && cur && cur !== document.body; k++) {
+            try {
+              const bg = window.getComputedStyle(cur).backgroundColor || '';
+              const m = bg.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([0-9.]+))?\s*\)/i);
+              if (m) {
+                const r = parseInt(m[1], 10), g = parseInt(m[2], 10), b = parseInt(m[3], 10);
+                const a = m[4] !== undefined ? parseFloat(m[4]) : 1.0;
+                if (a >= 0.35 && (r + g + b) > 90) {
+                  return r + g + b;
+                }
+              }
+            } catch (_) {}
+            cur = cur.parentElement;
+          }
+          return 0;
+        }
+
+        // Tìm nút tròn có ký hiệu mũi tên (->) để bắt đầu tạo ảnh trên Google Flow
+        function findGenerateArrowButton(promptBox, allowDisabled = false) {
           const docs = [];
           collectDocs(document, docs);
           const all = [];
           for (const d of docs) collectAllElements(d, all);
 
-          // Tìm thanh pill model ở đáy (Nano Banana / x1..x4) để khóa đúng hàng ngang của nút mũi tên ->
-          let pillRowY = null;
+          const curBox = promptBox || findPromptBox();
+          const boxRect = curBox ? curBox.getBoundingClientRect() : null;
+          const pillBtn = findModelPillButton(curBox);
+          const pillRect = pillBtn ? pillBtn.getBoundingClientRect() : null;
+          const pillCy = pillRect ? (pillRect.top + pillRect.height / 2) : null;
+
+          const candidateSet = new Set();
+          const addCandidate = (node) => {
+            if (!node || !node.isConnected) return;
+            let cur = node;
+            for (let k = 0; k < 6 && cur && cur !== document.body && cur !== document.documentElement; k++) {
+              if (isVisible(cur, 18, 18)) {
+                const r = cur.getBoundingClientRect();
+                if (r.width >= 20 && r.width <= 84 && r.height >= 20 && r.height <= 84) {
+                  candidateSet.add(cur);
+                }
+              }
+              cur = cur.parentElement || (cur.getRootNode && cur.getRootNode().host) || null;
+            }
+          };
+
+          // Chiến lược 1: Dò trực tiếp tọa độ ngay bên phải nút pill "🍌 Nano Banana 2.1 ▢ x1"
+          if (pillRect && pillCy !== null) {
+            const probeYs = [pillCy, pillCy - 6, pillCy + 6];
+            for (const py of probeYs) {
+              if (py < 0 || py > window.innerHeight) continue;
+              for (let px = pillRect.right + 8; px <= Math.min(window.innerWidth - 6, pillRect.right + 88); px += 7) {
+                try {
+                  const hit = document.elementFromPoint(px, py);
+                  if (hit) addCandidate(hit);
+                } catch (_) {}
+              }
+            }
+          }
+
+          // Chiến lược 2: Dò góc dưới bên phải ngay dưới ô nhập prompt
+          if (boxRect) {
+            const baseY = boxRect.bottom + 26;
+            for (const py of [baseY - 10, baseY, baseY + 12, baseY + 24]) {
+              if (py < 0 || py > window.innerHeight) continue;
+              for (let px = Math.max(window.innerWidth * 0.65, boxRect.right - 56); px <= Math.min(window.innerWidth - 6, boxRect.right + 24); px += 8) {
+                try {
+                  const hit = document.elementFromPoint(px, py);
+                  if (hit) addCandidate(hit);
+                } catch (_) {}
+              }
+            }
+          }
+
+          // Chiến lược 3: Quét toàn bộ phần tử DOM & Shadow DOM (bao gồm cả button, div/span tròn và icon svg/ligature)
           for (const el of all) {
-            if (!isVisible(el)) continue;
-            if (!el.matches || !el.matches('button, [role="button"]')) continue;
+            if (!isVisible(el, 14, 14)) continue;
             const r = el.getBoundingClientRect();
-            if (r.top < window.innerHeight * 0.7) continue;
-            const t = (el.innerText || el.textContent || '').toLowerCase();
-            if (/(nano banana|imagen|veo)/i.test(t) || /\bx[1-4]\b/i.test(t)) {
-              pillRowY = r.top + r.height / 2;
-              break;
+            const cx = r.left + r.width / 2;
+            if (cx < window.innerWidth * 0.52) continue;
+            if (boxRect && (r.top + r.height / 2) < boxRect.top + 10) continue;
+
+            if (el.matches && el.matches('button, [role="button"], [type="submit"], a, [tabindex], svg, i, mat-icon, md-icon, span, div')) {
+              addCandidate(el);
             }
           }
 
           let best = null;
           let bestScore = -1;
-          for (const el of all) {
-            if (!isVisible(el)) continue;
-            if (!el.matches || !el.matches('button, [role="button"]')) continue;
-            if (el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
-            const r = el.getBoundingClientRect();
-            // Nút mũi tên -> là nút tròn nhỏ nằm ở góc dưới cùng bên phải
-            if (r.top < window.innerHeight * 0.72) continue;
-            if (r.left < window.innerWidth * 0.70) continue;
-            if (r.width > 64 || r.height > 64 || r.width < 26 || r.height < 26) continue;
-            if (Math.abs(r.width - r.height) > 14) continue;
 
-            const meta = [
+          for (const rawEl of candidateSet) {
+            // Nếu phần tử là icon nhỏ bên trong nút (<button> / [role="button"]), ưu tiên xét nút cha của nó
+            const btnParent = rawEl.closest ? rawEl.closest('button, [role="button"], [type="submit"]') : null;
+            let el = rawEl;
+            if (btnParent && isVisible(btnParent, 20, 20)) {
+              const pr = btnParent.getBoundingClientRect();
+              if (pr.width >= 20 && pr.width <= 84 && pr.height >= 20 && pr.height <= 84) {
+                el = btnParent;
+              }
+            }
+
+            if (!isVisible(el, 20, 20)) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width < 20 || r.width > 84 || r.height < 20 || r.height > 84) continue;
+            if (Math.abs(r.width - r.height) > 26) continue;
+
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+
+            // Phải nằm ở nửa bên phải màn hình
+            if (cx < window.innerWidth * 0.55) continue;
+
+            // Tuyệt đối không chọn nút × đóng khung ở góc trên của thẻ prompt hoặc các nút trên thanh header
+            if (boxRect && cy < boxRect.top + 16) continue;
+            if (!boxRect && pillCy === null && cy < window.innerHeight * 0.35) continue;
+
+            // Không chọn chính nút pill chọn model Nano Banana
+            if (pillBtn && (el === pillBtn || el.contains(pillBtn) || pillBtn.contains(el))) continue;
+
+            const isDis = !!(el.disabled || el.getAttribute('aria-disabled') === 'true' || (btnParent && (btnParent.disabled || btnParent.getAttribute('aria-disabled') === 'true')));
+            if (!allowDisabled && isDis) continue;
+
+            const rawText = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+            const ariaMeta = [
               el.getAttribute('aria-label') || '',
               el.getAttribute('title') || '',
-              el.innerText || el.textContent || ''
+              el.getAttribute('data-testid') || '',
+              el.getAttribute('name') || '',
+              typeof el.className === 'string' ? el.className : ''
             ].join(' ').toLowerCase();
-            if (/(add|upload|attach|close|đóng|tải lên|thêm|×)/i.test(meta)) continue;
+            const fullMeta = (ariaMeta + ' ' + rawText).toLowerCase();
 
-            const cy = r.top + r.height / 2;
+            // Loại trừ nút Đóng (×), nút Thêm (+), nút Tải lên / Xóa
+            if (/^(x|×|✕|✖|\+|add|close|đóng|hủy|cancel|clear|xoá|xóa|delete|remove)$/i.test(rawText)) continue;
+            if (/(^|\s)(close|đóng|dismiss|cancel|remove|delete|xoá|xóa|add|upload|attach|tải lên|thêm|×)(\s|$)/i.test(fullMeta)) continue;
+            if (/(nano banana|imagen|veo)/i.test(rawText) || /x[1-4]/i.test(rawText)) continue;
+
             let score = 0;
-            if (pillRowY !== null && Math.abs(cy - pillRowY) <= 24) score += 120;
-            if (/(arrow_forward|arrow_right|send|generate|create|submit|tạo|gửi|→)/i.test(meta)) score += 90;
-            if (el.querySelector && el.querySelector('svg, i, span')) score += 20;
-            // Ưu tiên nút nằm sát mép phải và sát mép dưới nhất
-            score += (r.right / window.innerWidth) * 40;
-            score += (r.bottom / window.innerHeight) * 40;
+
+            // 1. Khớp hàng ngang và nằm ngay bên phải thanh pill "🍌 Nano Banana 2.1 ▢ x1"
+            if (pillRect && pillCy !== null) {
+              const dy = Math.abs(cy - pillCy);
+              if (dy <= 28) {
+                score += 240 - dy * 3;
+              } else if (dy > 55) {
+                continue;
+              }
+              if (cx >= pillRect.right - 6) {
+                score += 170;
+              } else {
+                continue;
+              }
+            }
+
+            // 2. Nằm ngay dưới vùng nhập chữ của ô prompt
+            if (boxRect) {
+              if (cy >= boxRect.bottom - 24 && cy <= boxRect.bottom + 125) {
+                score += 130;
+              }
+            }
+
+            // 3. Có icon mũi tên (Material Symbols ligature / ký tự mũi tên / nhãn Tạo / Send)
+            if (/(arrow_forward|arrow_right|arrow_right_alt|east|send|arrow_upward|north_east|trending_flat|sub_directory_arrow_right|generate|create|submit|tạo|gửi|→|➔|➜|➝)/i.test(fullMeta)) {
+              score += 170;
+            }
+
+            // 4. Bên trong có thẻ <svg>, <path>, hoặc icon font
+            const hasIconChild = !!(
+              (el.tagName || '').toUpperCase() === 'SVG'
+              || (el.querySelector && el.querySelector('svg, path, i, mat-icon, md-icon, [class*="symbol"], [class*="icon"]'))
+            );
+            if (hasIconChild) score += 60;
+
+            // 5. Nút tròn có màu nền sáng nổi bật (xanh nhạt / trắng trên nền tối của Google Flow)
+            const brightness = getBackgroundBrightness(el);
+            if (brightness >= 360) {
+              score += 140;
+            } else if (brightness >= 180) {
+              score += 65;
+            }
+
+            // 6. Hình dáng tròn (border-radius) và đúng thẻ button
+            try {
+              const br = window.getComputedStyle(el).borderRadius || '';
+              if (br.includes('50%') || br.includes('999') || parseFloat(br) >= 12) score += 45;
+            } catch (_) {}
+
+            if (el.matches && el.matches('button, [role="button"], [type="submit"]')) score += 50;
+            if (!isDis) score += 40;
+
+            // Ưu tiên nút nằm sát góc phải nhất
+            score += (r.right / Math.max(1, window.innerWidth)) * 45;
 
             if (score > bestScore) {
               bestScore = score;
@@ -1442,170 +1633,437 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return best;
         }
 
-        function clickButtonFully(btn) {
-          if (!btn) return;
-          const r = btn.getBoundingClientRect();
-          const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-          const opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, button: 0 };
-          try { btn.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
-          try { btn.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
-          try { btn.dispatchEvent(new PointerEvent('pointerup', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
-          try { btn.dispatchEvent(new MouseEvent('mouseup', opts)); } catch (_) {}
-          try { btn.click(); } catch (_) {}
-        }
-
-        const createdNewProject = await clickNewProjectIfNeeded();
-        const cfgRes = await applyFlowSettings(targetAspect, targetModel);
-        const box = findPromptBox();
-        let promptOk = false;
-        if (box && promptText) {
-          promptOk = await fillPromptBox(box, promptText);
-        }
+        // Chỉ tính phần trăm đang chạy từ 1%..99% (KHÔNG tính 0% hay 100% để tránh kẹt bởi chữ "100%" trong prompt hoặc ảnh đã tải 100%)
         function hasActivePercentProgress() {
           const docs = [];
           collectDocs(document, docs);
           const all = [];
           for (const d of docs) collectAllElements(d, all);
           for (const el of all) {
-            if (!isVisible(el)) continue;
+            if (!isVisible(el, 8, 8)) continue;
             if (el.children && el.children.length > 0) continue;
             if (el.closest && el.closest('textarea, [contenteditable], [data-slate-editor], [role="textbox"]')) continue;
             const t = (el.textContent || '').trim();
-            if (/^(?:[0-9]|[1-9][0-9]|100)%$/.test(t)) return true;
+            if (/^(?:[1-9]|[1-9][0-9])%$/.test(t)) return true;
           }
           return false;
         }
 
-        function countLoadedLargeImgs(excludeSet) {
+        // Kiểm tra xem ảnh mẫu đã xuất hiện trong trang hoặc trong khung prompt chưa (kể cả thumbnail nhỏ ~56x56 px)
+        function countNewUploadedMedia(excludeSet, promptBox) {
           const docs = [];
           collectDocs(document, docs);
           const all = [];
           for (const d of docs) collectAllElements(d, all);
           let cnt = 0;
           for (const el of all) {
-            if ((el.tagName || '').toUpperCase() !== 'IMG') continue;
-            if (!el.complete) continue;
-            const s = el.currentSrc || el.src || '';
-            if (!s || excludeSet.has(s)) continue;
-            if (/(avatar|profile|logo|icon|googleusercontent\.com\/a\/)/i.test(s)) continue;
-            if ((el.naturalWidth || 0) >= 120 && (el.naturalHeight || 0) >= 120) cnt++;
+            const tag = (el.tagName || '').toUpperCase();
+            if (tag === 'IMG') {
+              if (!el.complete) continue;
+              const s = el.currentSrc || el.src || '';
+              if (!s || excludeSet.has(s)) continue;
+              if (/(avatar|profile|logo|icon|googleusercontent\.com\/a\/)/i.test(s)) continue;
+              const r = el.getBoundingClientRect();
+              const nw = el.naturalWidth || r.width || 0;
+              const nh = el.naturalHeight || r.height || 0;
+              if (nw >= 24 && nh >= 24 && r.width >= 20 && r.height >= 20) cnt++;
+            }
+          }
+          // Kiểm tra thêm thumbnail đính kèm nằm ngay phía trên ô chữ trong thẻ prompt
+          if (promptBox) {
+            const boxRect = promptBox.getBoundingClientRect();
+            let card = promptBox.parentElement;
+            for (let k = 0; k < 5 && card && card !== document.body; k++) {
+              const cr = card.getBoundingClientRect();
+              if (cr.height >= boxRect.height + 50) break;
+              card = card.parentElement;
+            }
+            if (card && card.querySelectorAll) {
+              const mediaNodes = card.querySelectorAll('img, canvas, [style*="background-image"]');
+              for (const m of mediaNodes) {
+                if (!isVisible(m, 24, 24)) continue;
+                const mr = m.getBoundingClientRect();
+                if (mr.width >= 28 && mr.width <= 160 && mr.height >= 28 && mr.height <= 160 && mr.top <= boxRect.top + 30) {
+                  cnt++;
+                }
+              }
+            }
           }
           return cnt;
         }
 
+        function triggerFrameworkClick(targetEl, hitEl, cx, cy) {
+          if (!targetEl) return false;
+          let called = false;
+          const chain = [];
+          let cur = hitEl || targetEl;
+          for (let k = 0; k < 6 && cur && cur !== document.body; k++) {
+            if (!chain.includes(cur)) chain.push(cur);
+            cur = cur.parentElement;
+          }
+          if (!chain.includes(targetEl)) chain.unshift(targetEl);
+          if (targetEl.firstElementChild && !chain.includes(targetEl.firstElementChild)) {
+            chain.push(targetEl.firstElementChild);
+          }
+
+          for (const el of chain) {
+            try {
+              const keys = Object.keys(el);
+              const propsKey = keys.find(k => k.startsWith('__reactProps$'));
+              const fiberKey = keys.find(k => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
+              const propsList = [];
+              if (propsKey && el[propsKey]) propsList.push(el[propsKey]);
+              if (fiberKey && el[fiberKey]) {
+                if (el[fiberKey].memoizedProps) propsList.push(el[fiberKey].memoizedProps);
+                if (el[fiberKey].pendingProps) propsList.push(el[fiberKey].pendingProps);
+              }
+
+              for (const props of propsList) {
+                if (!props) continue;
+                const makeEvt = (type) => {
+                  const nativeEvt = new MouseEvent(type, {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                    clientX: cx,
+                    clientY: cy,
+                    button: 0,
+                    buttons: 1,
+                    detail: 1
+                  });
+                  return {
+                    type,
+                    nativeEvent: nativeEvt,
+                    currentTarget: el,
+                    target: hitEl || el,
+                    bubbles: true,
+                    cancelable: true,
+                    defaultPrevented: false,
+                    isTrusted: true,
+                    clientX: cx,
+                    clientY: cy,
+                    pageX: cx,
+                    pageY: cy,
+                    screenX: cx,
+                    screenY: cy,
+                    button: 0,
+                    buttons: 1,
+                    detail: 1,
+                    pointerId: 1,
+                    pointerType: 'touch',
+                    isPrimary: true,
+                    preventDefault() { this.defaultPrevented = true; try { nativeEvt.preventDefault(); } catch (_) {} },
+                    stopPropagation() { try { nativeEvt.stopPropagation(); } catch (_) {} },
+                    stopImmediatePropagation() { try { nativeEvt.stopImmediatePropagation(); } catch (_) {} },
+                    persist() {},
+                    isDefaultPrevented() { return this.defaultPrevented; },
+                    isPropagationStopped() { return false; }
+                  };
+                };
+
+                if (typeof props.onPointerDown === 'function') {
+                  try { props.onPointerDown(makeEvt('pointerdown')); } catch (_) {}
+                }
+                if (typeof props.onMouseDown === 'function') {
+                  try { props.onMouseDown(makeEvt('mousedown')); } catch (_) {}
+                }
+                if (typeof props.onPointerUp === 'function') {
+                  try { props.onPointerUp(makeEvt('pointerup')); } catch (_) {}
+                }
+                if (typeof props.onMouseUp === 'function') {
+                  try { props.onMouseUp(makeEvt('mouseup')); } catch (_) {}
+                }
+                if (typeof props.onTouchEnd === 'function') {
+                  try { props.onTouchEnd(makeEvt('touchend')); } catch (_) {}
+                }
+                if (typeof props.onPressStart === 'function') {
+                  try { props.onPressStart({ type: 'pressstart', pointerType: 'touch', target: el, currentTarget: el, clientX: cx, clientY: cy, continuePropagation() {} }); } catch (_) {}
+                }
+                if (typeof props.onPressEnd === 'function') {
+                  try { props.onPressEnd({ type: 'pressend', pointerType: 'touch', target: el, currentTarget: el, clientX: cx, clientY: cy, continuePropagation() {} }); } catch (_) {}
+                }
+                if (typeof props.onPress === 'function') {
+                  try {
+                    props.onPress({ type: 'press', pointerType: 'touch', target: el, currentTarget: el, clientX: cx, clientY: cy, continuePropagation() {} });
+                    called = true;
+                  } catch (_) {}
+                }
+                if (typeof props.onClick === 'function') {
+                  try {
+                    props.onClick(makeEvt('click'));
+                    called = true;
+                  } catch (_) {}
+                }
+              }
+            } catch (_) {}
+            if (called) break;
+          }
+          return called;
+        }
+
+        function dispatchTouchAndPointerClick(targetEl, hitEl, cx, cy, pointerType = 'touch') {
+          const el = hitEl || targetEl;
+          if (!el) return;
+          const opts = {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            view: window,
+            clientX: cx,
+            clientY: cy,
+            screenX: cx,
+            screenY: cy,
+            button: 0,
+            buttons: 1,
+            detail: 1
+          };
+          const ptrOpts = {
+            ...opts,
+            pointerId: 1,
+            width: 10,
+            height: 10,
+            pressure: 0.5,
+            pointerType,
+            isPrimary: true
+          };
+
+          try { el.dispatchEvent(new PointerEvent('pointerover', ptrOpts)); } catch (_) {}
+          try { el.dispatchEvent(new MouseEvent('mouseover', opts)); } catch (_) {}
+          try { el.dispatchEvent(new PointerEvent('pointerenter', { ...ptrOpts, bubbles: false })); } catch (_) {}
+          try { el.dispatchEvent(new MouseEvent('mouseenter', { ...opts, bubbles: false })); } catch (_) {}
+          try { el.dispatchEvent(new PointerEvent('pointerdown', ptrOpts)); } catch (_) {}
+
+          if (pointerType === 'touch') {
+            try {
+              if (typeof Touch !== 'undefined' && typeof TouchEvent !== 'undefined') {
+                const touchObj = new Touch({
+                  identifier: 1,
+                  target: el,
+                  clientX: cx,
+                  clientY: cy,
+                  pageX: cx,
+                  pageY: cy,
+                  screenX: cx,
+                  screenY: cy,
+                  radiusX: 5,
+                  radiusY: 5,
+                  force: 0.5
+                });
+                el.dispatchEvent(new TouchEvent('touchstart', {
+                  bubbles: true,
+                  cancelable: true,
+                  composed: true,
+                  view: window,
+                  touches: [touchObj],
+                  targetTouches: [touchObj],
+                  changedTouches: [touchObj]
+                }));
+              }
+            } catch (_) {}
+          }
+
+          try { el.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
+
+          if (pointerType === 'touch') {
+            try {
+              if (typeof Touch !== 'undefined' && typeof TouchEvent !== 'undefined') {
+                const touchObj = new Touch({
+                  identifier: 1,
+                  target: el,
+                  clientX: cx,
+                  clientY: cy,
+                  pageX: cx,
+                  pageY: cy,
+                  screenX: cx,
+                  screenY: cy,
+                  radiusX: 5,
+                  radiusY: 5,
+                  force: 0.0
+                });
+                el.dispatchEvent(new TouchEvent('touchend', {
+                  bubbles: true,
+                  cancelable: true,
+                  composed: true,
+                  view: window,
+                  touches: [],
+                  targetTouches: [],
+                  changedTouches: [touchObj]
+                }));
+              }
+            } catch (_) {}
+          }
+
+          try { el.dispatchEvent(new PointerEvent('pointerup', { ...ptrOpts, buttons: 0, pressure: 0 })); } catch (_) {}
+          try { el.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 })); } catch (_) {}
+          try { el.dispatchEvent(new MouseEvent('click', { ...opts, buttons: 0 })); } catch (_) {}
+          try { if (targetEl && typeof targetEl.click === 'function') targetEl.click(); } catch (_) {}
+        }
+
+        function checkGenerationStarted(arrowBtn, promptBox, initialBoxRect, initialTextLen, wasBrightBefore) {
+          if (hasActivePercentProgress()) return true;
+          if (!arrowBtn || !arrowBtn.isConnected || !isVisible(arrowBtn, 16, 16)) return true;
+          if (arrowBtn.disabled || arrowBtn.getAttribute('aria-disabled') === 'true') return true;
+          const btnTxt = (arrowBtn.innerText || arrowBtn.textContent || '').toLowerCase();
+          if (/(stop|pause|dừng|hourglass|progress_activity|autorenew)/i.test(btnTxt)) return true;
+          if (wasBrightBefore && getBackgroundBrightness(arrowBtn) < 150) return true;
+
+          const curBox = (promptBox && promptBox.isConnected) ? promptBox : findPromptBox();
+          if (!curBox || !isVisible(curBox, 24, 12)) return true;
+          if (initialTextLen > 10 && getBoxText(curBox).length === 0) return true;
+          if (initialBoxRect && initialBoxRect.height > 110) {
+            const curRect = curBox.getBoundingClientRect();
+            if (curRect.height < initialBoxRect.height * 0.45) return true;
+          }
+          return false;
+        }
+
+        async function clickArrowButtonAndVerify(arrowBtn, promptBox) {
+          if (!arrowBtn) return false;
+          try { arrowBtn.scrollIntoView({ block: 'nearest' }); } catch (_) {}
+          await sleep(40);
+
+          const r = arrowBtn.getBoundingClientRect();
+          const cx = r.left + r.width / 2;
+          const cy = r.top + r.height / 2;
+          const hitEl = document.elementFromPoint(cx, cy) || arrowBtn;
+          const primaryBtn = (hitEl.closest && hitEl.closest('button, [role="button"], [type="submit"]'))
+            || (arrowBtn.closest && arrowBtn.closest('button, [role="button"], [type="submit"]'))
+            || arrowBtn;
+
+          const initialBoxRect = promptBox ? promptBox.getBoundingClientRect() : null;
+          const initialTextLen = promptBox ? getBoxText(promptBox).length : 0;
+          const wasBrightBefore = getBackgroundBrightness(primaryBtn) >= 340;
+
+          // Cách 1: Gửi chuỗi sự kiện Touch + Pointer + Mouse + click() chuẩn iOS WebKit
+          dispatchTouchAndPointerClick(primaryBtn, hitEl, cx, cy, 'touch');
+          await sleep(750);
+          if (checkGenerationStarted(primaryBtn, promptBox, initialBoxRect, initialTextLen, wasBrightBefore)) return true;
+
+          // Cách 2: Gọi trực tiếp React / Aria / Radix handler (onClick, onPress, onPointerUp...) vượt rào isTrusted
+          triggerFrameworkClick(primaryBtn, hitEl, cx, cy);
+          await sleep(750);
+          if (checkGenerationStarted(primaryBtn, promptBox, initialBoxRect, initialTextLen, wasBrightBefore)) return true;
+
+          // Cách 3: Submit form hoặc gửi chuỗi sự kiện Mouse desktop
+          const frm = primaryBtn.closest && primaryBtn.closest('form');
+          if (frm) {
+            try {
+              if (frm.requestSubmit) frm.requestSubmit(primaryBtn);
+              else frm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            } catch (_) {}
+          }
+          dispatchTouchAndPointerClick(primaryBtn, hitEl, cx, cy, 'mouse');
+          await sleep(650);
+          if (checkGenerationStarted(primaryBtn, promptBox, initialBoxRect, initialTextLen, wasBrightBefore)) return true;
+
+          // Cách 4: Kích hoạt phím Enter / Space trên nút mũi tên và phím Enter trên ô prompt
+          try {
+            primaryBtn.focus();
+            for (const k of [{ key: 'Enter', code: 'Enter', kc: 13 }, { key: ' ', code: 'Space', kc: 32 }]) {
+              primaryBtn.dispatchEvent(new KeyboardEvent('keydown', { key: k.key, code: k.code, keyCode: k.kc, which: k.kc, bubbles: true, cancelable: true }));
+              primaryBtn.dispatchEvent(new KeyboardEvent('keypress', { key: k.key, code: k.code, keyCode: k.kc, which: k.kc, bubbles: true, cancelable: true }));
+              primaryBtn.dispatchEvent(new KeyboardEvent('keyup', { key: k.key, code: k.code, keyCode: k.kc, which: k.kc, bubbles: true, cancelable: true }));
+            }
+          } catch (_) {}
+          if (promptBox) {
+            try {
+              promptBox.focus();
+              promptBox.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+              promptBox.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+              promptBox.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+              promptBox.blur();
+            } catch (_) {}
+          }
+          await sleep(650);
+          return checkGenerationStarted(primaryBtn, promptBox, initialBoxRect, initialTextLen, wasBrightBefore);
+        }
+
+        const createdNewProject = await clickNewProjectIfNeeded();
+        const cfgRes = await applyFlowSettings(targetAspect, targetModel);
+        let box = findPromptBox();
+        let promptOk = false;
+        if (box && promptText) {
+          promptOk = await fillPromptBox(box, promptText);
+        }
+
         let imgStatus = 'NO_IMAGE';
-        let uploadCompleted = true;
         if (imageBase64) {
-          uploadCompleted = false;
           const beforeUploadSrcs = new Set(snapshotImageSrcs());
           imgStatus = await attachSampleImage(imageBase64, box);
 
-          // Đợi ảnh mẫu upload ĐẠT 100% (hết số % tải lên + hiện ảnh san-pham-dmx.jpg đã tải xong), tối đa 28 giây
+          // Đợi ảnh mẫu tải lên hoàn tất (hết % 1..99 và hiện thumbnail ảnh đính kèm hoặc nút -> sáng lên), tối đa ~22 giây
           let sawProgress = false;
-          let stableNoProgressTicks = 0;
-          for (let i = 0; i < 94; i++) {
+          let stableReadyTicks = 0;
+          for (let i = 0; i < 74; i++) {
             await sleep(300);
+            box = findPromptBox() || box;
             const uploadingPct = hasActivePercentProgress();
             if (uploadingPct) {
               sawProgress = true;
-              stableNoProgressTicks = 0;
+              stableReadyTicks = 0;
               continue;
             }
-            const bodyTxt = document.body?.innerText || '';
-            const hasFileName = bodyTxt.includes('san-pham-dmx');
-            const newLoadedCount = countLoadedLargeImgs(beforeUploadSrcs);
+            const newMediaCount = countNewUploadedMedia(beforeUploadSrcs, box);
+            const activeArrow = findGenerateArrowButton(box, false);
 
-            if ((hasFileName || newLoadedCount > 0) && (sawProgress || i >= 5)) {
-              stableNoProgressTicks += 1;
-              // Đảm bảo hết % ổn định ít nhất 4 nhịp (~1.2s) để Flow gắn xong ảnh vào prompt
-              if (stableNoProgressTicks >= 4) {
-                uploadCompleted = true;
+            if ((newMediaCount > 0 || activeArrow !== null) && (sawProgress || i >= 4)) {
+              stableReadyTicks += 1;
+              if (stableReadyTicks >= 3) {
                 break;
               }
             }
           }
-          // Chờ thêm 600ms ổn định DOM trước khi chụp danh sách ảnh cũ
-          await sleep(600);
+          await sleep(450);
         } else {
-          await sleep(400);
+          await sleep(350);
         }
 
-        // Chụp toàn bộ src ảnh ĐÃ CÓ (bao gồm cả ảnh mẫu san-pham-dmx.jpg vừa upload 100%)
+        // Sau khi đính kèm ảnh, khung prompt có thể được Google Flow render lại thành modal mở rộng -> kiểm tra lại ô nhập
+        box = findPromptBox() || box;
+        if (box && promptText) {
+          const curTxt = getBoxText(box);
+          if (!curTxt || !curTxt.includes(promptText.slice(0, 15))) {
+            promptOk = await fillPromptBox(box, promptText);
+          } else {
+            promptOk = true;
+          }
+          // Ẩn bàn phím ảo iOS để khung prompt hạ xuống đúng vị trí và xác nhận state
+          try { box.blur(); } catch (_) {}
+          await sleep(180);
+        }
+
+        // Chụp toàn bộ src ảnh ĐÃ CÓ (bao gồm cả ảnh mẫu vừa tải lên) trước khi bấm nút ->
         const existingSrcs = snapshotImageSrcs();
-        function triggerReactClick(el) {
-          if (!el) return false;
-          try {
-            const key = Object.keys(el).find(k => k.startsWith('__reactProps$'));
-            if (key && el[key] && typeof el[key].onClick === 'function') {
-              el[key].onClick({
-                preventDefault() {},
-                stopPropagation() {},
-                currentTarget: el,
-                target: el,
-                nativeEvent: new MouseEvent('click', { bubbles: true })
-              });
-              return true;
-            }
-          } catch (_) {}
-          return false;
-        }
-
-        function checkGenerationStarted(arrowBtn, promptBox) {
-          if (hasActivePercentProgress()) return true;
-          if (!arrowBtn || !arrowBtn.isConnected) return true;
-          if (arrowBtn.disabled || arrowBtn.getAttribute('aria-disabled') === 'true') return true;
-          if (promptBox && getBoxText(promptBox).length === 0) return true;
-          return false;
-        }
 
         let clickedGenerate = false;
-        if (promptOk && uploadCompleted) {
-          for (let i = 0; i < 16; i++) {
-            if (hasActivePercentProgress()) {
-              await sleep(300);
-              continue;
-            }
-            const arrowBtn = findGenerateArrowButton();
+        if (promptOk || (box && getBoxText(box).length > 0)) {
+          for (let i = 0; i < 30; i++) {
+            box = findPromptBox() || box;
+            // Ưu tiên tìm nút mũi tên đã sáng (enabled); từ nhịp thứ 5 trở đi cho phép thử cả nút chưa gỡ aria-disabled
+            const arrowBtn = findGenerateArrowButton(box, false) || (i >= 5 ? findGenerateArrowButton(box, true) : null);
             if (arrowBtn) {
-              const r = arrowBtn.getBoundingClientRect();
-              const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-              arrowBtn.focus();
-
-              // Cách 1: Click DOM chuẩn
-              arrowBtn.click();
-              await sleep(900);
-
-              // Cách 2: Gọi thẳng React onClick handler trên nút -> (vượt giới hạn isTrusted của React)
-              if (!checkGenerationStarted(arrowBtn, box)) {
-                triggerReactClick(arrowBtn);
-                await sleep(900);
-              }
-
-              // Cách 3: Submit form chứa nút -> hoặc chạm tọa độ tâm nút
-              if (!checkGenerationStarted(arrowBtn, box)) {
-                const frm = arrowBtn.closest && arrowBtn.closest('form');
-                if (frm && frm.requestSubmit) {
-                  try { frm.requestSubmit(arrowBtn); } catch (_) {}
-                } else {
-                  const topEl = document.elementFromPoint(cx, cy) || arrowBtn;
-                  clickButtonFully(topEl);
+              const isDis = !!(arrowBtn.disabled || arrowBtn.getAttribute('aria-disabled') === 'true');
+              if (isDis && i < 8) {
+                if (i === 2 || i === 5) {
+                  await nudgePromptBox(box);
                 }
-                await sleep(800);
+                await sleep(350);
+                continue;
               }
-
-              // Cách 4: Gửi phím Enter vào ô prompt
-              if (!checkGenerationStarted(arrowBtn, box) && box) {
-                box.focus();
-                box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
-                box.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
-                box.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
-                await sleep(700);
+              const started = await clickArrowButtonAndVerify(arrowBtn, box);
+              if (started) {
+                clickedGenerate = true;
+                break;
               }
-
-              clickedGenerate = checkGenerationStarted(arrowBtn, box);
-              break;
+              if (i === 3 || i === 8) {
+                await nudgePromptBox(box);
+              }
+            } else if (i === 3 || i === 9) {
+              if (box) {
+                try { box.click(); await sleep(150); box.blur(); } catch (_) {}
+              }
             }
-            await sleep(250);
+            await sleep(350);
           }
         }
 
@@ -1623,6 +2081,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         webViewFlow.callAsyncJavaScript(asyncJS, arguments: args, in: nil, in: .page) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self else { return }
+                self.dangBomPromptFlow = false
                 switch result {
                 case .success(let val):
                     let raw = (val as? String) ?? ""
@@ -1647,9 +2106,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                         self.hienToastFlow("Đã bấm tạo ảnh (→)\(moTaCauHinh) — đang chờ ảnh xong để tự lấy về app...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 5.0)
                         self.batDauChoVaTuLayAnhFlow(cacSrcCu: existingSrcs)
                     } else if promptOk {
-                        self.hienToastFlow("Đã điền xong\(moTaCauHinh) — nếu chưa tự chạy, bấm mũi tên → (ảnh xong sẽ tự lấy về app).", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 4.5)
+                        self.hienToastFlow("Đã điền xong\(moTaCauHinh) — đang tự kích hoạt tạo ảnh (→) và chờ lấy ảnh về app...", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 4.5)
                         self.batDauChoVaTuLayAnhFlow(cacSrcCu: existingSrcs)
-                    } else if false {
                     } else if daGanAnh {
                         self.hienToastFlow("Đã gửi ảnh mẫu — chạm ô nhập rồi bấm Dán prompt.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                     } else if !tuDong {
@@ -1668,14 +2126,14 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         maPhienChoAnhFlow += 1
         let phienHienTai = maPhienChoAnhFlow
         vongQuayFlow.startAnimating()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
             self?.kiemTraAnhMoiTuFlow(phien: phienHienTai, cacSrcCu: cacSrcCu, lanThu: 0)
         }
     }
 
     private func kiemTraAnhMoiTuFlow(phien: Int, cacSrcCu: [String], lanThu: Int) {
         guard phien == maPhienChoAnhFlow else { return }
-        guard lanThu < 36 else {
+        guard lanThu < 40 else {
             vongQuayFlow.stopAnimating()
             hienToastFlow("Chờ ảnh hơi lâu — khi thấy ảnh vẽ xong bạn bấm nút 📥 Lấy ảnh nhé.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92), giuLau: 4.0)
             return
@@ -1724,7 +2182,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
-        // Nếu Flow vẫn đang hiển thị huy hiệu tiến độ % tạo ảnh (chỉ tính nhãn đứng riêng "XX%" ngoài ô prompt) -> tiếp tục chờ
+        // Chỉ tính huy hiệu tiến độ đang chạy từ 1%..99% (không tính 0% hoặc 100%)
         function hasStandalonePercentBadge() {
           const nodes = document.querySelectorAll('*');
           for (const el of nodes) {
@@ -1733,12 +2191,93 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             const st = window.getComputedStyle(el);
             if (!st || st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) continue;
             const t = (el.textContent || '').trim();
-            if (/^(?:[0-9]|[1-9][0-9]|100)%$/.test(t)) return true;
+            if (/^(?:[1-9]|[1-9][0-9])%$/.test(t)) return true;
           }
           return false;
         }
         if (hasStandalonePercentBadge()) {
           return "WAITING";
+        }
+
+        // Cơ chế tự phục hồi: nếu khung prompt vẫn đang mở kèm chữ và nút tròn mũi tên (->) vừa mới sáng lên sau khi ảnh tải xong, tự bấm luôn nút ->!
+        function tryClickPendingArrowIfStillOpen() {
+          const eds = document.querySelectorAll('textarea, [contenteditable="true"], [contenteditable="plaintext-only"], [role="textbox"], [data-slate-editor]');
+          let activeBox = null;
+          for (const ed of eds) {
+            const r = ed.getBoundingClientRect();
+            if (r.width >= 120 && r.height >= 20) {
+              const txt = (ed.value || ed.innerText || ed.textContent || '').trim();
+              if (txt.length >= 20) { activeBox = ed; break; }
+            }
+          }
+          if (!activeBox) return false;
+          const boxRect = activeBox.getBoundingClientRect();
+
+          // Tìm thanh pill Nano Banana ở dưới activeBox
+          const allBtns = document.querySelectorAll('button, [role="button"], [type="submit"], div, span');
+          let pillRect = null;
+          for (const b of allBtns) {
+            const r = b.getBoundingClientRect();
+            if (r.width < 65 || r.width > 330 || r.height < 18 || r.height > 68) continue;
+            if (r.top < boxRect.top - 10) continue;
+            const t = (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim();
+            if (t.length <= 65 && (/(nano banana|imagen|veo|banana)/i.test(t) || /x[1-4]/i.test(t))) {
+              pillRect = r;
+              break;
+            }
+          }
+
+          let arrowCandidate = null;
+          if (pillRect) {
+            const py = pillRect.top + pillRect.height / 2;
+            for (let px = pillRect.right + 10; px <= Math.min(window.innerWidth - 8, pillRect.right + 75); px += 8) {
+              const hit = document.elementFromPoint(px, py);
+              if (!hit) continue;
+              const btn = (hit.closest && hit.closest('button, [role="button"], [type="submit"]')) || hit;
+              const br = btn.getBoundingClientRect();
+              if (br.width >= 20 && br.width <= 84 && br.height >= 20 && br.height <= 84 && (br.left + br.width / 2) >= pillRect.right - 4) {
+                if (!btn.disabled && btn.getAttribute('aria-disabled') !== 'true') {
+                  arrowCandidate = btn;
+                  break;
+                }
+              }
+            }
+          }
+          if (!arrowCandidate) return false;
+
+          const ar = arrowCandidate.getBoundingClientRect();
+          const cx = ar.left + ar.width / 2, cy = ar.top + ar.height / 2;
+          const hitEl = document.elementFromPoint(cx, cy) || arrowCandidate;
+          const opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, button: 0, buttons: 1 };
+          try { hitEl.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+          try { hitEl.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
+          try { hitEl.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+          try { hitEl.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 })); } catch (_) {}
+          try { arrowCandidate.click(); } catch (_) {}
+          try {
+            const key = Object.keys(arrowCandidate).find(k => k.startsWith('__reactProps$'));
+            if (key && arrowCandidate[key] && typeof arrowCandidate[key].onClick === 'function') {
+              arrowCandidate[key].onClick({
+                type: 'click',
+                nativeEvent: new MouseEvent('click', opts),
+                currentTarget: arrowCandidate,
+                target: hitEl,
+                bubbles: true,
+                cancelable: true,
+                isTrusted: true,
+                clientX: cx,
+                clientY: cy,
+                button: 0,
+                preventDefault() {},
+                stopPropagation() {},
+                stopImmediatePropagation() {},
+                persist() {},
+                isDefaultPrevented() { return false; },
+                isPropagationStopped() { return false; }
+              });
+            }
+          } catch (_) {}
+          return true;
         }
 
         function isSampleUploadCard(imgEl) {
@@ -1760,13 +2299,11 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         for (const el of imgs) {
           if (!el.complete) continue;
           const r = el.getBoundingClientRect();
-          // Bỏ qua thumbnail nhỏ đính kèm trong ô nhập prompt
           if (r.width < 120 || r.height < 120) continue;
           const src = el.currentSrc || el.src || '';
           if (!src || oldSet.has(src)) continue;
           if (/^(data:image\/svg|blob:)/i.test(src)) continue;
           if (/(avatar|profile|logo|icon|googleusercontent\.com\/a\/)/i.test(src)) continue;
-          // Tuyệt đối không lấy lại ảnh mẫu san-pham-dmx.jpg vừa tải lên
           if (isSampleUploadCard(el)) continue;
           const nw = el.naturalWidth || 0;
           const nh = el.naturalHeight || 0;
@@ -1778,7 +2315,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
-        if (!newest) return "WAITING";
+        if (!newest) {
+          tryClickPendingArrowIfStillOpen();
+          return "WAITING";
+        }
 
         const rawSrc = newest.currentSrc || newest.src || '';
         for (const u of buildCandidateUrls(rawSrc)) {
@@ -1847,18 +2387,22 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             }
             let host = (webView.url?.host ?? "").lowercased()
             if !self.promptChoDienFlow.isEmpty && (host.contains("flow.google.com") || host.contains("labs.google")) {
-                let taoMoi = self.canTaoDuAnMoiFlow
-                self.canTaoDuAnMoiFlow = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-                    guard let self, !self.promptChoDienFlow.isEmpty else { return }
+                self.congViecBomPromptTuDong?.cancel()
+                let congViec = DispatchWorkItem { [weak self] in
+                    guard let self, !self.promptChoDienFlow.isEmpty, !self.dangBomPromptFlow else { return }
+                    let taoMoi = self.canTaoDuAnMoiFlow
+                    self.canTaoDuAnMoiFlow = false
                     self.bomPromptVaoWebViewFlow(self.promptChoDienFlow, tuDong: true, tuTaoDuAnMoi: taoMoi)
                 }
+                self.congViecBomPromptTuDong = congViec
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: congViec)
             }
         }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         vongQuayFlow.stopAnimating()
+        dangBomPromptFlow = false
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
