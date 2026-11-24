@@ -1387,6 +1387,21 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           collectDocs(document, docs);
           const all = [];
           for (const d of docs) collectAllElements(d, all);
+
+          // Tìm thanh pill model ở đáy (Nano Banana / x1..x4) để khóa đúng hàng ngang của nút mũi tên ->
+          let pillRowY = null;
+          for (const el of all) {
+            if (!isVisible(el)) continue;
+            if (!el.matches || !el.matches('button, [role="button"]')) continue;
+            const r = el.getBoundingClientRect();
+            if (r.top < window.innerHeight * 0.7) continue;
+            const t = (el.innerText || el.textContent || '').toLowerCase();
+            if (/(nano banana|imagen|veo)/i.test(t) || /\bx[1-4]\b/i.test(t)) {
+              pillRowY = r.top + r.height / 2;
+              break;
+            }
+          }
+
           let best = null;
           let bestScore = -1;
           for (const el of all) {
@@ -1394,24 +1409,34 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             if (!el.matches || !el.matches('button, [role="button"]')) continue;
             if (el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
             const r = el.getBoundingClientRect();
-            if (r.top < window.innerHeight * 0.55) continue;
-            if (r.width > 72 || r.height > 72 || r.width < 24 || r.height < 24) continue;
+            // Nút mũi tên -> là nút tròn nhỏ nằm ở góc dưới cùng bên phải
+            if (r.top < window.innerHeight * 0.72) continue;
+            if (r.left < window.innerWidth * 0.70) continue;
+            if (r.width > 64 || r.height > 64 || r.width < 26 || r.height < 26) continue;
+            if (Math.abs(r.width - r.height) > 14) continue;
+
             const meta = [
               el.getAttribute('aria-label') || '',
               el.getAttribute('title') || '',
               el.innerText || el.textContent || ''
             ].join(' ').toLowerCase();
-            if (/(add|upload|attach|close|đóng|tải lên|thêm)/i.test(meta)) continue;
+            if (/(add|upload|attach|close|đóng|tải lên|thêm|×)/i.test(meta)) continue;
+
+            const cy = r.top + r.height / 2;
             let score = 0;
-            if (/(arrow_forward|arrow_right|send|generate|create|submit|tạo|gửi|→)/i.test(meta)) score += 80;
-            if (r.left > window.innerWidth * 0.65) score += 50; // Nút mũi tên -> nằm góc dưới bên phải
-            if (r.left > window.innerWidth * 0.78) score += 30;
+            if (pillRowY !== null && Math.abs(cy - pillRowY) <= 24) score += 120;
+            if (/(arrow_forward|arrow_right|send|generate|create|submit|tạo|gửi|→)/i.test(meta)) score += 90;
+            if (el.querySelector && el.querySelector('svg, i, span')) score += 20;
+            // Ưu tiên nút nằm sát mép phải và sát mép dưới nhất
+            score += (r.right / window.innerWidth) * 40;
+            score += (r.bottom / window.innerHeight) * 40;
+
             if (score > bestScore) {
               bestScore = score;
               best = el;
             }
           }
-          return bestScore >= 50 ? best : null;
+          return best;
         }
 
         function clickButtonFully(btn) {
@@ -1513,8 +1538,43 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             }
             const arrowBtn = findGenerateArrowButton();
             if (arrowBtn) {
-              clickButtonFully(arrowBtn);
-              clickedGenerate = true;
+              const r = arrowBtn.getBoundingClientRect();
+              const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+              arrowBtn.focus();
+              // Thử bấm trực tiếp vào nút -> (ưu tiên click chuẩn của React trước, tránh double-toggle)
+              arrowBtn.click();
+              await sleep(700);
+
+              // Kiểm tra xem Flow đã bắt đầu tạo chưa (hiện % hoặc nút -> chuyển trạng thái disabled / ô prompt thu gọn)
+              const started = hasActivePercentProgress()
+                || arrowBtn.disabled
+                || arrowBtn.getAttribute('aria-disabled') === 'true'
+                || !arrowBtn.isConnected;
+
+              if (!started) {
+                // Dự phòng 1: bấm phần tử thực tại tọa độ (cx, cy) bằng đủ chuỗi Pointer/Mouse
+                const topEl = document.elementFromPoint(cx, cy) || arrowBtn;
+                clickButtonFully(topEl);
+                await sleep(600);
+              }
+
+              const started2 = hasActivePercentProgress()
+                || arrowBtn.disabled
+                || arrowBtn.getAttribute('aria-disabled') === 'true'
+                || !arrowBtn.isConnected;
+
+              if (!started2 && box) {
+                // Dự phòng 2: gửi phím Enter vào ô prompt
+                box.focus();
+                box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+                box.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+                await sleep(500);
+              }
+
+              clickedGenerate = hasActivePercentProgress()
+                || arrowBtn.disabled
+                || arrowBtn.getAttribute('aria-disabled') === 'true'
+                || !arrowBtn.isConnected;
               break;
             }
             await sleep(250);
