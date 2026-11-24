@@ -821,6 +821,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           if (nw < 256 || nh < 256) continue;
           const src = el.tagName === 'IMG' ? (el.currentSrc || el.src || '') : '';
           if (el.tagName === 'IMG' && /(avatar|profile|logo|icon|googleusercontent\.com\/a\/)/i.test(src)) continue;
+          let pCard = el;
+          let isSampleCard = false;
+          for (let k = 0; k < 5 && pCard; k++) {
+            if (((pCard.innerText || pCard.textContent || '').toLowerCase()).includes('san-pham-dmx')) { isSampleCard = true; break; }
+            pCard = pCard.parentElement;
+          }
+          if (isSampleCard) continue;
           const area = nw * nh;
           if (area >= bestArea) {
             bestArea = area;
@@ -1426,24 +1433,74 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         if (box && promptText) {
           promptOk = await fillPromptBox(box, promptText);
         }
-        let imgStatus = 'NO_IMAGE';
-        if (imageBase64) {
-          imgStatus = await attachSampleImage(imageBase64, box);
-          // Chờ ảnh mẫu tải lên hoàn tất (thumbnail san-pham-dmx.jpg hiện ra và nút -> bật sáng)
-          for (let i = 0; i < 24; i++) {
-            await sleep(250);
-            const hasUploadedText = (document.body?.innerText || '').includes('san-pham-dmx');
-            const arrowReady = !!findGenerateArrowButton();
-            if (hasUploadedText && arrowReady && i >= 4) break;
+        function hasActivePercentProgress() {
+          const txt = document.body?.innerText || '';
+          return /\b(?:[0-9]|[1-9][0-9]|100)%/.test(txt);
+        }
+
+        function countLoadedLargeImgs(excludeSet) {
+          const docs = [];
+          collectDocs(document, docs);
+          const all = [];
+          for (const d of docs) collectAllElements(d, all);
+          let cnt = 0;
+          for (const el of all) {
+            if ((el.tagName || '').toUpperCase() !== 'IMG') continue;
+            if (!el.complete) continue;
+            const s = el.currentSrc || el.src || '';
+            if (!s || excludeSet.has(s)) continue;
+            if (/(avatar|profile|logo|icon|googleusercontent\.com\/a\/)/i.test(s)) continue;
+            if ((el.naturalWidth || 0) >= 120 && (el.naturalHeight || 0) >= 120) cnt++;
           }
+          return cnt;
+        }
+
+        let imgStatus = 'NO_IMAGE';
+        let uploadCompleted = true;
+        if (imageBase64) {
+          uploadCompleted = false;
+          const beforeUploadSrcs = new Set(snapshotImageSrcs());
+          imgStatus = await attachSampleImage(imageBase64, box);
+
+          // Đợi ảnh mẫu upload ĐẠT 100% (hết số % tải lên + hiện ảnh san-pham-dmx.jpg đã tải xong), tối đa 28 giây
+          let sawProgress = false;
+          let stableNoProgressTicks = 0;
+          for (let i = 0; i < 94; i++) {
+            await sleep(300);
+            const uploadingPct = hasActivePercentProgress();
+            if (uploadingPct) {
+              sawProgress = true;
+              stableNoProgressTicks = 0;
+              continue;
+            }
+            const bodyTxt = document.body?.innerText || '';
+            const hasFileName = bodyTxt.includes('san-pham-dmx');
+            const newLoadedCount = countLoadedLargeImgs(beforeUploadSrcs);
+
+            if ((hasFileName || newLoadedCount > 0) && (sawProgress || i >= 5)) {
+              stableNoProgressTicks += 1;
+              // Đảm bảo hết % ổn định ít nhất 4 nhịp (~1.2s) để Flow gắn xong ảnh vào prompt
+              if (stableNoProgressTicks >= 4) {
+                uploadCompleted = true;
+                break;
+              }
+            }
+          }
+          // Chờ thêm 600ms ổn định DOM trước khi chụp danh sách ảnh cũ
+          await sleep(600);
         } else {
           await sleep(400);
         }
 
+        // Chụp toàn bộ src ảnh ĐÃ CÓ (bao gồm cả ảnh mẫu san-pham-dmx.jpg vừa upload 100%)
         const existingSrcs = snapshotImageSrcs();
         let clickedGenerate = false;
-        if (promptOk) {
-          for (let i = 0; i < 12; i++) {
+        if (promptOk && uploadCompleted) {
+          for (let i = 0; i < 16; i++) {
+            if (hasActivePercentProgress()) {
+              await sleep(300);
+              continue;
+            }
             const arrowBtn = findGenerateArrowButton();
             if (arrowBtn) {
               clickButtonFully(arrowBtn);
@@ -1566,6 +1623,22 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
+        // Nếu Flow vẫn đang hiển thị tiến độ % tạo ảnh -> tiếp tục chờ
+        const bodyText = document.body?.innerText || '';
+        if (/\b(?:[0-9]|[1-9][0-9]|100)%/.test(bodyText)) {
+          return "WAITING";
+        }
+
+        function isSampleUploadCard(imgEl) {
+          let p = imgEl;
+          for (let k = 0; k < 5 && p; k++) {
+            const t = (p.innerText || p.textContent || '').toLowerCase();
+            if (t.includes('san-pham-dmx')) return true;
+            p = p.parentElement;
+          }
+          return false;
+        }
+
         const oldSet = new Set(oldSrcs || []);
         const imgs = [];
         collectImgs(document, imgs);
@@ -1574,10 +1647,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
         for (const el of imgs) {
           if (!el.complete) continue;
+          const r = el.getBoundingClientRect();
+          // Bỏ qua thumbnail nhỏ đính kèm trong ô nhập prompt
+          if (r.width < 120 || r.height < 120) continue;
           const src = el.currentSrc || el.src || '';
           if (!src || oldSet.has(src)) continue;
-          if (/^(data:image\/svg|blob:)/i.test(src) && (el.naturalWidth < 512 || el.naturalHeight < 512)) continue;
+          if (/^(data:image\/svg|blob:)/i.test(src)) continue;
           if (/(avatar|profile|logo|icon|googleusercontent\.com\/a\/)/i.test(src)) continue;
+          // Tuyệt đối không lấy lại ảnh mẫu san-pham-dmx.jpg vừa tải lên
+          if (isSampleUploadCard(el)) continue;
           const nw = el.naturalWidth || 0;
           const nh = el.naturalHeight || 0;
           if (nw < 512 || nh < 512) continue;
