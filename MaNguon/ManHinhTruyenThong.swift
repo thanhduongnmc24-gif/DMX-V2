@@ -11,6 +11,7 @@ struct ThongTinSanPhamTruyenThong {
     var diemNoiBat: String
     var lienHe: String
     var tyLeAnh: String
+    var modelFlow: String
     var phongCachAnh: String
 }
 
@@ -436,7 +437,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private let oUuDai = UITextField()
     private let oDiemNoiBat = UITextView()
     private let oLienHe = UITextField()
-    private let chonTyLe = UISegmentedControl(items: ["1:1 Vuông", "4:5 Dọc FB", "9:16 Story"])
+    private let chonTyLe = UISegmentedControl(items: ["1:1", "3:4", "4:3", "9:16", "16:9"])
+    private let chonModelFlow = UISegmentedControl(items: ["Nano Banana 2.1", "Nano Banana Pro", "Imagen 4"])
     private let chonPhongCachAnh = UISegmentedControl(items: ["Rực rỡ ĐMX", "Sang trọng", "Flash Sale"])
 
     // Hành động & Trạng thái
@@ -565,7 +567,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             nut.addTarget(self, action: action, for: .touchUpInside)
         }
 
-        nutFlowDienPrompt.setTitle("✨ Điền Prompt + Ảnh", for: .normal)
+        nutFlowDienPrompt.setTitle("✨ Điền + Ảnh", for: .normal)
         nutFlowDienPrompt.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
         nutFlowDienPrompt.backgroundColor = BangMauBCTD.xanhLaDam
         nutFlowDienPrompt.setTitleColor(.white, for: .normal)
@@ -857,10 +859,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     private func bomPromptVaoWebViewFlow(_ prompt: String, tuDong: Bool) {
+        let tt = thuThapThongTin()
         let anhB64 = maHoaAnhMauBase64ChoFlow()
         let args: [String: Any] = [
             "promptText": prompt,
-            "imageBase64": anhB64
+            "imageBase64": anhB64,
+            "targetAspect": tt.tyLeAnh,
+            "targetModel": tt.modelFlow
         ]
 
         let asyncJS = #"""
@@ -1099,6 +1104,141 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
+        async function applyFlowSettings(aspect, modelName) {
+          let aspectOk = false;
+          let modelOk = false;
+          try {
+            const getAllVis = () => {
+              const docs = [];
+              collectDocs(document, docs);
+              const out = [];
+              for (const d of docs) collectAllElements(d, out);
+              return out.filter(el => isVisible(el));
+            };
+
+            const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+
+            // Kiểm tra xem popup cài đặt đã mở sẵn chưa (có nút "Hình ảnh" / "16:9" / "1:1")
+            const findPopupAspectBtn = (target) => {
+              const els = getAllVis();
+              for (const el of els) {
+                const tag = (el.tagName || '').toUpperCase();
+                if (tag !== 'BUTTON' && el.getAttribute('role') !== 'button' && el.getAttribute('role') !== 'radio' && el.getAttribute('role') !== 'tab') continue;
+                const t = norm(el.innerText || el.textContent);
+                if (t === target) return el;
+              }
+              return null;
+            };
+
+            let openedByUs = false;
+            if (!findPopupAspectBtn(aspect)) {
+              // Tìm nút pill cài đặt ở đáy (chứa tên model như Nano Banana / Imagen / Veo hoặc x1..x4)
+              const vis = getAllVis();
+              let pillBtn = null;
+              for (const el of vis) {
+                const tag = (el.tagName || '').toUpperCase();
+                if (tag !== 'BUTTON' && el.getAttribute('role') !== 'button') continue;
+                const t = norm(el.innerText || el.textContent);
+                const r = el.getBoundingClientRect();
+                if (r.top < window.innerHeight * 0.5) continue;
+                if (/(nano banana|imagen|veo|banana)/i.test(t) || /\bx[1-4]\b/i.test(t)) {
+                  pillBtn = el;
+                  break;
+                }
+              }
+              if (pillBtn) {
+                pillBtn.click();
+                openedByUs = true;
+                await sleep(260);
+              }
+            }
+
+            // Bước A: Bấm tab "Hình ảnh" / "Image"
+            for (const el of getAllVis()) {
+              const tag = (el.tagName || '').toUpperCase();
+              if (tag !== 'BUTTON' && el.getAttribute('role') !== 'tab' && el.getAttribute('role') !== 'button') continue;
+              const t = norm(el.innerText || el.textContent).toLowerCase();
+              if (t === 'hình ảnh' || t === 'image' || t === 'images') {
+                el.click();
+                await sleep(160);
+                break;
+              }
+            }
+
+            // Bước B: Chọn kích thước / tỷ lệ ảnh (1:1, 3:4, 4:3, 9:16, 16:9)
+            const aspectBtn = findPopupAspectBtn(aspect);
+            if (aspectBtn) {
+              aspectBtn.click();
+              aspectOk = true;
+              await sleep(160);
+            }
+
+            // Bước C: Chọn model trong dropdown của popup
+            if (modelName) {
+              const targetLow = modelName.toLowerCase();
+              let dropdownBtn = null;
+              for (const el of getAllVis()) {
+                const tag = (el.tagName || '').toUpperCase();
+                const role = (el.getAttribute('role') || '').toLowerCase();
+                if (tag !== 'BUTTON' && role !== 'combobox' && role !== 'button') continue;
+                const t = norm(el.innerText || el.textContent);
+                const r = el.getBoundingClientRect();
+                if (r.width < 120 || r.height > 70) continue;
+                if (r.top > window.innerHeight * 0.85) continue; // tránh bấm nhầm pill dưới đáy
+                if (/(nano banana|imagen|veo)/i.test(t) && !/\bx[1-4]\b/i.test(t)) {
+                  dropdownBtn = el;
+                  break;
+                }
+              }
+              if (dropdownBtn) {
+                const curModel = norm(dropdownBtn.innerText || dropdownBtn.textContent).toLowerCase();
+                if (curModel.includes(targetLow)) {
+                  modelOk = true;
+                } else {
+                  dropdownBtn.click();
+                  await sleep(220);
+                  for (const opt of getAllVis()) {
+                    const role = (opt.getAttribute('role') || '').toLowerCase();
+                    const tag = (opt.tagName || '').toUpperCase();
+                    if (role !== 'option' && role !== 'menuitem' && role !== 'menuitemradio' && tag !== 'LI' && tag !== 'BUTTON') continue;
+                    const ot = norm(opt.innerText || opt.textContent).toLowerCase();
+                    if (ot.includes(targetLow) && ot.length < 60) {
+                      opt.click();
+                      modelOk = true;
+                      await sleep(180);
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+
+            // Đóng popup cài đặt sau khi đã chọn xong
+            if (openedByUs) {
+              let closed = false;
+              for (const el of getAllVis()) {
+                const tag = (el.tagName || '').toUpperCase();
+                if (tag !== 'BUTTON' && el.getAttribute('role') !== 'button') continue;
+                const al = ((el.getAttribute('aria-label') || '') + ' ' + norm(el.innerText || el.textContent)).toLowerCase();
+                if (al === '×' || al === 'x' || al.includes('close') || al.includes('đóng')) {
+                  const r = el.getBoundingClientRect();
+                  if (r.width <= 60 && r.height <= 60 && r.top > window.innerHeight * 0.25) {
+                    el.click();
+                    closed = true;
+                    break;
+                  }
+                }
+              }
+              if (!closed) {
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+              }
+              await sleep(180);
+            }
+          } catch (_) {}
+          return { aspectOk, modelOk };
+        }
+
+        const cfgRes = await applyFlowSettings(targetAspect, targetModel);
         const box = findPromptBox();
         let promptOk = false;
         if (box && promptText) {
@@ -1108,7 +1248,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         if (imageBase64) {
           imgStatus = await attachSampleImage(imageBase64, box);
         }
-        return JSON.stringify({ promptOk, imgStatus, foundBox: !!box });
+        return JSON.stringify({
+          promptOk,
+          imgStatus,
+          aspectOk: cfgRes.aspectOk,
+          modelOk: cfgRes.modelOk,
+          foundBox: !!box
+        });
         """#
 
         webViewFlow.callAsyncJavaScript(asyncJS, arguments: args, in: nil, in: .page) { [weak self] result in
@@ -1127,10 +1273,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     }
                     let promptOk = (obj["promptOk"] as? Bool) ?? false
                     let imgStatus = (obj["imgStatus"] as? String) ?? "NO_IMAGE"
+                    let aspectOk = (obj["aspectOk"] as? Bool) ?? false
+                    let modelOk = (obj["modelOk"] as? Bool) ?? false
                     let daGanAnh = imgStatus.hasPrefix("ATTACHED_")
+                    let moTaCauHinh = (aspectOk || modelOk) ? " (\(tt.modelFlow) · \(tt.tyLeAnh))" : ""
 
                     if promptOk && daGanAnh {
-                        self.nhanTrangThaiFlow.text = "Đã điền Prompt & gửi Ảnh mẫu vào Google Flow ✓"
+                        self.nhanTrangThaiFlow.text = "Đã điền Prompt, Ảnh mẫu\(moTaCauHinh) ✓"
                         self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
                     } else if promptOk {
                         if anhB64.isEmpty {
@@ -1353,9 +1502,14 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         stack.addArrangedSubview(taoNhanNho("Siêu thị / Hotline / Địa chỉ"))
         stack.addArrangedSubview(taoOChiTiet(oLienHe, goiY: "VD: ĐMX Siêu thị 76 · Hotline 09xx.xxx.xxx"))
 
-        stack.addArrangedSubview(taoNhanNho("Tỷ lệ ảnh truyền thông"))
+        stack.addArrangedSubview(taoNhanNho("Kích thước / Tỷ lệ ảnh (đồng bộ Google Flow)"))
         chonTyLe.selectedSegmentIndex = 0
         stack.addArrangedSubview(chonTyLe)
+
+        stack.addArrangedSubview(taoNhanNho("Model tạo ảnh trên Google Flow"))
+        chonModelFlow.selectedSegmentIndex = 0
+        chonModelFlow.apportionsSegmentWidthsByContent = true
+        stack.addArrangedSubview(chonModelFlow)
 
         stack.addArrangedSubview(taoNhanNho("Phong cách thiết kế ảnh"))
         chonPhongCachAnh.selectedSegmentIndex = 0
@@ -1367,7 +1521,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private func taoTheHanhDong() -> UIView {
         let (the, stack) = taoKhungThe(tieuDe: "3. Tạo ảnh Google Flow & 3 bài đăng Facebook")
 
-        nutMoGoogleFlow.setTitle("🌊 Mở Google Flow ngay trong app", for: .normal)
+        nutMoGoogleFlow.setTitle("🌊 Mở Google Flow + Tự viết 3 bài", for: .normal)
         nutMoGoogleFlow.titleLabel?.font = .systemFont(ofSize: 15.5, weight: .heavy)
         nutMoGoogleFlow.backgroundColor = BangMauBCTD.xanhLaDam
         nutMoGoogleFlow.setTitleColor(.white, for: .normal)
@@ -1581,12 +1735,14 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     // MARK: - Đọc dữ liệu nhập & gọi Gemini
 
     private func thuThapThongTin() -> ThongTinSanPhamTruyenThong {
-        let tyLe: String
-        switch chonTyLe.selectedSegmentIndex {
-        case 1: tyLe = "4:5"
-        case 2: tyLe = "9:16"
-        default: tyLe = "1:1"
-        }
+        let dsTyLe = ["1:1", "3:4", "4:3", "9:16", "16:9"]
+        let idxTyLe = max(0, min(chonTyLe.selectedSegmentIndex, dsTyLe.count - 1))
+        let tyLe = dsTyLe[idxTyLe]
+
+        let dsModelFlow = ["Nano Banana 2.1", "Nano Banana Pro", "Imagen 4"]
+        let idxModel = max(0, min(chonModelFlow.selectedSegmentIndex, dsModelFlow.count - 1))
+        let modelFlow = dsModelFlow[idxModel]
+
         let phongCachAnh: String
         switch chonPhongCachAnh.selectedSegmentIndex {
         case 1: phongCachAnh = "Sang trọng"
@@ -1601,6 +1757,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             diemNoiBat: (oDiemNoiBat.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
             lienHe: (oLienHe.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
             tyLeAnh: tyLe,
+            modelFlow: modelFlow,
             phongCachAnh: phongCachAnh
         )
     }
@@ -1642,16 +1799,37 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
     @objc private func bamMoGoogleFlow() {
         view.endEditing(true)
+        let tt = thuThapThongTin()
         guard let prompt = chuanBiPromptGoogleFlow() else { return }
 
         promptChoDienFlow = prompt
         UIPasteboard.general.string = prompt
 
+        // Tự động viết luôn 3 bài đăng Facebook chạy nền song song trong lúc người dùng tạo ảnh trên Flow
+        if kiemTraHopLe(tt) {
+            datTrangThaiDangTai(true, thongDiep: "Đang tự động viết 3 phong cách bài đăng Facebook chạy nền...")
+            DichVuTruyenThongGemini.dungChung.tao3BaiDangFacebook(anhMau: anhMau, thongTin: tt) { [weak self] kq in
+                guard let self else { return }
+                switch kq {
+                case .success(let baiMoi):
+                    self.baiDang = baiMoi
+                    self.hienThiBaiDangTheoPhongCachHienTai()
+                    self.datTrangThaiDangTai(false, thongDiep: "Đã viết xong 3 phong cách bài đăng Facebook ✓", mau: BangMauBCTD.xanhLaDam)
+                    if self.thanhChuyenCheDo.selectedSegmentIndex == 1 {
+                        self.nhanTrangThaiFlow.text = "✓ Đã viết xong 3 bài FB (xem ở tab Tạo nội dung). Bấm “✨ Điền + Ảnh” để đồng bộ Flow."
+                        self.nhanTrangThaiFlow.textColor = BangMauBCTD.xanhLaDam
+                    }
+                case .failure(let err):
+                    self.datTrangThaiDangTai(false, thongDiep: "⚠️ Lỗi viết bài nền: \(err.localizedDescription)", mau: .systemRed)
+                }
+            }
+        }
+
         // Chuyển ngay sang tab Google Flow tích hợp trong app DMX
         thanhChuyenCheDo.selectedSegmentIndex = 1
         doiCheDoTab()
 
-        nhanTrangThaiFlow.text = "Đã chuẩn bị prompt — đang tự điền vào Google Flow..."
+        nhanTrangThaiFlow.text = "Đang tự viết 3 bài FB ở nền & đồng bộ \(tt.modelFlow) (\(tt.tyLeAnh)) vào Flow..."
         nhanTrangThaiFlow.textColor = BangMauBCTD.xanhChuDao
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
