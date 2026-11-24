@@ -927,7 +927,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         guard kiemTraHopLe(tt) else { return nil }
         let promptMoi = DichVuTruyenThongGemini.dungChung.taoPromptChoGoogleFlow(
             thongTin: tt,
-            coAnhMau: anhMauChon != nil
+            coAnhMau: anhMau != nil
         )
         promptFlowTuTaoGanNhat = promptMoi
         oPromptFlow.text = promptMoi
