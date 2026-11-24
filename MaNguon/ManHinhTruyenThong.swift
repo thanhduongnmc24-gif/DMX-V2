@@ -37,7 +37,9 @@ final class DichVuTruyenThongGemini {
     private let cacModelVietBai: [String] = [
         "gemini-3.5-flash-lite",
         "gemini-3.1-flash-lite",
-        "gemini-3.8-flash"
+        "gemini-3.8-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-3.1-flash-lite-preview"
     ]
 
     private func thuGonAnhMau(_ anh: UIImage) -> Data? {
@@ -214,7 +216,7 @@ final class DichVuTruyenThongGemini {
                     chiSoTiep = chiSo + 1
                 }
                 if chiSoTiep < cacCap.count {
-                    let delay: TimeInterval = (status == 429 || status == 503) ? 0.4 : 0.05
+                    let delay: TimeInterval = (status == 503) ? 1.2 : ((status == 429) ? 0.6 : 0.05)
                     DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) {
                         self.goiTaoAnh(cacCap: cacCap, chiSo: chiSoTiep, prompt: prompt, anhData: anhData, tyLe: tyLe, hoanTat: hoanTat)
                     }
@@ -410,6 +412,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private var webViewFlow: WKWebView!
     private var daTaiTrangFlow = false
     private var canTaoDuAnMoiFlow = false
+    private var maPhienChoAnhFlow: Int = 0
     private var promptChoDienFlow: String = ""
     private let khungToastFlow = UIView()
     private let nhanTrangThaiFlow = UILabel()
@@ -434,7 +437,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private let oDiemNoiBat = UITextView()
     private let oLienHe = UITextField()
     private let chonTyLe = UISegmentedControl(items: ["1:1", "3:4", "4:3", "9:16", "16:9"])
-    private let chonModelFlow = UISegmentedControl(items: ["Nano Banana 2.1", "Nano Banana 2 Lite", "Nano Banana Pro"])
+    private let chonModelFlow = UISegmentedControl(items: ["Banana 2.1", "Banana 2 Lite", "Banana Pro"])
     private let chonPhongCachAnh = UISegmentedControl(items: ["Rực rỡ ĐMX", "Sang trọng", "Flash Sale"])
 
     // Hành động & Trạng thái
@@ -746,6 +749,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     @objc private func bamLayAnhTuFlow() {
+        maPhienChoAnhFlow += 1
         hienToastFlow("Đang lấy ảnh gốc 1K/2K từ Google Flow...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 4.0)
         vongQuayFlow.startAnimating()
 
@@ -1356,6 +1360,65 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return true;
         }
 
+        function snapshotImageSrcs() {
+          const docs = [];
+          collectDocs(document, docs);
+          const all = [];
+          for (const d of docs) collectAllElements(d, all);
+          const srcs = [];
+          for (const el of all) {
+            if ((el.tagName || '').toUpperCase() === 'IMG') {
+              const s = el.currentSrc || el.src || '';
+              if (s) srcs.push(s);
+            }
+          }
+          return [...new Set(srcs)];
+        }
+
+        function findGenerateArrowButton() {
+          const docs = [];
+          collectDocs(document, docs);
+          const all = [];
+          for (const d of docs) collectAllElements(d, all);
+          let best = null;
+          let bestScore = -1;
+          for (const el of all) {
+            if (!isVisible(el)) continue;
+            if (!el.matches || !el.matches('button, [role="button"]')) continue;
+            if (el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
+            const r = el.getBoundingClientRect();
+            if (r.top < window.innerHeight * 0.55) continue;
+            if (r.width > 72 || r.height > 72 || r.width < 24 || r.height < 24) continue;
+            const meta = [
+              el.getAttribute('aria-label') || '',
+              el.getAttribute('title') || '',
+              el.innerText || el.textContent || ''
+            ].join(' ').toLowerCase();
+            if (/(add|upload|attach|close|đóng|tải lên|thêm)/i.test(meta)) continue;
+            let score = 0;
+            if (/(arrow_forward|arrow_right|send|generate|create|submit|tạo|gửi|→)/i.test(meta)) score += 80;
+            if (r.left > window.innerWidth * 0.65) score += 50; // Nút mũi tên -> nằm góc dưới bên phải
+            if (r.left > window.innerWidth * 0.78) score += 30;
+            if (score > bestScore) {
+              bestScore = score;
+              best = el;
+            }
+          }
+          return bestScore >= 50 ? best : null;
+        }
+
+        function clickButtonFully(btn) {
+          if (!btn) return;
+          const r = btn.getBoundingClientRect();
+          const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+          const opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, button: 0 };
+          try { btn.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+          try { btn.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (_) {}
+          try { btn.dispatchEvent(new PointerEvent('pointerup', { ...opts, pointerId: 1, pointerType: 'touch', isPrimary: true })); } catch (_) {}
+          try { btn.dispatchEvent(new MouseEvent('mouseup', opts)); } catch (_) {}
+          try { btn.click(); } catch (_) {}
+        }
+
         const createdNewProject = await clickNewProjectIfNeeded();
         const cfgRes = await applyFlowSettings(targetAspect, targetModel);
         const box = findPromptBox();
@@ -1366,15 +1429,41 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         let imgStatus = 'NO_IMAGE';
         if (imageBase64) {
           imgStatus = await attachSampleImage(imageBase64, box);
+          // Chờ ảnh mẫu tải lên hoàn tất (thumbnail san-pham-dmx.jpg hiện ra và nút -> bật sáng)
+          for (let i = 0; i < 24; i++) {
+            await sleep(250);
+            const hasUploadedText = (document.body?.innerText || '').includes('san-pham-dmx');
+            const arrowReady = !!findGenerateArrowButton();
+            if (hasUploadedText && arrowReady && i >= 4) break;
+          }
+        } else {
+          await sleep(400);
         }
+
+        const existingSrcs = snapshotImageSrcs();
+        let clickedGenerate = false;
+        if (promptOk) {
+          for (let i = 0; i < 12; i++) {
+            const arrowBtn = findGenerateArrowButton();
+            if (arrowBtn) {
+              clickButtonFully(arrowBtn);
+              clickedGenerate = true;
+              break;
+            }
+            await sleep(250);
+          }
+        }
+
         return JSON.stringify({
           promptOk,
           imgStatus,
           aspectOk: cfgRes.aspectOk,
           modelOk: cfgRes.modelOk,
+          clickedGenerate,
+          existingSrcs,
           foundBox: !!box
         });
-        """#
+        \"\"\"#
 
         webViewFlow.callAsyncJavaScript(asyncJS, arguments: args, in: nil, in: .page) { [weak self] result in
             DispatchQueue.main.async {
@@ -1396,10 +1485,16 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     let daGanAnh = imgStatus.hasPrefix("ATTACHED_")
                     let moTaCauHinh = (aspectOk || modelOk) ? " (\(tt.modelFlow) · \(tt.tyLeAnh))" : ""
 
-                    if promptOk && daGanAnh {
-                        self.hienToastFlow("Đã điền Prompt, Ảnh mẫu\(moTaCauHinh) ✓", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
+                    let clickedGenerate = (obj["clickedGenerate"] as? Bool) ?? false
+                    let existingSrcs = (obj["existingSrcs"] as? [String]) ?? []
+
+                    if clickedGenerate {
+                        self.hienToastFlow("Đã bấm tạo ảnh (→)\(moTaCauHinh) — đang chờ ảnh xong để tự lấy về app...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 5.0)
+                        self.batDauChoVaTuLayAnhFlow(cacSrcCu: existingSrcs)
+                    } else if promptOk && daGanAnh {
+                        self.hienToastFlow("Đã điền Prompt, Ảnh mẫu\(moTaCauHinh) ✓ — bấm mũi tên → để tạo.", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
                     } else if promptOk {
-                        self.hienToastFlow("Đã điền Prompt\(moTaCauHinh) ✓", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
+                        self.hienToastFlow("Đã điền Prompt\(moTaCauHinh) ✓ — bấm mũi tên → để tạo.", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
                     } else if daGanAnh {
                         self.hienToastFlow("Đã gửi ảnh mẫu — chạm ô nhập rồi bấm Dán prompt.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                     } else if !tuDong {
@@ -1409,6 +1504,137 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     if !tuDong {
                         self.hienToastFlow("Đã copy sẵn prompt — chạm ô nhập trên Flow rồi bấm Dán.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                     }
+                }
+            }
+        }
+    }
+
+    private func batDauChoVaTuLayAnhFlow(cacSrcCu: [String]) {
+        maPhienChoAnhFlow += 1
+        let phienHienTai = maPhienChoAnhFlow
+        vongQuayFlow.startAnimating()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
+            self?.kiemTraAnhMoiTuFlow(phien: phienHienTai, cacSrcCu: cacSrcCu, lanThu: 0)
+        }
+    }
+
+    private func kiemTraAnhMoiTuFlow(phien: Int, cacSrcCu: [String], lanThu: Int) {
+        guard phien == maPhienChoAnhFlow else { return }
+        guard lanThu < 36 else {
+            vongQuayFlow.stopAnimating()
+            hienToastFlow("Chờ ảnh hơi lâu — khi thấy ảnh vẽ xong bạn bấm nút 📥 Lấy ảnh nhé.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92), giuLau: 4.0)
+            return
+        }
+
+        let pollJS = #"""
+        function collectImgs(root, out) {
+          if (!root) return;
+          const imgs = root.querySelectorAll ? root.querySelectorAll('img') : [];
+          for (const el of imgs) out.push(el);
+          const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
+          for (const el of all) { if (el.shadowRoot) collectImgs(el.shadowRoot, out); }
+        }
+
+        function buildCandidateUrls(rawUrl) {
+          const urls = [];
+          if (!rawUrl) return urls;
+          if (/googleusercontent\.com/i.test(rawUrl)) {
+            const base = rawUrl.replace(/=[a-zA-Z0-9\-_]+$/, '');
+            if (base && base !== rawUrl) {
+              urls.push(base + '=s0');
+              urls.push(base + '=w2048');
+            }
+          }
+          urls.push(rawUrl);
+          return [...new Set(urls)];
+        }
+
+        async function fetchAsDataUrl(url) {
+          try {
+            const resp = await fetch(url, { credentials: 'include' });
+            if (!resp.ok) return null;
+            const blob = await resp.blob();
+            if (!blob || !blob.type.startsWith('image/')) return null;
+            return await new Promise((resolve) => {
+              const fr = new FileReader();
+              fr.onloadend = () => resolve(typeof fr.result === 'string' ? fr.result : null);
+              fr.onerror = () => resolve(null);
+              fr.readAsDataURL(blob);
+            });
+          } catch (_) {
+            return null;
+          }
+        }
+
+        const oldSet = new Set(oldSrcs || []);
+        const imgs = [];
+        collectImgs(document, imgs);
+        let newest = null;
+        let bestArea = 0;
+
+        for (const el of imgs) {
+          if (!el.complete) continue;
+          const src = el.currentSrc || el.src || '';
+          if (!src || oldSet.has(src)) continue;
+          if (/^(data:image\/svg|blob:)/i.test(src) && (el.naturalWidth < 512 || el.naturalHeight < 512)) continue;
+          if (/(avatar|profile|logo|icon|googleusercontent\.com\/a\/)/i.test(src)) continue;
+          const nw = el.naturalWidth || 0;
+          const nh = el.naturalHeight || 0;
+          if (nw < 512 || nh < 512) continue;
+          const area = nw * nh;
+          if (area >= bestArea) {
+            bestArea = area;
+            newest = el;
+          }
+        }
+
+        if (!newest) return "WAITING";
+
+        const rawSrc = newest.currentSrc || newest.src || '';
+        for (const u of buildCandidateUrls(rawSrc)) {
+          const d = await fetchAsDataUrl(u);
+          if (d && d.startsWith('data:image/')) return d;
+        }
+        try {
+          const c = document.createElement('canvas');
+          c.width = newest.naturalWidth;
+          c.height = newest.naturalHeight;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(newest, 0, 0);
+          return c.toDataURL('image/png');
+        } catch (_) {
+          return "WAITING";
+        }
+        """#
+
+        webViewFlow.callAsyncJavaScript(pollJS, arguments: ["oldSrcs": cacSrcCu], in: nil, in: .page) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self, phien == self.maPhienChoAnhFlow else { return }
+                if case .success(let value) = result,
+                   let str = value as? String,
+                   str.hasPrefix("data:image/"),
+                   let comma = str.firstIndex(of: ","),
+                   let data = Data(base64Encoded: String(str[str.index(after: comma)...])),
+                   let img = UIImage(data: data) {
+                    self.maPhienChoAnhFlow += 1
+                    self.vongQuayFlow.stopAnimating()
+                    let pxW = Int((img.size.width * img.scale).rounded())
+                    let pxH = Int((img.size.height * img.scale).rounded())
+                    self.anhKetQua = img
+                    self.anhKetQuaView.image = img
+                    self.theAnhKetQua.isHidden = false
+                    self.thanhChuyenCheDo.selectedSegmentIndex = 0
+                    self.doiCheDoTab()
+                    self.nhanTrangThai.text = "✅ Đã tự lấy ảnh gốc (\(pxW)×\(pxH) px) từ Google Flow về mục 4!"
+                    self.nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        let rect = self.theAnhKetQua.convert(self.theAnhKetQua.bounds, to: self.cuon)
+                        self.cuon.scrollRectToVisible(rect, animated: true)
+                    }
+                    return
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                    self?.kiemTraAnhMoiTuFlow(phien: phien, cacSrcCu: cacSrcCu, lanThu: lanThu + 1)
                 }
             }
         }
@@ -1619,6 +1845,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         stack.addArrangedSubview(taoNhanNho("Model tạo ảnh trên Google Flow"))
         chonModelFlow.selectedSegmentIndex = 0
         chonModelFlow.apportionsSegmentWidthsByContent = true
+        chonModelFlow.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12.5, weight: .semibold)], for: .normal)
+        chonModelFlow.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12.5, weight: .bold)], for: .selected)
         stack.addArrangedSubview(chonModelFlow)
 
         stack.addArrangedSubview(taoNhanNho("Phong cách thiết kế ảnh"))
@@ -1779,6 +2007,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         let (the, stack) = taoKhungThe(tieuDe: "5. Kết quả bài đăng Facebook (3 phong cách)")
 
         chonPhongCachBai.selectedSegmentIndex = 0
+        chonPhongCachBai.apportionsSegmentWidthsByContent = true
+        chonPhongCachBai.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12, weight: .semibold)], for: .normal)
+        chonPhongCachBai.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12, weight: .bold)], for: .selected)
         chonPhongCachBai.addTarget(self, action: #selector(doiPhongCachBai), for: .valueChanged)
         stack.addArrangedSubview(chonPhongCachBai)
 
