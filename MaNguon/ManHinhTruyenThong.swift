@@ -616,7 +616,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         nutFlowCopyPrompt.widthAnchor.constraint(equalToConstant: 72).isActive = true
 
         vongQuayFlow.hidesWhenStopped = true
-        nhanTrangThaiFlow.text = "Mở dự án trong Google Flow rồi bấm "Điền Prompt" nếu chưa tự điền."
+        nhanTrangThaiFlow.text = "Mở dự án trong Google Flow rồi bấm “Điền Prompt” nếu chưa tự điền."
         nhanTrangThaiFlow.font = .systemFont(ofSize: 12)
         nhanTrangThaiFlow.textColor = BangMauBCTD.chuPhu
         nhanTrangThaiFlow.numberOfLines = 2
@@ -737,7 +737,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         nhanTrangThaiFlow.textColor = BangMauBCTD.xanhChuDao
         vongQuayFlow.startAnimating()
 
-        let asyncJS = """
+        let asyncJS = #"""
         function collectMedia(root, out) {
           if (!root) return;
           const imgs = root.querySelectorAll ? root.querySelectorAll('img, canvas') : [];
@@ -789,7 +789,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         } catch (_) {
           return "CORS_BLOCKED";
         }
-        """
+        """#
 
         webViewFlow.callAsyncJavaScript(asyncJS, arguments: [:], in: nil, in: .page) { [weak self] result in
             DispatchQueue.main.async {
@@ -919,7 +919,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             guard let self else { return }
             let bodyText = (res as? String) ?? ""
             if bodyText.localizedCaseInsensitiveContains("disallowed_useragent") {
-                self.nhanTrangThaiFlow.text = "Google chặn đăng nhập ở khung này — hãy bấm nút "🔒 Safari trong app" ở góc phải trên."
+                self.nhanTrangThaiFlow.text = "Google chặn đăng nhập ở khung này — hãy bấm nút “🔒 Safari trong app” ở góc phải trên."
                 self.nhanTrangThaiFlow.textColor = .systemRed
                 return
             }
