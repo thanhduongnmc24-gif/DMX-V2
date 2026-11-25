@@ -272,8 +272,7 @@ final class DichVuTruyenThongGemini {
             Quy tắc thẩm mỹ & bố cục bắt buộc:
             - Tuyệt đối KHÔNG viết các chữ đánh số thứ tự như "Sản phẩm 1", "Sản phẩm 2", "SP 1", "SP 2", "Mặt hàng 1" lên ảnh poster; chỉ hiển thị trực tiếp tên thật và mức giá của từng món.
             - Nếu có hình mã QR trong ảnh mẫu, hãy đặt mã QR trong khung thẻ trắng bo góc tinh tế, sắc nét, phẳng phiu ở vị trí cân đối để khách hàng quét được ngay.
-            - Sử dụng phông chữ không chân (modern geometric bold sans-serif) dày dặn, rõ dấu tiếng Việt, độ tương phản cao, không sinh chữ tiếng Anh vô nghĩa.
-            - Quy tắc vùng an toàn (Safe Zone 80%): Thiết kế phông nền và ánh sáng tràn đầy tự nhiên ra sát mép ảnh bình thường (KHÔNG vẽ khung viền trắng hay viền đen), NHƯNG BẮT BUỘC gom toàn bộ nội dung chính (tiêu đề, sản phẩm, bục trưng bày, giá bán, huy hiệu ưu đãi, thanh địa chỉ/hotline và icon) co gọn vào vùng 80% chính giữa ảnh — chừa trống ít nhất 10% lề nền ở cả 4 cạnh (trên, dưới, trái, phải) tuyệt đối không chứa bất kỳ chữ viết, logo hay chi tiết quan trọng nào.
+            - Sử dụng phông chữ không chân (modern geometric bold sans-serif) dày dặn, rõ dấu tiếng Việt, độ tương phản cao, không sinh chữ tiếng Anh vô nghĩa và không chèn watermark lạ.
             """
         }
 
@@ -297,8 +296,7 @@ final class DichVuTruyenThongGemini {
         \(chiTiet.joined(separator: "\n"))
         Quy tắc thẩm mỹ & bố cục bắt buộc:
         - Phân cấp thị giác 3 tầng chuẩn mực: Sản phẩm sắc nét có ánh sáng viền (rim-light) và đổ bóng tự nhiên ở trung tâm; cụm tiêu đề & bảng giá khuyến mãi tương phản cao cực kỳ dễ đọc; chân poster gọn gàng.
-        - Tuyệt đối KHÔNG viết các chữ thừa như "Sản phẩm 1", "SP 1" lên ảnh; sử dụng phông chữ sans-serif hiện đại, dày dặn, rõ dấu tiếng Việt, không thêm chữ tiếng Anh vô nghĩa.
-        - Quy tắc vùng an toàn (Safe Zone 80%): Thiết kế phông nền và ánh sáng tràn đầy tự nhiên ra sát mép ảnh bình thường (KHÔNG vẽ khung viền trắng hay viền đen), NHƯNG BẮT BUỘC gom toàn bộ nội dung chính (tiêu đề, sản phẩm, bục trưng bày, giá bán, huy hiệu ưu đãi, thanh địa chỉ/hotline và icon) co gọn vào vùng 80% chính giữa ảnh — chừa trống ít nhất 10% lề nền ở cả 4 cạnh (trên, dưới, trái, phải) tuyệt đối không chứa bất kỳ chữ viết, logo hay chi tiết quan trọng nào.
+        - Tuyệt đối KHÔNG viết các chữ thừa như "Sản phẩm 1", "SP 1" lên ảnh; sử dụng phông chữ sans-serif hiện đại, dày dặn, rõ dấu tiếng Việt, không thêm chữ tiếng Anh vô nghĩa hay watermark lạ.
         """
     }
 
@@ -1123,8 +1121,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private let oUuDai = UITextField()
     private let oDiemNoiBat = UITextView()
     private let oLienHe = UITextField()
-    private let chonTyLe = UISegmentedControl(items: ["1:1", "3:4", "4:3", "9:16", "16:9"])
-    private let chonModelFlow = UISegmentedControl(items: ["Banana 2.1", "Banana 2 Lite", "Banana Pro"])
+    private let danhSachTyLe = ["1:1", "3:4", "4:3", "9:16", "16:9"]
+    private let danhSachModelFlow = ["Nano Banana 2.1", "Nano Banana 2 Lite", "Nano Banana Pro"]
+    private var chiSoTyLeDangChon: Int = 0
+    private var chiSoModelFlowDangChon: Int = 0
+    private let nutChonTyLe = UIButton(type: .system)
+    private let nutChonModelFlow = UIButton(type: .system)
     private var danhSachPhongCach: [PhongCachThietKe] = KhoPhongCachThietKe.dungChung.layTatCaPhongCach()
     private var idPhongCachDangChon: String = "don_gian"
     private var dangChonAnhChoPhongCach = false
@@ -2271,31 +2273,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         }
     }
 
-    /// Cắt đều 10% lề an toàn ở cả 4 cạnh (giữ nguyên vùng 80% chính giữa & giữ chuẩn tỷ lệ ảnh) sau khi tải ảnh về app.
+    /// Giữ nguyên toàn bộ khung ảnh gốc (không cắt viền).
     private func catVienTrangTuDong(_ img: UIImage) -> UIImage {
-        return autoreleasepool {
-            let w = Int((img.size.width * img.scale).rounded())
-            let h = Int((img.size.height * img.scale).rounded())
-            guard w >= 120, h >= 120 else { return img }
-
-            let fmt = UIGraphicsImageRendererFormat()
-            fmt.scale = 1.0
-            fmt.opaque = true
-            let rendered = UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: fmt).image { _ in
-                img.draw(in: CGRect(x: 0, y: 0, width: w, height: h))
-            }
-            guard let cgFull = rendered.cgImage else { return img }
-
-            let cropX = Int((Double(w) * 0.10).rounded())
-            let cropY = Int((Double(h) * 0.10).rounded())
-            let newW = w - cropX * 2
-            let newH = h - cropY * 2
-            guard newW > 60, newH > 60,
-                  let cgCropped = cgFull.cropping(to: CGRect(x: cropX, y: cropY, width: newW, height: newH)) else {
-                return img
-            }
-            return UIImage(cgImage: cgCropped, scale: 1.0, orientation: .up)
-        }
+        return img
     }
 
     /// Đảm bảo ảnh lấy về luôn đạt chuẩn tối thiểu 1K (1024px cạnh lớn) sắc nét nếu Flow chỉ trả về bản preview 512px.
@@ -4549,18 +4529,43 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         stack.addArrangedSubview(taoNhanNho("Siêu thị / Hotline / Địa chỉ (chung cho Poster)"))
         stack.addArrangedSubview(taoOChiTiet(oLienHe, goiY: "VD: ĐMX Siêu thị 76 · Hotline 09xx.xxx.xxx"))
 
-        stack.addArrangedSubview(taoNhanNho("Kích thước / Tỷ lệ ảnh (đồng bộ Google Flow)"))
-        chonTyLe.selectedSegmentIndex = 0
-        chonTyLe.addTarget(self, action: #selector(khiThayDoiCaiDatPoster), for: .valueChanged)
-        stack.addArrangedSubview(chonTyLe)
+        func taoStyleCombobox(_ btn: UIButton) {
+            btn.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .semibold)
+            btn.backgroundColor = BangMauBCTD.nenTrang
+            btn.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+            btn.tintColor = BangMauBCTD.xanhChuDao
+            btn.layer.cornerRadius = 10
+            btn.layer.borderWidth = 1
+            btn.layer.borderColor = BangMauBCTD.vienDam.cgColor
+            btn.contentHorizontalAlignment = .left
+            btn.contentEdgeInsets = UIEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
+            btn.heightAnchor.constraint(equalToConstant: 42).isActive = true
+            btn.showsMenuAsPrimaryAction = true
+        }
+        taoStyleCombobox(nutChonTyLe)
+        taoStyleCombobox(nutChonModelFlow)
+        capNhatComboboxTyLeVaModel()
 
-        stack.addArrangedSubview(taoNhanNho("Model tạo ảnh trên Google Flow"))
-        chonModelFlow.selectedSegmentIndex = 0
-        chonModelFlow.apportionsSegmentWidthsByContent = true
-        chonModelFlow.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12.5, weight: .semibold)], for: .normal)
-        chonModelFlow.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12.5, weight: .bold)], for: .selected)
-        chonModelFlow.addTarget(self, action: #selector(khiThayDoiCaiDatPoster), for: .valueChanged)
-        stack.addArrangedSubview(chonModelFlow)
+        let cotTyLe = UIStackView(arrangedSubviews: [
+            taoNhanNho("Tỷ lệ ảnh"),
+            nutChonTyLe
+        ])
+        cotTyLe.axis = .vertical
+        cotTyLe.spacing = 6
+        cotTyLe.widthAnchor.constraint(equalToConstant: 112).isActive = true
+
+        let cotModel = UIStackView(arrangedSubviews: [
+            taoNhanNho("Model Google Flow"),
+            nutChonModelFlow
+        ])
+        cotModel.axis = .vertical
+        cotModel.spacing = 6
+
+        let hangTyLeVaModel = UIStackView(arrangedSubviews: [cotTyLe, cotModel])
+        hangTyLeVaModel.axis = .horizontal
+        hangTyLeVaModel.spacing = 10
+        hangTyLeVaModel.alignment = .fill
+        stack.addArrangedSubview(hangTyLeVaModel)
 
         stack.addArrangedSubview(taoNhanNho("Phong cách thiết kế ảnh (Combobox + Thêm từ ảnh)"))
         nutChonPhongCach.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
@@ -4613,7 +4618,21 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     private func taoTheHanhDong() -> UIView {
-        let (the, stack) = taoKhungThe(tieuDe: "3. Tạo ảnh Google Flow & 3 bài đăng Facebook")
+        let (the, stack) = taoKhungThe(tieuDe: "3. Prompt & Tạo ảnh Google Flow / 3 bài đăng Facebook")
+
+        stack.addArrangedSubview(taoNhanNho("Prompt tạo ảnh (tự cập nhật theo sản phẩm, chạm để xem & sửa trực tiếp):"))
+        oPromptFlow.font = .systemFont(ofSize: 14)
+        oPromptFlow.textColor = BangMauBCTD.chuChinh
+        oPromptFlow.backgroundColor = BangMauBCTD.nenTrang
+        oPromptFlow.layer.cornerRadius = 12
+        oPromptFlow.layer.borderWidth = 1
+        oPromptFlow.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        oPromptFlow.textContainerInset = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+        oPromptFlow.isScrollEnabled = true
+        oPromptFlow.heightAnchor.constraint(equalToConstant: 220).isActive = true
+        oPromptFlow.delegate = self
+        oPromptFlow.text = ""
+        stack.addArrangedSubview(oPromptFlow)
 
         nutMoGoogleFlow.setTitle("🌊 Tạo ảnh Google Flow (chạy nền) + 3 bài", for: .normal)
         nutMoGoogleFlow.titleLabel?.font = .systemFont(ofSize: 15, weight: .heavy)
@@ -4661,19 +4680,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         hangFlowPhu.spacing = 10
         hangFlowPhu.distribution = .fillEqually
         stack.addArrangedSubview(hangFlowPhu)
-
-        stack.addArrangedSubview(taoNhanNho("Prompt sẽ tự điền vào Google Flow (có thể sửa tay nếu muốn):"))
-        oPromptFlow.font = .systemFont(ofSize: 13)
-        oPromptFlow.textColor = BangMauBCTD.chuChinh
-        oPromptFlow.backgroundColor = BangMauBCTD.nenTrang
-        oPromptFlow.layer.cornerRadius = 10
-        oPromptFlow.layer.borderWidth = 1
-        oPromptFlow.layer.borderColor = BangMauBCTD.vienDam.cgColor
-        oPromptFlow.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
-        oPromptFlow.heightAnchor.constraint(equalToConstant: 86).isActive = true
-        oPromptFlow.delegate = self
-        oPromptFlow.text = ""
-        stack.addArrangedSubview(oPromptFlow)
 
         nutChiVietBai.setTitle("✍️ Viết 3 bài đăng Facebook (Gemini Free)", for: .normal)
         nutChiVietBai.titleLabel?.font = .systemFont(ofSize: 14.5, weight: .heavy)
@@ -4809,6 +4815,33 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     // MARK: - Chọn ảnh mẫu
+
+    private func capNhatComboboxTyLeVaModel() {
+        let idxTyLe = max(0, min(chiSoTyLeDangChon, danhSachTyLe.count - 1))
+        chiSoTyLeDangChon = idxTyLe
+        nutChonTyLe.setTitle("📐 \(danhSachTyLe[idxTyLe])  ▾", for: .normal)
+        nutChonTyLe.menu = UIMenu(title: "Chọn tỷ lệ ảnh", children: danhSachTyLe.enumerated().map { idx, tl in
+            UIAction(title: tl, state: (idx == idxTyLe) ? .on : .off) { [weak self] _ in
+                guard let self else { return }
+                self.chiSoTyLeDangChon = idx
+                self.capNhatComboboxTyLeVaModel()
+                self.lenLichLuuPhien()
+            }
+        })
+
+        let idxModel = max(0, min(chiSoModelFlowDangChon, danhSachModelFlow.count - 1))
+        chiSoModelFlowDangChon = idxModel
+        let tenNganModel = danhSachModelFlow[idxModel].replacingOccurrences(of: "Nano ", with: "")
+        nutChonModelFlow.setTitle("🍌 \(tenNganModel)  ▾", for: .normal)
+        nutChonModelFlow.menu = UIMenu(title: "Chọn Model Google Flow", children: danhSachModelFlow.enumerated().map { idx, md in
+            UIAction(title: md, state: (idx == idxModel) ? .on : .off) { [weak self] _ in
+                guard let self else { return }
+                self.chiSoModelFlowDangChon = idx
+                self.capNhatComboboxTyLeVaModel()
+                self.lenLichLuuPhien()
+            }
+        })
+    }
 
     private func layPhongCachDangChon() -> PhongCachThietKe {
         return danhSachPhongCach.first(where: { $0.id == idPhongCachDangChon })
@@ -4988,13 +5021,11 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private func thuThapThongTin() -> ThongTinSanPhamTruyenThong {
         luuDuLieuTabHienTai()
 
-        let dsTyLe = ["1:1", "3:4", "4:3", "9:16", "16:9"]
-        let idxTyLe = max(0, min(chonTyLe.selectedSegmentIndex, dsTyLe.count - 1))
-        let tyLe = dsTyLe[idxTyLe]
+        let idxTyLe = max(0, min(chiSoTyLeDangChon, danhSachTyLe.count - 1))
+        let tyLe = danhSachTyLe[idxTyLe]
 
-        let dsModelFlow = ["Nano Banana 2.1", "Nano Banana 2 Lite", "Nano Banana Pro"]
-        let idxModel = max(0, min(chonModelFlow.selectedSegmentIndex, dsModelFlow.count - 1))
-        let modelFlow = dsModelFlow[idxModel]
+        let idxModel = max(0, min(chiSoModelFlowDangChon, danhSachModelFlow.count - 1))
+        let modelFlow = danhSachModelFlow[idxModel]
 
         let pc = layPhongCachDangChon()
         let spChinh = danhSachSanPham.first(where: { $0.coDuLieu }) ?? danhSachSanPham[chiSoSanPhamHienTai]
@@ -5382,8 +5413,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             danhSachSanPham: danhSachSanPham,
             chiSoSanPhamHienTai: chiSoSanPhamHienTai,
             lienHe: oLienHe.text ?? "",
-            chiSoTyLe: chonTyLe.selectedSegmentIndex,
-            chiSoModelFlow: chonModelFlow.selectedSegmentIndex,
+            chiSoTyLe: chiSoTyLeDangChon,
+            chiSoModelFlow: chiSoModelFlowDangChon,
             chiSoPhongCachAnh: danhSachPhongCach.firstIndex(where: { $0.id == idPhongCachDangChon }) ?? 0,
             idPhongCachDangChon: idPhongCachDangChon,
             toneMauChuDe: oToneMauChuDe.text ?? "",
@@ -5404,12 +5435,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         chiSoSanPhamHienTai = max(0, min(dl.chiSoSanPhamHienTai, danhSachSanPham.count - 1))
 
         oLienHe.text = dl.lienHe
-        if dl.chiSoTyLe >= 0 && dl.chiSoTyLe < chonTyLe.numberOfSegments {
-            chonTyLe.selectedSegmentIndex = dl.chiSoTyLe
+        if dl.chiSoTyLe >= 0 && dl.chiSoTyLe < danhSachTyLe.count {
+            chiSoTyLeDangChon = dl.chiSoTyLe
         }
-        if dl.chiSoModelFlow >= 0 && dl.chiSoModelFlow < chonModelFlow.numberOfSegments {
-            chonModelFlow.selectedSegmentIndex = dl.chiSoModelFlow
+        if dl.chiSoModelFlow >= 0 && dl.chiSoModelFlow < danhSachModelFlow.count {
+            chiSoModelFlowDangChon = dl.chiSoModelFlow
         }
+        capNhatComboboxTyLeVaModel()
         danhSachPhongCach = KhoPhongCachThietKe.dungChung.layTatCaPhongCach()
         if let savedId = dl.idPhongCachDangChon, danhSachPhongCach.contains(where: { $0.id == savedId }) {
             idPhongCachDangChon = savedId
