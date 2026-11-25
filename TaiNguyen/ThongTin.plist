@@ -15,6 +15,8 @@
 <key>LSSupportsOpeningDocumentsInPlace</key><true/>
 <key>NSPhotoLibraryUsageDescription</key><string>Ứng dụng cần quyền truy cập Thư viện ảnh để chọn ảnh chụp màn hình tổng hợp số liệu.</string>
 <key>NSPhotoLibraryAddUsageDescription</key><string>Ứng dụng cần quyền lưu ảnh bảng tổng hợp vào Thư viện ảnh.</string>
+<key>UIBackgroundModes</key>
+<array><string>audio</string></array>
 <key>UILaunchScreen</key><dict/>
 <key>UIRequiresFullScreen</key><true/>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
