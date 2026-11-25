@@ -273,7 +273,7 @@ final class DichVuTruyenThongGemini {
             - Tuyệt đối KHÔNG viết các chữ đánh số thứ tự như "Sản phẩm 1", "Sản phẩm 2", "SP 1", "SP 2", "Mặt hàng 1" lên ảnh poster; chỉ hiển thị trực tiếp tên thật và mức giá của từng món.
             - Nếu có hình mã QR trong ảnh mẫu, hãy đặt mã QR trong khung thẻ trắng bo góc tinh tế, sắc nét, phẳng phiu ở vị trí cân đối để khách hàng quét được ngay.
             - Sử dụng phông chữ không chân (modern geometric bold sans-serif) dày dặn, rõ dấu tiếng Việt, độ tương phản cao, không sinh chữ tiếng Anh vô nghĩa.
-            - BẮT BUỘC đóng khung toàn bộ thiết kế poster nằm gọn bên trong một viền trắng tinh khiết (#FFFFFF) dày khoảng 10% đều ở cả 4 cạnh (trên, dưới, trái, phải) bao quanh ảnh; tuyệt đối KHÔNG để chữ, sản phẩm hay nền màu tràn ra phần viền trắng 10% ngoài cùng này.
+            - BẮT BUỘC đóng khung toàn bộ thiết kế poster nằm gọn bên trong một khung viền đen tuyền (#000000) dày khoảng 12% đều ở cả 4 cạnh (trên, dưới, trái, phải) bao quanh ảnh, có 1 đường kẻ trắng mảnh (#FFFFFF, 2px) phân tách rõ giữa poster bên trong và phần viền đen bên ngoài. Trên dải viền đen ngoài cùng (đặc biệt cạnh trên và cạnh dưới) in rải rác vài ký tự nhỏ màu xám nhạt kiểu "•  DMX  •  2026  •" để viền đen trông như khung bìa tạp chí; tuyệt đối KHÔNG để sản phẩm hay chữ chính của poster tràn ra ngoài đường kẻ trắng vào phần viền đen.
             """
         }
 
@@ -298,7 +298,7 @@ final class DichVuTruyenThongGemini {
         Quy tắc thẩm mỹ & bố cục bắt buộc:
         - Phân cấp thị giác 3 tầng chuẩn mực: Sản phẩm sắc nét có ánh sáng viền (rim-light) và đổ bóng tự nhiên ở trung tâm; cụm tiêu đề & bảng giá khuyến mãi tương phản cao cực kỳ dễ đọc; chân poster gọn gàng.
         - Tuyệt đối KHÔNG viết các chữ thừa như "Sản phẩm 1", "SP 1" lên ảnh; sử dụng phông chữ sans-serif hiện đại, dày dặn, rõ dấu tiếng Việt, không thêm chữ tiếng Anh vô nghĩa.
-        - BẮT BUỘC đóng khung toàn bộ thiết kế poster nằm gọn bên trong một viền trắng tinh khiết (#FFFFFF) dày khoảng 10% đều ở cả 4 cạnh (trên, dưới, trái, phải) bao quanh ảnh; tuyệt đối KHÔNG để chữ, sản phẩm hay nền màu tràn ra phần viền trắng 10% ngoài cùng này.
+        - BẮT BUỘC đóng khung toàn bộ thiết kế poster nằm gọn bên trong một khung viền đen tuyền (#000000) dày khoảng 12% đều ở cả 4 cạnh (trên, dưới, trái, phải) bao quanh ảnh, có 1 đường kẻ trắng mảnh (#FFFFFF, 2px) phân tách rõ giữa poster bên trong và phần viền đen bên ngoài. Trên dải viền đen ngoài cùng (đặc biệt cạnh trên và cạnh dưới) in rải rác vài ký tự nhỏ màu xám nhạt kiểu "•  DMX  •  2026  •" để viền đen trông như khung bìa tạp chí; tuyệt đối KHÔNG để sản phẩm hay chữ chính của poster tràn ra ngoài đường kẻ trắng vào phần viền đen.
         """
     }
 
@@ -2271,7 +2271,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         }
     }
 
-    /// Tự động phát hiện và cắt sạch khung viền trắng xung quanh ảnh (bỏ qua góc dưới phải nơi đặt watermark để không bị chặn cắt), sau đó giữ chuẩn tối thiểu 1K.
+    /// Tự động phát hiện và cắt sạch khung viền đen tuyền (có ký tự nhỏ + đường kẻ trắng phân tách) hoặc viền trắng xung quanh ảnh.
     private func catVienTrangTuDong(_ img: UIImage) -> UIImage {
         return autoreleasepool {
             let w = Int((img.size.width * img.scale).rounded())
@@ -2304,90 +2304,143 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 return pixels[idx] >= 235 && pixels[idx + 1] >= 235 && pixels[idx + 2] >= 235
             }
 
-            let maxCropX = Int(Double(w) * 0.24)
-            let maxCropY = Int(Double(h) * 0.24)
+            @inline(__always)
+            func laDiemDenTuyen(_ x: Int, _ y: Int) -> Bool {
+                let idx = y * bytesPerRow + x * bytesPerPixel
+                return pixels[idx] <= 26 && pixels[idx + 1] <= 26 && pixels[idx + 2] <= 26
+            }
+
+            @inline(__always)
+            func laDiemDuongKeSang(_ x: Int, _ y: Int) -> Bool {
+                let idx = y * bytesPerRow + x * bytesPerPixel
+                let r = Int(pixels[idx]), g = Int(pixels[idx + 1]), b = Int(pixels[idx + 2])
+                return (r + g + b) >= 510 || (r >= 190 && g >= 165)
+            }
+
             let step = max(1, min(w, h) / 256)
 
-            // 1. Quét cạnh trên (x: 15%..85%)
-            let xStartTop = Int(Double(w) * 0.15)
-            let xEndTop = Int(Double(w) * 0.85)
-            var cropTop = 0
-            for y in 0..<maxCropY {
-                var total = 0, white = 0
-                var x = xStartTop
-                while x < xEndTop {
-                    total += 1
-                    if laDiemTrang(x, y) { white += 1 }
-                    x += step
-                }
-                if total > 0 && Double(white) / Double(total) >= 0.90 {
-                    cropTop = y + 1
-                } else {
-                    break
+            // Kiểm tra mép ngoài cùng (6px) xem là khung viền đen hay khung viền trắng
+            var demTongMep = 0, demDenMep = 0, demTrangMep = 0
+            for d in 0..<min(6, h / 10) {
+                var x = Int(Double(w) * 0.15)
+                while x < Int(Double(w) * 0.85) {
+                    demTongMep += 2
+                    if laDiemDenTuyen(x, d) { demDenMep += 1 }
+                    if laDiemTrang(x, d) { demTrangMep += 1 }
+                    if laDiemDenTuyen(x, h - 1 - d) { demDenMep += 1 }
+                    if laDiemTrang(x, h - 1 - d) { demTrangMep += 1 }
+                    x += step * 2
                 }
             }
 
-            // 2. Quét cạnh dưới (x: 10%..76% — tránh góc dưới phải nơi có dấu sao watermark)
-            let xStartBot = Int(Double(w) * 0.10)
-            let xEndBot = Int(Double(w) * 0.76)
-            var cropBottom = 0
-            for offset in 0..<maxCropY {
-                let y = h - 1 - offset
-                var total = 0, white = 0
-                var x = xStartBot
-                while x < xEndBot {
-                    total += 1
-                    if laDiemTrang(x, y) { white += 1 }
-                    x += step
+            let laKhungDen = demTongMep > 0 && Double(demDenMep) / Double(demTongMep) >= 0.72
+            let laKhungTrang = demTongMep > 0 && Double(demTrangMep) / Double(demTongMep) >= 0.85
+            guard laKhungDen || laKhungTrang else { return img }
+
+            let maxCropX = Int(Double(w) * 0.24)
+            let maxCropY = Int(Double(h) * 0.24)
+
+            func quetCanhNgang(batDauTuDuoi: Bool) -> Int {
+                let xStart = Int(Double(w) * (batDauTuDuoi ? 0.12 : 0.15))
+                let xEnd = Int(Double(w) * (batDauTuDuoi ? 0.76 : 0.85))
+                var ketQua = 0
+                var daGapDuongKe = false
+                for offset in 0..<maxCropY {
+                    let y = batDauTuDuoi ? (h - 1 - offset) : offset
+                    var total = 0, match = 0, bright = 0
+                    var x = xStart
+                    while x < xEnd {
+                        total += 1
+                        if laKhungDen {
+                            if laDiemDenTuyen(x, y) { match += 1 }
+                            if laDiemDuongKeSang(x, y) { bright += 1 }
+                        } else {
+                            if laDiemTrang(x, y) { match += 1 }
+                        }
+                        x += step
+                    }
+                    guard total > 0 else { break }
+                    let tyLeMatch = Double(match) / Double(total)
+                    if laKhungDen {
+                        let tyLeSang = Double(bright) / Double(total)
+                        if offset >= 16 && tyLeSang >= 0.42 {
+                            daGapDuongKe = true
+                            ketQua = offset + 1
+                            continue
+                        }
+                        if daGapDuongKe {
+                            break
+                        }
+                        // Cho phép ~32% pixel sáng hơn (ký tự nhỏ trên viền đen) mà vẫn nhận diện là viền đen
+                        if tyLeMatch >= 0.65 {
+                            ketQua = offset + 1
+                        } else {
+                            break
+                        }
+                    } else {
+                        if tyLeMatch >= 0.90 {
+                            ketQua = offset + 1
+                        } else {
+                            break
+                        }
+                    }
                 }
-                if total > 0 && Double(white) / Double(total) >= 0.90 {
-                    cropBottom = offset + 1
-                } else {
-                    break
-                }
+                return ketQua
             }
 
-            // 3. Quét cạnh trái (y: 15%..85%)
-            let yStartLeft = Int(Double(h) * 0.15)
-            let yEndLeft = Int(Double(h) * 0.85)
-            var cropLeft = 0
-            for x in 0..<maxCropX {
-                var total = 0, white = 0
-                var y = yStartLeft
-                while y < yEndLeft {
-                    total += 1
-                    if laDiemTrang(x, y) { white += 1 }
-                    y += step
+            func quetCanhDoc(batDauTuPhai: Bool) -> Int {
+                let yStart = Int(Double(h) * (batDauTuPhai ? 0.12 : 0.15))
+                let yEnd = Int(Double(h) * (batDauTuPhai ? 0.76 : 0.85))
+                var ketQua = 0
+                var daGapDuongKe = false
+                for offset in 0..<maxCropX {
+                    let x = batDauTuPhai ? (w - 1 - offset) : offset
+                    var total = 0, match = 0, bright = 0
+                    var y = yStart
+                    while y < yEnd {
+                        total += 1
+                        if laKhungDen {
+                            if laDiemDenTuyen(x, y) { match += 1 }
+                            if laDiemDuongKeSang(x, y) { bright += 1 }
+                        } else {
+                            if laDiemTrang(x, y) { match += 1 }
+                        }
+                        y += step
+                    }
+                    guard total > 0 else { break }
+                    let tyLeMatch = Double(match) / Double(total)
+                    if laKhungDen {
+                        let tyLeSang = Double(bright) / Double(total)
+                        if offset >= 16 && tyLeSang >= 0.42 {
+                            daGapDuongKe = true
+                            ketQua = offset + 1
+                            continue
+                        }
+                        if daGapDuongKe {
+                            break
+                        }
+                        if tyLeMatch >= 0.65 {
+                            ketQua = offset + 1
+                        } else {
+                            break
+                        }
+                    } else {
+                        if tyLeMatch >= 0.90 {
+                            ketQua = offset + 1
+                        } else {
+                            break
+                        }
+                    }
                 }
-                if total > 0 && Double(white) / Double(total) >= 0.90 {
-                    cropLeft = x + 1
-                } else {
-                    break
-                }
+                return ketQua
             }
 
-            // 4. Quét cạnh phải (y: 10%..76% — tránh góc dưới phải nơi có dấu sao watermark)
-            let yStartRight = Int(Double(h) * 0.10)
-            let yEndRight = Int(Double(h) * 0.76)
-            var cropRight = 0
-            for offset in 0..<maxCropX {
-                let x = w - 1 - offset
-                var total = 0, white = 0
-                var y = yStartRight
-                while y < yEndRight {
-                    total += 1
-                    if laDiemTrang(x, y) { white += 1 }
-                    y += step
-                }
-                if total > 0 && Double(white) / Double(total) >= 0.90 {
-                    cropRight = offset + 1
-                } else {
-                    break
-                }
-            }
+            let cropTop = quetCanhNgang(batDauTuDuoi: false)
+            let cropBottom = quetCanhNgang(batDauTuDuoi: true)
+            let cropLeft = quetCanhDoc(batDauTuPhai: false)
+            let cropRight = quetCanhDoc(batDauTuPhai: true)
 
-            // Chỉ cắt nếu phát hiện viền trắng rõ ràng (>= 10px ở ít nhất 1 cạnh)
-            let minBorder = 10
+            let minBorder = 12
             let pad = 3
             let cTop = cropTop >= minBorder ? cropTop + pad : 0
             let cBot = cropBottom >= minBorder ? cropBottom + pad : 0
