@@ -34,6 +34,8 @@ struct ThongTinSanPhamTruyenThong {
     var tyLeAnh: String
     var modelFlow: String
     var phongCachAnh: String
+    var moTaPhongCachMacDinh: String = ""
+    var moTaBoCucPhongCach: String = ""
     var toneMauChuDe: String = ""
     var danhSachSanPham: [MucSanPhamPoster] = []
 }
@@ -42,6 +44,82 @@ struct KetQua3BaiDangFacebook {
     var haiHuoc: String = ""
     var chuyenNghiep: String = ""
     var chotSale: String = ""
+}
+
+struct PhongCachThietKe: Codable, Equatable {
+    var id: String
+    var ten: String
+    var moTaMacDinh: String
+    var moTaBoCucKhiCoChuDe: String
+    var laMacDinh: Bool
+}
+
+final class KhoPhongCachThietKe {
+    static let dungChung = KhoPhongCachThietKe()
+    private init() {}
+
+    static let danhSachMacDinh: [PhongCachThietKe] = [
+        PhongCachThietKe(
+            id: "don_gian",
+            ten: "Đơn giản",
+            moTaMacDinh: "Phong cách Poster Quảng Cáo Bán Lẻ & Điện Máy gọn gàng, sạch sẽ, hiện đại: nền xanh dương sâu (Deep Royal Blue) chuyển sắc mượt kết hợp điểm nhấn vàng kim nhẹ nhàng và khung thẻ trắng tinh khiết, ánh sáng studio 3D sắc nét, bố cục cân đối thoáng mắt, cực kỳ dễ đọc trên màn hình điện thoại.",
+            moTaBoCucKhiCoChuDe: "bố cục Poster Quảng Cáo Bán Lẻ đơn giản, gọn gàng, thoáng mắt, khung thẻ sạch sẽ, ánh sáng studio 3D sắc nét và cực kỳ dễ đọc trên điện thoại",
+            laMacDinh: true
+        ),
+        PhongCachThietKe(
+            id: "ruc_ro",
+            ten: "Rực rỡ",
+            moTaMacDinh: "Phong cách Poster 3D Quảng Cáo Thương Mại Siêu Rực Rỡ chuẩn Điện Máy Xanh / Thế Giới Di Động: nền sân khấu xanh dương hoàng gia (Deep Royal Blue) tỏa tia sáng năng lượng rực rỡ kèm 2 cột ánh sáng viền vàng kim sang trọng hai bên; tiêu đề lớn chữ 3D ánh kim vàng nổi khối kết hợp dải ruy-băng đỏ bóng uốn cong bắt mắt; sản phẩm đặt nổi bật trên bục trưng bày tròn 3D mạ vàng phát sáng có hào quang ánh sáng chân bục; khung giá khuyến mãi dạng thẻ mũi tên/viên thuốc màu đỏ rực viền vàng phát sáng chứa chữ giá to đậm nổi bật (giá gốc in nghiêng gạch ngang gọn gàng phía trên); chân poster bố trí các thẻ ưu đãi bo góc nền tối viền neon vàng phát sáng kèm icon 3D vàng sắc nét; tổng thể rực rỡ, hào nhoáng, tương phản cực cao chuẩn Key Visual bán lẻ Việt Nam.",
+            moTaBoCucKhiCoChuDe: "bố cục Poster 3D Quảng Cáo Thương Mại Siêu Rực Rỡ chuẩn bán lẻ Việt Nam: sân khấu tỏa tia sáng năng lượng và cột ánh sáng viền hai bên, tiêu đề chữ 3D ánh kim nổi khối kết hợp dải ruy-băng uốn cong bắt mắt, sản phẩm đặt trên bục tròn 3D phát sáng có hào quang chân bục, khung giá dạng thẻ nổi viền phát sáng và các thẻ ưu đãi bo góc viền neon kèm icon 3D sắc nét ở chân poster",
+            laMacDinh: true
+        ),
+        PhongCachThietKe(
+            id: "flash_sale",
+            ten: "Flash Sale",
+            moTaMacDinh: "Phong cách Đại Tiệc Khuyến Mãi / Flash Sale bùng nổ: nền chuyển sắc đỏ ruby - cam rực rỡ kết hợp tia sáng năng lượng 3D hiện đại, huy hiệu giá sốc tương phản cực mạnh, thu hút thị giác tức thì khi lướt bảng tin Facebook.",
+            moTaBoCucKhiCoChuDe: "bố cục Đại Tiệc Khuyến Mãi / Flash Sale năng động, tia sáng năng lượng 3D hiện đại, huy hiệu giá sốc tương phản cực mạnh, thu hút thị giác tức thì trên bảng tin Facebook",
+            laMacDinh: true
+        )
+    ]
+
+    private var tepLuuTuyChinh: URL {
+        let fm = FileManager.default
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fm.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let dir = base.appendingPathComponent("DMX_TruyenThong_Session", isDirectory: true)
+        if !fm.fileExists(atPath: dir.path) {
+            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir.appendingPathComponent("phong_cach_tuy_chinh.json")
+    }
+
+    func layDanhSachTuyChinh() -> [PhongCachThietKe] {
+        guard let data = try? Data(contentsOf: tepLuuTuyChinh),
+              let ds = try? JSONDecoder().decode([PhongCachThietKe].self, from: data) else {
+            return []
+        }
+        return ds
+    }
+
+    func layTatCaPhongCach() -> [PhongCachThietKe] {
+        return Self.danhSachMacDinh + layDanhSachTuyChinh()
+    }
+
+    func themPhongCachTuyChinh(_ pc: PhongCachThietKe) {
+        var ds = layDanhSachTuyChinh()
+        ds.append(pc)
+        if let data = try? JSONEncoder().encode(ds) {
+            try? data.write(to: tepLuuTuyChinh, options: .atomic)
+        }
+    }
+
+    func xoaPhongCachTuyChinh(id: String) {
+        var ds = layDanhSachTuyChinh()
+        ds.removeAll { $0.id == id }
+        if let data = try? JSONEncoder().encode(ds) {
+            try? data.write(to: tepLuuTuyChinh, options: .atomic)
+        }
+    }
 }
 
 /// Dịch vụ gọi Gemini API tạo ảnh truyền thông sản phẩm và viết 3 phong cách bài đăng Facebook.
@@ -141,28 +219,15 @@ final class DichVuTruyenThongGemini {
 
     func taoPromptAnh(thongTin: ThongTinSanPhamTruyenThong, coAnhMau: Bool) -> String {
         let chuDeNhap = thongTin.toneMauChuDe.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pcMacDinh = KhoPhongCachThietKe.danhSachMacDinh.first(where: { $0.ten == thongTin.phongCachAnh }) ?? KhoPhongCachThietKe.danhSachMacDinh[0]
+        let moTaGoc = thongTin.moTaPhongCachMacDinh.isEmpty ? pcMacDinh.moTaMacDinh : thongTin.moTaPhongCachMacDinh
+        let boCucGoc = thongTin.moTaBoCucPhongCach.isEmpty ? pcMacDinh.moTaBoCucKhiCoChuDe : thongTin.moTaBoCucPhongCach
         let moTaPhongCach: String
         let dongChuDe = ""
         if chuDeNhap.isEmpty {
-            switch thongTin.phongCachAnh {
-            case "Sang trọng":
-                moTaPhongCach = "Phong cách Key Visual thương hiệu cao cấp (Luxury Commercial Studio): nền xanh navy trầm hoặc trắng ngọc trai sang trọng kết hợp ánh sáng rim-light vàng champagne tinh tế, vật phẩm đặt trên bục trưng bày 3D tối giản có phản chiếu nhẹ, bố cục thoáng đạt, đẳng cấp."
-            case "Flash Sale":
-                moTaPhongCach = "Phong cách Đại Tiệc Khuyến Mãi / Flash Sale bùng nổ: nền chuyển sắc đỏ ruby - cam rực rỡ kết hợp tia sáng năng lượng 3D hiện đại, huy hiệu giá sốc tương phản cực mạnh, thu hút thị giác tức thì khi lướt bảng tin Facebook."
-            default:
-                moTaPhongCach = "Phong cách Poster Quảng Cáo Bán Lẻ & Điện Máy hiện đại, rực rỡ, chuyên nghiệp: nền xanh dương sâu (Deep Royal Blue) chuyển sắc mượt kết hợp điểm nhấn vàng kim nổi bật và khung thẻ trắng tinh khiết, ánh sáng studio 3D sắc nét, bố cục cân đối chuẩn tỷ lệ vàng, cực kỳ dễ đọc trên màn hình điện thoại."
-            }
+            moTaPhongCach = moTaGoc
         } else {
-            let boCucTheoPhongCach: String
-            switch thongTin.phongCachAnh {
-            case "Sang trọng":
-                boCucTheoPhongCach = "bố cục Luxury Commercial Studio tối giản, thoáng đạt, sản phẩm đặt trên bục trưng bày 3D có ánh sáng viền tinh tế và phản chiếu nhẹ"
-            case "Flash Sale":
-                boCucTheoPhongCach = "bố cục Đại Tiệc Khuyến Mãi / Flash Sale năng động, huy hiệu giá sốc tương phản cực mạnh, thu hút thị giác tức thì trên bảng tin Facebook"
-            default:
-                boCucTheoPhongCach = "bố cục Poster Quảng Cáo Bán Lẻ hiện đại, chuyên nghiệp, cân đối chuẩn tỷ lệ vàng, ánh sáng studio 3D sắc nét và cực kỳ dễ đọc trên điện thoại"
-            }
-            moTaPhongCach = "Chủ đề & Tone màu thiết kế BẮT BUỘC: \"\(chuDeNhap)\". Hãy thiết kế TOÀN BỘ bảng màu nền, ánh sáng, khung giá và họa tiết trang trí 3D phù hợp tự nhiên và đặc trưng nhất với chủ đề \"\(chuDeNhap)\" (KHÔNG dùng bảng màu xanh dương - vàng mặc định nếu không hợp với chủ đề này); kết hợp \(boCucTheoPhongCach), đảm bảo chữ tên sản phẩm và mức giá tương phản cao, nổi bật sắc nét."
+            moTaPhongCach = "Chủ đề & Tone màu thiết kế BẮT BUỘC: \"\(chuDeNhap)\". Hãy thiết kế TOÀN BỘ bảng màu nền, ánh sáng, khung giá và họa tiết trang trí 3D phù hợp tự nhiên và đặc trưng nhất với chủ đề \"\(chuDeNhap)\" (KHÔNG dùng bảng màu mặc định nếu không hợp với chủ đề này); kết hợp \(boCucGoc), đảm bảo chữ tên sản phẩm và mức giá tương phản cao, nổi bật sắc nét."
         }
 
         let cacSP = thongTin.danhSachSanPham.filter { $0.coDuLieu }
@@ -506,6 +571,140 @@ final class DichVuTruyenThongGemini {
         guard !hh.isEmpty || !cn.isEmpty || !cs.isEmpty else { return nil }
         return KetQua3BaiDangFacebook(haiHuoc: hh, chuyenNghiep: cn, chotSale: cs)
     }
+
+    // MARK: - 3. Phân tích phong cách thiết kế từ ảnh mẫu người dùng tải lên
+
+    func phanTichPhongCachTuAnh(
+        _ anh: UIImage,
+        hoanTat: @escaping (Result<(moTaMacDinh: String, moTaBoCuc: String), Error>) -> Void
+    ) {
+        let danhSachKey = KhoDuLieu.dungChung.layCaiDatAnToan().danhSachGeminiApiKeyHieuLuc
+        guard !danhSachKey.isEmpty else {
+            DispatchQueue.main.async {
+                hoanTat(.failure(NSError(domain: "TruyenThongGemini", code: 400, userInfo: [NSLocalizedDescriptionKey: "Chưa có Gemini API Key trong Cài đặt."])))
+            }
+            return
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let anhData = self.thuGonAnhMau(anh) else {
+                DispatchQueue.main.async {
+                    hoanTat(.failure(NSError(domain: "TruyenThongGemini", code: 422, userInfo: [NSLocalizedDescriptionKey: "Không đọc được dữ liệu ảnh mẫu."])))
+                }
+                return
+            }
+            let promptPhanTich = """
+            Bạn là Giám đốc Mỹ thuật (Art Director) chuyên thiết kế Poster quảng cáo thương mại.
+            Hãy phân tích PHONG CÁCH THIẾT KẾ của ảnh poster đính kèm (bỏ qua hoàn toàn tên sản phẩm cụ thể, giá tiền cụ thể hay nội dung chữ riêng trong ảnh; chỉ mô tả phong cách mỹ thuật để tái sử dụng cho bất kỳ sản phẩm nào khác).
+            Trả về ĐÚNG 1 đối tượng JSON (không bọc markdown, không giải thích thêm) gồm 2 khóa tiếng Việt:
+            {
+              "moTaMacDinh": "Mô tả chi tiết phong cách thiết kế, bảng màu chủ đạo, ánh sáng, phông nền, kiểu chữ 3D/tiêu đề, dải ruy-băng, bục trưng bày, khung giá và thẻ ưu đãi (3-5 câu giàu chi tiết dùng trực tiếp làm prompt tạo ảnh poster).",
+              "moTaBoCuc": "Mô tả riêng bố cục, ánh sáng, kiểu chữ, bục trưng bày, khung giá và hiệu ứng 3D của phong cách này NHƯNG KHÔNG nhắc đến màu sắc cụ thể để có thể phối lại màu theo chủ đề khác (2-3 câu)."
+            }
+            """
+            var cacCap: [(model: String, key: String)] = []
+            for model in self.cacModelVietBai {
+                for key in danhSachKey.prefix(3) {
+                    cacCap.append((model, key))
+                }
+            }
+            self.goiPhanTichPhongCach(cacCap: cacCap, chiSo: 0, prompt: promptPhanTich, anhData: anhData, hoanTat: hoanTat)
+        }
+    }
+
+    private func goiPhanTichPhongCach(
+        cacCap: [(model: String, key: String)],
+        chiSo: Int,
+        prompt: String,
+        anhData: Data,
+        hoanTat: @escaping (Result<(moTaMacDinh: String, moTaBoCuc: String), Error>) -> Void
+    ) {
+        guard chiSo < cacCap.count else {
+            DispatchQueue.main.async {
+                hoanTat(.failure(NSError(domain: "TruyenThongGemini", code: 503, userInfo: [NSLocalizedDescriptionKey: "Không phân tích được phong cách từ ảnh."])))
+            }
+            return
+        }
+        let cap = cacCap[chiSo]
+        guard var comp = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/\(cap.model):generateContent") else {
+            goiPhanTichPhongCach(cacCap: cacCap, chiSo: chiSo + 1, prompt: prompt, anhData: anhData, hoanTat: hoanTat)
+            return
+        }
+        comp.queryItems = [URLQueryItem(name: "key", value: cap.key)]
+        guard let url = comp.url else {
+            goiPhanTichPhongCach(cacCap: cacCap, chiSo: chiSo + 1, prompt: prompt, anhData: anhData, hoanTat: hoanTat)
+            return
+        }
+
+        let bodyObj: [String: Any] = [
+            "contents": [["parts": [
+                ["text": prompt],
+                ["inline_data": ["mime_type": "image/jpeg", "data": anhData.base64EncodedString()]]
+            ]]],
+            "generationConfig": [
+                "temperature": 0.4,
+                "maxOutputTokens": 2048,
+                "responseMimeType": "application/json"
+            ]
+        ]
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: bodyObj) else {
+            goiPhanTichPhongCach(cacCap: cacCap, chiSo: chiSo + 1, prompt: prompt, anhData: anhData, hoanTat: hoanTat)
+            return
+        }
+
+        var req = URLRequest(url: url, timeoutInterval: 45)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = bodyData
+
+        URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
+            guard let self else { return }
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if error == nil, status == 200, let data, let kq = self.trichPhongCachTuPhanHoi(data) {
+                DispatchQueue.main.async {
+                    hoanTat(.success(kq))
+                }
+                return
+            }
+            if chiSo + 1 < cacCap.count {
+                let chiSoTiep = (status == 404)
+                    ? (cacCap[(chiSo + 1)...].firstIndex(where: { $0.model != cap.model }) ?? cacCap.count)
+                    : (chiSo + 1)
+                if chiSoTiep < cacCap.count {
+                    DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.2) {
+                        self.goiPhanTichPhongCach(cacCap: cacCap, chiSo: chiSoTiep, prompt: prompt, anhData: anhData, hoanTat: hoanTat)
+                    }
+                    return
+                }
+            }
+            let thongDiep = self.thongDiepLoiHTTP(data: data, status: status, error: error)
+            DispatchQueue.main.async {
+                hoanTat(.failure(NSError(domain: "TruyenThongGemini", code: status, userInfo: [NSLocalizedDescriptionKey: thongDiep])))
+            }
+        }.resume()
+    }
+
+    private func trichPhongCachTuPhanHoi(_ data: Data) -> (moTaMacDinh: String, moTaBoCuc: String)? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let candidates = root["candidates"] as? [[String: Any]],
+              let content = candidates.first?["content"] as? [String: Any],
+              let parts = content["parts"] as? [[String: Any]] else { return nil }
+        let nonThought = parts.filter { ($0["thought"] as? Bool) != true }
+        let useParts = nonThought.isEmpty ? parts : nonThought
+        let rawText = useParts.compactMap { $0["text"] as? String }
+            .joined(separator: "\n")
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let dau = rawText.firstIndex(of: "{"),
+              let cuoi = rawText.lastIndex(of: "}"), dau <= cuoi,
+              let jsonData = String(rawText[dau...cuoi]).data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else { return nil }
+        let md = (obj["moTaMacDinh"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let bc = (obj["moTaBoCuc"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !md.isEmpty else { return nil }
+        return (md, bc.isEmpty ? md : bc)
+    }
 }
 
 // MARK: - Bộ giữ chạy nền khi tắt màn hình & thông báo cục bộ
@@ -686,6 +885,7 @@ struct DuLieuPhienTruyenThong: Codable {
     var chiSoTyLe: Int
     var chiSoModelFlow: Int
     var chiSoPhongCachAnh: Int
+    var idPhongCachDangChon: String?
     var toneMauChuDe: String?
     var promptFlow: String
     var promptFlowTuTaoGanNhat: String
@@ -736,6 +936,7 @@ final class KhoPhienTruyenThong {
         chiSoTyLe: Int,
         chiSoModelFlow: Int,
         chiSoPhongCachAnh: Int,
+        idPhongCachDangChon: String,
         toneMauChuDe: String,
         promptFlow: String,
         promptFlowTuTaoGanNhat: String,
@@ -795,6 +996,7 @@ final class KhoPhienTruyenThong {
                     chiSoTyLe: chiSoTyLe,
                     chiSoModelFlow: chiSoModelFlow,
                     chiSoPhongCachAnh: chiSoPhongCachAnh,
+                    idPhongCachDangChon: idPhongCachDangChon,
                     toneMauChuDe: toneMauChuDe,
                     promptFlow: promptFlow,
                     promptFlowTuTaoGanNhat: promptFlowTuTaoGanNhat,
@@ -921,7 +1123,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private let oLienHe = UITextField()
     private let chonTyLe = UISegmentedControl(items: ["1:1", "3:4", "4:3", "9:16", "16:9"])
     private let chonModelFlow = UISegmentedControl(items: ["Banana 2.1", "Banana 2 Lite", "Banana Pro"])
-    private let chonPhongCachAnh = UISegmentedControl(items: ["Rực rỡ ĐMX", "Sang trọng", "Flash Sale"])
+    private var danhSachPhongCach: [PhongCachThietKe] = KhoPhongCachThietKe.dungChung.layTatCaPhongCach()
+    private var idPhongCachDangChon: String = "don_gian"
+    private var dangChonAnhChoPhongCach = false
+    private let nutChonPhongCach = UIButton(type: .system)
+    private let nutThemPhongCachTuAnh = UIButton(type: .system)
+    private let nutXoaPhongCachTuyChinh = UIButton(type: .system)
     private let oToneMauChuDe = UITextField()
 
     // Hành động & Trạng thái
@@ -4325,10 +4532,49 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         chonModelFlow.addTarget(self, action: #selector(khiThayDoiCaiDatPoster), for: .valueChanged)
         stack.addArrangedSubview(chonModelFlow)
 
-        stack.addArrangedSubview(taoNhanNho("Phong cách thiết kế ảnh"))
-        chonPhongCachAnh.selectedSegmentIndex = 0
-        chonPhongCachAnh.addTarget(self, action: #selector(khiThayDoiThongTinSanPham), for: .valueChanged)
-        stack.addArrangedSubview(chonPhongCachAnh)
+        stack.addArrangedSubview(taoNhanNho("Phong cách thiết kế ảnh (Combobox + Thêm từ ảnh)"))
+        nutChonPhongCach.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+        nutChonPhongCach.backgroundColor = BangMauBCTD.nenTrang
+        nutChonPhongCach.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutChonPhongCach.tintColor = BangMauBCTD.xanhChuDao
+        nutChonPhongCach.layer.cornerRadius = 10
+        nutChonPhongCach.layer.borderWidth = 1
+        nutChonPhongCach.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutChonPhongCach.contentHorizontalAlignment = .left
+        nutChonPhongCach.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+        nutChonPhongCach.heightAnchor.constraint(equalToConstant: 42).isActive = true
+        nutChonPhongCach.showsMenuAsPrimaryAction = true
+
+        nutThemPhongCachTuAnh.setTitle("＋ Từ ảnh", for: .normal)
+        nutThemPhongCachTuAnh.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
+        nutThemPhongCachTuAnh.backgroundColor = BangMauBCTD.xanhChuDao.withAlphaComponent(0.12)
+        nutThemPhongCachTuAnh.setTitleColor(BangMauBCTD.xanhChuDao, for: .normal)
+        nutThemPhongCachTuAnh.layer.cornerRadius = 10
+        nutThemPhongCachTuAnh.layer.borderWidth = 1
+        nutThemPhongCachTuAnh.layer.borderColor = BangMauBCTD.xanhChuDao.withAlphaComponent(0.4).cgColor
+        nutThemPhongCachTuAnh.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+        nutThemPhongCachTuAnh.heightAnchor.constraint(equalToConstant: 42).isActive = true
+        nutThemPhongCachTuAnh.setContentHuggingPriority(.required, for: .horizontal)
+        nutThemPhongCachTuAnh.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutThemPhongCachTuAnh.addTarget(self, action: #selector(bamThemPhongCachTuAnh), for: .touchUpInside)
+
+        nutXoaPhongCachTuyChinh.setImage(UIImage(systemName: "trash"), for: .normal)
+        nutXoaPhongCachTuyChinh.tintColor = .systemRed
+        nutXoaPhongCachTuyChinh.backgroundColor = UIColor.systemRed.withAlphaComponent(0.08)
+        nutXoaPhongCachTuyChinh.layer.cornerRadius = 10
+        nutXoaPhongCachTuyChinh.layer.borderWidth = 1
+        nutXoaPhongCachTuyChinh.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.35).cgColor
+        nutXoaPhongCachTuyChinh.widthAnchor.constraint(equalToConstant: 42).isActive = true
+        nutXoaPhongCachTuyChinh.heightAnchor.constraint(equalToConstant: 42).isActive = true
+        nutXoaPhongCachTuyChinh.isHidden = true
+        nutXoaPhongCachTuyChinh.addTarget(self, action: #selector(bamXoaPhongCachDangChon), for: .touchUpInside)
+
+        let hangPhongCach = UIStackView(arrangedSubviews: [nutChonPhongCach, nutThemPhongCachTuAnh, nutXoaPhongCachTuyChinh])
+        hangPhongCach.axis = .horizontal
+        hangPhongCach.spacing = 8
+        hangPhongCach.alignment = .fill
+        stack.addArrangedSubview(hangPhongCach)
+        capNhatComboboxPhongCach()
 
         stack.addArrangedSubview(taoNhanNho("Tone màu & Chủ đề thiết kế (tuỳ chọn)"))
         stack.addArrangedSubview(taoOChiTiet(oToneMauChuDe, goiY: "VD: Black Friday nền đen vàng neon, Tết Dương lịch đỏ vàng..."))
@@ -4534,8 +4780,134 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
     // MARK: - Chọn ảnh mẫu
 
+    private func layPhongCachDangChon() -> PhongCachThietKe {
+        return danhSachPhongCach.first(where: { $0.id == idPhongCachDangChon })
+            ?? danhSachPhongCach.first
+            ?? KhoPhongCachThietKe.danhSachMacDinh[0]
+    }
+
+    private func capNhatComboboxPhongCach() {
+        danhSachPhongCach = KhoPhongCachThietKe.dungChung.layTatCaPhongCach()
+        let dangChon = layPhongCachDangChon()
+        idPhongCachDangChon = dangChon.id
+        let nhanHienThi = (dangChon.laMacDinh ? "🎨 " : "✨ ") + dangChon.ten + "  ▾"
+        nutChonPhongCach.setTitle(nhanHienThi, for: .normal)
+        nutXoaPhongCachTuyChinh.isHidden = dangChon.laMacDinh
+
+        var cacAction: [UIMenuElement] = danhSachPhongCach.map { pc in
+            UIAction(
+                title: pc.laMacDinh ? pc.ten : "✨ \(pc.ten)",
+                state: (pc.id == idPhongCachDangChon) ? .on : .off
+            ) { [weak self] _ in
+                guard let self else { return }
+                self.idPhongCachDangChon = pc.id
+                self.capNhatComboboxPhongCach()
+                self.dongBoPromptTuDongNeuChuaSuaTay()
+                self.lenLichLuuPhien()
+            }
+        }
+        cacAction.append(UIAction(
+            title: "＋ Thêm ảnh để tạo phong cách mới...",
+            image: UIImage(systemName: "photo.badge.plus")
+        ) { [weak self] _ in
+            self?.bamThemPhongCachTuAnh()
+        })
+        nutChonPhongCach.menu = UIMenu(title: "Chọn phong cách thiết kế", children: cacAction)
+    }
+
+    @objc private func bamThemPhongCachTuAnh() {
+        view.endEditing(true)
+        dangChonAnhChoPhongCach = true
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.selectionLimit = 1
+        config.filter = .images
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    @objc private func bamXoaPhongCachDangChon() {
+        let dangChon = layPhongCachDangChon()
+        guard !dangChon.laMacDinh else { return }
+        let tb = UIAlertController(
+            title: "Xoá phong cách “\(dangChon.ten)”?",
+            message: "Phong cách tùy chỉnh này sẽ bị xoá khỏi danh sách combobox.",
+            preferredStyle: .alert
+        )
+        tb.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+        tb.addAction(UIAlertAction(title: "Xoá", style: .destructive) { [weak self] _ in
+            guard let self else { return }
+            KhoPhongCachThietKe.dungChung.xoaPhongCachTuyChinh(id: dangChon.id)
+            self.idPhongCachDangChon = "don_gian"
+            self.capNhatComboboxPhongCach()
+            self.dongBoPromptTuDongNeuChuaSuaTay()
+            self.lenLichLuuPhien()
+        })
+        present(tb, animated: true)
+    }
+
+    private func xuLyAnhTaoPhongCachMoi(_ img: UIImage) {
+        let soTuyChinh = KhoPhongCachThietKe.dungChung.layDanhSachTuyChinh().count + 1
+        let tb = UIAlertController(
+            title: "Đặt tên phong cách mới",
+            message: "AI sẽ phân tích bố cục, ánh sáng, khung giá và màu sắc từ ảnh bạn vừa chọn để lưu vào combobox.",
+            preferredStyle: .alert
+        )
+        tb.addTextField { tf in
+            tf.placeholder = "VD: Phong cách \(soTuyChinh) (Tết, Noel, TGDĐ...)"
+            tf.text = "Phong cách \(soTuyChinh)"
+            tf.clearButtonMode = .whileEditing
+        }
+        tb.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+        tb.addAction(UIAlertAction(title: "Phân tích & Lưu", style: .default) { [weak self] _ in
+            guard let self else { return }
+            let tenNhap = (tb.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let tenFinal = tenNhap.isEmpty ? "Phong cách \(soTuyChinh)" : tenNhap
+            self.vongQuay.startAnimating()
+            self.nhanTrangThai.text = "🎨 Đang phân tích phong cách thiết kế “\(tenFinal)” từ ảnh mẫu..."
+            self.nhanTrangThai.textColor = BangMauBCTD.xanhChuDao
+
+            DichVuTruyenThongGemini.dungChung.phanTichPhongCachTuAnh(img) { [weak self] res in
+                guard let self else { return }
+                if !self.dangChayFlowNen && !self.dangVietBaiNen {
+                    self.vongQuay.stopAnimating()
+                }
+                let pcMoi: PhongCachThietKe
+                switch res {
+                case .success(let kq):
+                    pcMoi = PhongCachThietKe(
+                        id: "custom_\(UUID().uuidString.prefix(8))",
+                        ten: tenFinal,
+                        moTaMacDinh: kq.moTaMacDinh,
+                        moTaBoCucKhiCoChuDe: kq.moTaBoCuc,
+                        laMacDinh: false
+                    )
+                    self.nhanTrangThai.text = "✅ Đã tạo và chọn phong cách mới “\(tenFinal)” từ ảnh mẫu!"
+                    self.nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+                case .failure(let err):
+                    pcMoi = PhongCachThietKe(
+                        id: "custom_\(UUID().uuidString.prefix(8))",
+                        ten: tenFinal,
+                        moTaMacDinh: "Phong cách Poster Quảng Cáo Thương Mại 3D nổi bật theo cảm hứng “\(tenFinal)”: ánh sáng studio sắc nét, tiêu đề nổi khối bắt mắt, khung giá khuyến mãi tương phản cao, bố cục cân đối dễ đọc trên màn hình điện thoại.",
+                        moTaBoCucKhiCoChuDe: "bố cục Poster Quảng Cáo 3D theo cảm hứng “\(tenFinal)” với tiêu đề nổi khối, khung giá tương phản cao và ánh sáng studio sắc nét",
+                        laMacDinh: false
+                    )
+                    self.nhanTrangThai.text = "⚠️ Đã lưu phong cách “\(tenFinal)” (chưa phân tích chi tiết AI: \(err.localizedDescription))."
+                    self.nhanTrangThai.textColor = .systemOrange
+                }
+                KhoPhongCachThietKe.dungChung.themPhongCachTuyChinh(pcMoi)
+                self.idPhongCachDangChon = pcMoi.id
+                self.capNhatComboboxPhongCach()
+                self.dongBoPromptTuDongNeuChuaSuaTay()
+                self.luuPhienLamViec(ngayLapTuc: true)
+            }
+        })
+        present(tb, animated: true)
+    }
+
     @objc private func bamNhapAnhMau() {
         view.endEditing(true)
+        dangChonAnhChoPhongCach = false
         var config = PHPickerConfiguration(photoLibrary: .shared())
         config.selectionLimit = 1
         config.filter = .images
@@ -4556,6 +4928,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        let laChonAnhPhongCach = dangChonAnhChoPhongCach
+        dangChonAnhChoPhongCach = false
         picker.dismiss(animated: true)
         guard let provider = results.first?.itemProvider,
               provider.canLoadObject(ofClass: UIImage.self) else { return }
@@ -4563,6 +4937,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             guard let img = obj as? UIImage else { return }
             DispatchQueue.main.async {
                 guard let self else { return }
+                if laChonAnhPhongCach {
+                    self.xuLyAnhTaoPhongCachMoi(img)
+                    return
+                }
                 self.anhMau = img
                 self.anhMauView.image = img
                 self.nhanChuaCoAnhMau.isHidden = true
@@ -4588,13 +4966,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         let idxModel = max(0, min(chonModelFlow.selectedSegmentIndex, dsModelFlow.count - 1))
         let modelFlow = dsModelFlow[idxModel]
 
-        let phongCachAnh: String
-        switch chonPhongCachAnh.selectedSegmentIndex {
-        case 1: phongCachAnh = "Sang trọng"
-        case 2: phongCachAnh = "Flash Sale"
-        default: phongCachAnh = "Rực rỡ ĐMX"
-        }
-
+        let pc = layPhongCachDangChon()
         let spChinh = danhSachSanPham.first(where: { $0.coDuLieu }) ?? danhSachSanPham[chiSoSanPhamHienTai]
         return ThongTinSanPhamTruyenThong(
             tenSanPham: spChinh.tenSanPham,
@@ -4605,7 +4977,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             lienHe: (oLienHe.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
             tyLeAnh: tyLe,
             modelFlow: modelFlow,
-            phongCachAnh: phongCachAnh,
+            phongCachAnh: pc.ten,
+            moTaPhongCachMacDinh: pc.moTaMacDinh,
+            moTaBoCucPhongCach: pc.moTaBoCucKhiCoChuDe,
             toneMauChuDe: (oToneMauChuDe.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
             danhSachSanPham: danhSachSanPham
         )
@@ -4978,7 +5352,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             lienHe: oLienHe.text ?? "",
             chiSoTyLe: chonTyLe.selectedSegmentIndex,
             chiSoModelFlow: chonModelFlow.selectedSegmentIndex,
-            chiSoPhongCachAnh: chonPhongCachAnh.selectedSegmentIndex,
+            chiSoPhongCachAnh: danhSachPhongCach.firstIndex(where: { $0.id == idPhongCachDangChon }) ?? 0,
+            idPhongCachDangChon: idPhongCachDangChon,
             toneMauChuDe: oToneMauChuDe.text ?? "",
             promptFlow: oPromptFlow.text ?? "",
             promptFlowTuTaoGanNhat: promptFlowTuTaoGanNhat,
@@ -5003,9 +5378,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         if dl.chiSoModelFlow >= 0 && dl.chiSoModelFlow < chonModelFlow.numberOfSegments {
             chonModelFlow.selectedSegmentIndex = dl.chiSoModelFlow
         }
-        if dl.chiSoPhongCachAnh >= 0 && dl.chiSoPhongCachAnh < chonPhongCachAnh.numberOfSegments {
-            chonPhongCachAnh.selectedSegmentIndex = dl.chiSoPhongCachAnh
+        danhSachPhongCach = KhoPhongCachThietKe.dungChung.layTatCaPhongCach()
+        if let savedId = dl.idPhongCachDangChon, danhSachPhongCach.contains(where: { $0.id == savedId }) {
+            idPhongCachDangChon = savedId
+        } else if dl.chiSoPhongCachAnh == 2 {
+            idPhongCachDangChon = "flash_sale"
+        } else {
+            idPhongCachDangChon = "don_gian"
         }
+        capNhatComboboxPhongCach()
         oToneMauChuDe.text = dl.toneMauChuDe ?? ""
         promptFlowTuTaoGanNhat = dl.promptFlowTuTaoGanNhat
         oPromptFlow.text = dl.promptFlow
