@@ -273,7 +273,7 @@ final class DichVuTruyenThongGemini {
             - Tuyệt đối KHÔNG viết các chữ đánh số thứ tự như "Sản phẩm 1", "Sản phẩm 2", "SP 1", "SP 2", "Mặt hàng 1" lên ảnh poster; chỉ hiển thị trực tiếp tên thật và mức giá của từng món.
             - Nếu có hình mã QR trong ảnh mẫu, hãy đặt mã QR trong khung thẻ trắng bo góc tinh tế, sắc nét, phẳng phiu ở vị trí cân đối để khách hàng quét được ngay.
             - Sử dụng phông chữ không chân (modern geometric bold sans-serif) dày dặn, rõ dấu tiếng Việt, độ tương phản cao, không sinh chữ tiếng Anh vô nghĩa.
-            - BẮT BUỘC đóng khung toàn bộ thiết kế poster nằm gọn bên trong một khung viền đen tuyền (#000000) dày khoảng 12% đều ở cả 4 cạnh (trên, dưới, trái, phải) bao quanh ảnh, có 1 đường kẻ trắng mảnh (#FFFFFF, 2px) phân tách rõ giữa poster bên trong và phần viền đen bên ngoài. Trên dải viền đen ngoài cùng (đặc biệt cạnh trên và cạnh dưới) in rải rác vài ký tự nhỏ màu xám nhạt kiểu "•  DMX  •  2026  •" để viền đen trông như khung bìa tạp chí; tuyệt đối KHÔNG để sản phẩm hay chữ chính của poster tràn ra ngoài đường kẻ trắng vào phần viền đen.
+            - Quy tắc vùng an toàn (Safe Zone 80%): Thiết kế phông nền và ánh sáng tràn đầy tự nhiên ra sát mép ảnh bình thường (KHÔNG vẽ khung viền trắng hay viền đen), NHƯNG BẮT BUỘC gom toàn bộ nội dung chính (tiêu đề, sản phẩm, bục trưng bày, giá bán, huy hiệu ưu đãi, thanh địa chỉ/hotline và icon) co gọn vào vùng 80% chính giữa ảnh — chừa trống ít nhất 10% lề nền ở cả 4 cạnh (trên, dưới, trái, phải) tuyệt đối không chứa bất kỳ chữ viết, logo hay chi tiết quan trọng nào.
             """
         }
 
@@ -298,7 +298,7 @@ final class DichVuTruyenThongGemini {
         Quy tắc thẩm mỹ & bố cục bắt buộc:
         - Phân cấp thị giác 3 tầng chuẩn mực: Sản phẩm sắc nét có ánh sáng viền (rim-light) và đổ bóng tự nhiên ở trung tâm; cụm tiêu đề & bảng giá khuyến mãi tương phản cao cực kỳ dễ đọc; chân poster gọn gàng.
         - Tuyệt đối KHÔNG viết các chữ thừa như "Sản phẩm 1", "SP 1" lên ảnh; sử dụng phông chữ sans-serif hiện đại, dày dặn, rõ dấu tiếng Việt, không thêm chữ tiếng Anh vô nghĩa.
-        - BẮT BUỘC đóng khung toàn bộ thiết kế poster nằm gọn bên trong một khung viền đen tuyền (#000000) dày khoảng 12% đều ở cả 4 cạnh (trên, dưới, trái, phải) bao quanh ảnh, có 1 đường kẻ trắng mảnh (#FFFFFF, 2px) phân tách rõ giữa poster bên trong và phần viền đen bên ngoài. Trên dải viền đen ngoài cùng (đặc biệt cạnh trên và cạnh dưới) in rải rác vài ký tự nhỏ màu xám nhạt kiểu "•  DMX  •  2026  •" để viền đen trông như khung bìa tạp chí; tuyệt đối KHÔNG để sản phẩm hay chữ chính của poster tràn ra ngoài đường kẻ trắng vào phần viền đen.
+        - Quy tắc vùng an toàn (Safe Zone 80%): Thiết kế phông nền và ánh sáng tràn đầy tự nhiên ra sát mép ảnh bình thường (KHÔNG vẽ khung viền trắng hay viền đen), NHƯNG BẮT BUỘC gom toàn bộ nội dung chính (tiêu đề, sản phẩm, bục trưng bày, giá bán, huy hiệu ưu đãi, thanh địa chỉ/hotline và icon) co gọn vào vùng 80% chính giữa ảnh — chừa trống ít nhất 10% lề nền ở cả 4 cạnh (trên, dưới, trái, phải) tuyệt đối không chứa bất kỳ chữ viết, logo hay chi tiết quan trọng nào.
         """
     }
 
@@ -2271,190 +2271,27 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         }
     }
 
-    /// Tự động phát hiện và cắt sạch khung viền đen tuyền (có ký tự nhỏ + đường kẻ trắng phân tách) hoặc viền trắng xung quanh ảnh.
+    /// Cắt đều 10% lề an toàn ở cả 4 cạnh (giữ nguyên vùng 80% chính giữa & giữ chuẩn tỷ lệ ảnh) sau khi tải ảnh về app.
     private func catVienTrangTuDong(_ img: UIImage) -> UIImage {
         return autoreleasepool {
             let w = Int((img.size.width * img.scale).rounded())
             let h = Int((img.size.height * img.scale).rounded())
             guard w >= 120, h >= 120 else { return img }
 
-            let bytesPerPixel = 4
-            let bytesPerRow = w * bytesPerPixel
-            var pixels = [UInt8](repeating: 0, count: h * bytesPerRow)
-            let colorSpace = CGColorSpaceCreateDeviceRGB()
-            guard let ctx = CGContext(
-                data: &pixels,
-                width: w,
-                height: h,
-                bitsPerComponent: 8,
-                bytesPerRow: bytesPerRow,
-                space: colorSpace,
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-            ) else { return img }
-
-            UIGraphicsPushContext(ctx)
-            ctx.translateBy(x: 0, y: CGFloat(h))
-            ctx.scaleBy(x: 1, y: -1)
-            img.draw(in: CGRect(x: 0, y: 0, width: w, height: h))
-            UIGraphicsPopContext()
-
-            @inline(__always)
-            func laDiemTrang(_ x: Int, _ y: Int) -> Bool {
-                let idx = y * bytesPerRow + x * bytesPerPixel
-                return pixels[idx] >= 235 && pixels[idx + 1] >= 235 && pixels[idx + 2] >= 235
+            let fmt = UIGraphicsImageRendererFormat()
+            fmt.scale = 1.0
+            fmt.opaque = true
+            let rendered = UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: fmt).image { _ in
+                img.draw(in: CGRect(x: 0, y: 0, width: w, height: h))
             }
+            guard let cgFull = rendered.cgImage else { return img }
 
-            @inline(__always)
-            func laDiemDenTuyen(_ x: Int, _ y: Int) -> Bool {
-                let idx = y * bytesPerRow + x * bytesPerPixel
-                return pixels[idx] <= 26 && pixels[idx + 1] <= 26 && pixels[idx + 2] <= 26
-            }
-
-            @inline(__always)
-            func laDiemDuongKeSang(_ x: Int, _ y: Int) -> Bool {
-                let idx = y * bytesPerRow + x * bytesPerPixel
-                let r = Int(pixels[idx]), g = Int(pixels[idx + 1]), b = Int(pixels[idx + 2])
-                return (r + g + b) >= 510 || (r >= 190 && g >= 165)
-            }
-
-            let step = max(1, min(w, h) / 256)
-
-            // Kiểm tra mép ngoài cùng (6px) xem là khung viền đen hay khung viền trắng
-            var demTongMep = 0, demDenMep = 0, demTrangMep = 0
-            for d in 0..<min(6, h / 10) {
-                var x = Int(Double(w) * 0.15)
-                while x < Int(Double(w) * 0.85) {
-                    demTongMep += 2
-                    if laDiemDenTuyen(x, d) { demDenMep += 1 }
-                    if laDiemTrang(x, d) { demTrangMep += 1 }
-                    if laDiemDenTuyen(x, h - 1 - d) { demDenMep += 1 }
-                    if laDiemTrang(x, h - 1 - d) { demTrangMep += 1 }
-                    x += step * 2
-                }
-            }
-
-            let laKhungDen = demTongMep > 0 && Double(demDenMep) / Double(demTongMep) >= 0.72
-            let laKhungTrang = demTongMep > 0 && Double(demTrangMep) / Double(demTongMep) >= 0.85
-            guard laKhungDen || laKhungTrang else { return img }
-
-            let maxCropX = Int(Double(w) * 0.24)
-            let maxCropY = Int(Double(h) * 0.24)
-
-            func quetCanhNgang(batDauTuDuoi: Bool) -> Int {
-                let xStart = Int(Double(w) * (batDauTuDuoi ? 0.12 : 0.15))
-                let xEnd = Int(Double(w) * (batDauTuDuoi ? 0.76 : 0.85))
-                var ketQua = 0
-                var daGapDuongKe = false
-                for offset in 0..<maxCropY {
-                    let y = batDauTuDuoi ? (h - 1 - offset) : offset
-                    var total = 0, match = 0, bright = 0
-                    var x = xStart
-                    while x < xEnd {
-                        total += 1
-                        if laKhungDen {
-                            if laDiemDenTuyen(x, y) { match += 1 }
-                            if laDiemDuongKeSang(x, y) { bright += 1 }
-                        } else {
-                            if laDiemTrang(x, y) { match += 1 }
-                        }
-                        x += step
-                    }
-                    guard total > 0 else { break }
-                    let tyLeMatch = Double(match) / Double(total)
-                    if laKhungDen {
-                        let tyLeSang = Double(bright) / Double(total)
-                        if offset >= 16 && tyLeSang >= 0.42 {
-                            daGapDuongKe = true
-                            ketQua = offset + 1
-                            continue
-                        }
-                        if daGapDuongKe {
-                            break
-                        }
-                        // Cho phép ~32% pixel sáng hơn (ký tự nhỏ trên viền đen) mà vẫn nhận diện là viền đen
-                        if tyLeMatch >= 0.65 {
-                            ketQua = offset + 1
-                        } else {
-                            break
-                        }
-                    } else {
-                        if tyLeMatch >= 0.90 {
-                            ketQua = offset + 1
-                        } else {
-                            break
-                        }
-                    }
-                }
-                return ketQua
-            }
-
-            func quetCanhDoc(batDauTuPhai: Bool) -> Int {
-                let yStart = Int(Double(h) * (batDauTuPhai ? 0.12 : 0.15))
-                let yEnd = Int(Double(h) * (batDauTuPhai ? 0.76 : 0.85))
-                var ketQua = 0
-                var daGapDuongKe = false
-                for offset in 0..<maxCropX {
-                    let x = batDauTuPhai ? (w - 1 - offset) : offset
-                    var total = 0, match = 0, bright = 0
-                    var y = yStart
-                    while y < yEnd {
-                        total += 1
-                        if laKhungDen {
-                            if laDiemDenTuyen(x, y) { match += 1 }
-                            if laDiemDuongKeSang(x, y) { bright += 1 }
-                        } else {
-                            if laDiemTrang(x, y) { match += 1 }
-                        }
-                        y += step
-                    }
-                    guard total > 0 else { break }
-                    let tyLeMatch = Double(match) / Double(total)
-                    if laKhungDen {
-                        let tyLeSang = Double(bright) / Double(total)
-                        if offset >= 16 && tyLeSang >= 0.42 {
-                            daGapDuongKe = true
-                            ketQua = offset + 1
-                            continue
-                        }
-                        if daGapDuongKe {
-                            break
-                        }
-                        if tyLeMatch >= 0.65 {
-                            ketQua = offset + 1
-                        } else {
-                            break
-                        }
-                    } else {
-                        if tyLeMatch >= 0.90 {
-                            ketQua = offset + 1
-                        } else {
-                            break
-                        }
-                    }
-                }
-                return ketQua
-            }
-
-            let cropTop = quetCanhNgang(batDauTuDuoi: false)
-            let cropBottom = quetCanhNgang(batDauTuDuoi: true)
-            let cropLeft = quetCanhDoc(batDauTuPhai: false)
-            let cropRight = quetCanhDoc(batDauTuPhai: true)
-
-            let minBorder = 12
-            let pad = 3
-            let cTop = cropTop >= minBorder ? cropTop + pad : 0
-            let cBot = cropBottom >= minBorder ? cropBottom + pad : 0
-            let cLeft = cropLeft >= minBorder ? cropLeft + pad : 0
-            let cRight = cropRight >= minBorder ? cropRight + pad : 0
-
-            guard cTop > 0 || cBot > 0 || cLeft > 0 || cRight > 0 else { return img }
-
-            let newW = w - cLeft - cRight
-            let newH = h - cTop - cBot
-            guard newW >= Int(Double(w) * 0.52), newH >= Int(Double(h) * 0.52) else { return img }
-
-            guard let cgFull = ctx.makeImage(),
-                  let cgCropped = cgFull.cropping(to: CGRect(x: cLeft, y: cTop, width: newW, height: newH)) else {
+            let cropX = Int((Double(w) * 0.10).rounded())
+            let cropY = Int((Double(h) * 0.10).rounded())
+            let newW = w - cropX * 2
+            let newH = h - cropY * 2
+            guard newW > 60, newH > 60,
+                  let cgCropped = cgFull.cropping(to: CGRect(x: cropX, y: cropY, width: newW, height: newH)) else {
                 return img
             }
             return UIImage(cgImage: cgCropped, scale: 1.0, orientation: .up)
