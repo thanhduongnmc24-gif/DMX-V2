@@ -34,6 +34,7 @@ struct ThongTinSanPhamTruyenThong {
     var tyLeAnh: String
     var modelFlow: String
     var phongCachAnh: String
+    var toneMauChuDe: String = ""
     var danhSachSanPham: [MucSanPhamPoster] = []
 }
 
@@ -149,6 +150,10 @@ final class DichVuTruyenThongGemini {
             moTaPhongCach = "Phong cách Poster Quảng Cáo Bán Lẻ & Điện Máy hiện đại, rực rỡ, chuyên nghiệp: nền xanh dương sâu (Deep Royal Blue) chuyển sắc mượt kết hợp điểm nhấn vàng kim nổi bật và khung thẻ trắng tinh khiết, ánh sáng studio 3D sắc nét, bố cục cân đối chuẩn tỷ lệ vàng, cực kỳ dễ đọc trên màn hình điện thoại."
         }
 
+        let dongChuDe = thongTin.toneMauChuDe.isEmpty
+            ? ""
+            : "\nTone màu & Chủ đề thiết kế BẮT BUỘC ưu tiên áp dụng: \"\(thongTin.toneMauChuDe)\" (phối màu nền, ánh sáng và họa tiết trang trí đúng tinh thần chủ đề này, vẫn giữ chữ tên sản phẩm và giá cực kỳ sắc nét, tương phản cao)."
+
         let cacSP = thongTin.danhSachSanPham.filter { $0.coDuLieu }
         if cacSP.count >= 2 {
             var moTaTungKhoi: [String] = []
@@ -185,7 +190,7 @@ final class DichVuTruyenThongGemini {
             return """
             Thiết kế 01 Poster Quảng Cáo Thương Mại chất lượng cao (4K Commercial Advertising Key Visual) đăng Facebook bằng tiếng Việt có dấu chuẩn xác 100%, chữ in sắc nét, không sai chính tả, không đè chữ.
             \(huongDanXuLyAnh)
-            \(moTaPhongCach)
+            \(moTaPhongCach)\(dongChuDe)
             Nội dung chữ BẮT BUỘC hiển thị chính xác từng ký tự, đặt đúng cạnh từng mặt hàng tương ứng:
             \(moTaTungKhoi.joined(separator: "\n"))
             Quy tắc thẩm mỹ & bố cục bắt buộc:
@@ -210,7 +215,7 @@ final class DichVuTruyenThongGemini {
         return """
         Thiết kế 01 Poster Quảng Cáo Thương Mại chất lượng cao (4K Commercial Advertising Key Visual) đăng Facebook bằng tiếng Việt có dấu chuẩn xác 100%, chữ in sắc nét, không sai chính tả, không bị chồng chữ.
         \(nguonSanPham)
-        \(moTaPhongCach)
+        \(moTaPhongCach)\(dongChuDe)
         Nội dung chữ BẮT BUỘC hiển thị rõ ràng, chính xác từng ký tự trên poster:
         \(chiTiet.joined(separator: "\n"))
         Quy tắc thẩm mỹ & bố cục bắt buộc:
@@ -348,15 +353,19 @@ final class DichVuTruyenThongGemini {
                       - Điểm nổi bật: \(sp.diemNoiBat.isEmpty ? "(không có)" : sp.diemNoiBat)
                     """)
                 }
+                if !thongTin.toneMauChuDe.isEmpty {
+                    ds.append("- Chủ đề / Dịp chương trình: \(thongTin.toneMauChuDe)")
+                }
                 ds.append("- Siêu thị / Liên hệ: \(thongTin.lienHe.isEmpty ? "(nhắn tin hoặc bình luận để được tư vấn)" : thongTin.lienHe)")
                 moTaSanPhamBai = ds.joined(separator: "\n")
             } else {
+                let dongChuDeBai = thongTin.toneMauChuDe.isEmpty ? "" : "\n                - Chủ đề / Dịp chương trình: \(thongTin.toneMauChuDe)"
                 moTaSanPhamBai = """
                 - Tên sản phẩm: \(thongTin.tenSanPham.isEmpty ? "(xem từ ảnh)" : thongTin.tenSanPham)
                 - Giá niêm yết: \(thongTin.giaNiemYet.isEmpty ? "(không có)" : thongTin.giaNiemYet)
                 - Giá khuyến mãi: \(thongTin.giaKhuyenMai.isEmpty ? "(không có)" : thongTin.giaKhuyenMai)
                 - Ưu đãi / Quà tặng: \(thongTin.uuDai.isEmpty ? "(không có)" : thongTin.uuDai)
-                - Điểm nổi bật / Ghi chú: \(thongTin.diemNoiBat.isEmpty ? "(không có)" : thongTin.diemNoiBat)
+                - Điểm nổi bật / Ghi chú: \(thongTin.diemNoiBat.isEmpty ? "(không có)" : thongTin.diemNoiBat)\(dongChuDeBai)
                 - Siêu thị / Liên hệ: \(thongTin.lienHe.isEmpty ? "(nhắn tin hoặc bình luận để được tư vấn)" : thongTin.lienHe)
                 """
             }
@@ -666,6 +675,7 @@ struct DuLieuPhienTruyenThong: Codable {
     var chiSoTyLe: Int
     var chiSoModelFlow: Int
     var chiSoPhongCachAnh: Int
+    var toneMauChuDe: String?
     var promptFlow: String
     var promptFlowTuTaoGanNhat: String
     var baiDangHaiHuoc: String
@@ -715,6 +725,7 @@ final class KhoPhienTruyenThong {
         chiSoTyLe: Int,
         chiSoModelFlow: Int,
         chiSoPhongCachAnh: Int,
+        toneMauChuDe: String,
         promptFlow: String,
         promptFlowTuTaoGanNhat: String,
         baiDang: KetQua3BaiDangFacebook,
@@ -773,6 +784,7 @@ final class KhoPhienTruyenThong {
                     chiSoTyLe: chiSoTyLe,
                     chiSoModelFlow: chiSoModelFlow,
                     chiSoPhongCachAnh: chiSoPhongCachAnh,
+                    toneMauChuDe: toneMauChuDe,
                     promptFlow: promptFlow,
                     promptFlowTuTaoGanNhat: promptFlowTuTaoGanNhat,
                     baiDangHaiHuoc: baiDang.haiHuoc,
@@ -899,6 +911,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private let chonTyLe = UISegmentedControl(items: ["1:1", "3:4", "4:3", "9:16", "16:9"])
     private let chonModelFlow = UISegmentedControl(items: ["Banana 2.1", "Banana 2 Lite", "Banana Pro"])
     private let chonPhongCachAnh = UISegmentedControl(items: ["Rực rỡ ĐMX", "Sang trọng", "Flash Sale"])
+    private let oToneMauChuDe = UITextField()
 
     // Hành động & Trạng thái
     private let nutMoGoogleFlow = UIButton(type: .system)
@@ -4241,7 +4254,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private func taoTheThongTinSanPham() -> UIView {
         let (the, stack) = taoKhungThe(tieuDe: "2. Thông tin sản phẩm đang chọn & Cài đặt Poster")
 
-        for tf in [oTenSanPham, oGiaNiemYet, oGiaKhuyenMai, oUuDai, oLienHe] {
+        for tf in [oTenSanPham, oGiaNiemYet, oGiaKhuyenMai, oUuDai, oLienHe, oToneMauChuDe] {
             tf.addTarget(self, action: #selector(khiThayDoiThongTinSanPham), for: .editingChanged)
         }
 
@@ -4305,6 +4318,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         chonPhongCachAnh.selectedSegmentIndex = 0
         chonPhongCachAnh.addTarget(self, action: #selector(khiThayDoiThongTinSanPham), for: .valueChanged)
         stack.addArrangedSubview(chonPhongCachAnh)
+
+        stack.addArrangedSubview(taoNhanNho("Tone màu & Chủ đề thiết kế (tuỳ chọn)"))
+        stack.addArrangedSubview(taoOChiTiet(oToneMauChuDe, goiY: "VD: Black Friday nền đen vàng neon, Tết Dương lịch đỏ vàng..."))
 
         return the
     }
@@ -4579,6 +4595,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             tyLeAnh: tyLe,
             modelFlow: modelFlow,
             phongCachAnh: phongCachAnh,
+            toneMauChuDe: (oToneMauChuDe.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
             danhSachSanPham: danhSachSanPham
         )
     }
@@ -4951,6 +4968,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             chiSoTyLe: chonTyLe.selectedSegmentIndex,
             chiSoModelFlow: chonModelFlow.selectedSegmentIndex,
             chiSoPhongCachAnh: chonPhongCachAnh.selectedSegmentIndex,
+            toneMauChuDe: oToneMauChuDe.text ?? "",
             promptFlow: oPromptFlow.text ?? "",
             promptFlowTuTaoGanNhat: promptFlowTuTaoGanNhat,
             baiDang: baiDang,
@@ -4977,6 +4995,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         if dl.chiSoPhongCachAnh >= 0 && dl.chiSoPhongCachAnh < chonPhongCachAnh.numberOfSegments {
             chonPhongCachAnh.selectedSegmentIndex = dl.chiSoPhongCachAnh
         }
+        oToneMauChuDe.text = dl.toneMauChuDe ?? ""
         promptFlowTuTaoGanNhat = dl.promptFlowTuTaoGanNhat
         oPromptFlow.text = dl.promptFlow
 
@@ -5028,6 +5047,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             self.danhSachSanPham = [MucSanPhamPoster()]
             self.chiSoSanPhamHienTai = 0
             self.oLienHe.text = ""
+            self.oToneMauChuDe.text = ""
             self.oPromptFlow.text = ""
             self.promptFlowTuTaoGanNhat = ""
             self.promptChoDienFlow = ""
