@@ -1138,7 +1138,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         thucThiLayAnh1KTuFlow(cacSrcCu: [], tuDong: false)
     }
 
-    private func thucThiLayAnh1KTuFlow(cacSrcCu: [String], tuDong: Bool) {
+    private func thucThiLayAnh1KTuFlow(cacSrcCu: [String], tuDong: Bool, phien: Int = -1, lanThu: Int = 0) {
         let asyncJS = #"""
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -1185,6 +1185,34 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           } finally {
             window.__dmxForceTrusted = false;
           }
+        }
+
+        function isInsidePromptComposer(el) {
+          if (!el) return false;
+          let p = el;
+          for (let k = 0; k < 6 && p && p !== document.body; k++) {
+            const pr = p.getBoundingClientRect();
+            // Khung nhập prompt ở đáy màn hình có chiều cao < 360px; không bao giờ duyệt lên container toàn trang
+            if (pr.height > 380) break;
+            if (p.hasAttribute && p.hasAttribute('data-slate-editor')) return true;
+            if (p.querySelector && p.querySelector('[data-slate-editor="true"], textarea')) return true;
+            p = p.parentElement;
+          }
+          return false;
+        }
+
+        function isUploadedAssetTile(el) {
+          if (!el) return false;
+          if (isInsidePromptComposer(el)) return true;
+          let p = el;
+          for (let k = 0; k < 5 && p && p !== document.body; k++) {
+            const pr = p.getBoundingClientRect();
+            if (pr.height > 420) break;
+            const t = (p.innerText || p.textContent || '').toLowerCase();
+            if (t.includes('san-pham-dmx')) return true;
+            p = p.parentElement;
+          }
+          return false;
         }
 
         function bestSrcFromSrcset(el) {
@@ -1236,7 +1264,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             const resp = await fetch(url, { credentials: 'include' });
             if (!resp.ok) return null;
             const blob = await resp.blob();
-            if (!blob || (!blob.type.startsWith('image/') && blob.size < 20000)) return null;
+            if (!blob || (!blob.type.startsWith('image/') && blob.size < 15000)) return null;
             const dataUrl = await new Promise((resolve) => {
               const fr = new FileReader();
               fr.onloadend = () => resolve(typeof fr.result === 'string' ? fr.result : null);
@@ -1260,7 +1288,25 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
-        // Tìm mục "1K / Kích thước gốc" (hoặc "2K") trong menu Tải nội dung của Google Flow
+        function captureElementViaCanvas(el) {
+          if (!el) return null;
+          try {
+            if (el.tagName === 'IMG') {
+              const c = document.createElement('canvas');
+              c.width = el.naturalWidth || el.width || 512;
+              c.height = el.naturalHeight || el.height || 512;
+              const ctx = c.getContext('2d');
+              ctx.drawImage(el, 0, 0);
+              const d = c.toDataURL('image/png');
+              return (d && d.startsWith('data:image/')) ? d : null;
+            } else if (el.tagName === 'CANVAS') {
+              const d = el.toDataURL('image/png');
+              return (d && d.startsWith('data:image/')) ? d : null;
+            }
+          } catch (_) {}
+          return null;
+        }
+
         function find1KSubmenuItem() {
           const all = [];
           collectAllElements(document, all);
@@ -1295,7 +1341,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return best;
         }
 
-        // Tìm mục "⬇️ Tải nội dung xuống" / "Download" trong menu ⋮ của Google Flow
         function findDownloadMenuItem() {
           const all = [];
           collectAllElements(document, all);
@@ -1336,12 +1381,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return best;
         }
 
-        // Tìm nút ⋮ (more_vert) trên thanh công cụ chi tiết ảnh (cùng hàng với nút ← arrow_back / ⓘ info / ✓ check) hoặc trên thẻ ảnh
         function findImageMoreVertButton(targetImg) {
           const all = [];
           collectAllElements(document, all);
 
-          // Kiểm tra xem đang ở màn hình chi tiết ảnh (có nút ← arrow_back hoặc ✓ check ở thanh trên) không
           let detailHeaderY = null;
           for (const el of all) {
             if (!isVisible(el, 14, 14)) continue;
@@ -1373,9 +1416,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             let score = 100;
             if (detailHeaderY !== null && Math.abs(cy - detailHeaderY) <= 28) {
               score += 250;
-            } else if (targetImg) {
+            } else if (targetImg && targetImg.isConnected) {
               const ir = targetImg.getBoundingClientRect();
-              if (r.left >= ir.left - 30 && r.right <= ir.right + 30 && r.top >= ir.top - 60 && r.bottom <= ir.bottom + 60) {
+              if (r.left >= ir.left - 40 && r.right <= ir.right + 40 && r.top >= ir.top - 70 && r.bottom <= ir.bottom + 70) {
                 score += 220;
               }
             }
@@ -1387,22 +1430,20 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           return { btn: best, inDetailView: detailHeaderY !== null };
         }
 
-        // Tự động mở menu ⋮ -> Tải nội dung xuống -> 1K (1024px) để lấy ảnh gốc 1K thay vì thumbnail 512x512
         async function triggerFlow1KDownloadMenu(targetImg) {
+          window.__dmxUploadingSample = false;
           window.__dmxInterceptingDownload = true;
+          window.__dmxDownloadWindowUntil = Date.now() + 18000;
           try {
-            // Nếu đã có sẵn ảnh >= 900px từ hook trước đó thì trả về ngay
             if (window.__dmxHighResDataUrl && window.__dmxHighResWidth >= 900) {
               return window.__dmxHighResDataUrl;
             }
 
-            // Bước 1: Nếu menu "1K" chưa mở, kiểm tra menu "Tải nội dung xuống" hoặc nút ⋮
             let item1K = find1KSubmenuItem();
             if (!item1K) {
               let dlItem = findDownloadMenuItem();
               if (!dlItem) {
                 let moreInfo = findImageMoreVertButton(targetImg);
-                // Nếu chưa ở màn hình chi tiết ảnh (chưa có nút ← / ✓), bấm vào ảnh kết quả để mở màn hình chi tiết ảnh
                 if (!moreInfo.inDetailView && targetImg) {
                   humanClick(targetImg);
                   await sleep(650);
@@ -1410,30 +1451,28 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 }
                 if (moreInfo.btn) {
                   humanClick(moreInfo.btn);
-                  await sleep(480);
+                  await sleep(450);
                 }
                 dlItem = findDownloadMenuItem();
               }
               if (dlItem) {
                 humanClick(dlItem);
-                await sleep(480);
+                await sleep(450);
               }
               item1K = find1KSubmenuItem();
             }
 
-            // Bước 2: Bấm vào mục "1K (Kích thước gốc)"
             if (item1K) {
               window.__dmxHighResDataUrl = '';
               window.__dmxHighResWidth = 0;
+              window.__dmxDownloadWindowUntil = Date.now() + 18000;
               humanClick(item1K);
 
-              // Chờ tối đa 4.5 giây để hook URL.createObjectURL / <a download> / fetch bắt được file 1K (1024x1024)
-              for (let k = 0; k < 15; k++) {
+              for (let k = 0; k < 12; k++) {
                 await sleep(300);
                 if (window.__dmxHighResDataUrl && window.__dmxHighResWidth >= 800) {
                   return window.__dmxHighResDataUrl;
                 }
-                // Kiểm tra các URL signed mới xuất hiện sau khi bấm 1K
                 if (Array.isArray(window.__dmxCapturedSignedUrls) && window.__dmxCapturedSignedUrls.length > 0) {
                   const latestUrl = window.__dmxCapturedSignedUrls[window.__dmxCapturedSignedUrls.length - 1];
                   const fetched = await fetchImageWithSize(latestUrl);
@@ -1458,25 +1497,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
         for (const el of nodes) {
           const r = el.getBoundingClientRect();
-          if (r.width < 100 || r.height < 100) continue;
+          if (r.width < 110 || r.height < 110) continue;
           const nw = el.tagName === 'IMG' ? (el.naturalWidth || r.width) : (el.width || r.width);
           const nh = el.tagName === 'IMG' ? (el.naturalHeight || r.height) : (el.height || r.height);
           if (nw < 256 || nh < 256) continue;
           const src = el.tagName === 'IMG' ? (el.currentSrc || el.src || '') : '';
           if (src && (oldSet.has(src) || (window.__dmxBaselineSrcs && window.__dmxBaselineSrcs.has(src)) || (window.__dmxSampleBlobUrls && window.__dmxSampleBlobUrls.has(src)))) continue;
-          if (r.width < 135 || r.height < 135) continue;
           if (el.tagName === 'IMG' && /(avatar|profile|logo|icon|googleusercontent\.com\/a\/)/i.test(src)) continue;
-          let pCard = el;
-          let isSampleCard = false;
-          for (let k = 0; k < 7 && pCard && pCard !== document.body; k++) {
-            if (((pCard.innerText || pCard.textContent || '').toLowerCase()).includes('san-pham-dmx')) { isSampleCard = true; break; }
-            if (pCard.querySelector && pCard.querySelector('[data-slate-editor="true"], [contenteditable="true"], textarea')) {
-              isSampleCard = true;
-              break;
-            }
-            pCard = pCard.parentElement;
-          }
-          if (isSampleCard) continue;
+          if (isUploadedAssetTile(el)) continue;
+
           const area = nw * nh;
           if (area >= bestArea) {
             bestArea = area;
@@ -1484,19 +1513,18 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
-        // Chỉ dùng window.__dmxHighResDataUrl nếu đó là ảnh mới tải về (không phải ảnh mẫu)
         if (!window.__dmxUploadingSample && window.__dmxHighResDataUrl && window.__dmxHighResWidth >= 900) {
           return window.__dmxHighResDataUrl;
         }
 
         if (!best) {
-          // Thử kích hoạt menu 1K nếu người dùng đang mở sẵn menu Tải nội dung trên màn hình
           const fromOpenMenu = await triggerFlow1KDownloadMenu(null);
           if (fromOpenMenu) return fromOpenMenu;
           return "NOT_FOUND";
         }
 
-        let fallback512DataUrl = null;
+        // Lưu ngay bản chụp dự phòng của ảnh mới tạo trước khi thao tác mở menu 1K (để không bao giờ bị mất ảnh nếu DOM chuyển trang chi tiết)
+        let fallback512DataUrl = captureElementViaCanvas(best);
 
         if (best.tagName === 'IMG') {
           const rawSrc = bestSrcFromSrcset(best) || best.currentSrc || best.src || '';
@@ -1504,7 +1532,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           for (const u of candidates) {
             const res = await fetchImageWithSize(u);
             if (res && res.dataUrl) {
-              // Nếu lấy được ảnh chuẩn 1K/2K (>= 900px) thì trả về luôn!
               if (res.w >= 900 || res.h >= 900) {
                 return res.dataUrl;
               }
@@ -1515,72 +1542,66 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           }
         }
 
-        // Nếu ảnh trên lưới DOM chỉ là bản xem trước 512x512px -> tự động bấm mở menu ⋮ -> Tải nội dung xuống -> 1K (1024px)
+        // Thử tự động bấm mở menu ⋮ -> Tải nội dung xuống -> 1K (1024px)
         const menu1KDataUrl = await triggerFlow1KDownloadMenu(best);
         if (menu1KDataUrl && menu1KDataUrl.startsWith('data:image/')) {
           return menu1KDataUrl;
         }
 
-        // Kiểm tra lại xem sau khi mở màn hình chi tiết có thẻ <img> nào >= 900px xuất hiện không
+        // Kiểm tra xem trên màn hình chi tiết có thẻ <img> nào mới xuất hiện không
         const afterNodes = [];
         collectMedia(document, afterNodes);
         for (const el of afterNodes) {
           if (el.tagName !== 'IMG') continue;
+          if (isUploadedAssetTile(el)) continue;
+          const s = bestSrcFromSrcset(el) || el.currentSrc || el.src || '';
+          if (!s || oldSet.has(s) || (window.__dmxBaselineSrcs && window.__dmxBaselineSrcs.has(s))) continue;
           const nw = el.naturalWidth || 0, nh = el.naturalHeight || 0;
           if (nw >= 900 || nh >= 900) {
-            const s = bestSrcFromSrcset(el) || el.currentSrc || el.src || '';
             const res = await fetchImageWithSize(s);
             if (res && res.dataUrl) return res.dataUrl;
+            const cUrl = captureElementViaCanvas(el);
+            if (cUrl) return cUrl;
+          } else if (!fallback512DataUrl && nw >= 400 && nh >= 400) {
+            const res = await fetchImageWithSize(s);
+            if (res && res.dataUrl) fallback512DataUrl = res.dataUrl;
+            else fallback512DataUrl = captureElementViaCanvas(el);
           }
         }
 
         if (fallback512DataUrl) return fallback512DataUrl;
-
-        if (best.tagName === 'IMG') {
-          try {
-            const c = document.createElement('canvas');
-            c.width = best.naturalWidth;
-            c.height = best.naturalHeight;
-            const ctx = c.getContext('2d');
-            ctx.drawImage(best, 0, 0);
-            return c.toDataURL('image/png');
-          } catch (_) {
-            return "CORS_BLOCKED";
-          }
-        } else {
-          try {
-            return best.toDataURL('image/png');
-          } catch (_) {
-            return "CORS_BLOCKED";
-          }
-        }
+        return "NOT_FOUND";
         """#
 
         webViewFlow.callAsyncJavaScript(asyncJS, arguments: ["oldSrcs": cacSrcCu], in: nil, in: .page) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.vongQuayFlow.stopAnimating()
                 switch result {
                 case .success(let value):
                     let str = (value as? String) ?? ""
-                    if str == "NOT_FOUND" || str.isEmpty {
-                        if !tuDong {
-                            self.hienToastFlow("Chưa thấy ảnh kết quả trên Flow — hãy tạo ảnh xong rồi bấm Lấy ảnh.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                    if str == "NOT_FOUND" || str.isEmpty || str == "CORS_BLOCKED" || !str.hasPrefix("data:image/") {
+                        if tuDong && phien == self.maPhienChoAnhFlow && lanThu < 42 {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                                self?.kiemTraAnhMoiTuFlow(phien: phien, cacSrcCu: cacSrcCu, lanThu: lanThu + 1)
+                            }
+                            return
                         }
-                        return
-                    }
-                    if str == "CORS_BLOCKED" || !str.hasPrefix("data:image/") {
+                        self.vongQuayFlow.stopAnimating()
                         if !tuDong {
-                            self.hienToastFlow("Hãy bấm ⋮ trên ảnh → Tải nội dung xuống → 1K để app tự bắt ảnh 1K.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                            self.hienToastFlow("Chưa thấy ảnh kết quả mới — hãy chờ ảnh vẽ xong hoặc bấm ⋮ → Tải nội dung → 1K.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                         }
                         return
                     }
                     guard let comma = str.firstIndex(of: ",") else { return }
                     let b64 = String(str[str.index(after: comma)...])
                     guard let data = Data(base64Encoded: b64), let rawImg = UIImage(data: data) else {
-                        if !tuDong {
-                            self.hienToastFlow("Không giải mã được ảnh — hãy chọn Tải nội dung → 1K trên Flow.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                        if tuDong && phien == self.maPhienChoAnhFlow && lanThu < 42 {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                                self?.kiemTraAnhMoiTuFlow(phien: phien, cacSrcCu: cacSrcCu, lanThu: lanThu + 1)
+                            }
+                            return
                         }
+                        self.vongQuayFlow.stopAnimating()
                         return
                     }
                     let img = self.nangCapLen1KNeuCan(rawImg)
@@ -1588,9 +1609,13 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     let pxH = Int((img.size.height * img.scale).rounded())
                     self.nhanAnhChatLuongCaoTuFlow(img, nguon: (pxW >= 1800 || pxH >= 1800) ? "2K" : "1K")
                 case .failure(_):
-                    if !tuDong {
-                        self.hienToastFlow("Hãy bấm ⋮ trên ảnh → Tải nội dung xuống → 1K để app tự lấy ảnh.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
+                    if tuDong && phien == self.maPhienChoAnhFlow && lanThu < 42 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                            self?.kiemTraAnhMoiTuFlow(phien: phien, cacSrcCu: cacSrcCu, lanThu: lanThu + 1)
+                        }
+                        return
                     }
+                    self.vongQuayFlow.stopAnimating()
                 }
             }
         }
@@ -2855,13 +2880,6 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         let arrowInfo = 'NONE';
         if (promptOk || (box && getBoxText(box).length > 0)) {
           for (let i = 0; i < 32; i++) {
-            const snapNow = snapshotImageSrcs();
-            if (i < 3) {
-              for (const s of snapNow) {
-                if (!existingSrcs.includes(s)) existingSrcs.push(s);
-                window.__dmxBaselineSrcs.add(s);
-              }
-            }
             if (hasActivePercentProgress()) {
               clickedGenerate = true;
               break;
@@ -2907,7 +2925,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
         window.__dmxGenerationStartTime = Date.now();
         window.__dmxSawGenerationProgress = false;
-        setTimeout(() => { window.__dmxUploadingSample = false; }, 2500);
+        window.__dmxUploadingSample = false;
 
         return JSON.stringify({
           promptOk,
@@ -3161,13 +3179,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             return true;
           }
           const r = imgEl.getBoundingClientRect();
-          // Ảnh mẫu đính kèm trong ô nhập prompt luôn có kích thước hiển thị nhỏ (< 135px) hoặc nằm trong khung chứa editor
-          if (r.width < 135 || r.height < 135) return true;
+          if (r.width < 110 || r.height < 110) return true;
           let p = imgEl;
-          for (let k = 0; k < 7 && p && p !== document.body; k++) {
+          for (let k = 0; k < 5 && p && p !== document.body; k++) {
+            const pr = p.getBoundingClientRect();
+            // Chỉ kiểm tra trong phạm vi thẻ ảnh hoặc ô nhập prompt (< 420px), tuyệt đối không duyệt lên container toàn trang
+            if (pr.height > 420) break;
             const t = (p.innerText || p.textContent || '').toLowerCase();
             if (t.includes('san-pham-dmx')) return true;
-            if (p.querySelector && p.querySelector('[data-slate-editor="true"], [contenteditable="true"], textarea')) {
+            if (pr.height < 360 && p.querySelector && p.querySelector('[data-slate-editor="true"], textarea')) {
               return true;
             }
             p = p.parentElement;
@@ -3216,7 +3236,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                    str == "READY_FOR_1K" {
                     // Khi phát hiện ảnh mới đã tạo xong trên Flow -> gọi quy trình lấy bản 1K (1024px+) qua URL gốc hoặc menu Tải nội dung 1K
                     self.hienToastFlow("Ảnh đã vẽ xong — đang tự tải bản 1K (1024px+) về mục 4...", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 4.0)
-                    self.thucThiLayAnh1KTuFlow(cacSrcCu: cacSrcCu, tuDong: true)
+                    self.thucThiLayAnh1KTuFlow(cacSrcCu: cacSrcCu, tuDong: true, phien: phien, lanThu: lanThu)
                     return
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
@@ -3265,7 +3285,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
         let mime = (navigationResponse.response.mimeType ?? "").lowercased()
-        let isAttachment = ((navigationResponse.response as? HTTPURLResponse)?.allHeaderFields["Content-Disposition"] as? String ?? "").lowercased().contains("attachment")
+        let isAttachment = ((navigationResponse.response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Disposition") ?? "").lowercased().contains("attachment")
         if (mime.hasPrefix("image/") && !navigationResponse.isForMainFrame) || isAttachment || !navigationResponse.canShowMIMEType {
             if let url = navigationResponse.response.url, !url.absoluteString.hasPrefix("blob:") {
                 taiAnhTrucTiepTuURLFlow(url)
