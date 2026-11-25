@@ -498,6 +498,7 @@ final class BoGiuChayNenTruyenThong {
     private var henGioTuTat: DispatchWorkItem?
     private(set) var dangGiuNen: Bool = false
     private var daXinQuyenThongBao: Bool = false
+    private var daGuiThongBaoPhienNay: Bool = false
 
     private init() {
         NotificationCenter.default.addObserver(
@@ -512,6 +513,7 @@ final class BoGiuChayNenTruyenThong {
         DispatchQueue.main.async {
             self.henGioTuTat?.cancel()
             self.dangGiuNen = true
+            self.daGuiThongBaoPhienNay = false
             self.xinQuyenThongBaoNeuCan()
 
             if self.maTacVuNen != .invalid {
@@ -551,13 +553,15 @@ final class BoGiuChayNenTruyenThong {
 
     func guiThongBaoNeuDangTatManHinh(tieuDe: String, noiDung: String) {
         DispatchQueue.main.async {
+            guard !self.daGuiThongBaoPhienNay else { return }
             guard UIApplication.shared.applicationState != .active else { return }
+            self.daGuiThongBaoPhienNay = true
             let content = UNMutableNotificationContent()
             content.title = tieuDe
             content.body = noiDung
             content.sound = .default
             let req = UNNotificationRequest(
-                identifier: "dmx_flow_\(UUID().uuidString)",
+                identifier: "dmx_flow_ket_qua_duy_nhat",
                 content: content,
                 trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.4, repeats: false)
             )
@@ -1476,6 +1480,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     private func nhanAnhChatLuongCaoTuFlow(_ img: UIImage, nguon: String = "1K/2K") {
+        let vuaHoanTatFlowNen = dangChayFlowNen
         maPhienChoAnhFlow += 1
         dangChayFlowNen = false
         vongQuayFlow.stopAnimating()
@@ -1503,10 +1508,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         }
 
         luuPhienLamViec(ngayLapTuc: true)
-        kiemTraKetThucGiuNen(
-            tieuDeThongBao: "✅ Đã tạo xong ảnh Truyền thông",
-            noiDungThongBao: "Ảnh gốc \(nguon) (\(pxW)×\(pxH) px) và các bài viết mẫu đã sẵn sàng trong ứng dụng."
-        )
+        if vuaHoanTatFlowNen {
+            kiemTraKetThucGiuNen(
+                tieuDeThongBao: "✅ Đã tạo xong ảnh Truyền thông",
+                noiDungThongBao: "Ảnh gốc \(nguon) (\(pxW)×\(pxH) px) và các bài viết mẫu đã sẵn sàng trong ứng dụng."
+            )
+        }
 
         if UIApplication.shared.applicationState == .active {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
