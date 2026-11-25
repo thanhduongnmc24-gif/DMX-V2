@@ -2273,9 +2273,198 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         }
     }
 
-    /// Giữ nguyên toàn bộ khung ảnh gốc (không cắt viền).
+    /// Tự động vá nền mượt (Laplace SOR inpainting) xóa dấu sao watermark ở góc dưới phải mà không cắt ảnh.
     private func catVienTrangTuDong(_ img: UIImage) -> UIImage {
-        return img
+        return autoreleasepool {
+            let w = Int((img.size.width * img.scale).rounded())
+            let h = Int((img.size.height * img.scale).rounded())
+            guard w >= 120, h >= 120 else { return img }
+
+            let minSide = min(w, h)
+            let roiSize = max(48, min(280, Int((Double(minSide) * 0.14).rounded())))
+            guard roiSize < w - 4, roiSize < h - 4 else { return img }
+
+            let bytesPerPixel = 4
+            let bytesPerRow = w * bytesPerPixel
+            var pixels = [UInt8](repeating: 0, count: h * bytesPerRow)
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            guard let ctx = CGContext(
+                data: &pixels,
+                width: w,
+                height: h,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return img }
+
+            UIGraphicsPushContext(ctx)
+            ctx.translateBy(x: 0, y: CGFloat(h))
+            ctx.scaleBy(x: 1, y: -1)
+            img.draw(in: CGRect(x: 0, y: 0, width: w, height: h))
+            UIGraphicsPopContext()
+
+            let rx0 = w - roiSize
+            let ry0 = h - roiSize
+            let count = roiSize * roiSize
+
+            var roiR = [Float](repeating: 0, count: count)
+            var roiG = [Float](repeating: 0, count: count)
+            var roiB = [Float](repeating: 0, count: count)
+
+            for ly in 0..<roiSize {
+                let py = ry0 + ly
+                let rowOff = py * bytesPerRow
+                let roiRow = ly * roiSize
+                for lx in 0..<roiSize {
+                    let px = rx0 + lx
+                    let pIdx = rowOff + px * bytesPerPixel
+                    let rIdx = roiRow + lx
+                    roiR[rIdx] = Float(pixels[pIdx])
+                    roiG[rIdx] = Float(pixels[pIdx + 1])
+                    roiB[rIdx] = Float(pixels[pIdx + 2])
+                }
+            }
+
+            let topY = 2
+            let botY = roiSize - 3
+            let leftX = 2
+            let rightX = roiSize - 3
+            let invSpan = 1.0 / Float(roiSize - 1)
+
+            @inline(__always)
+            func uocLuongNen(_ lx: Int, _ ly: Int) -> (Float, Float, Float) {
+                let tx = Float(lx) * invSpan
+                let ty = Float(ly) * invSpan
+                let lIdx = ly * roiSize + leftX
+                let rIdx = ly * roiSize + rightX
+                let tIdx = topY * roiSize + lx
+                let bIdx = botY * roiSize + lx
+                let bgR = 0.5 * ((1 - tx) * roiR[lIdx] + tx * roiR[rIdx] + (1 - ty) * roiR[tIdx] + ty * roiR[bIdx])
+                let bgG = 0.5 * ((1 - tx) * roiG[lIdx] + tx * roiG[rIdx] + (1 - ty) * roiG[tIdx] + ty * roiG[bIdx])
+                let bgB = 0.5 * ((1 - tx) * roiB[lIdx] + tx * roiB[rIdx] + (1 - ty) * roiB[tIdx] + ty * roiB[bIdx])
+                return (bgR, bgG, bgB)
+            }
+
+            // 1. Dò cụm điểm ảnh dấu sao watermark bên trong vùng góc dưới phải
+            var rawMask = [Bool](repeating: false, count: count)
+            var detectedCount = 0
+            let innerLo = Int(Double(roiSize) * 0.18)
+            let innerHi = Int(Double(roiSize) * 0.94)
+
+            for ly in innerLo..<innerHi {
+                let roiRow = ly * roiSize
+                for lx in innerLo..<innerHi {
+                    let idx = roiRow + lx
+                    let (bgR, bgG, bgB) = uocLuongNen(lx, ly)
+                    let diff = abs(roiR[idx] - bgR) + abs(roiG[idx] - bgG) + abs(roiB[idx] - bgB)
+                    if diff >= 18.0 {
+                        rawMask[idx] = true
+                        detectedCount += 1
+                    }
+                }
+            }
+
+            var finalMask = [Bool](repeating: false, count: count)
+            let maxSafePixels = Int(Double(count) * 0.42)
+            let pad = max(4, min(14, roiSize / 16))
+            let padSq = pad * pad
+
+            if detectedCount >= 12 && detectedCount <= maxSafePixels {
+                for ly in innerLo..<innerHi {
+                    let roiRow = ly * roiSize
+                    for lx in innerLo..<innerHi {
+                        if rawMask[roiRow + lx] {
+                            let yMin = max(2, ly - pad)
+                            let yMax = min(roiSize - 3, ly + pad)
+                            let xMin = max(2, lx - pad)
+                            let xMax = min(roiSize - 3, lx + pad)
+                            for ny in yMin...yMax {
+                                let dy = ny - ly
+                                let dySq = dy * dy
+                                let nRow = ny * roiSize
+                                for nx in xMin...xMax {
+                                    let dx = nx - lx
+                                    if dx * dx + dySq <= padSq {
+                                        finalMask[nRow + nx] = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Dự phòng: vùng tròn nhỏ gọn ngay vị trí tiêu chuẩn của dấu sao góc dưới phải
+                let cx = Int((Double(roiSize) - Double(minSide) * 0.055).rounded())
+                let cy = Int((Double(roiSize) - Double(minSide) * 0.055).rounded())
+                let rad = max(12, Int((Double(minSide) * 0.036).rounded()))
+                let radSq = rad * rad
+                let yMin = max(2, cy - rad)
+                let yMax = min(roiSize - 3, cy + rad)
+                let xMin = max(2, cx - rad)
+                let xMax = min(roiSize - 3, cx + rad)
+                for ly in yMin...yMax {
+                    let dy = ly - cy
+                    let dySq = dy * dy
+                    let roiRow = ly * roiSize
+                    for lx in xMin...xMax {
+                        let dx = lx - cx
+                        if dx * dx + dySq <= radSq {
+                            finalMask[roiRow + lx] = true
+                        }
+                    }
+                }
+            }
+
+            // 2. Khởi tạo vùng cần vá bằng nội suy mượt từ viền xung quanh và gom danh sách chỉ số
+            var maskIndices: [Int] = []
+            maskIndices.reserveCapacity(count / 4)
+            for ly in 1..<(roiSize - 1) {
+                let roiRow = ly * roiSize
+                for lx in 1..<(roiSize - 1) {
+                    let idx = roiRow + lx
+                    if finalMask[idx] {
+                        let (bgR, bgG, bgB) = uocLuongNen(lx, ly)
+                        roiR[idx] = bgR
+                        roiG[idx] = bgG
+                        roiB[idx] = bgB
+                        maskIndices.append(idx)
+                    }
+                }
+            }
+            guard !maskIndices.isEmpty else { return img }
+
+            // 3. Khuyếch tán điều hòa Laplace (SOR omega = 1.7, 60 vòng) để hòa màu nền & ánh sáng không thấy đường nối
+            let omega: Float = 1.7
+            for _ in 0..<60 {
+                for idx in maskIndices {
+                    let up = idx - roiSize
+                    let dn = idx + roiSize
+                    let lf = idx - 1
+                    let rt = idx + 1
+                    let avgR = 0.25 * (roiR[up] + roiR[dn] + roiR[lf] + roiR[rt])
+                    let avgG = 0.25 * (roiG[up] + roiG[dn] + roiG[lf] + roiG[rt])
+                    let avgB = 0.25 * (roiB[up] + roiB[dn] + roiB[lf] + roiB[rt])
+                    roiR[idx] += omega * (avgR - roiR[idx])
+                    roiG[idx] += omega * (avgG - roiG[idx])
+                    roiB[idx] += omega * (avgB - roiB[idx])
+                }
+            }
+
+            // 4. Ghi ngược vùng đã vá vào buffer ảnh gốc
+            for idx in maskIndices {
+                let ly = idx / roiSize
+                let lx = idx % roiSize
+                let pIdx = (ry0 + ly) * bytesPerRow + (rx0 + lx) * bytesPerPixel
+                pixels[pIdx] = UInt8(max(0, min(255, Int(roiR[idx].rounded()))))
+                pixels[pIdx + 1] = UInt8(max(0, min(255, Int(roiG[idx].rounded()))))
+                pixels[pIdx + 2] = UInt8(max(0, min(255, Int(roiB[idx].rounded()))))
+                pixels[pIdx + 3] = 255
+            }
+
+            guard let cgOut = ctx.makeImage() else { return img }
+            return UIImage(cgImage: cgOut, scale: 1.0, orientation: .up)
+        }
     }
 
     /// Đảm bảo ảnh lấy về luôn đạt chuẩn tối thiểu 1K (1024px cạnh lớn) sắc nét nếu Flow chỉ trả về bản preview 512px.
