@@ -4,6 +4,7 @@ import PhotosUI
 import WebKit
 import SafariServices
 import AVFoundation
+import AVKit
 import UserNotifications
 
 struct MucSanPhamPoster {
@@ -215,6 +216,31 @@ final class DichVuTruyenThongGemini {
 
     func taoPromptChoGoogleFlow(thongTin: ThongTinSanPhamTruyenThong, coAnhMau: Bool) -> String {
         return taoPromptAnh(thongTin: thongTin, coAnhMau: coAnhMau)
+    }
+
+    func taoPromptVideoChoGoogleFlow(thongTin: ThongTinSanPhamTruyenThong, coAnhMau: Bool) -> String {
+        let cacSP = thongTin.danhSachSanPham.filter { $0.coDuLieu }
+        let tenSP: String
+        if cacSP.count >= 2 {
+            tenSP = cacSP.compactMap { $0.tenSanPham.isEmpty ? nil : $0.tenSanPham }.joined(separator: ", ")
+        } else {
+            tenSP = thongTin.tenSanPham.isEmpty ? "sản phẩm điện máy nổi bật" : thongTin.tenSanPham
+        }
+        let chuDe = thongTin.toneMauChuDe.trimmingCharacters(in: .whitespacesAndNewlines)
+        let moTaChuDe = chuDe.isEmpty
+            ? "bối cảnh studio thương mại hiện đại ánh sáng xanh dương - vàng kim sang trọng, tia sáng năng lượng mượt mà"
+            : "bối cảnh & ánh sáng theo chủ đề \"\(chuDe)\" rực rỡ, chuyên nghiệp"
+        let moTaGia = thongTin.giaKhuyenMai.isEmpty ? "" : " (ưu đãi nổi bật \(thongTin.giaKhuyenMai))"
+        let nguon = coAnhMau
+            ? "Giữ nguyên 100% kiểu dáng, màu sắc và chi tiết sản phẩm từ ảnh tham chiếu đính kèm, đặt sản phẩm trên bục trưng bày 3D phát sáng ở trung tâm."
+            : "Dựng hình 3D chân thực chuẩn nhiếp ảnh thương mại cho sản phẩm \(tenSP) đặt trên bục trưng bày phát sáng."
+
+        return """
+        Video quảng cáo thương mại 4K mượt mà, điện ảnh giới thiệu \(tenSP)\(moTaGia) cho cửa hàng Điện Máy Xanh.
+        \(nguon)
+        Không gian \(moTaChuDe).
+        Chuyển động camera dolly-in chậm và xoay vòng 360 độ nhẹ nhàng quanh sản phẩm, ánh sáng rim-light quét bóng mượt trên bề mặt sản phẩm, hạt ánh sáng lung linh tinh tế, nhịp điệu hiện đại thu hút người xem Facebook Reels / TikTok. Không sinh chữ tiếng Anh vô nghĩa hay ký tự lỗi.
+        """
     }
 
     func taoPromptAnh(thongTin: ThongTinSanPhamTruyenThong, coAnhMau: Bool) -> String {
@@ -895,6 +921,7 @@ struct DuLieuPhienTruyenThong: Codable {
     var chiSoPhongCachBai: Int
     var trangThaiCuoi: String
     var coAnhKetQua: Bool
+    var coVideoKetQua: Bool?
     var thoiGianLuu: Date
 }
 
@@ -902,6 +929,7 @@ struct PhienTruyenThongDaTai {
     var duLieu: DuLieuPhienTruyenThong
     var danhSachSanPham: [MucSanPhamPoster]
     var anhKetQua: UIImage?
+    var videoKetQuaURL: URL?
 }
 
 final class KhoPhienTruyenThong {
@@ -927,6 +955,10 @@ final class KhoPhienTruyenThong {
 
     private var tepAnhKetQua: URL {
         thuMucPhien.appendingPathComponent("anh_ket_qua.png")
+    }
+
+    var tepVideoKetQua: URL {
+        thuMucPhien.appendingPathComponent("video_ket_qua.mp4")
     }
 
     func luuPhien(
@@ -1006,6 +1038,7 @@ final class KhoPhienTruyenThong {
                     chiSoPhongCachBai: chiSoPhongCachBai,
                     trangThaiCuoi: trangThaiCuoi,
                     coAnhKetQua: daLuuAnhKQ,
+                    coVideoKetQua: fm.fileExists(atPath: self.tepVideoKetQua.path),
                     thoiGianLuu: Date()
                 )
                 if let encoded = try? JSONEncoder().encode(duLieu) {
@@ -1054,7 +1087,8 @@ final class KhoPhienTruyenThong {
                 anhKQ = UIImage(data: dKQ)
             }
 
-            return PhienTruyenThongDaTai(duLieu: duLieu, danhSachSanPham: dsSP, anhKetQua: anhKQ)
+            let videoURL: URL? = FileManager.default.fileExists(atPath: self.tepVideoKetQua.path) ? self.tepVideoKetQua : nil
+            return PhienTruyenThongDaTai(duLieu: duLieu, danhSachSanPham: dsSP, anhKetQua: anhKQ, videoKetQuaURL: videoURL)
         }
     }
 
@@ -1082,8 +1116,16 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private var congViecBomPromptTuDong: DispatchWorkItem?
     private var maPhienChoAnhFlow: Int = 0
     private var dangChayFlowNen = false
+    private var cheDoVideoFlowNen = false
     private var dangVietBaiNen = false
     private var soLanThuLaiTimOFlow = 0
+    private var videoKetQuaURL: URL?
+    private let theVideoKetQua = UIView()
+    private let anhThuNhoVideoView = UIImageView()
+    private let nutXemVideo = UIButton(type: .system)
+    private let nutLuuVideo = UIButton(type: .system)
+    private let nutChiaSeVideo = UIButton(type: .system)
+    private let nutTaoVideoFlow = UIButton(type: .system)
     private var congViecLuuPhien: DispatchWorkItem?
     private let nutHuyChayNen = UIButton(type: .system)
     private let nutPhienMoi = UIButton(type: .system)
@@ -1245,6 +1287,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         ngan.addArrangedSubview(taoTheThongTinSanPham())
         ngan.addArrangedSubview(taoTheHanhDong())
         ngan.addArrangedSubview(taoTheAnhKetQua())
+        ngan.addArrangedSubview(taoTheVideoKetQua())
         ngan.addArrangedSubview(taoTheBaiDangFacebook())
 
         dungKhungGoogleFlow()
@@ -1269,6 +1312,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           window.__dmxHighResWidth = 0;
           window.__dmxHighResHeight = 0;
           window.__dmxCapturedSignedUrls = [];
+          window.__dmxCapturedVideoUrls = [];
           window.__dmxSampleBlobUrls = new Set();
           window.__dmxBaselineSrcs = new Set();
 
@@ -1407,7 +1451,11 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 const url = (resp && resp.url) || (typeof args[0] === 'string' ? args[0] : '') || '';
                 if (window.__dmxBaselineSrcs.has(url) || window.__dmxSampleBlobUrls.has(url)) return resp;
                 const ct = (resp.headers && resp.headers.get && (resp.headers.get('content-type') || '')).toLowerCase();
-                if (ct.startsWith('image/') || (/flow-content\.google/i.test(url) && !ct.includes('video'))) {
+                if (ct.startsWith('video/') || (/\.mp4(\?|$)/i.test(url) && !window.__dmxBaselineSrcs.has(url))) {
+                  if (url && !window.__dmxCapturedVideoUrls.includes(url)) {
+                    window.__dmxCapturedVideoUrls.push(url);
+                  }
+                } else if (ct.startsWith('image/') || (/flow-content\.google/i.test(url) && !ct.includes('video'))) {
                   resp.clone().blob().then(b => inspectAndStoreBlob(b, /flow-content\.google/i.test(url))).catch(() => {});
                 } else if (/batchexecute|flowCreationAgent|getMedia/i.test(url)) {
                   resp.clone().text().then(txt => {
@@ -1504,6 +1552,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         let userScript = WKUserScript(source: flowHookJS, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         config.userContentController.addUserScript(userScript)
         config.userContentController.add(self, name: "dmxFlowImage")
+        config.userContentController.add(self, name: "dmxFlowVideo")
 
         webViewFlow = WKWebView(frame: .zero, configuration: config)
         webViewFlow.navigationDelegate = self
@@ -1760,6 +1809,19 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "dmxFlowVideo", let body = message.body as? [String: Any] {
+            if let urlStr = body["videoUrl"] as? String, let url = URL(string: urlStr) {
+                taiVideoTrucTiepTuURLFlow(url)
+                return
+            }
+            if let dataUrl = body["dataUrl"] as? String,
+               let comma = dataUrl.firstIndex(of: ","),
+               let data = Data(base64Encoded: String(dataUrl[dataUrl.index(after: comma)...])) {
+                luuVaHienThiVideoTuFlow(data)
+                return
+            }
+            return
+        }
         guard message.name == "dmxFlowImage",
               let body = message.body as? [String: Any],
               let str = body["dataUrl"] as? String,
@@ -2284,6 +2346,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             let roiSize = max(48, min(280, Int((Double(minSide) * 0.14).rounded())))
             guard roiSize < w - 4, roiSize < h - 4 else { return img }
 
+            // Chuẩn hóa hướng ảnh về .up rồi vẽ trực tiếp bằng CGContext.draw (KHÔNG lật trục Y để hàng y = h-1 luôn là mép DƯỚI PHẢI thực sự)
+            let normFmt = UIGraphicsImageRendererFormat()
+            normFmt.scale = 1.0
+            normFmt.opaque = true
+            let anhChuan = UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: normFmt).image { _ in
+                img.draw(in: CGRect(x: 0, y: 0, width: w, height: h))
+            }
+            guard let cgNorm = anhChuan.cgImage else { return img }
+
             let bytesPerPixel = 4
             let bytesPerRow = w * bytesPerPixel
             var pixels = [UInt8](repeating: 0, count: h * bytesPerRow)
@@ -2298,11 +2369,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
             ) else { return img }
 
-            UIGraphicsPushContext(ctx)
-            ctx.translateBy(x: 0, y: CGFloat(h))
-            ctx.scaleBy(x: 1, y: -1)
-            img.draw(in: CGRect(x: 0, y: 0, width: w, height: h))
-            UIGraphicsPopContext()
+            ctx.draw(cgNorm, in: CGRect(x: 0, y: 0, width: w, height: h))
 
             let rx0 = w - roiSize
             let ry0 = h - roiSize
@@ -2358,7 +2425,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     let idx = roiRow + lx
                     let (bgR, bgG, bgB) = uocLuongNen(lx, ly)
                     let diff = abs(roiR[idx] - bgR) + abs(roiG[idx] - bgG) + abs(roiB[idx] - bgB)
-                    if diff >= 18.0 {
+                    if diff >= 12.0 {
                         rawMask[idx] = true
                         detectedCount += 1
                     }
@@ -2566,12 +2633,33 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         congViecBomPromptTuDong?.cancel()
 
         let tt = thuThapThongTin()
-        let anhB64 = maHoaAnhMauBase64ChoFlow()
+        let laVideo = cheDoVideoFlowNen
+        let anhB64: String
+        if laVideo {
+            if let anhMauTong = layAnhMauTongHopChoPoster() {
+                anhB64 = autoreleasepool {
+                    let g = thuGonAnhThamChieu(anhMauTong, canhToiDa: 1280)
+                    return (g.jpegData(compressionQuality: 0.86) ?? g.pngData())?.base64EncodedString() ?? ""
+                }
+            } else if let anhKQ = anhKetQua {
+                anhB64 = autoreleasepool {
+                    let g = thuGonAnhThamChieu(anhKQ, canhToiDa: 1280)
+                    return (g.jpegData(compressionQuality: 0.86) ?? g.pngData())?.base64EncodedString() ?? ""
+                }
+            } else {
+                anhB64 = ""
+            }
+        } else {
+            anhB64 = maHoaAnhMauBase64ChoFlow()
+        }
+        let tyLeFlow = laVideo ? ((tt.tyLeAnh == "16:9" || tt.tyLeAnh == "4:3") ? "16:9" : "9:16") : tt.tyLeAnh
+        let modelFlowDung = laVideo ? "" : tt.modelFlow
         let args: [String: Any] = [
             "promptText": prompt,
             "imageBase64": anhB64,
-            "targetAspect": tt.tyLeAnh,
-            "targetModel": tt.modelFlow,
+            "targetAspect": tyLeFlow,
+            "targetModel": modelFlowDung,
+            "targetMode": laVideo ? "video" : "image",
             "autoNewProject": tuTaoDuAnMoi
         ]
 
@@ -2931,12 +3019,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
               await sleep(320);
             }
 
-            const imgTab = findButtonByLabel(['Hình ảnh', 'Image', 'Images'], btnSelector);
-            if (imgTab) {
-              const alreadySelected = imgTab.getAttribute('aria-selected') === 'true' || imgTab.getAttribute('data-state') === 'active' || imgTab.getAttribute('aria-checked') === 'true';
+            const desiredTabs = (targetMode === 'video')
+              ? ['Video', 'Videos', 'Tạo video', 'Frames to Video', 'Text to Video']
+              : ['Hình ảnh', 'Image', 'Images'];
+            const modeTab = findButtonByLabel(desiredTabs, btnSelector);
+            if (modeTab) {
+              const alreadySelected = modeTab.getAttribute('aria-selected') === 'true' || modeTab.getAttribute('data-state') === 'active' || modeTab.getAttribute('aria-checked') === 'true';
               if (!alreadySelected) {
-                humanClick(imgTab);
-                await sleep(220);
+                humanClick(modeTab);
+                await sleep(280);
               }
             }
 
@@ -3044,8 +3135,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
           for (const d of docs) collectAllElements(d, all);
           const srcs = [];
           for (const el of all) {
-            if ((el.tagName || '').toUpperCase() === 'IMG') {
-              const s = el.currentSrc || el.src || '';
+            const tag = (el.tagName || '').toUpperCase();
+            if (tag === 'IMG' || tag === 'VIDEO') {
+              const s = el.currentSrc || el.src || (el.querySelector && el.querySelector('source')?.src) || '';
               if (s) srcs.push(s);
             }
           }
@@ -3814,15 +3906,23 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                         self.soLanThuLaiTimOFlow = 0
                         self.hienToastFlow("Đã bấm tạo ảnh (→)\(moTaCauHinh) — đang chờ ảnh xong để tự tải bản 1K về app...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 5.0)
                         if self.dangChayFlowNen {
-                            self.nhanTrangThai.text = "🌊 [Chạy nền 3/4] Google Flow đang vẽ ảnh\(moTaCauHinh) — bạn có thể tắt màn hình, app tự lấy bản 1K về..."
+                            if self.cheDoVideoFlowNen {
+                                self.nhanTrangThai.text = "🎬 [Video nền 3/4] Google Flow đang dựng video (1–3 phút) — bạn có thể tắt màn hình, app tự tải MP4 về..."
+                            } else {
+                                self.nhanTrangThai.text = "🌊 [Chạy nền 3/4] Google Flow đang vẽ ảnh\(moTaCauHinh) — bạn có thể tắt màn hình, app tự lấy bản 1K về..."
+                            }
                             self.nhanTrangThai.textColor = BangMauBCTD.xanhChuDao
                         }
                         self.batDauChoVaTuLayAnhFlow(cacSrcCu: existingSrcs)
                     } else if promptOk {
                         self.soLanThuLaiTimOFlow = 0
-                        self.hienToastFlow("Đã điền xong\(moTaCauHinh) — đang tự kích hoạt tạo ảnh (→) và chờ lấy bản 1K...", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 4.5)
+                        self.hienToastFlow("Đã điền xong\(moTaCauHinh) — đang tự kích hoạt tạo và chờ kết quả...", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 4.5)
                         if self.dangChayFlowNen {
-                            self.nhanTrangThai.text = "🌊 [Chạy nền 3/4] Đã điền prompt\(moTaCauHinh) — đang kích hoạt vẽ ảnh & chờ lấy bản 1K..."
+                            if self.cheDoVideoFlowNen {
+                                self.nhanTrangThai.text = "🎬 [Video nền 3/4] Đã điền prompt video — đang kích hoạt dựng video & chờ tải MP4..."
+                            } else {
+                                self.nhanTrangThai.text = "🌊 [Chạy nền 3/4] Đã điền prompt\(moTaCauHinh) — đang kích hoạt vẽ ảnh & chờ lấy bản 1K..."
+                            }
                             self.nhanTrangThai.textColor = BangMauBCTD.xanhChuDao
                         }
                         self.batDauChoVaTuLayAnhFlow(cacSrcCu: existingSrcs)
@@ -3862,8 +3962,206 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         maPhienChoAnhFlow += 1
         let phienHienTai = maPhienChoAnhFlow
         vongQuayFlow.startAnimating()
+        let laVideo = cheDoVideoFlowNen
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) { [weak self] in
-            self?.kiemTraAnhMoiTuFlow(phien: phienHienTai, cacSrcCu: cacSrcCu, lanThu: 0)
+            if laVideo {
+                self?.kiemTraVideoMoiTuFlow(phien: phienHienTai, cacSrcCu: cacSrcCu, lanThu: 0)
+            } else {
+                self?.kiemTraAnhMoiTuFlow(phien: phienHienTai, cacSrcCu: cacSrcCu, lanThu: 0)
+            }
+        }
+    }
+
+    private func kiemTraVideoMoiTuFlow(phien: Int, cacSrcCu: [String], lanThu: Int) {
+        guard phien == maPhienChoAnhFlow else { return }
+        guard lanThu < 140 else {
+            vongQuayFlow.stopAnimating()
+            if dangChayFlowNen {
+                ketThucFlowNenDoLoi("Google Flow dựng video quá lâu — bạn có thể bấm tab 🌊 Google Flow để kiểm tra tiến trình.")
+            }
+            return
+        }
+
+        let pollVideoJS = #"""
+        function collectAllElements(root, out) {
+          if (!root) return;
+          const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
+          for (const el of all) {
+            out.push(el);
+            if (el.shadowRoot) collectAllElements(el.shadowRoot, out);
+          }
+        }
+        function isVisible(el, minW = 12, minH = 12) {
+          if (!el || !el.isConnected) return false;
+          const st = window.getComputedStyle(el);
+          if (!st || st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) return false;
+          const r = el.getBoundingClientRect();
+          return r.width >= minW && r.height >= minH;
+        }
+        const all = [];
+        collectAllElements(document, all);
+        for (const el of all) {
+          if (el.children && el.children.length > 0) continue;
+          if (el.closest && el.closest('textarea, [contenteditable], [data-slate-editor], [role="textbox"]')) continue;
+          if (!isVisible(el, 8, 8)) continue;
+          const t = (el.textContent || '').trim();
+          if (/^(?:[1-9]|[1-9][0-9])%$/.test(t)) {
+            window.__dmxSawGenerationProgress = true;
+            return "WAITING";
+          }
+        }
+        const elapsed = Date.now() - (window.__dmxGenerationStartTime || 0);
+        if (!window.__dmxSawGenerationProgress && elapsed < 6000) {
+          return "WAITING";
+        }
+
+        const oldSet = new Set(oldSrcs || []);
+        for (const el of all) {
+          if ((el.tagName || '').toUpperCase() !== 'VIDEO') continue;
+          const src = el.currentSrc || el.src || (el.querySelector && el.querySelector('source')?.src) || '';
+          if (!src || oldSet.has(src)) continue;
+          if (src.startsWith('http://') || src.startsWith('https://')) {
+            return 'VIDEO_URL:' + src;
+          }
+          if (src.startsWith('blob:')) {
+            return (async () => {
+              try {
+                const r = await fetch(src);
+                const b = await r.blob();
+                if (!b || b.size < 20000) return 'WAITING';
+                return await new Promise((resolve) => {
+                  const fr = new FileReader();
+                  fr.onloadend = () => resolve(typeof fr.result === 'string' ? 'VIDEO_DATA:' + fr.result : 'WAITING');
+                  fr.onerror = () => resolve('WAITING');
+                  fr.readAsDataURL(b);
+                });
+              } catch (_) { return 'WAITING'; }
+            })();
+          }
+        }
+
+        if (Array.isArray(window.__dmxCapturedVideoUrls) && window.__dmxCapturedVideoUrls.length > 0) {
+          const latest = window.__dmxCapturedVideoUrls[window.__dmxCapturedVideoUrls.length - 1];
+          if (latest && !oldSet.has(latest)) {
+            return 'VIDEO_URL:' + latest;
+          }
+        }
+        return "WAITING";
+        """#
+
+        webViewFlow.callAsyncJavaScript(pollVideoJS, arguments: ["oldSrcs": cacSrcCu], in: nil, in: .page) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self, phien == self.maPhienChoAnhFlow else { return }
+                if case .success(let val) = result, let str = val as? String {
+                    if str.hasPrefix("VIDEO_URL:") {
+                        let urlStr = String(str.dropFirst("VIDEO_URL:".count))
+                        if let url = URL(string: urlStr) {
+                            self.nhanTrangThai.text = "🎬 [Video nền 4/4] Video đã dựng xong — đang tải file MP4 về ứng dụng..."
+                            self.nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+                            self.taiVideoTrucTiepTuURLFlow(url)
+                            return
+                        }
+                    } else if str.hasPrefix("VIDEO_DATA:") {
+                        let dataUrl = String(str.dropFirst("VIDEO_DATA:".count))
+                        if let comma = dataUrl.firstIndex(of: ","),
+                           let data = Data(base64Encoded: String(dataUrl[dataUrl.index(after: comma)...])) {
+                            self.luuVaHienThiVideoTuFlow(data)
+                            return
+                        }
+                    }
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                    self?.kiemTraVideoMoiTuFlow(phien: phien, cacSrcCu: cacSrcCu, lanThu: lanThu + 1)
+                }
+            }
+        }
+    }
+
+    private func taiVideoTrucTiepTuURLFlow(_ url: URL) {
+        webViewFlow.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
+            let config = URLSessionConfiguration.ephemeral
+            let storage = HTTPCookieStorage()
+            for c in cookies { storage.setCookie(c) }
+            config.httpCookieStorage = storage
+            var req = URLRequest(url: url, timeoutInterval: 90)
+            req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
+            let session = URLSession(configuration: config)
+            session.dataTask(with: req) { [weak self] data, _, err in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    guard let data, data.count > 10000 else {
+                        if self.dangChayFlowNen {
+                            self.ketThucFlowNenDoLoi("Không tải được file video từ Google Flow: \(err?.localizedDescription ?? "Dữ liệu trống")")
+                        }
+                        return
+                    }
+                    self.luuVaHienThiVideoTuFlow(data)
+                }
+            }.resume()
+        }
+    }
+
+    private func luuVaHienThiVideoTuFlow(_ data: Data) {
+        let vuaHoanTatFlowNen = dangChayFlowNen
+        maPhienChoAnhFlow += 1
+        dangChayFlowNen = false
+        cheDoVideoFlowNen = false
+        vongQuayFlow.stopAnimating()
+        capNhatTrangThaiNutChayNen()
+
+        let destURL = KhoPhienTruyenThong.dungChung.tepVideoKetQua
+        do {
+            try data.write(to: destURL, options: .atomic)
+            videoKetQuaURL = destURL
+            capNhatGiaoDienVideoKetQua(url: destURL)
+            if thanhChuyenCheDo.selectedSegmentIndex != 0 {
+                thanhChuyenCheDo.selectedSegmentIndex = 0
+                doiCheDoTab()
+            }
+            if !dangVietBaiNen {
+                vongQuay.stopAnimating()
+            }
+            let mb = String(format: "%.1f", Double(data.count) / (1024.0 * 1024.0))
+            nhanTrangThai.text = "✅ Đã nhận Video MP4 (\(mb) MB) từ Google Flow & tự lưu phiên làm việc!"
+            nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+            luuPhienLamViec(ngayLapTuc: true)
+            if vuaHoanTatFlowNen {
+                kiemTraKetThucGiuNen(
+                    tieuDeThongBao: "🎬 Đã tạo xong Video Truyền thông",
+                    noiDungThongBao: "Video MP4 (\(mb) MB) từ Google Flow đã tải xong về ứng dụng."
+                )
+            }
+            if UIApplication.shared.applicationState == .active {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    let rect = self.theVideoKetQua.convert(self.theVideoKetQua.bounds, to: self.cuon)
+                    self.cuon.scrollRectToVisible(rect, animated: true)
+                }
+            }
+        } catch {
+            ketThucFlowNenDoLoi("Không lưu được file video: \(error.localizedDescription)")
+        }
+    }
+
+    private func capNhatGiaoDienVideoKetQua(url: URL?) {
+        guard let url, FileManager.default.fileExists(atPath: url.path) else {
+            theVideoKetQua.isHidden = true
+            anhThuNhoVideoView.image = nil
+            return
+        }
+        theVideoKetQua.isHidden = false
+        DispatchQueue.global(qos: .userInitiated).async {
+            let asset = AVURLAsset(url: url)
+            let gen = AVAssetImageGenerator(asset: asset)
+            gen.appliesPreferredTrackTransform = true
+            let thumb: UIImage?
+            if let cg = try? gen.copyCGImage(at: CMTime(seconds: 0.3, preferredTimescale: 600), actualTime: nil) {
+                thumb = UIImage(cgImage: cg)
+            } else {
+                thumb = nil
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.anhThuNhoVideoView.image = thumb
+            }
         }
     }
 
@@ -4832,6 +5130,15 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         nutMoGoogleFlow.addTarget(self, action: #selector(bamMoGoogleFlow), for: .touchUpInside)
         stack.addArrangedSubview(nutMoGoogleFlow)
 
+        nutTaoVideoFlow.setTitle("🎬 Tạo Video Google Flow (chạy nền)", for: .normal)
+        nutTaoVideoFlow.titleLabel?.font = .systemFont(ofSize: 15, weight: .heavy)
+        nutTaoVideoFlow.backgroundColor = .systemIndigo
+        nutTaoVideoFlow.setTitleColor(.white, for: .normal)
+        nutTaoVideoFlow.layer.cornerRadius = 12
+        nutTaoVideoFlow.heightAnchor.constraint(equalToConstant: 46).isActive = true
+        nutTaoVideoFlow.addTarget(self, action: #selector(bamTaoVideoGoogleFlow), for: .touchUpInside)
+        stack.addArrangedSubview(nutTaoVideoFlow)
+
         nutHuyChayNen.setTitle("⏹ Dừng chạy nền Google Flow", for: .normal)
         nutHuyChayNen.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
         nutHuyChayNen.backgroundColor = UIColor.systemRed.withAlphaComponent(0.1)
@@ -4965,6 +5272,74 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         stack.addArrangedSubview(hangNut)
 
         return theAnhKetQua
+    }
+
+    private func taoTheVideoKetQua() -> UIView {
+        let (the, stack) = taoKhungThe(tieuDe: "4B. Video truyền thông đã tạo (Google Flow)")
+        theVideoKetQua.isHidden = true
+        theVideoKetQua.translatesAutoresizingMaskIntoConstraints = false
+        the.translatesAutoresizingMaskIntoConstraints = false
+        theVideoKetQua.addSubview(the)
+        NSLayoutConstraint.activate([
+            the.topAnchor.constraint(equalTo: theVideoKetQua.topAnchor),
+            the.leadingAnchor.constraint(equalTo: theVideoKetQua.leadingAnchor),
+            the.trailingAnchor.constraint(equalTo: theVideoKetQua.trailingAnchor),
+            the.bottomAnchor.constraint(equalTo: theVideoKetQua.bottomAnchor)
+        ])
+
+        let khungPreview = UIView()
+        khungPreview.backgroundColor = .black
+        khungPreview.layer.cornerRadius = 12
+        khungPreview.clipsToBounds = true
+        khungPreview.heightAnchor.constraint(equalToConstant: 240).isActive = true
+
+        anhThuNhoVideoView.contentMode = .scaleAspectFit
+        anhThuNhoVideoView.translatesAutoresizingMaskIntoConstraints = false
+        khungPreview.addSubview(anhThuNhoVideoView)
+
+        nutXemVideo.setTitle("▶ Xem Video", for: .normal)
+        nutXemVideo.titleLabel?.font = .systemFont(ofSize: 15, weight: .bold)
+        nutXemVideo.backgroundColor = UIColor.black.withAlphaComponent(0.68)
+        nutXemVideo.setTitleColor(.white, for: .normal)
+        nutXemVideo.layer.cornerRadius = 22
+        nutXemVideo.contentEdgeInsets = UIEdgeInsets(top: 10, left: 20, bottom: 10, right: 20)
+        nutXemVideo.translatesAutoresizingMaskIntoConstraints = false
+        nutXemVideo.addTarget(self, action: #selector(bamXemVideo), for: .touchUpInside)
+        khungPreview.addSubview(nutXemVideo)
+
+        NSLayoutConstraint.activate([
+            anhThuNhoVideoView.topAnchor.constraint(equalTo: khungPreview.topAnchor),
+            anhThuNhoVideoView.leadingAnchor.constraint(equalTo: khungPreview.leadingAnchor),
+            anhThuNhoVideoView.trailingAnchor.constraint(equalTo: khungPreview.trailingAnchor),
+            anhThuNhoVideoView.bottomAnchor.constraint(equalTo: khungPreview.bottomAnchor),
+            nutXemVideo.centerXAnchor.constraint(equalTo: khungPreview.centerXAnchor),
+            nutXemVideo.centerYAnchor.constraint(equalTo: khungPreview.centerYAnchor)
+        ])
+        stack.addArrangedSubview(khungPreview)
+
+        nutLuuVideo.setTitle("💾 Lưu video vào ảnh", for: .normal)
+        nutLuuVideo.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+        nutLuuVideo.backgroundColor = BangMauBCTD.xanhLaDam
+        nutLuuVideo.setTitleColor(.white, for: .normal)
+        nutLuuVideo.layer.cornerRadius = 10
+        nutLuuVideo.heightAnchor.constraint(equalToConstant: 42).isActive = true
+        nutLuuVideo.addTarget(self, action: #selector(bamLuuVideo), for: .touchUpInside)
+
+        nutChiaSeVideo.setTitle("📤 Chia sẻ Video", for: .normal)
+        nutChiaSeVideo.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+        nutChiaSeVideo.backgroundColor = .systemIndigo
+        nutChiaSeVideo.setTitleColor(.white, for: .normal)
+        nutChiaSeVideo.layer.cornerRadius = 10
+        nutChiaSeVideo.heightAnchor.constraint(equalToConstant: 42).isActive = true
+        nutChiaSeVideo.addTarget(self, action: #selector(bamChiaSeVideo), for: .touchUpInside)
+
+        let hangNutVideo = UIStackView(arrangedSubviews: [nutLuuVideo, nutChiaSeVideo])
+        hangNutVideo.axis = .horizontal
+        hangNutVideo.spacing = 10
+        hangNutVideo.distribution = .fillEqually
+        stack.addArrangedSubview(hangNutVideo)
+
+        return theVideoKetQua
     }
 
     private func taoTheBaiDangFacebook() -> UIView {
@@ -5274,12 +5649,22 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private func capNhatTrangThaiNutChayNen() {
         nutHuyChayNen.isHidden = !dangChayFlowNen
         nutMoGoogleFlow.isEnabled = !dangChayFlowNen
+        nutTaoVideoFlow.isEnabled = !dangChayFlowNen
         if dangChayFlowNen {
-            nutMoGoogleFlow.setTitle("⏳ Đang tạo ảnh Google Flow chạy nền...", for: .normal)
-            nutMoGoogleFlow.alpha = 0.78
+            if cheDoVideoFlowNen {
+                nutTaoVideoFlow.setTitle("⏳ Đang tạo Video Google Flow chạy nền...", for: .normal)
+                nutTaoVideoFlow.alpha = 0.78
+                nutMoGoogleFlow.alpha = 0.55
+            } else {
+                nutMoGoogleFlow.setTitle("⏳ Đang tạo ảnh Google Flow chạy nền...", for: .normal)
+                nutMoGoogleFlow.alpha = 0.78
+                nutTaoVideoFlow.alpha = 0.55
+            }
         } else {
             nutMoGoogleFlow.setTitle("🌊 Tạo ảnh Google Flow (chạy nền) + 3 bài", for: .normal)
+            nutTaoVideoFlow.setTitle("🎬 Tạo Video Google Flow (chạy nền)", for: .normal)
             nutMoGoogleFlow.alpha = 1.0
+            nutTaoVideoFlow.alpha = 1.0
         }
     }
 
@@ -5295,6 +5680,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private func ketThucFlowNenDoLoi(_ thongDiep: String) {
         maPhienChoAnhFlow += 1
         dangChayFlowNen = false
+        cheDoVideoFlowNen = false
         dangBomPromptFlow = false
         vongQuayFlow.stopAnimating()
         capNhatTrangThaiNutChayNen()
@@ -5314,6 +5700,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         congViecBomPromptTuDong?.cancel()
         maPhienChoAnhFlow += 1
         dangChayFlowNen = false
+        cheDoVideoFlowNen = false
         dangBomPromptFlow = false
         vongQuayFlow.stopAnimating()
         capNhatTrangThaiNutChayNen()
@@ -5334,6 +5721,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         promptChoDienFlow = prompt
         UIPasteboard.general.string = prompt
         soLanThuLaiTimOFlow = 0
+        cheDoVideoFlowNen = false
         dangChayFlowNen = true
         capNhatTrangThaiNutChayNen()
 
@@ -5419,6 +5807,110 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         } else {
             taiTrangGoogleFlow()
         }
+    }
+
+    @objc private func bamTaoVideoGoogleFlow() {
+        view.endEditing(true)
+        let tt = thuThapThongTin()
+        guard kiemTraHopLe(tt) || anhKetQua != nil else { return }
+
+        let promptHienTai = oPromptFlow.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let coAnh = tt.danhSachSanPham.contains { $0.anhMau != nil } || anhKetQua != nil
+        let promptVideo: String
+        if !promptHienTai.isEmpty && promptHienTai != promptFlowTuTaoGanNhat {
+            promptVideo = promptHienTai
+        } else {
+            promptVideo = DichVuTruyenThongGemini.dungChung.taoPromptVideoChoGoogleFlow(thongTin: tt, coAnhMau: coAnh)
+        }
+
+        promptChoDienFlow = promptVideo
+        UIPasteboard.general.string = promptVideo
+        soLanThuLaiTimOFlow = 0
+        cheDoVideoFlowNen = true
+        dangChayFlowNen = true
+        capNhatTrangThaiNutChayNen()
+
+        BoGiuChayNenTruyenThong.dungChung.batDauGiuNen(toiDaGiay: 420)
+        luuPhienLamViec(ngayLapTuc: false)
+
+        if thanhChuyenCheDo.selectedSegmentIndex != 0 {
+            thanhChuyenCheDo.selectedSegmentIndex = 0
+            doiCheDoTab()
+        } else {
+            khungTaoNoiDung.isHidden = false
+            khungGoogleFlow.isHidden = false
+            khungGoogleFlow.isUserInteractionEnabled = false
+            view.bringSubviewToFront(khungTaoNoiDung)
+            view.bringSubviewToFront(thanhChuyenCheDo)
+        }
+
+        vongQuay.startAnimating()
+        let tyLeVideo = (tt.tyLeAnh == "16:9" || tt.tyLeAnh == "4:3") ? "16:9" : "9:16"
+        nhanTrangThai.text = "🎬 [Video nền 1/4] Đang kết nối Google Flow (Video \(tyLeVideo))... (có thể tắt màn hình)"
+        nhanTrangThai.textColor = .systemIndigo
+
+        canTaoDuAnMoiFlow = true
+        let urlHienTai = webViewFlow.url?.absoluteString.lowercased() ?? ""
+        if daTaiTrangFlow && (urlHienTai == "https://flow.google.com/" || urlHienTai == "https://flow.google.com") {
+            canTaoDuAnMoiFlow = false
+            nhanTrangThai.text = "🎬 [Video nền 2/4] Đang tạo dự án mới, chuyển tab Video & gửi prompt..."
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self, self.dangChayFlowNen else { return }
+                self.bomPromptVaoWebViewFlow(promptVideo, tuDong: true, tuTaoDuAnMoi: true)
+            }
+        } else {
+            taiTrangGoogleFlow()
+        }
+    }
+
+    @objc private func bamXemVideo() {
+        guard let url = videoKetQuaURL, FileManager.default.fileExists(atPath: url.path) else { return }
+        let player = AVPlayer(url: url)
+        let vc = AVPlayerViewController()
+        vc.player = player
+        present(vc, animated: true) {
+            player.play()
+        }
+    }
+
+    @objc private func bamLuuVideo() {
+        guard let url = videoKetQuaURL, FileManager.default.fileExists(atPath: url.path) else { return }
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { [weak self] status in
+            guard let self else { return }
+            guard status == .authorized || status == .limited else {
+                DispatchQueue.main.async {
+                    self.hienThongBao(tieuDe: "Chưa có quyền Thư viện ảnh", noiDung: "Vào Cài đặt → V2 ĐMX → Ảnh để cấp quyền lưu video.")
+                }
+                return
+            }
+            PHPhotoLibrary.shared().performChanges({
+                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+            }) { ok, err in
+                DispatchQueue.main.async {
+                    if ok {
+                        self.hienThongBao(tieuDe: "Đã lưu video", noiDung: "Video truyền thông đã được lưu vào Thư viện ảnh.")
+                    } else {
+                        self.hienThongBao(tieuDe: "Không lưu được video", noiDung: err?.localizedDescription ?? "Lỗi lưu video.")
+                    }
+                }
+            }
+        }
+    }
+
+    @objc private func bamChiaSeVideo() {
+        guard let url = videoKetQuaURL, FileManager.default.fileExists(atPath: url.path) else { return }
+        let caption = (oBaiDangFB.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !caption.isEmpty {
+            UIPasteboard.general.string = caption
+        }
+        var items: [Any] = [url]
+        if !caption.isEmpty { items.append(caption) }
+        let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        if let pop = vc.popoverPresentationController {
+            pop.sourceView = nutChiaSeVideo
+            pop.sourceRect = nutChiaSeVideo.bounds
+        }
+        present(vc, animated: true)
     }
 
     @objc private func bamCopyPromptFlow() {
@@ -5654,6 +6146,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             anhKetQuaView.image = imgKQ
             theAnhKetQua.isHidden = false
         }
+        if let vidURL = phien.videoKetQuaURL {
+            videoKetQuaURL = vidURL
+            capNhatGiaoDienVideoKetQua(url: vidURL)
+        }
 
         baiDang = KetQua3BaiDangFacebook(
             haiHuoc: dl.baiDangHaiHuoc,
@@ -5668,7 +6164,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             hienThiBaiDangTheoPhongCachHienTai()
         }
 
-        if phien.anhKetQua != nil || coBai {
+        if phien.anhKetQua != nil || phien.videoKetQuaURL != nil || coBai {
             let df = DateFormatter()
             df.dateFormat = "HH:mm dd/MM"
             nhanTrangThai.text = "♻️ Đã khôi phục phiên làm việc gần nhất (\(df.string(from: dl.thoiGianLuu))) — còn nguyên ảnh kết quả & bài viết mẫu."
@@ -5699,6 +6195,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             self.anhKetQua = nil
             self.anhKetQuaView.image = nil
             self.theAnhKetQua.isHidden = true
+            self.videoKetQuaURL = nil
+            self.capNhatGiaoDienVideoKetQua(url: nil)
             self.baiDang = KetQua3BaiDangFacebook()
             self.chonPhongCachBai.selectedSegmentIndex = 0
             self.chiSoPhongCachHienTai = 0
