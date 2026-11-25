@@ -3,6 +3,8 @@ import Photos
 import PhotosUI
 import WebKit
 import SafariServices
+import AVFoundation
+import UserNotifications
 
 struct MucSanPhamPoster {
     var anhMau: UIImage? = nil
@@ -486,6 +488,354 @@ final class DichVuTruyenThongGemini {
     }
 }
 
+// MARK: - Bộ giữ chạy nền khi tắt màn hình & thông báo cục bộ
+
+final class BoGiuChayNenTruyenThong {
+    static let dungChung = BoGiuChayNenTruyenThong()
+
+    private var maTacVuNen: UIBackgroundTaskIdentifier = .invalid
+    private var trinhPhatImLang: AVAudioPlayer?
+    private var henGioTuTat: DispatchWorkItem?
+    private(set) var dangGiuNen: Bool = false
+    private var daXinQuyenThongBao: Bool = false
+
+    private init() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(xuLyGianDoanAmThanh(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+    }
+
+    func batDauGiuNen(toiDaGiay: TimeInterval = 300) {
+        DispatchQueue.main.async {
+            self.henGioTuTat?.cancel()
+            self.dangGiuNen = true
+            self.xinQuyenThongBaoNeuCan()
+
+            if self.maTacVuNen != .invalid {
+                UIApplication.shared.endBackgroundTask(self.maTacVuNen)
+                self.maTacVuNen = .invalid
+            }
+            self.maTacVuNen = UIApplication.shared.beginBackgroundTask(withName: "DMXGoogleFlowChayNen") { [weak self] in
+                self?.ketThucGiuNen()
+            }
+
+            self.batAmThanhImLang()
+
+            let congViecTat = DispatchWorkItem { [weak self] in
+                self?.ketThucGiuNen()
+            }
+            self.henGioTuTat = congViecTat
+            DispatchQueue.main.asyncAfter(deadline: .now() + toiDaGiay, execute: congViecTat)
+        }
+    }
+
+    func ketThucGiuNen() {
+        DispatchQueue.main.async {
+            self.henGioTuTat?.cancel()
+            self.henGioTuTat = nil
+            self.dangGiuNen = false
+
+            self.trinhPhatImLang?.stop()
+            self.trinhPhatImLang = nil
+            try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+
+            if self.maTacVuNen != .invalid {
+                UIApplication.shared.endBackgroundTask(self.maTacVuNen)
+                self.maTacVuNen = .invalid
+            }
+        }
+    }
+
+    func guiThongBaoNeuDangTatManHinh(tieuDe: String, noiDung: String) {
+        DispatchQueue.main.async {
+            guard UIApplication.shared.applicationState != .active else { return }
+            let content = UNMutableNotificationContent()
+            content.title = tieuDe
+            content.body = noiDung
+            content.sound = .default
+            let req = UNNotificationRequest(
+                identifier: "dmx_flow_\(UUID().uuidString)",
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.4, repeats: false)
+            )
+            UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
+        }
+    }
+
+    private func xinQuyenThongBaoNeuCan() {
+        guard !daXinQuyenThongBao else { return }
+        daXinQuyenThongBao = true
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    private func batAmThanhImLang() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+            if trinhPhatImLang == nil {
+                let wavData = taoDuLieuWavImLang1Giay()
+                let player = try AVAudioPlayer(data: wavData)
+                player.numberOfLoops = -1
+                player.volume = 0.01
+                player.prepareToPlay()
+                trinhPhatImLang = player
+            }
+            if trinhPhatImLang?.isPlaying != true {
+                trinhPhatImLang?.play()
+            }
+        } catch {
+            // Nếu thiết bị không cho bật phiên âm thanh, vẫn giữ UIBackgroundTask bình thường
+        }
+    }
+
+    @objc private func xuLyGianDoanAmThanh(_ note: Notification) {
+        guard dangGiuNen,
+              let info = note.userInfo,
+              let rawType = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: rawType) else { return }
+        if type == .ended {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self, self.dangGiuNen else { return }
+                self.batAmThanhImLang()
+            }
+        }
+    }
+
+    /// Tạo buffer WAV PCM 16-bit mono 8kHz hoàn toàn im lặng (1 giây, ~16KB) trong RAM để giữ tiến trình chạy nền khi tắt màn hình.
+    private func taoDuLieuWavImLang1Giay() -> Data {
+        let sampleRate: UInt32 = 8000
+        let channels: UInt16 = 1
+        let bitsPerSample: UInt16 = 16
+        let numSamples: UInt32 = sampleRate
+        let dataSize: UInt32 = numSamples * UInt32(channels) * UInt32(bitsPerSample / 8)
+        let chunkSize: UInt32 = 36 + dataSize
+        let byteRate: UInt32 = sampleRate * UInt32(channels) * UInt32(bitsPerSample / 8)
+        let blockAlign: UInt16 = channels * (bitsPerSample / 8)
+
+        var data = Data()
+        data.append(contentsOf: [0x52, 0x49, 0x46, 0x46]) // "RIFF"
+        var leChunk = chunkSize.littleEndian
+        data.append(Data(bytes: &leChunk, count: 4))
+        data.append(contentsOf: [0x57, 0x41, 0x56, 0x45]) // "WAVE"
+        data.append(contentsOf: [0x66, 0x6D, 0x74, 0x20]) // "fmt "
+        var leSub1: UInt32 = UInt32(16).littleEndian
+        data.append(Data(bytes: &leSub1, count: 4))
+        var leAudioFmt: UInt16 = UInt16(1).littleEndian
+        data.append(Data(bytes: &leAudioFmt, count: 2))
+        var leChan = channels.littleEndian
+        data.append(Data(bytes: &leChan, count: 2))
+        var leRate = sampleRate.littleEndian
+        data.append(Data(bytes: &leRate, count: 4))
+        var leByteRate = byteRate.littleEndian
+        data.append(Data(bytes: &leByteRate, count: 4))
+        var leBlockAlign = blockAlign.littleEndian
+        data.append(Data(bytes: &leBlockAlign, count: 2))
+        var leBits = bitsPerSample.littleEndian
+        data.append(Data(bytes: &leBits, count: 2))
+        data.append(contentsOf: [0x64, 0x61, 0x74, 0x61]) // "data"
+        var leDataSize = dataSize.littleEndian
+        data.append(Data(bytes: &leDataSize, count: 4))
+        data.append(Data(count: Int(dataSize)))
+        return data
+    }
+}
+
+// MARK: - Kho lưu trữ phiên làm việc Tab Truyền thông (ổ đĩa bền vững)
+
+struct MucSanPhamLuuTru: Codable {
+    var tenSanPham: String
+    var giaNiemYet: String
+    var giaKhuyenMai: String
+    var uuDai: String
+    var diemNoiBat: String
+    var tenFileAnhMau: String?
+}
+
+struct DuLieuPhienTruyenThong: Codable {
+    var danhSachSanPham: [MucSanPhamLuuTru]
+    var chiSoSanPhamHienTai: Int
+    var lienHe: String
+    var chiSoTyLe: Int
+    var chiSoModelFlow: Int
+    var chiSoPhongCachAnh: Int
+    var promptFlow: String
+    var promptFlowTuTaoGanNhat: String
+    var baiDangHaiHuoc: String
+    var baiDangChuyenNghiep: String
+    var baiDangChotSale: String
+    var chiSoPhongCachBai: Int
+    var trangThaiCuoi: String
+    var coAnhKetQua: Bool
+    var thoiGianLuu: Date
+}
+
+struct PhienTruyenThongDaTai {
+    var duLieu: DuLieuPhienTruyenThong
+    var danhSachSanPham: [MucSanPhamPoster]
+    var anhKetQua: UIImage?
+}
+
+final class KhoPhienTruyenThong {
+    static let dungChung = KhoPhienTruyenThong()
+    private let hangDoiIO = DispatchQueue(label: "com.thanhduong.v2dmx.truyenthong.session", qos: .utility)
+
+    private init() {}
+
+    private var thuMucPhien: URL {
+        let fm = FileManager.default
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fm.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let dir = base.appendingPathComponent("DMX_TruyenThong_Session", isDirectory: true)
+        if !fm.fileExists(atPath: dir.path) {
+            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+
+    private var tepJsonPhien: URL {
+        thuMucPhien.appendingPathComponent("phien.json")
+    }
+
+    private var tepAnhKetQua: URL {
+        thuMucPhien.appendingPathComponent("anh_ket_qua.png")
+    }
+
+    func luuPhien(
+        danhSachSanPham: [MucSanPhamPoster],
+        chiSoSanPhamHienTai: Int,
+        lienHe: String,
+        chiSoTyLe: Int,
+        chiSoModelFlow: Int,
+        chiSoPhongCachAnh: Int,
+        promptFlow: String,
+        promptFlowTuTaoGanNhat: String,
+        baiDang: KetQua3BaiDangFacebook,
+        chiSoPhongCachBai: Int,
+        trangThaiCuoi: String,
+        anhKetQua: UIImage?,
+        ngayLapTuc: Bool = false
+    ) {
+        let congViec = {
+            autoreleasepool {
+                let fm = FileManager.default
+                let dir = self.thuMucPhien
+
+                var cacMucLuu: [MucSanPhamLuuTru] = []
+                var tapFileAnhGiuLai = Set<String>()
+
+                for (idx, sp) in danhSachSanPham.enumerated() {
+                    var tenFile: String? = nil
+                    if let img = sp.anhMau, let data = img.jpegData(compressionQuality: 0.85) {
+                        let name = "anh_mau_\(idx).jpg"
+                        let url = dir.appendingPathComponent(name)
+                        try? data.write(to: url, options: .atomic)
+                        tenFile = name
+                        tapFileAnhGiuLai.insert(name)
+                    }
+                    cacMucLuu.append(MucSanPhamLuuTru(
+                        tenSanPham: sp.tenSanPham,
+                        giaNiemYet: sp.giaNiemYet,
+                        giaKhuyenMai: sp.giaKhuyenMai,
+                        uuDai: sp.uuDai,
+                        diemNoiBat: sp.diemNoiBat,
+                        tenFileAnhMau: tenFile
+                    ))
+                }
+
+                // Dọn các file ảnh mẫu thừa từ tab đã xoá
+                if let files = try? fm.contentsOfDirectory(atPath: dir.path) {
+                    for f in files where f.hasPrefix("anh_mau_") && !tapFileAnhGiuLai.contains(f) {
+                        try? fm.removeItem(at: dir.appendingPathComponent(f))
+                    }
+                }
+
+                var daLuuAnhKQ = false
+                if let kqImg = anhKetQua,
+                   let dataKQ = kqImg.pngData() ?? kqImg.jpegData(compressionQuality: 0.95) {
+                    try? dataKQ.write(to: self.tepAnhKetQua, options: .atomic)
+                    daLuuAnhKQ = true
+                } else {
+                    try? fm.removeItem(at: self.tepAnhKetQua)
+                }
+
+                let duLieu = DuLieuPhienTruyenThong(
+                    danhSachSanPham: cacMucLuu,
+                    chiSoSanPhamHienTai: chiSoSanPhamHienTai,
+                    lienHe: lienHe,
+                    chiSoTyLe: chiSoTyLe,
+                    chiSoModelFlow: chiSoModelFlow,
+                    chiSoPhongCachAnh: chiSoPhongCachAnh,
+                    promptFlow: promptFlow,
+                    promptFlowTuTaoGanNhat: promptFlowTuTaoGanNhat,
+                    baiDangHaiHuoc: baiDang.haiHuoc,
+                    baiDangChuyenNghiep: baiDang.chuyenNghiep,
+                    baiDangChotSale: baiDang.chotSale,
+                    chiSoPhongCachBai: chiSoPhongCachBai,
+                    trangThaiCuoi: trangThaiCuoi,
+                    coAnhKetQua: daLuuAnhKQ,
+                    thoiGianLuu: Date()
+                )
+                if let encoded = try? JSONEncoder().encode(duLieu) {
+                    try? encoded.write(to: self.tepJsonPhien, options: .atomic)
+                }
+            }
+        }
+
+        if ngayLapTuc {
+            hangDoiIO.sync(execute: congViec)
+        } else {
+            hangDoiIO.async(execute: congViec)
+        }
+    }
+
+    func taiPhien() -> PhienTruyenThongDaTai? {
+        return hangDoiIO.sync {
+            let dir = self.thuMucPhien
+            guard let jsonData = try? Data(contentsOf: self.tepJsonPhien),
+                  let duLieu = try? JSONDecoder().decode(DuLieuPhienTruyenThong.self, from: jsonData) else {
+                return nil
+            }
+
+            var dsSP: [MucSanPhamPoster] = []
+            for muc in duLieu.danhSachSanPham {
+                var img: UIImage? = nil
+                if let tenFile = muc.tenFileAnhMau,
+                   let d = try? Data(contentsOf: dir.appendingPathComponent(tenFile)) {
+                    img = UIImage(data: d)
+                }
+                dsSP.append(MucSanPhamPoster(
+                    anhMau: img,
+                    tenSanPham: muc.tenSanPham,
+                    giaNiemYet: muc.giaNiemYet,
+                    giaKhuyenMai: muc.giaKhuyenMai,
+                    uuDai: muc.uuDai,
+                    diemNoiBat: muc.diemNoiBat
+                ))
+            }
+            if dsSP.isEmpty {
+                dsSP = [MucSanPhamPoster()]
+            }
+
+            var anhKQ: UIImage? = nil
+            if duLieu.coAnhKetQua, let dKQ = try? Data(contentsOf: self.tepAnhKetQua) {
+                anhKQ = UIImage(data: dKQ)
+            }
+
+            return PhienTruyenThongDaTai(duLieu: duLieu, danhSachSanPham: dsSP, anhKetQua: anhKQ)
+        }
+    }
+
+    func xoaPhien() {
+        hangDoiIO.async {
+            try? FileManager.default.removeItem(at: self.thuMucPhien)
+        }
+    }
+}
+
 // MARK: - Màn hình Tab Truyền thông
 
 final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate, UITextViewDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
@@ -502,6 +852,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private var dangBomPromptFlow = false
     private var congViecBomPromptTuDong: DispatchWorkItem?
     private var maPhienChoAnhFlow: Int = 0
+    private var dangChayFlowNen = false
+    private var dangVietBaiNen = false
+    private var soLanThuLaiTimOFlow = 0
+    private var congViecLuuPhien: DispatchWorkItem?
+    private let nutHuyChayNen = UIButton(type: .system)
+    private let nutPhienMoi = UIButton(type: .system)
 
     // Quản lý nhiều tab sản phẩm để gộp chung vào 1 poster
     private var danhSachSanPham: [MucSanPhamPoster] = [MucSanPhamPoster()]
@@ -570,9 +926,21 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         super.viewDidLoad()
         view.backgroundColor = BangMauBCTD.nenTrang
         dungGiaoDien()
+        khoiPhucPhienLamViec()
         let chamAnBanPhim = UITapGestureRecognizer(target: self, action: #selector(anBanPhim))
         chamAnBanPhim.cancelsTouchesInView = false
         view.addGestureRecognizer(chamAnBanPhim)
+        NotificationCenter.default.addObserver(self, selector: #selector(luuPhienKhiVaoNen), name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(luuPhienKhiVaoNen), name: UIApplication.didEnterBackgroundNotification, object: nil)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        BoGiuChayNenTruyenThong.dungChung.ketThucGiuNen()
+    }
+
+    @objc private func luuPhienKhiVaoNen() {
+        luuPhienLamViec(ngayLapTuc: true)
     }
 
     @objc private func anBanPhim() {
@@ -586,10 +954,14 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         view.addSubview(thanhChuyenCheDo)
 
         khungTaoNoiDung.translatesAutoresizingMaskIntoConstraints = false
+        khungTaoNoiDung.backgroundColor = BangMauBCTD.nenTrang
         khungGoogleFlow.translatesAutoresizingMaskIntoConstraints = false
-        khungGoogleFlow.isHidden = true
-        view.addSubview(khungTaoNoiDung)
+        // Luôn giữ khungGoogleFlow không ẩn phía sau khungTaoNoiDung để WKWebView chạy JS/layout/tải ảnh 100% ngầm mà không cần mở tab Flow
+        khungGoogleFlow.isHidden = false
+        khungGoogleFlow.isUserInteractionEnabled = false
         view.addSubview(khungGoogleFlow)
+        view.addSubview(khungTaoNoiDung)
+        view.bringSubviewToFront(thanhChuyenCheDo)
 
         NSLayoutConstraint.activate([
             thanhChuyenCheDo.topAnchor.constraint(equalTo: view.topAnchor, constant: 4),
@@ -1033,10 +1405,17 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         view.endEditing(true)
         let dangMoFlow = (thanhChuyenCheDo.selectedSegmentIndex == 1)
         khungTaoNoiDung.isHidden = dangMoFlow
-        khungGoogleFlow.isHidden = !dangMoFlow
-        if dangMoFlow && !daTaiTrangFlow {
-            taiTrangGoogleFlow()
+        khungGoogleFlow.isHidden = false
+        khungGoogleFlow.isUserInteractionEnabled = dangMoFlow
+        if dangMoFlow {
+            view.bringSubviewToFront(khungGoogleFlow)
+            if !daTaiTrangFlow {
+                taiTrangGoogleFlow()
+            }
+        } else {
+            view.bringSubviewToFront(khungTaoNoiDung)
         }
+        view.bringSubviewToFront(thanhChuyenCheDo)
     }
 
     private func taiTrangGoogleFlow() {
@@ -1098,20 +1477,42 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
     private func nhanAnhChatLuongCaoTuFlow(_ img: UIImage, nguon: String = "1K/2K") {
         maPhienChoAnhFlow += 1
+        dangChayFlowNen = false
         vongQuayFlow.stopAnimating()
+        capNhatTrangThaiNutChayNen()
+
         let pxW = Int((img.size.width * img.scale).rounded())
         let pxH = Int((img.size.height * img.scale).rounded())
         anhKetQua = img
         anhKetQuaView.image = img
         theAnhKetQua.isHidden = false
         hienToastFlow("Đã lấy ảnh gốc \(nguon) (\(pxW)×\(pxH) px) về mục 4 ✓", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
-        thanhChuyenCheDo.selectedSegmentIndex = 0
-        doiCheDoTab()
-        nhanTrangThai.text = "✅ Đã nhận ảnh gốc \(nguon) (\(pxW)×\(pxH) px) từ Google Flow — bạn có thể Lưu hoặc Chia sẻ ngay bên dưới!"
-        nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            let rect = self.theAnhKetQua.convert(self.theAnhKetQua.bounds, to: self.cuon)
-            self.cuon.scrollRectToVisible(rect, animated: true)
+
+        if thanhChuyenCheDo.selectedSegmentIndex != 0 {
+            thanhChuyenCheDo.selectedSegmentIndex = 0
+            doiCheDoTab()
+        }
+
+        if dangVietBaiNen {
+            nhanTrangThai.text = "✅ Đã nhận ảnh gốc \(nguon) (\(pxW)×\(pxH) px) từ Google Flow — đang hoàn tất 3 bài viết mẫu..."
+            nhanTrangThai.textColor = BangMauBCTD.xanhChuDao
+        } else {
+            vongQuay.stopAnimating()
+            nhanTrangThai.text = "✅ Đã nhận ảnh gốc \(nguon) (\(pxW)×\(pxH) px) từ Google Flow & tự lưu phiên làm việc!"
+            nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+        }
+
+        luuPhienLamViec(ngayLapTuc: true)
+        kiemTraKetThucGiuNen(
+            tieuDeThongBao: "✅ Đã tạo xong ảnh Truyền thông",
+            noiDungThongBao: "Ảnh gốc \(nguon) (\(pxW)×\(pxH) px) và các bài viết mẫu đã sẵn sàng trong ứng dụng."
+        )
+
+        if UIApplication.shared.applicationState == .active {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                let rect = self.theAnhKetQua.convert(self.theAnhKetQua.bounds, to: self.cuon)
+                self.cuon.scrollRectToVisible(rect, animated: true)
+            }
         }
     }
 
@@ -1580,14 +1981,16 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 case .success(let value):
                     let str = (value as? String) ?? ""
                     if str == "NOT_FOUND" || str.isEmpty || str == "CORS_BLOCKED" || !str.hasPrefix("data:image/") {
-                        if tuDong && phien == self.maPhienChoAnhFlow && lanThu < 42 {
+                        if tuDong && phien == self.maPhienChoAnhFlow && lanThu < 72 {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
                                 self?.kiemTraAnhMoiTuFlow(phien: phien, cacSrcCu: cacSrcCu, lanThu: lanThu + 1)
                             }
                             return
                         }
                         self.vongQuayFlow.stopAnimating()
-                        if !tuDong {
+                        if tuDong && self.dangChayFlowNen {
+                            self.ketThucFlowNenDoLoi("Chưa lấy được ảnh từ Google Flow — bạn có thể mở tab 🌊 Google Flow để kiểm tra hoặc bấm chạy lại.")
+                        } else if !tuDong {
                             self.hienToastFlow("Chưa thấy ảnh kết quả mới — hãy chờ ảnh vẽ xong hoặc bấm ⋮ → Tải nội dung → 1K.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                         }
                         return
@@ -1595,13 +1998,16 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     guard let comma = str.firstIndex(of: ",") else { return }
                     let b64 = String(str[str.index(after: comma)...])
                     guard let data = Data(base64Encoded: b64), let rawImg = UIImage(data: data) else {
-                        if tuDong && phien == self.maPhienChoAnhFlow && lanThu < 42 {
+                        if tuDong && phien == self.maPhienChoAnhFlow && lanThu < 72 {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
                                 self?.kiemTraAnhMoiTuFlow(phien: phien, cacSrcCu: cacSrcCu, lanThu: lanThu + 1)
                             }
                             return
                         }
                         self.vongQuayFlow.stopAnimating()
+                        if tuDong && self.dangChayFlowNen {
+                            self.ketThucFlowNenDoLoi("Không giải mã được dữ liệu ảnh từ Google Flow — vui lòng thử lại.")
+                        }
                         return
                     }
                     let img = self.nangCapLen1KNeuCan(rawImg)
@@ -1609,13 +2015,16 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     let pxH = Int((img.size.height * img.scale).rounded())
                     self.nhanAnhChatLuongCaoTuFlow(img, nguon: (pxW >= 1800 || pxH >= 1800) ? "2K" : "1K")
                 case .failure(_):
-                    if tuDong && phien == self.maPhienChoAnhFlow && lanThu < 42 {
+                    if tuDong && phien == self.maPhienChoAnhFlow && lanThu < 72 {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
                             self?.kiemTraAnhMoiTuFlow(phien: phien, cacSrcCu: cacSrcCu, lanThu: lanThu + 1)
                         }
                         return
                     }
                     self.vongQuayFlow.stopAnimating()
+                    if tuDong && self.dangChayFlowNen {
+                        self.ketThucFlowNenDoLoi("Kết nối Google Flow chạy nền bị gián đoạn — vui lòng thử lại.")
+                    }
                 }
             }
         }
@@ -2962,20 +3371,49 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
                     let clickedGenerate = (obj["clickedGenerate"] as? Bool) ?? false
                     let existingSrcs = (obj["existingSrcs"] as? [String]) ?? []
+                    let foundBox = (obj["foundBox"] as? Bool) ?? false
 
                     if clickedGenerate {
+                        self.soLanThuLaiTimOFlow = 0
                         self.hienToastFlow("Đã bấm tạo ảnh (→)\(moTaCauHinh) — đang chờ ảnh xong để tự tải bản 1K về app...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 5.0)
+                        if self.dangChayFlowNen {
+                            self.nhanTrangThai.text = "🌊 [Chạy nền 3/4] Google Flow đang vẽ ảnh\(moTaCauHinh) — bạn có thể tắt màn hình, app tự lấy bản 1K về..."
+                            self.nhanTrangThai.textColor = BangMauBCTD.xanhChuDao
+                        }
                         self.batDauChoVaTuLayAnhFlow(cacSrcCu: existingSrcs)
                     } else if promptOk {
+                        self.soLanThuLaiTimOFlow = 0
                         self.hienToastFlow("Đã điền xong\(moTaCauHinh) — đang tự kích hoạt tạo ảnh (→) và chờ lấy bản 1K...", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 4.5)
+                        if self.dangChayFlowNen {
+                            self.nhanTrangThai.text = "🌊 [Chạy nền 3/4] Đã điền prompt\(moTaCauHinh) — đang kích hoạt vẽ ảnh & chờ lấy bản 1K..."
+                            self.nhanTrangThai.textColor = BangMauBCTD.xanhChuDao
+                        }
                         self.batDauChoVaTuLayAnhFlow(cacSrcCu: existingSrcs)
+                    } else if self.dangChayFlowNen && !foundBox && self.soLanThuLaiTimOFlow < 2 {
+                        self.soLanThuLaiTimOFlow += 1
+                        self.nhanTrangThai.text = "🌊 [Chạy nền 2/4] Đang đợi giao diện Google Flow sẵn sàng (thử lại \(self.soLanThuLaiTimOFlow)/2)..."
+                        self.nhanTrangThai.textColor = BangMauBCTD.xanhChuDao
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                            guard let self, self.dangChayFlowNen else { return }
+                            self.bomPromptVaoWebViewFlow(prompt, tuDong: true, tuTaoDuAnMoi: tuTaoDuAnMoi)
+                        }
+                    } else if self.dangChayFlowNen {
+                        self.ketThucFlowNenDoLoi("Chưa thấy ô nhập trên Google Flow (có thể cần đăng nhập Google). Bấm tab 🌊 Google Flow ở trên để kiểm tra.")
                     } else if daGanAnh {
                         self.hienToastFlow("Đã gửi ảnh mẫu — chạm ô nhập rồi bấm Dán prompt.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                     } else if !tuDong {
                         self.hienToastFlow("Chưa thấy ô nhập Flow (đã copy sẵn prompt để Dán).", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                     }
                 case .failure(_):
-                    if !tuDong {
+                    if self.dangChayFlowNen && self.soLanThuLaiTimOFlow < 2 {
+                        self.soLanThuLaiTimOFlow += 1
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                            guard let self, self.dangChayFlowNen else { return }
+                            self.bomPromptVaoWebViewFlow(prompt, tuDong: true, tuTaoDuAnMoi: tuTaoDuAnMoi)
+                        }
+                    } else if self.dangChayFlowNen {
+                        self.ketThucFlowNenDoLoi("Không kết nối được phiên Google Flow chạy nền — hãy kiểm tra mạng hoặc mở tab 🌊 Google Flow.")
+                    } else if !tuDong {
                         self.hienToastFlow("Đã copy sẵn prompt — chạm ô nhập trên Flow rồi bấm Dán.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92))
                     }
                 }
@@ -2994,9 +3432,12 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
     private func kiemTraAnhMoiTuFlow(phien: Int, cacSrcCu: [String], lanThu: Int) {
         guard phien == maPhienChoAnhFlow else { return }
-        guard lanThu < 42 else {
+        guard lanThu < 72 else {
             vongQuayFlow.stopAnimating()
             hienToastFlow("Chờ ảnh hơi lâu — khi thấy ảnh vẽ xong bạn bấm nút 📥 Lấy ảnh nhé.", mauNen: UIColor.systemOrange.withAlphaComponent(0.92), giuLau: 4.0)
+            if dangChayFlowNen {
+                ketThucFlowNenDoLoi("Google Flow vẽ ảnh quá 3 phút — bạn có thể bấm tab 🌊 Google Flow để kiểm tra hoặc lấy ảnh thủ công.")
+            }
             return
         }
 
@@ -3236,6 +3677,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                    str == "READY_FOR_1K" {
                     // Khi phát hiện ảnh mới đã tạo xong trên Flow -> gọi quy trình lấy bản 1K (1024px+) qua URL gốc hoặc menu Tải nội dung 1K
                     self.hienToastFlow("Ảnh đã vẽ xong — đang tự tải bản 1K (1024px+) về mục 4...", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 4.0)
+                    if self.dangChayFlowNen {
+                        self.nhanTrangThai.text = "🌊 [Chạy nền 4/4] Ảnh đã vẽ xong — đang tự tải bản gốc 1K/2K về ứng dụng..."
+                        self.nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+                    }
                     self.thucThiLayAnh1KTuFlow(cacSrcCu: cacSrcCu, tuDong: true, phien: phien, lanThu: lanThu)
                     return
                 }
@@ -3305,12 +3750,25 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         webView.evaluateJavaScript("document.body ? document.body.innerText : ''") { [weak self] res, _ in
             guard let self else { return }
             let bodyText = (res as? String) ?? ""
+            let host = (webView.url?.host ?? "").lowercased()
             if bodyText.localizedCaseInsensitiveContains("disallowed_useragent") {
                 self.hienToastFlow("Google chặn đăng nhập — bấm nút ⋯ góc trên phải → Mở bằng Safari trong app.", mauNen: UIColor.systemRed.withAlphaComponent(0.92), giuLau: 5.0)
+                if self.dangChayFlowNen {
+                    self.ketThucFlowNenDoLoi("Google Flow yêu cầu đăng nhập — bấm tab 🌊 Google Flow → nút ⋯ → Mở bằng Safari trong app để đăng nhập 1 lần.")
+                }
                 return
             }
-            let host = (webView.url?.host ?? "").lowercased()
+            if host.contains("accounts.google.com") {
+                if self.dangChayFlowNen {
+                    self.ketThucFlowNenDoLoi("Google Flow cần đăng nhập tài khoản Google — hãy bấm tab 🌊 Google Flow ở trên để đăng nhập 1 lần rồi chạy lại.")
+                }
+                return
+            }
             if !self.promptChoDienFlow.isEmpty && (host.contains("flow.google.com") || host.contains("labs.google")) {
+                if self.dangChayFlowNen {
+                    self.nhanTrangThai.text = "🌊 [Chạy nền 2/4] Đang tạo dự án mới, gửi ảnh mẫu & điền prompt vào Google Flow..."
+                    self.nhanTrangThai.textColor = BangMauBCTD.xanhChuDao
+                }
                 self.congViecBomPromptTuDong?.cancel()
                 let congViec = DispatchWorkItem { [weak self] in
                     guard let self, !self.promptChoDienFlow.isEmpty, !self.dangBomPromptFlow else { return }
@@ -3327,6 +3785,18 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         vongQuayFlow.stopAnimating()
         dangBomPromptFlow = false
+        if dangChayFlowNen {
+            ketThucFlowNenDoLoi("Không tải được Google Flow chạy nền: \(error.localizedDescription)")
+        }
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        daTaiTrangFlow = false
+        dangBomPromptFlow = false
+        vongQuayFlow.stopAnimating()
+        if dangChayFlowNen {
+            ketThucFlowNenDoLoi("Tiến trình nền Google Flow bị hệ thống tạm dừng — vui lòng bấm chạy lại.")
+        }
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
@@ -3410,11 +3880,26 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         khung.addSubview(stack)
 
         let lbHuongDan = UILabel()
-        lbHuongDan.text = "📦 Danh sách sản phẩm gộp chung vào 1 Poster:"
+        lbHuongDan.text = "📦 Sản phẩm gộp vào 1 Poster:"
         lbHuongDan.font = .systemFont(ofSize: 13, weight: .bold)
         lbHuongDan.textColor = BangMauBCTD.chuChinh
         lbHuongDan.numberOfLines = 0
-        stack.addArrangedSubview(lbHuongDan)
+
+        nutPhienMoi.setTitle("🧹 Phiên mới", for: .normal)
+        nutPhienMoi.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        nutPhienMoi.backgroundColor = UIColor.systemOrange.withAlphaComponent(0.12)
+        nutPhienMoi.setTitleColor(.systemOrange, for: .normal)
+        nutPhienMoi.layer.cornerRadius = 8
+        nutPhienMoi.contentEdgeInsets = UIEdgeInsets(top: 4, left: 9, bottom: 4, right: 9)
+        nutPhienMoi.setContentHuggingPriority(.required, for: .horizontal)
+        nutPhienMoi.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutPhienMoi.addTarget(self, action: #selector(bamPhienMoi), for: .touchUpInside)
+
+        let hangTieuDeSP = UIStackView(arrangedSubviews: [lbHuongDan, nutPhienMoi])
+        hangTieuDeSP.axis = .horizontal
+        hangTieuDeSP.spacing = 8
+        hangTieuDeSP.alignment = .center
+        stack.addArrangedSubview(hangTieuDeSP)
 
         cuonTabSanPham.showsHorizontalScrollIndicator = false
         cuonTabSanPham.translatesAutoresizingMaskIntoConstraints = false
@@ -3626,6 +4111,11 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         luuDuLieuTabHienTai()
         capNhatGiaoDienThanhTabSanPham()
         dongBoPromptTuDongNeuChuaSuaTay()
+        lenLichLuuPhien()
+    }
+
+    @objc private func khiThayDoiCaiDatPoster() {
+        lenLichLuuPhien()
     }
 
     @objc private func bamChonTabSanPham(_ sender: UIButton) {
@@ -3635,6 +4125,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         guard idx >= 0, idx < danhSachSanPham.count else { return }
         chiSoSanPhamHienTai = idx
         napDuLieuTabHienTaiLenGiaoDien()
+        lenLichLuuPhien()
     }
 
     @objc private func bamThemTabSanPham() {
@@ -3643,9 +4134,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         danhSachSanPham.append(MucSanPhamPoster())
         chiSoSanPhamHienTai = danhSachSanPham.count - 1
         napDuLieuTabHienTaiLenGiaoDien()
+        lenLichLuuPhien()
     }
-
-
 
     @objc private func bamXoaTabSanPhamHienTai() {
         view.endEditing(true)
@@ -3653,6 +4143,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         danhSachSanPham.remove(at: chiSoSanPhamHienTai)
         chiSoSanPhamHienTai = max(0, min(chiSoSanPhamHienTai, danhSachSanPham.count - 1))
         napDuLieuTabHienTaiLenGiaoDien()
+        lenLichLuuPhien()
     }
 
     private func taoTheAnhMau() -> UIView {
@@ -3792,6 +4283,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
         stack.addArrangedSubview(taoNhanNho("Kích thước / Tỷ lệ ảnh (đồng bộ Google Flow)"))
         chonTyLe.selectedSegmentIndex = 0
+        chonTyLe.addTarget(self, action: #selector(khiThayDoiCaiDatPoster), for: .valueChanged)
         stack.addArrangedSubview(chonTyLe)
 
         stack.addArrangedSubview(taoNhanNho("Model tạo ảnh trên Google Flow"))
@@ -3799,6 +4291,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         chonModelFlow.apportionsSegmentWidthsByContent = true
         chonModelFlow.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12.5, weight: .semibold)], for: .normal)
         chonModelFlow.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12.5, weight: .bold)], for: .selected)
+        chonModelFlow.addTarget(self, action: #selector(khiThayDoiCaiDatPoster), for: .valueChanged)
         stack.addArrangedSubview(chonModelFlow)
 
         stack.addArrangedSubview(taoNhanNho("Phong cách thiết kế ảnh"))
@@ -3812,14 +4305,26 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private func taoTheHanhDong() -> UIView {
         let (the, stack) = taoKhungThe(tieuDe: "3. Tạo ảnh Google Flow & 3 bài đăng Facebook")
 
-        nutMoGoogleFlow.setTitle("🌊 Mở Google Flow + Tự viết 3 bài", for: .normal)
-        nutMoGoogleFlow.titleLabel?.font = .systemFont(ofSize: 15.5, weight: .heavy)
+        nutMoGoogleFlow.setTitle("🌊 Tạo ảnh Google Flow (chạy nền) + 3 bài", for: .normal)
+        nutMoGoogleFlow.titleLabel?.font = .systemFont(ofSize: 15, weight: .heavy)
         nutMoGoogleFlow.backgroundColor = BangMauBCTD.xanhLaDam
         nutMoGoogleFlow.setTitleColor(.white, for: .normal)
         nutMoGoogleFlow.layer.cornerRadius = 12
         nutMoGoogleFlow.heightAnchor.constraint(equalToConstant: 48).isActive = true
         nutMoGoogleFlow.addTarget(self, action: #selector(bamMoGoogleFlow), for: .touchUpInside)
         stack.addArrangedSubview(nutMoGoogleFlow)
+
+        nutHuyChayNen.setTitle("⏹ Dừng chạy nền Google Flow", for: .normal)
+        nutHuyChayNen.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutHuyChayNen.backgroundColor = UIColor.systemRed.withAlphaComponent(0.1)
+        nutHuyChayNen.setTitleColor(.systemRed, for: .normal)
+        nutHuyChayNen.layer.cornerRadius = 10
+        nutHuyChayNen.layer.borderWidth = 1
+        nutHuyChayNen.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.4).cgColor
+        nutHuyChayNen.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        nutHuyChayNen.isHidden = true
+        nutHuyChayNen.addTarget(self, action: #selector(bamHuyChayNenFlow), for: .touchUpInside)
+        stack.addArrangedSubview(nutHuyChayNen)
 
         nutCopyPromptFlow.setTitle("📋 Copy Prompt Flow", for: .normal)
         nutCopyPromptFlow.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
@@ -3856,6 +4361,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         oPromptFlow.layer.borderColor = BangMauBCTD.vienDam.cgColor
         oPromptFlow.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
         oPromptFlow.heightAnchor.constraint(equalToConstant: 86).isActive = true
+        oPromptFlow.delegate = self
         oPromptFlow.text = ""
         stack.addArrangedSubview(oPromptFlow)
 
@@ -3895,7 +4401,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         stack.addArrangedSubview(hangPhu)
 
         vongQuay.hidesWhenStopped = true
-        nhanTrangThai.text = "Nhập 1 hoặc nhiều tab sản phẩm rồi bấm Mở Google Flow để tự gộp ảnh + điền prompt + tải ảnh 1K."
+        nhanTrangThai.text = "Nhập sản phẩm rồi bấm nút Google Flow chạy nền — không cần mở trang Flow, có thể tắt màn hình chờ ảnh về app."
         nhanTrangThai.font = .systemFont(ofSize: 13)
         nhanTrangThai.textColor = BangMauBCTD.chuPhu
         nhanTrangThai.numberOfLines = 0
@@ -4012,6 +4518,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         luuDuLieuTabHienTai()
         capNhatGiaoDienThanhTabSanPham()
         dongBoPromptTuDongNeuChuaSuaTay()
+        lenLichLuuPhien()
     }
 
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
@@ -4029,6 +4536,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 self.luuDuLieuTabHienTai()
                 self.capNhatGiaoDienThanhTabSanPham()
                 self.dongBoPromptTuDongNeuChuaSuaTay()
+                self.lenLichLuuPhien()
             }
         }
     }
@@ -4104,6 +4612,60 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         return promptMoi
     }
 
+    private func capNhatTrangThaiNutChayNen() {
+        nutHuyChayNen.isHidden = !dangChayFlowNen
+        nutMoGoogleFlow.isEnabled = !dangChayFlowNen
+        if dangChayFlowNen {
+            nutMoGoogleFlow.setTitle("⏳ Đang tạo ảnh Google Flow chạy nền...", for: .normal)
+            nutMoGoogleFlow.alpha = 0.78
+        } else {
+            nutMoGoogleFlow.setTitle("🌊 Tạo ảnh Google Flow (chạy nền) + 3 bài", for: .normal)
+            nutMoGoogleFlow.alpha = 1.0
+        }
+    }
+
+    private func kiemTraKetThucGiuNen(tieuDeThongBao: String? = nil, noiDungThongBao: String? = nil) {
+        if !dangChayFlowNen && !dangVietBaiNen {
+            if let td = tieuDeThongBao, let nd = noiDungThongBao {
+                BoGiuChayNenTruyenThong.dungChung.guiThongBaoNeuDangTatManHinh(tieuDe: td, noiDung: nd)
+            }
+            BoGiuChayNenTruyenThong.dungChung.ketThucGiuNen()
+        }
+    }
+
+    private func ketThucFlowNenDoLoi(_ thongDiep: String) {
+        maPhienChoAnhFlow += 1
+        dangChayFlowNen = false
+        dangBomPromptFlow = false
+        vongQuayFlow.stopAnimating()
+        capNhatTrangThaiNutChayNen()
+        if !dangVietBaiNen {
+            vongQuay.stopAnimating()
+        }
+        nhanTrangThai.text = "⚠️ " + thongDiep
+        nhanTrangThai.textColor = .systemRed
+        luuPhienLamViec(ngayLapTuc: true)
+        kiemTraKetThucGiuNen(
+            tieuDeThongBao: "⚠️ Google Flow chạy nền tạm dừng",
+            noiDungThongBao: thongDiep
+        )
+    }
+
+    @objc private func bamHuyChayNenFlow() {
+        congViecBomPromptTuDong?.cancel()
+        maPhienChoAnhFlow += 1
+        dangChayFlowNen = false
+        dangBomPromptFlow = false
+        vongQuayFlow.stopAnimating()
+        capNhatTrangThaiNutChayNen()
+        if !dangVietBaiNen {
+            vongQuay.stopAnimating()
+        }
+        nhanTrangThai.text = "Đã dừng tiến trình Google Flow chạy nền."
+        nhanTrangThai.textColor = BangMauBCTD.chuPhu
+        kiemTraKetThucGiuNen()
+    }
+
     @objc private func bamMoGoogleFlow() {
         view.endEditing(true)
         let tt = thuThapThongTin()
@@ -4112,39 +4674,87 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
         promptChoDienFlow = prompt
         UIPasteboard.general.string = prompt
+        soLanThuLaiTimOFlow = 0
+        dangChayFlowNen = true
+        capNhatTrangThaiNutChayNen()
+
+        // Kích hoạt chế độ giữ chạy nền (âm thanh im lặng + BackgroundTask) để tắt màn hình vẫn chạy tới khi lấy xong ảnh
+        BoGiuChayNenTruyenThong.dungChung.batDauGiuNen(toiDaGiay: 300)
+        luuPhienLamViec(ngayLapTuc: false)
+
+        // Giữ nguyên người dùng ở tab Tạo nội dung, tuyệt đối KHÔNG mở giao diện Google Flow
+        if thanhChuyenCheDo.selectedSegmentIndex != 0 {
+            thanhChuyenCheDo.selectedSegmentIndex = 0
+            doiCheDoTab()
+        } else {
+            khungTaoNoiDung.isHidden = false
+            khungGoogleFlow.isHidden = false
+            khungGoogleFlow.isUserInteractionEnabled = false
+            view.bringSubviewToFront(khungTaoNoiDung)
+            view.bringSubviewToFront(thanhChuyenCheDo)
+        }
+
+        let soSP = max(1, tt.danhSachSanPham.filter { $0.coDuLieu }.count)
+        let nhanSP = (soSP >= 2) ? "gộp \(soSP) SP · " : ""
 
         if kiemTraHopLe(tt) {
+            dangVietBaiNen = true
             oBaiDangFB.text = "✍️ Đang tự động viết 3 phong cách bài đăng Facebook mới..."
-            datTrangThaiDangTai(true, thongDiep: "Đang tự động viết 3 phong cách bài đăng Facebook chạy nền...")
+            datTrangThaiDangTai(true, thongDiep: "🌊 [Chạy nền 1/4] Đang kết nối Google Flow (\(nhanSP)\(tt.modelFlow) · \(tt.tyLeAnh)) & viết 3 bài mẫu... (có thể tắt màn hình)", mau: BangMauBCTD.xanhChuDao)
             DichVuTruyenThongGemini.dungChung.tao3BaiDangFacebook(anhMau: anhTongHop, thongTin: tt) { [weak self] kq in
                 guard let self else { return }
+                self.dangVietBaiNen = false
                 switch kq {
                 case .success(let baiMoi):
                     self.baiDang = baiMoi
                     self.hienThiBaiDangTheoPhongCachHienTai()
-                    self.datTrangThaiDangTai(false, thongDiep: "Đã viết xong 3 phong cách bài đăng Facebook ✓", mau: BangMauBCTD.xanhLaDam)
+                    self.luuPhienLamViec(ngayLapTuc: true)
+                    if self.dangChayFlowNen {
+                        self.nutTaoTatCa.isEnabled = true
+                        self.nutChiTaoAnh.isEnabled = true
+                        self.nutChiVietBai.isEnabled = true
+                        self.nutTaoTatCa.alpha = 1.0
+                        self.vongQuay.startAnimating()
+                        self.nhanTrangThai.text = "✓ Đã xong 3 bài mẫu! 🌊 Google Flow vẫn đang vẽ ảnh chạy nền (có thể tắt màn hình)..."
+                        self.nhanTrangThai.textColor = BangMauBCTD.xanhChuDao
+                    } else {
+                        self.datTrangThaiDangTai(false, thongDiep: "✅ Đã hoàn tất ảnh kết quả & 3 bài viết mẫu (đã tự lưu phiên)!", mau: BangMauBCTD.xanhLaDam)
+                    }
                     if self.thanhChuyenCheDo.selectedSegmentIndex == 1 {
                         self.hienToastFlow("✓ Đã viết xong 3 bài FB (xem ở tab Tạo nội dung)", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92), giuLau: 2.5)
                     }
                 case .failure(let err):
-                    self.datTrangThaiDangTai(false, thongDiep: "⚠️ Lỗi viết bài nền: \(err.localizedDescription)", mau: .systemRed)
+                    if self.dangChayFlowNen {
+                        self.nutTaoTatCa.isEnabled = true
+                        self.nutChiTaoAnh.isEnabled = true
+                        self.nutChiVietBai.isEnabled = true
+                        self.nutTaoTatCa.alpha = 1.0
+                        self.vongQuay.startAnimating()
+                        self.nhanTrangThai.text = "⚠️ Lỗi viết bài: \(err.localizedDescription) · 🌊 Google Flow vẫn đang chạy nền..."
+                        self.nhanTrangThai.textColor = .systemOrange
+                    } else {
+                        self.datTrangThaiDangTai(false, thongDiep: "⚠️ Lỗi viết bài nền: \(err.localizedDescription)", mau: .systemRed)
+                    }
                 }
+                self.kiemTraKetThucGiuNen(
+                    tieuDeThongBao: "✅ Đã hoàn thành tab Truyền thông",
+                    noiDungThongBao: "Ảnh kết quả và 3 bài viết mẫu đã sẵn sàng trong ứng dụng."
+                )
             }
+        } else {
+            vongQuay.startAnimating()
+            nhanTrangThai.text = "🌊 [Chạy nền 1/4] Đang kết nối Google Flow (\(nhanSP)\(tt.modelFlow) · \(tt.tyLeAnh))... (có thể tắt màn hình)"
+            nhanTrangThai.textColor = BangMauBCTD.xanhChuDao
         }
 
         canTaoDuAnMoiFlow = true
-        thanhChuyenCheDo.selectedSegmentIndex = 1
-        khungTaoNoiDung.isHidden = true
-        khungGoogleFlow.isHidden = false
-        let soSP = max(1, tt.danhSachSanPham.filter { $0.coDuLieu }.count)
-        let nhanSP = (soSP >= 2) ? "gộp \(soSP) SP · " : ""
-        hienToastFlow("Đang tạo Dự án mới & \(nhanSP)đồng bộ \(tt.modelFlow) (\(tt.tyLeAnh))...", mauNen: BangMauBCTD.xanhChuDao.withAlphaComponent(0.92), giuLau: 4.5)
-
         let urlHienTai = webViewFlow.url?.absoluteString.lowercased() ?? ""
         if daTaiTrangFlow && (urlHienTai == "https://flow.google.com/" || urlHienTai == "https://flow.google.com") {
             canTaoDuAnMoiFlow = false
+            nhanTrangThai.text = "🌊 [Chạy nền 2/4] Đang tạo dự án mới, gửi ảnh mẫu & điền prompt vào Google Flow..."
+            nhanTrangThai.textColor = BangMauBCTD.xanhChuDao
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                guard let self else { return }
+                guard let self, self.dangChayFlowNen else { return }
                 self.bomPromptVaoWebViewFlow(prompt, tuDong: true, tuTaoDuAnMoi: true)
             }
         } else {
@@ -4216,6 +4826,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             } else {
                 self.datTrangThaiDangTai(false, thongDiep: "⚠️ " + cacLoi.joined(separator: "\n"), mau: .systemRed)
             }
+            self.luuPhienLamViec(ngayLapTuc: true)
         }
     }
 
@@ -4234,6 +4845,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 self.anhKetQuaView.image = img
                 self.theAnhKetQua.isHidden = false
                 self.datTrangThaiDangTai(false, thongDiep: "✅ Đã tạo xong ảnh truyền thông mới!", mau: BangMauBCTD.xanhLaDam)
+                self.luuPhienLamViec(ngayLapTuc: true)
             case .failure(let err):
                 self.datTrangThaiDangTai(false, thongDiep: "⚠️ Lỗi tạo ảnh: \(err.localizedDescription)", mau: .systemRed)
             }
@@ -4257,6 +4869,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 self.hienThiBaiDangTheoPhongCachHienTai()
                 self.oBaiDangFB.setContentOffset(.zero, animated: false)
                 self.datTrangThaiDangTai(false, thongDiep: "✅ Đã cập nhật 3 phong cách bài đăng Facebook mới ở bên dưới!", mau: BangMauBCTD.xanhLaDam)
+                self.luuPhienLamViec(ngayLapTuc: true)
             case .failure(let err):
                 self.hienThiBaiDangTheoPhongCachHienTai()
                 self.datTrangThaiDangTai(false, thongDiep: "⚠️ Lỗi viết bài: \(err.localizedDescription)", mau: .systemRed)
@@ -4266,8 +4879,16 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
 
     // MARK: - Chuyển đổi 3 phong cách bài đăng & Lưu / Chia sẻ
 
+    private static let vanBanChoBaiDang = "Nội dung bài đăng Facebook theo 3 phong cách (Hài hước, Chuyên nghiệp, Chốt sale) sẽ hiển thị ở đây sau khi tạo."
+
     private func luuLaiBaiDangHienTaiTuTextView() {
         let text = oBaiDangFB.text ?? ""
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == Self.vanBanChoBaiDang
+            || trimmed.hasPrefix("✍️ Đang tự động viết")
+            || trimmed.hasPrefix("✍️ Đang viết lại") {
+            return
+        }
         switch chiSoPhongCachHienTai {
         case 0: baiDang.haiHuoc = text
         case 1: baiDang.chuyenNghiep = text
@@ -4287,14 +4908,135 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     @objc private func doiPhongCachBai() {
         luuLaiBaiDangHienTaiTuTextView()
         hienThiBaiDangTheoPhongCachHienTai()
+        lenLichLuuPhien()
     }
 
     func textViewDidChange(_ textView: UITextView) {
         if textView === oBaiDangFB {
             luuLaiBaiDangHienTaiTuTextView()
+            lenLichLuuPhien()
         } else if textView === oDiemNoiBat {
             khiThayDoiThongTinSanPham()
+        } else if textView === oPromptFlow {
+            lenLichLuuPhien()
         }
+    }
+
+    // MARK: - Lưu & Khôi phục phiên làm việc bền vững
+
+    private func lenLichLuuPhien() {
+        congViecLuuPhien?.cancel()
+        let cv = DispatchWorkItem { [weak self] in
+            self?.luuPhienLamViec(ngayLapTuc: false)
+        }
+        congViecLuuPhien = cv
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: cv)
+    }
+
+    private func luuPhienLamViec(ngayLapTuc: Bool) {
+        congViecLuuPhien?.cancel()
+        luuDuLieuTabHienTai()
+        luuLaiBaiDangHienTaiTuTextView()
+        KhoPhienTruyenThong.dungChung.luuPhien(
+            danhSachSanPham: danhSachSanPham,
+            chiSoSanPhamHienTai: chiSoSanPhamHienTai,
+            lienHe: oLienHe.text ?? "",
+            chiSoTyLe: chonTyLe.selectedSegmentIndex,
+            chiSoModelFlow: chonModelFlow.selectedSegmentIndex,
+            chiSoPhongCachAnh: chonPhongCachAnh.selectedSegmentIndex,
+            promptFlow: oPromptFlow.text ?? "",
+            promptFlowTuTaoGanNhat: promptFlowTuTaoGanNhat,
+            baiDang: baiDang,
+            chiSoPhongCachBai: chonPhongCachBai.selectedSegmentIndex,
+            trangThaiCuoi: nhanTrangThai.text ?? "",
+            anhKetQua: anhKetQua,
+            ngayLapTuc: ngayLapTuc
+        )
+    }
+
+    private func khoiPhucPhienLamViec() {
+        guard let phien = KhoPhienTruyenThong.dungChung.taiPhien() else { return }
+        let dl = phien.duLieu
+        danhSachSanPham = phien.danhSachSanPham
+        chiSoSanPhamHienTai = max(0, min(dl.chiSoSanPhamHienTai, danhSachSanPham.count - 1))
+
+        oLienHe.text = dl.lienHe
+        if dl.chiSoTyLe >= 0 && dl.chiSoTyLe < chonTyLe.numberOfSegments {
+            chonTyLe.selectedSegmentIndex = dl.chiSoTyLe
+        }
+        if dl.chiSoModelFlow >= 0 && dl.chiSoModelFlow < chonModelFlow.numberOfSegments {
+            chonModelFlow.selectedSegmentIndex = dl.chiSoModelFlow
+        }
+        if dl.chiSoPhongCachAnh >= 0 && dl.chiSoPhongCachAnh < chonPhongCachAnh.numberOfSegments {
+            chonPhongCachAnh.selectedSegmentIndex = dl.chiSoPhongCachAnh
+        }
+        promptFlowTuTaoGanNhat = dl.promptFlowTuTaoGanNhat
+        oPromptFlow.text = dl.promptFlow
+
+        napDuLieuTabHienTaiLenGiaoDien()
+        if !dl.promptFlow.isEmpty {
+            oPromptFlow.text = dl.promptFlow
+        }
+
+        if let imgKQ = phien.anhKetQua {
+            anhKetQua = imgKQ
+            anhKetQuaView.image = imgKQ
+            theAnhKetQua.isHidden = false
+        }
+
+        baiDang = KetQua3BaiDangFacebook(
+            haiHuoc: dl.baiDangHaiHuoc,
+            chuyenNghiep: dl.baiDangChuyenNghiep,
+            chotSale: dl.baiDangChotSale
+        )
+        if dl.chiSoPhongCachBai >= 0 && dl.chiSoPhongCachBai < chonPhongCachBai.numberOfSegments {
+            chonPhongCachBai.selectedSegmentIndex = dl.chiSoPhongCachBai
+        }
+        let coBai = !baiDang.haiHuoc.isEmpty || !baiDang.chuyenNghiep.isEmpty || !baiDang.chotSale.isEmpty
+        if coBai {
+            hienThiBaiDangTheoPhongCachHienTai()
+        }
+
+        if phien.anhKetQua != nil || coBai {
+            let df = DateFormatter()
+            df.dateFormat = "HH:mm dd/MM"
+            nhanTrangThai.text = "♻️ Đã khôi phục phiên làm việc gần nhất (\(df.string(from: dl.thoiGianLuu))) — còn nguyên ảnh kết quả & bài viết mẫu."
+            nhanTrangThai.textColor = BangMauBCTD.xanhLaDam
+        } else if !dl.trangThaiCuoi.isEmpty {
+            nhanTrangThai.text = dl.trangThaiCuoi
+        }
+    }
+
+    @objc private func bamPhienMoi() {
+        view.endEditing(true)
+        let tb = UIAlertController(
+            title: "Tạo phiên làm việc mới?",
+            message: "Ảnh kết quả, 3 bài viết mẫu và thông tin sản phẩm của phiên cũ sẽ được xoá sạch để bắt đầu bài mới.",
+            preferredStyle: .alert
+        )
+        tb.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+        tb.addAction(UIAlertAction(title: "Xoá & Tạo mới", style: .destructive) { [weak self] _ in
+            guard let self else { return }
+            self.bamHuyChayNenFlow()
+            self.danhSachSanPham = [MucSanPhamPoster()]
+            self.chiSoSanPhamHienTai = 0
+            self.oLienHe.text = ""
+            self.oPromptFlow.text = ""
+            self.promptFlowTuTaoGanNhat = ""
+            self.promptChoDienFlow = ""
+            self.anhKetQua = nil
+            self.anhKetQuaView.image = nil
+            self.theAnhKetQua.isHidden = true
+            self.baiDang = KetQua3BaiDangFacebook()
+            self.chonPhongCachBai.selectedSegmentIndex = 0
+            self.chiSoPhongCachHienTai = 0
+            self.oBaiDangFB.text = "Nội dung bài đăng Facebook theo 3 phong cách (Hài hước, Chuyên nghiệp, Chốt sale) sẽ hiển thị ở đây sau khi tạo."
+            self.napDuLieuTabHienTaiLenGiaoDien()
+            self.nhanTrangThai.text = "Đã tạo phiên làm việc mới."
+            self.nhanTrangThai.textColor = BangMauBCTD.chuPhu
+            KhoPhienTruyenThong.dungChung.xoaPhien()
+        })
+        present(tb, animated: true)
     }
 
     @objc private func bamCopyBaiDang() {
