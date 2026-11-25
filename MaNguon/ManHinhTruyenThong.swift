@@ -272,7 +272,8 @@ final class DichVuTruyenThongGemini {
             Quy tắc thẩm mỹ & bố cục bắt buộc:
             - Tuyệt đối KHÔNG viết các chữ đánh số thứ tự như "Sản phẩm 1", "Sản phẩm 2", "SP 1", "SP 2", "Mặt hàng 1" lên ảnh poster; chỉ hiển thị trực tiếp tên thật và mức giá của từng món.
             - Nếu có hình mã QR trong ảnh mẫu, hãy đặt mã QR trong khung thẻ trắng bo góc tinh tế, sắc nét, phẳng phiu ở vị trí cân đối để khách hàng quét được ngay.
-            - Sử dụng phông chữ không chân (modern geometric bold sans-serif) dày dặn, rõ dấu tiếng Việt, độ tương phản cao, không sinh chữ tiếng Anh vô nghĩa và không chèn watermark lạ.
+            - Sử dụng phông chữ không chân (modern geometric bold sans-serif) dày dặn, rõ dấu tiếng Việt, độ tương phản cao, không sinh chữ tiếng Anh vô nghĩa.
+            - BẮT BUỘC đóng khung toàn bộ thiết kế poster nằm gọn bên trong một viền trắng tinh khiết (#FFFFFF) dày khoảng 10% đều ở cả 4 cạnh (trên, dưới, trái, phải) bao quanh ảnh; tuyệt đối KHÔNG để chữ, sản phẩm hay nền màu tràn ra phần viền trắng 10% ngoài cùng này.
             """
         }
 
@@ -296,7 +297,8 @@ final class DichVuTruyenThongGemini {
         \(chiTiet.joined(separator: "\n"))
         Quy tắc thẩm mỹ & bố cục bắt buộc:
         - Phân cấp thị giác 3 tầng chuẩn mực: Sản phẩm sắc nét có ánh sáng viền (rim-light) và đổ bóng tự nhiên ở trung tâm; cụm tiêu đề & bảng giá khuyến mãi tương phản cao cực kỳ dễ đọc; chân poster gọn gàng.
-        - Tuyệt đối KHÔNG viết các chữ thừa như "Sản phẩm 1", "SP 1" lên ảnh; sử dụng phông chữ sans-serif hiện đại, dày dặn, rõ dấu tiếng Việt, không thêm chữ tiếng Anh vô nghĩa hay watermark lạ.
+        - Tuyệt đối KHÔNG viết các chữ thừa như "Sản phẩm 1", "SP 1" lên ảnh; sử dụng phông chữ sans-serif hiện đại, dày dặn, rõ dấu tiếng Việt, không thêm chữ tiếng Anh vô nghĩa.
+        - BẮT BUỘC đóng khung toàn bộ thiết kế poster nằm gọn bên trong một viền trắng tinh khiết (#FFFFFF) dày khoảng 10% đều ở cả 4 cạnh (trên, dưới, trái, phải) bao quanh ảnh; tuyệt đối KHÔNG để chữ, sản phẩm hay nền màu tràn ra phần viền trắng 10% ngoài cùng này.
         """
     }
 
@@ -1717,10 +1719,11 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         vongQuayFlow.stopAnimating()
         capNhatTrangThaiNutChayNen()
 
-        let pxW = Int((img.size.width * img.scale).rounded())
-        let pxH = Int((img.size.height * img.scale).rounded())
-        anhKetQua = img
-        anhKetQuaView.image = img
+        let anhDaCatVien = nangCapLen1KNeuCan(catVienTrangTuDong(img))
+        let pxW = Int((anhDaCatVien.size.width * anhDaCatVien.scale).rounded())
+        let pxH = Int((anhDaCatVien.size.height * anhDaCatVien.scale).rounded())
+        anhKetQua = anhDaCatVien
+        anhKetQuaView.image = anhDaCatVien
         theAnhKetQua.isHidden = false
         hienToastFlow("Đã lấy ảnh gốc \(nguon) (\(pxW)×\(pxH) px) về mục 4 ✓", mauNen: BangMauBCTD.xanhLaDam.withAlphaComponent(0.92))
 
@@ -2265,6 +2268,143 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                     }
                 }
             }
+        }
+    }
+
+    /// Tự động phát hiện và cắt sạch khung viền trắng xung quanh ảnh (bỏ qua góc dưới phải nơi đặt watermark để không bị chặn cắt), sau đó giữ chuẩn tối thiểu 1K.
+    private func catVienTrangTuDong(_ img: UIImage) -> UIImage {
+        return autoreleasepool {
+            let w = Int((img.size.width * img.scale).rounded())
+            let h = Int((img.size.height * img.scale).rounded())
+            guard w >= 120, h >= 120 else { return img }
+
+            let bytesPerPixel = 4
+            let bytesPerRow = w * bytesPerPixel
+            var pixels = [UInt8](repeating: 0, count: h * bytesPerRow)
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            guard let ctx = CGContext(
+                data: &pixels,
+                width: w,
+                height: h,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return img }
+
+            UIGraphicsPushContext(ctx)
+            ctx.translateBy(x: 0, y: CGFloat(h))
+            ctx.scaleBy(x: 1, y: -1)
+            img.draw(in: CGRect(x: 0, y: 0, width: w, height: h))
+            UIGraphicsPopContext()
+
+            @inline(__always)
+            func laDiemTrang(_ x: Int, _ y: Int) -> Bool {
+                let idx = y * bytesPerRow + x * bytesPerPixel
+                return pixels[idx] >= 235 && pixels[idx + 1] >= 235 && pixels[idx + 2] >= 235
+            }
+
+            let maxCropX = Int(Double(w) * 0.24)
+            let maxCropY = Int(Double(h) * 0.24)
+            let step = max(1, min(w, h) / 256)
+
+            // 1. Quét cạnh trên (x: 15%..85%)
+            let xStartTop = Int(Double(w) * 0.15)
+            let xEndTop = Int(Double(w) * 0.85)
+            var cropTop = 0
+            for y in 0..<maxCropY {
+                var total = 0, white = 0
+                var x = xStartTop
+                while x < xEndTop {
+                    total += 1
+                    if laDiemTrang(x, y) { white += 1 }
+                    x += step
+                }
+                if total > 0 && Double(white) / Double(total) >= 0.90 {
+                    cropTop = y + 1
+                } else {
+                    break
+                }
+            }
+
+            // 2. Quét cạnh dưới (x: 10%..76% — tránh góc dưới phải nơi có dấu sao watermark)
+            let xStartBot = Int(Double(w) * 0.10)
+            let xEndBot = Int(Double(w) * 0.76)
+            var cropBottom = 0
+            for offset in 0..<maxCropY {
+                let y = h - 1 - offset
+                var total = 0, white = 0
+                var x = xStartBot
+                while x < xEndBot {
+                    total += 1
+                    if laDiemTrang(x, y) { white += 1 }
+                    x += step
+                }
+                if total > 0 && Double(white) / Double(total) >= 0.90 {
+                    cropBottom = offset + 1
+                } else {
+                    break
+                }
+            }
+
+            // 3. Quét cạnh trái (y: 15%..85%)
+            let yStartLeft = Int(Double(h) * 0.15)
+            let yEndLeft = Int(Double(h) * 0.85)
+            var cropLeft = 0
+            for x in 0..<maxCropX {
+                var total = 0, white = 0
+                var y = yStartLeft
+                while y < yEndLeft {
+                    total += 1
+                    if laDiemTrang(x, y) { white += 1 }
+                    y += step
+                }
+                if total > 0 && Double(white) / Double(total) >= 0.90 {
+                    cropLeft = x + 1
+                } else {
+                    break
+                }
+            }
+
+            // 4. Quét cạnh phải (y: 10%..76% — tránh góc dưới phải nơi có dấu sao watermark)
+            let yStartRight = Int(Double(h) * 0.10)
+            let yEndRight = Int(Double(h) * 0.76)
+            var cropRight = 0
+            for offset in 0..<maxCropX {
+                let x = w - 1 - offset
+                var total = 0, white = 0
+                var y = yStartRight
+                while y < yEndRight {
+                    total += 1
+                    if laDiemTrang(x, y) { white += 1 }
+                    y += step
+                }
+                if total > 0 && Double(white) / Double(total) >= 0.90 {
+                    cropRight = offset + 1
+                } else {
+                    break
+                }
+            }
+
+            // Chỉ cắt nếu phát hiện viền trắng rõ ràng (>= 10px ở ít nhất 1 cạnh)
+            let minBorder = 10
+            let pad = 3
+            let cTop = cropTop >= minBorder ? cropTop + pad : 0
+            let cBot = cropBottom >= minBorder ? cropBottom + pad : 0
+            let cLeft = cropLeft >= minBorder ? cropLeft + pad : 0
+            let cRight = cropRight >= minBorder ? cropRight + pad : 0
+
+            guard cTop > 0 || cBot > 0 || cLeft > 0 || cRight > 0 else { return img }
+
+            let newW = w - cLeft - cRight
+            let newH = h - cTop - cBot
+            guard newW >= Int(Double(w) * 0.52), newH >= Int(Double(h) * 0.52) else { return img }
+
+            guard let cgFull = ctx.makeImage(),
+                  let cgCropped = cgFull.cropping(to: CGRect(x: cLeft, y: cTop, width: newW, height: newH)) else {
+                return img
+            }
+            return UIImage(cgImage: cgCropped, scale: 1.0, orientation: .up)
         }
     }
 
@@ -5216,8 +5356,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             guard let self else { return }
             var cacLoi: [String] = []
             if case .success(let img) = kqAnh {
-                self.anhKetQua = img
-                self.anhKetQuaView.image = img
+                let anhSach = self.nangCapLen1KNeuCan(self.catVienTrangTuDong(img))
+                self.anhKetQua = anhSach
+                self.anhKetQuaView.image = anhSach
                 self.theAnhKetQua.isHidden = false
             } else if case .failure(let err) = kqAnh {
                 cacLoi.append("Ảnh: \(err.localizedDescription)")
@@ -5250,8 +5391,9 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             guard let self else { return }
             switch res {
             case .success(let img):
-                self.anhKetQua = img
-                self.anhKetQuaView.image = img
+                let anhSach = self.nangCapLen1KNeuCan(self.catVienTrangTuDong(img))
+                self.anhKetQua = anhSach
+                self.anhKetQuaView.image = anhSach
                 self.theAnhKetQua.isHidden = false
                 self.datTrangThaiDangTai(false, thongDiep: "✅ Đã tạo xong ảnh truyền thông mới!", mau: BangMauBCTD.xanhLaDam)
                 self.luuPhienLamViec(ngayLapTuc: true)
