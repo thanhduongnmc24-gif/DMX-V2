@@ -140,19 +140,30 @@ final class DichVuTruyenThongGemini {
     }
 
     func taoPromptAnh(thongTin: ThongTinSanPhamTruyenThong, coAnhMau: Bool) -> String {
+        let chuDeNhap = thongTin.toneMauChuDe.trimmingCharacters(in: .whitespacesAndNewlines)
         let moTaPhongCach: String
-        switch thongTin.phongCachAnh {
-        case "Sang trọng":
-            moTaPhongCach = "Phong cách Key Visual thương hiệu cao cấp (Luxury Commercial Studio): nền xanh navy trầm hoặc trắng ngọc trai sang trọng kết hợp ánh sáng rim-light vàng champagne tinh tế, vật phẩm đặt trên bục trưng bày 3D tối giản có phản chiếu nhẹ, bố cục thoáng đạt, đẳng cấp."
-        case "Flash Sale":
-            moTaPhongCach = "Phong cách Đại Tiệc Khuyến Mãi / Flash Sale bùng nổ: nền chuyển sắc đỏ ruby - cam rực rỡ kết hợp tia sáng năng lượng 3D hiện đại, huy hiệu giá sốc tương phản cực mạnh, thu hút thị giác tức thì khi lướt bảng tin Facebook."
-        default:
-            moTaPhongCach = "Phong cách Poster Quảng Cáo Bán Lẻ & Điện Máy hiện đại, rực rỡ, chuyên nghiệp: nền xanh dương sâu (Deep Royal Blue) chuyển sắc mượt kết hợp điểm nhấn vàng kim nổi bật và khung thẻ trắng tinh khiết, ánh sáng studio 3D sắc nét, bố cục cân đối chuẩn tỷ lệ vàng, cực kỳ dễ đọc trên màn hình điện thoại."
+        let dongChuDe = ""
+        if chuDeNhap.isEmpty {
+            switch thongTin.phongCachAnh {
+            case "Sang trọng":
+                moTaPhongCach = "Phong cách Key Visual thương hiệu cao cấp (Luxury Commercial Studio): nền xanh navy trầm hoặc trắng ngọc trai sang trọng kết hợp ánh sáng rim-light vàng champagne tinh tế, vật phẩm đặt trên bục trưng bày 3D tối giản có phản chiếu nhẹ, bố cục thoáng đạt, đẳng cấp."
+            case "Flash Sale":
+                moTaPhongCach = "Phong cách Đại Tiệc Khuyến Mãi / Flash Sale bùng nổ: nền chuyển sắc đỏ ruby - cam rực rỡ kết hợp tia sáng năng lượng 3D hiện đại, huy hiệu giá sốc tương phản cực mạnh, thu hút thị giác tức thì khi lướt bảng tin Facebook."
+            default:
+                moTaPhongCach = "Phong cách Poster Quảng Cáo Bán Lẻ & Điện Máy hiện đại, rực rỡ, chuyên nghiệp: nền xanh dương sâu (Deep Royal Blue) chuyển sắc mượt kết hợp điểm nhấn vàng kim nổi bật và khung thẻ trắng tinh khiết, ánh sáng studio 3D sắc nét, bố cục cân đối chuẩn tỷ lệ vàng, cực kỳ dễ đọc trên màn hình điện thoại."
+            }
+        } else {
+            let boCucTheoPhongCach: String
+            switch thongTin.phongCachAnh {
+            case "Sang trọng":
+                boCucTheoPhongCach = "bố cục Luxury Commercial Studio tối giản, thoáng đạt, sản phẩm đặt trên bục trưng bày 3D có ánh sáng viền tinh tế và phản chiếu nhẹ"
+            case "Flash Sale":
+                boCucTheoPhongCach = "bố cục Đại Tiệc Khuyến Mãi / Flash Sale năng động, huy hiệu giá sốc tương phản cực mạnh, thu hút thị giác tức thì trên bảng tin Facebook"
+            default:
+                boCucTheoPhongCach = "bố cục Poster Quảng Cáo Bán Lẻ hiện đại, chuyên nghiệp, cân đối chuẩn tỷ lệ vàng, ánh sáng studio 3D sắc nét và cực kỳ dễ đọc trên điện thoại"
+            }
+            moTaPhongCach = "Chủ đề & Tone màu thiết kế BẮT BUỘC: \"\(chuDeNhap)\". Hãy thiết kế TOÀN BỘ bảng màu nền, ánh sáng, khung giá và họa tiết trang trí 3D phù hợp tự nhiên và đặc trưng nhất với chủ đề \"\(chuDeNhap)\" (KHÔNG dùng bảng màu xanh dương - vàng mặc định nếu không hợp với chủ đề này); kết hợp \(boCucTheoPhongCach), đảm bảo chữ tên sản phẩm và mức giá tương phản cao, nổi bật sắc nét."
         }
-
-        let dongChuDe = thongTin.toneMauChuDe.isEmpty
-            ? ""
-            : "\nTone màu & Chủ đề thiết kế BẮT BUỘC ưu tiên áp dụng: \"\(thongTin.toneMauChuDe)\" (phối màu nền, ánh sáng và họa tiết trang trí đúng tinh thần chủ đề này, vẫn giữ chữ tên sản phẩm và giá cực kỳ sắc nét, tương phản cao)."
 
         let cacSP = thongTin.danhSachSanPham.filter { $0.coDuLieu }
         if cacSP.count >= 2 {
