@@ -1,6 +1,7 @@
 import UIKit
 import MapKit
 import CoreLocation
+import UniformTypeIdentifiers
 
 // MARK: - Mô Hình Dữ Liệu Quét Khu Vực, Siêu Thị Đã Lưu & Tuyến Phát Tờ Rơi
 
@@ -308,6 +309,9 @@ private final class DichVuQuetKhuVuc {
             ("điện máy", .doiThu),
             ("gia dụng", .doiThu),
             ("điện lạnh", .doiThu),
+            ("máy lạnh", .doiThu),
+            ("điện cơ", .doiThu),
+            ("điện thoại", .doiThu),
             ("cửa hàng điện tử", .doiThu),
             ("trường học", .truongHoc),
             ("trường tiểu học", .truongHoc),
@@ -341,8 +345,11 @@ private final class DichVuQuetKhuVuc {
                     let kc = viTriTam.distance(from: CLLocation(latitude: toaDo.latitude, longitude: toaDo.longitude))
                     guard kc <= banKinhMet else { continue }
 
+                    if let cat = item.pointOfInterestCategory, self.laDanhMucAppleBiLoai(cat) {
+                        continue
+                    }
                     let diaChi = self.dinhDangDiaChi(item.placemark)
-                    guard let loaiChuan = self.phanLoaiChinhXac(ten: ten, diaChi: diaChi, goiY: loaiGoiY) else {
+                    guard let loaiChuan = self.phanLoaiChinhXac(ten: ten, diaChi: diaChi, goiY: loaiGoiY, tagOSMChacChan: false) else {
                         continue
                     }
 
@@ -391,8 +398,8 @@ private final class DichVuQuetKhuVuc {
         [out:json][timeout:14];
         (
           nwr(around:\(r),\(lat),\(lon))["amenity"~"^(school|kindergarten|college|university|marketplace)$"];
-          nwr(around:\(r),\(lat),\(lon))["shop"~"^(electronics|appliance|electrical|houseware|hardware|department_store|hifi|computer|mobile_phone|marketplace)$"];
-          nwr(around:\(r),\(lat),\(lon))["name"~"^(Chợ|Trường|Điện [Mm]áy|Thế [Gg]iới [Dd]i [Đđ]ộng|TopZone|Gia [Dd]ụng|Siêu [Tt]hị Điện)",i];
+          nwr(around:\(r),\(lat),\(lon))["shop"~"^(electronics|appliance|electrical|houseware|hifi|computer|mobile_phone|marketplace)$"];
+          nwr(around:\(r),\(lat),\(lon))["name"~"^(Chợ|Trường|Điện [Mm]áy|Điện [Ll]ạnh|Điện [Cc]ơ|Điện [Tt]hoại|Máy [Ll]ạnh|Thế [Gg]iới [Dd]i [Đđ]ộng|TopZone|Gia [Dd]ụng|Siêu [Tt]hị Điện)",i];
         );
         out center tags 280;
         """
@@ -465,14 +472,19 @@ private final class DichVuQuetKhuVuc {
                 let shop = (tags["shop"] as? String ?? "").lowercased()
 
                 let goiY: LoaiDiaDiemQuet?
+                let tagChacChan: Bool
                 if ["school", "kindergarten", "college", "university"].contains(amenity) {
                     goiY = .truongHoc
+                    tagChacChan = true
                 } else if amenity == "marketplace" || shop == "marketplace" {
                     goiY = .cho
-                } else if ["electronics", "appliance", "electrical", "houseware", "hardware", "department_store", "hifi", "computer"].contains(shop) {
+                    tagChacChan = true
+                } else if ["electronics", "appliance", "electrical", "houseware", "hifi", "computer", "mobile_phone"].contains(shop) {
                     goiY = .doiThu
+                    tagChacChan = true
                 } else {
                     goiY = nil
+                    tagChacChan = false
                 }
 
                 let duong = (tags["addr:street"] as? String) ?? ""
@@ -480,7 +492,7 @@ private final class DichVuQuetKhuVuc {
                 let phuong = (tags["addr:suburb"] as? String) ?? (tags["addr:district"] as? String) ?? ""
                 let diaChi = [soNha, duong, phuong].filter { !$0.isEmpty }.joined(separator: ", ")
 
-                guard let loaiChuan = self.phanLoaiChinhXac(ten: ten, diaChi: diaChi, goiY: goiY) else {
+                guard let loaiChuan = self.phanLoaiChinhXac(ten: ten, diaChi: diaChi, goiY: goiY, tagOSMChacChan: tagChacChan) else {
                     continue
                 }
 
@@ -548,7 +560,7 @@ private final class DichVuQuetKhuVuc {
                     guard kc <= banKinhMet else { continue }
                     let diaChi = (item["vicinity"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
-                    guard let loaiChuan = self.phanLoaiChinhXac(ten: ten, diaChi: diaChi, goiY: loaiGoiY) else {
+                    guard let loaiChuan = self.phanLoaiChinhXac(ten: ten, diaChi: diaChi, goiY: loaiGoiY, tagOSMChacChan: false) else {
                         continue
                     }
 
@@ -585,85 +597,136 @@ private final class DichVuQuetKhuVuc {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func phanLoaiChinhXac(ten: String, diaChi: String, goiY: LoaiDiaDiemQuet?) -> LoaiDiaDiemQuet? {
+    private func laDanhMucAppleBiLoai(_ cat: MKPointOfInterestCategory) -> Bool {
+        let danhMucLoai: Set<MKPointOfInterestCategory> = [
+            .restaurant, .cafe, .bakery, .brewery, .winery, .nightlife,
+            .hotel, .gasStation, .parking, .carRental, .evCharger,
+            .hospital, .pharmacy, .bank, .atm, .postOffice, .police, .fireStation,
+            .park, .beach, .campground, .marina, .museum, .theater, .movieTheater,
+            .fitnessCenter, .stadium, .zoo, .amusementPark, .aquarium, .publicTransport, .airport
+        ]
+        return danhMucLoai.contains(cat)
+    }
+
+    private func coTuNguyen(_ chuoi: String, tu: String) -> Bool {
+        let pattern = "(^|[^\\p{L}\\p{N}])" + NSRegularExpression.escapedPattern(for: tu) + "($|[^\\p{L}\\p{N}])"
+        return chuoi.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private func phanLoaiChinhXac(
+        ten: String,
+        diaChi: String,
+        goiY: LoaiDiaDiemQuet?,
+        tagOSMChacChan: Bool
+    ) -> LoaiDiaDiemQuet? {
+        let tenGoc = ten.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let t = chuanHoaChuoi(ten)
         guard !t.isEmpty else { return nil }
 
-        // 1. Nhận diện hệ thống Điện Máy Xanh / Thế Giới Di Động / TopZone (hiện riêng mục ĐMX/TGDĐ)
+        // 1. Nhận diện hệ thống Điện Máy Xanh / Thế Giới Di Động / TopZone
         let laHeThongMWG = t.contains("dien may xanh")
             || t.contains("the gioi di dong")
             || t.contains("topzone")
-            || t == "dmx"
-            || t.hasPrefix("dmx ")
-            || t == "tgdd"
-            || t.hasPrefix("tgdd ")
+            || coTuNguyen(t, tu: "dmx")
+            || coTuNguyen(t, tu: "tgdd")
         if laHeThongMWG {
             return .heThongMWG
         }
 
-        // 2. Nhận diện Đối thủ điện máy / gia dụng
-        let tuKhoaDoiThu = [
-            "dien may", "gia dung", "dien lanh", "nguyen kim", "mediamart", "pico", "hc ",
-            "sieu thi dien may", "dien may cho lon", "cho lon", "fpt shop", "cellphones",
-            "viettel store", "hoang ha mobile", "lock&lock", "elmich", "sunhouse", "kangaroo",
-            "karofi", "aqua", "panasonic", "samsung", "lg ", "toshiba", "sharp", "nagakawa",
-            "do gia dung", "thiet bi dien", "dien tu", "noi that gia dung", "bep tu", "may lanh", "tu lanh"
+        // 2. Bộ lọc loại trừ TUYỆT ĐỐI: Ăn uống, Ô tô / Xe cộ, Khách sạn, Y tế, Ngân hàng, Tạp hóa...
+        let loaiTruAnUong = [
+            "nha hang", "quan an", "quan nhau", "quan com", "com tam", "com ga", "com binh dan",
+            "bun bo", "bun cha", "bun rieu", "bun dau", "bun thit", "pho bo", "pho ga", "mi quang",
+            "hu tieu", "banh mi", "banh xeo", "banh canh", "banh cuon", "banh beo", "banh trang",
+            "lau ", "nuong ", "hai san", "thit cho", "thit de", "thit trau", "vit quay", "ga ran",
+            "dac san", "am thuc", "buffet", "tra sua", "ca phe", "cafe", "coffee", "bia hoi",
+            "quan bia", "karaoke", "bakery", "tiem banh", "an vat", "be thui", "chao long",
+            "chao vit", "chao ech", "quan oc", "oc ", "bo ne", "bo kho", "pizza", "burger",
+            "kfc", "lotteria", "jollibee", "highlands", "phuc long", "trung nguyen", "quán "
         ]
-        if tuKhoaDoiThu.contains(where: { t.contains($0) }) {
-            if t == "cho lon" || (t.hasPrefix("cho ") && !t.contains("dien may")) {
-                return .cho
-            }
-            return .doiThu
+        let loaiTruXeCo = [
+            "o to", "oto", "garage", "gara", "rua xe", "sua xe", "xe may", "xe dap",
+            "phu tung", "lop xe", "vo xe", "cham soc xe", "bai giu xe", "cay xang",
+            "tram xang", "petrolimex", "pvoil", "ben xe", "showroom", "dai ly xe",
+            "hyundai", "toyota", "honda", "mazda", "vinfast", "mitsubishi", "suzuki",
+            "yamaha", "ford ", "chevrolet", "mercedes", "bmw ", "kia ", "isuzu", "thaco",
+            "mua ban xe", "do choi xe", "noi that xe", "dan phim cach nhiet"
+        ]
+        let loaiTruKhac = [
+            "khach san", "nha nghi", "homestay", "hotel", "motel", "resort",
+            "salon", "cat toc", "tham my", "nha thuoc", "phong kham", "benh vien", "nha khoa",
+            "ngan hang", "buu dien", "cong an", "uy ban", "ubnd", "chua ", "nha tho",
+            "tap hoa", "bach hoa xanh", "winmart", "vinmart", "circle k", "gs25", "7-eleven",
+            "coopfood", "satrafoods", "familymart", "ministop", "spa ", "massage", "bida",
+            "billiards", "tiem vang", "cam do", "xay dung", "vat lieu", "sat thep", "go noi that"
+        ]
+
+        let biLoaiAnUong = loaiTruAnUong.contains(where: { t.contains($0) || tenGoc.contains($0) })
+            || coTuNguyen(t, tu: "quan")
+            || coTuNguyen(t, tu: "pho")
+            || coTuNguyen(t, tu: "bun")
+            || coTuNguyen(t, tu: "com")
+            || coTuNguyen(t, tu: "bar")
+            || coTuNguyen(t, tu: "pub")
+        let biLoaiXeCo = loaiTruXeCo.contains(where: { t.contains($0) })
+        let biLoaiKhac = loaiTruKhac.contains(where: { t.contains($0) }) || coTuNguyen(t, tu: "atm")
+
+        if biLoaiAnUong || biLoaiXeCo || biLoaiKhac {
+            return nil
         }
 
-        // 3. Nhận diện Trường học
+        // 3. Nhận diện CHỢ (bắt buộc giữ dấu tiếng Việt "chợ" để KHÔNG BAO GIỜ nhầm "Thịt Chó" thành "Chợ"!)
+        let laDienMayChoLon = t.contains("dien may cho lon") || t.contains("sieu thi dien may")
+        if !laDienMayChoLon {
+            let laChoCoDau = coTuNguyen(tenGoc, tu: "chợ")
+            let laMarketOSM = (tagOSMChacChan && goiY == .cho)
+            if laChoCoDau || laMarketOSM {
+                if !t.contains("dien may") && !t.contains("sieu thi") && !t.contains("mini") {
+                    return .cho
+                }
+            }
+        }
+
+        // 4. Nhận diện TRƯỜNG HỌC
         let tuKhoaTruong = [
             "truong ", "tieu hoc", "thcs", "thpt", "mam non", "mau giao", "nha tre",
             "dai hoc", "cao dang", "trung cap", "hoc vien", "school", "kindergarten",
             "university", "college", "academy", "anh ngu", "ngoai ngu"
         ]
-        if tuKhoaTruong.contains(where: { t.contains($0) }) {
-            let loaiTru = ["quan ", "cafe", "ca phe", "tra sua", "com ", "pho ", "bun ", "nha tro", "khach san", "hotel", "pharmacy", "nha thuoc"]
-            if loaiTru.contains(where: { t.hasPrefix($0) }) { return nil }
+        if tuKhoaTruong.contains(where: { t.contains($0) }) || (tagOSMChacChan && goiY == .truongHoc) {
             return .truongHoc
         }
 
-        // 4. Nhận diện Chợ
-        let tuKhoaCho = ["cho ", "cho dem", "cho dau moi", "cho dan sinh", "market", "bazaar"]
-        if t.hasPrefix("cho ") || t == "cho" || tuKhoaCho.contains(where: { t.contains($0) }) {
-            let loaiTruCho = [
-                "mini mart", "minimart", "winmart", "vinmart", "bach hoa xanh", "circle k",
-                "gs25", "7-eleven", "sieu thi dien may", "dien may", "quan ", "com ", "pho ",
-                "bun ", "banh mi", "cafe", "ca phe", "nha thuoc", "benh vien", "ngan hang", "atm"
-            ]
-            if loaiTruCho.contains(where: { t.contains($0) }) { return nil }
-            return .cho
+        // 5. Nhận diện ĐỐI THỦ (CHỈ nhận đúng ngành: Điện máy, Điện cơ, Điện thoại, Máy lạnh, Điện lạnh, Gia dụng, Điện tử...)
+        // Tuyệt đối KHÔNG fallback bừa bãi!
+        let tuKhoaDoiThuChuan = [
+            // Điện máy & chuỗi đối thủ
+            "dien may", "sieu thi dien may", "nguyen kim", "mediamart", "pico", "dien may cho lon",
+            "fpt shop", "cellphones", "viettel store", "hoang ha mobile", "di dong viet",
+            "bach long", "phong vu", "gearvn", "hacom", "minh tuan mobile", "24hstore",
+            "dien may xanh", "hc center",
+            // Điện lạnh & Máy lạnh
+            "dien lanh", "may lanh", "dieu hoa", "tu lanh", "may giat", "tu dong", "may nuoc nong",
+            // Điện cơ & Cơ điện
+            "dien co", "co dien", "may bom", "may khoan", "may han", "dung cu dien", "mo to dien",
+            // Điện thoại & Công nghệ
+            "dien thoai", "di dong", "smartphone", "iphone", "mobile", "laptop", "may tinh",
+            "vi tinh", "tin hoc", "phu kien dien thoai", "sua chua dien thoai", "ep kinh",
+            // Gia dụng & Điện tử
+            "gia dung", "do gia dung", "dien gia dung", "dien tu", "thiet bi dien", "do dien",
+            "may loc nuoc", "bep tu", "bep dien", "quat dien", "noi com", "tivi", "am thanh",
+            "lock&lock", "elmich", "sunhouse", "kangaroo", "karofi", "daikin", "panasonic",
+            "samsung", "toshiba", "sharp", "aqua", "casper", "nagakawa", "midea", "electrolux",
+            "sony", "lg electronics", "bosch"
+        ]
+
+        if tuKhoaDoiThuChuan.contains(where: { t.contains($0) }) {
+            return .doiThu
         }
 
-        // 5. Fallback theo gợi ý của nguồn
-        if let goiY = goiY {
-            if goiY == .heThongMWG {
-                // Chỉ nhận đúng ĐMX / TGDĐ / TopZone ở bước 1, không nhận nhầm tiệm khác
-                return nil
-            }
-            if goiY == .cho {
-                if t.contains("cho") || t.contains("market") {
-                    let loaiTru = ["bach hoa xanh", "winmart", "vinmart", "circle k", "quan ", "cafe", "ca phe", "nha thuoc", "ngan hang"]
-                    if loaiTru.contains(where: { t.contains($0) }) { return nil }
-                    return .cho
-                }
-                return nil
-            }
-            if goiY == .truongHoc {
-                let loaiTru = ["quan ", "cafe", "ca phe", "tra sua", "nha thuoc", "atm", "ngan hang", "khach san"]
-                if loaiTru.contains(where: { t.contains($0) }) { return nil }
-                return .truongHoc
-            }
-            if goiY == .doiThu {
-                let loaiTru = ["quan ", "cafe", "ca phe", "nha thuoc", "benh vien", "truong ", "chua ", "nha tho", "cong an", "uy ban", "ubnd", "ngan hang", "atm"]
-                if loaiTru.contains(where: { t.contains($0) }) { return nil }
-                return .doiThu
-            }
+        // Chỉ chấp nhận fallback khi đến từ tag OSM chuyên ngành điện máy/điện tử/điện thoại rõ ràng
+        if tagOSMChacChan && goiY == .doiThu {
+            return .doiThu
         }
 
         return nil
@@ -947,7 +1010,7 @@ private final class BoToiUuTuyenPhatToRoi {
 
 // MARK: - Màn Hình Chính Tích Hợp Google Maps & Quét Bán Kính
 
-final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationManagerDelegate, UITextFieldDelegate {
+final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationManagerDelegate, UITextFieldDelegate, UIDocumentPickerDelegate {
 
     private enum KieuNenBanDo: Int {
         case googleDuongPho = 0
@@ -1031,6 +1094,24 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     private let nganDanhSachDiaDiem = UIStackView()
     private let nhanTrongDanhSach = UILabel()
 
+    // Trạng thái & giao diện Ma trận phát tờ rơi xoay vòng + Nhập Excel lịch PG / NV
+    private var nhomDangChonExcel: NhomNhanSuLich = .pg
+    private var khoiLichPG: KhoiLichTuanExcel? = nil
+    private var khoiLichNV: KhoiLichTuanExcel? = nil
+    private var keHoachMaTran: KeHoachMaTranTuan? = nil
+    private var locMaTranChiChuaPhat: Bool = false
+
+    private let khungMaTranToRoi = UIView()
+    private let nutNhacChuNhat = UIButton(type: .system)
+    private let nhanNhacTuyenChuaPhat = UILabel()
+    private let nutNhapExcelPG = UIButton(type: .system)
+    private let nutNhapExcelNV = UIButton(type: .system)
+    private let nhanTrangThaiExcel = UILabel()
+    private let nutTaoMaTran = UIButton(type: .system)
+    private let nutCopyMaTran = UIButton(type: .system)
+    private let chonLocMaTran = UISegmentedControl(items: ["Tất cả", "Chưa phát", "Đã phát"])
+    private let nganDanhSachMaTran = UIStackView()
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = BangMauBCTD.nenTrang
@@ -1040,6 +1121,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         apDungLopNenBanDo()
         dungLaiThanhSieuThiDaLuu()
         capNhatTamVaVongTronTrenBanDo(diChuyenCamera: true)
+        capNhatGiaoDienMaTran()
     }
 
     private func khoiPhucTrangThaiDaLuu() {
@@ -1056,6 +1138,9 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
             banKinhMet = bk
         }
         dsSieuThiDaLuu = KhoDiaDiemSieuThi.dungChung.taiDanhSach()
+        khoiLichPG = KhoMaTranPhatToRoi.dungChung.taiKhoiPG()
+        khoiLichNV = KhoMaTranPhatToRoi.dungChung.taiKhoiNV()
+        keHoachMaTran = KhoMaTranPhatToRoi.dungChung.taiKeHoach()
     }
 
     private func luuTrangThaiTamVaBanKinh() {
@@ -1111,6 +1196,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nganChinh.addArrangedSubview(taoTheBanDo())
         nganChinh.addArrangedSubview(taoHang4TheKPI())
         nganChinh.addArrangedSubview(taoTheTuyenPhatToRoi())
+        nganChinh.addArrangedSubview(taoTheMaTranPhatToRoi())
         nganChinh.addArrangedSubview(taoTheDanhSachChiTiet())
 
         let tapAnBanPhim = UITapGestureRecognizer(target: self, action: #selector(anBanPhim))
@@ -2030,6 +2116,14 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         veLaiGhimVaTuyenTrenBanDo()
         capNhatKhungTuyenPhatToRoi()
         capNhatDanhSachChiTiet()
+        if !tatCaDiaDiem.isEmpty {
+            let dau = danhSachTamDangChonDeQuet().first?.toaDo ?? tamQuet
+            let cacTuyen = BoLapMaTranToRoiXoayVong.taoCacTuyenTuKetQuaQuet(tamLat: dau.latitude, tamLon: dau.longitude, danhSach: tatCaDiaDiem)
+            let kh = BoLapMaTranToRoiXoayVong.lapMaTranTuan(cacTuyen: cacTuyen, khoiPG: khoiLichPG, khoiNV: khoiLichNV, giuTrangThaiCu: keHoachMaTran)
+            keHoachMaTran = kh
+            KhoMaTranPhatToRoi.dungChung.luuKeHoach(kh)
+            capNhatGiaoDienMaTran()
+        }
     }
 
     private func capNhatThongKeKPI() {
@@ -2464,4 +2558,430 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
             moGoogleMapsDanDuong(den: ddAnn.diaDiem.toaDo)
         }
     }
+
+    // MARK: - Thẻ Ma Trận Phát Tờ Rơi Xoay Vòng & Nhập Excel Lịch PG / NV Siêu Thị
+
+    private func taoTheMaTranPhatToRoi() -> UIView {
+        khungMaTranToRoi.backgroundColor = BangMauBCTD.nenThe
+        khungMaTranToRoi.layer.cornerRadius = 14
+        khungMaTranToRoi.layer.borderWidth = 1.2
+        khungMaTranToRoi.layer.borderColor = BangMauBCTD.xanhChuDao.withAlphaComponent(0.4).cgColor
+
+        let tieuDe = UILabel()
+        tieuDe.text = "📅 MA TRẬN PHÁT TỜ RƠI XOAY VÒNG"
+        tieuDe.font = .systemFont(ofSize: 13, weight: .heavy)
+        tieuDe.textColor = BangMauBCTD.xanhChuDaoDam
+        tieuDe.numberOfLines = 0
+
+        nutNhacChuNhat.titleLabel?.font = .systemFont(ofSize: 11, weight: .bold)
+        nutNhacChuNhat.layer.cornerRadius = 8
+        nutNhacChuNhat.contentEdgeInsets = UIEdgeInsets(top: 5, left: 8, bottom: 5, right: 8)
+        nutNhacChuNhat.setContentHuggingPriority(.required, for: .horizontal)
+        nutNhacChuNhat.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutNhacChuNhat.addTarget(self, action: #selector(bamBatTatNhacChuNhat), for: .touchUpInside)
+
+        let hangDau = UIStackView(arrangedSubviews: [tieuDe, UIView(), nutNhacChuNhat])
+        hangDau.axis = .horizontal
+        hangDau.alignment = .center
+        hangDau.spacing = 6
+
+        nhanNhacTuyenChuaPhat.font = .systemFont(ofSize: 12, weight: .bold)
+        nhanNhacTuyenChuaPhat.numberOfLines = 0
+        nhanNhacTuyenChuaPhat.layer.cornerRadius = 9
+        nhanNhacTuyenChuaPhat.clipsToBounds = true
+
+        // 2 nút nhập file Excel lịch PG và lịch Nhân viên siêu thị
+        nutNhapExcelPG.setTitle("📊 Nhập Excel PG", for: .normal)
+        nutNhapExcelPG.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutNhapExcelPG.setTitleColor(.white, for: .normal)
+        nutNhapExcelPG.backgroundColor = BangMauBCTD.xanhDatVach
+        nutNhapExcelPG.layer.cornerRadius = 9
+        nutNhapExcelPG.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        nutNhapExcelPG.addTarget(self, action: #selector(bamNhapExcelPG), for: .touchUpInside)
+
+        nutNhapExcelNV.setTitle("👥 Nhập Excel NV", for: .normal)
+        nutNhapExcelNV.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutNhapExcelNV.setTitleColor(.white, for: .normal)
+        nutNhapExcelNV.backgroundColor = BangMauBCTD.xanhBienChuDao
+        nutNhapExcelNV.layer.cornerRadius = 9
+        nutNhapExcelNV.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        nutNhapExcelNV.addTarget(self, action: #selector(bamNhapExcelNV), for: .touchUpInside)
+
+        let hangExcel = UIStackView(arrangedSubviews: [nutNhapExcelPG, nutNhapExcelNV])
+        hangExcel.axis = .horizontal
+        hangExcel.spacing = 8
+        hangExcel.distribution = .fillEqually
+
+        nhanTrangThaiExcel.font = .systemFont(ofSize: 11.5, weight: .medium)
+        nhanTrangThaiExcel.textColor = BangMauBCTD.chuPhu
+        nhanTrangThaiExcel.numberOfLines = 0
+
+        nutTaoMaTran.setTitle("⚡ Phân lịch xoay vòng", for: .normal)
+        nutTaoMaTran.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .heavy)
+        nutTaoMaTran.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutTaoMaTran.backgroundColor = BangMauBCTD.vangSang
+        nutTaoMaTran.layer.cornerRadius = 9
+        nutTaoMaTran.layer.borderWidth = 1
+        nutTaoMaTran.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        nutTaoMaTran.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        nutTaoMaTran.addTarget(self, action: #selector(bamTaoMaTranXoayVong), for: .touchUpInside)
+
+        nutCopyMaTran.setTitle("📋 Copy ma trận tuần", for: .normal)
+        nutCopyMaTran.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutCopyMaTran.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+        nutCopyMaTran.backgroundColor = BangMauBCTD.nenHeaderPhu
+        nutCopyMaTran.layer.cornerRadius = 9
+        nutCopyMaTran.layer.borderWidth = 1
+        nutCopyMaTran.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
+        nutCopyMaTran.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        nutCopyMaTran.addTarget(self, action: #selector(bamCopyMaTranTuan), for: .touchUpInside)
+
+        let hangHanhDong = UIStackView(arrangedSubviews: [nutTaoMaTran, nutCopyMaTran])
+        hangHanhDong.axis = .horizontal
+        hangHanhDong.spacing = 8
+        hangHanhDong.distribution = .fillEqually
+
+        chonLocMaTran.selectedSegmentIndex = 0
+        chonLocMaTran.addTarget(self, action: #selector(doiBoLocMaTran), for: .valueChanged)
+
+        nganDanhSachMaTran.axis = .vertical
+        nganDanhSachMaTran.spacing = 7
+
+        let stack = UIStackView(arrangedSubviews: [
+            hangDau, nhanNhacTuyenChuaPhat, hangExcel, nhanTrangThaiExcel, hangHanhDong, chonLocMaTran, nganDanhSachMaTran
+        ])
+        stack.axis = .vertical
+        stack.spacing = 9
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        khungMaTranToRoi.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: khungMaTranToRoi.topAnchor, constant: 12),
+            stack.leadingAnchor.constraint(equalTo: khungMaTranToRoi.leadingAnchor, constant: 12),
+            stack.trailingAnchor.constraint(equalTo: khungMaTranToRoi.trailingAnchor, constant: -12),
+            stack.bottomAnchor.constraint(equalTo: khungMaTranToRoi.bottomAnchor, constant: -12)
+        ])
+
+        return khungMaTranToRoi
+    }
+
+    @objc private func bamBatTatNhacChuNhat() {
+        let batMoi = !KhoMaTranPhatToRoi.dungChung.dangBatNhacChuNhat
+        KhoMaTranPhatToRoi.dungChung.capNhatNhacChuNhatHangTuan(bat: batMoi) { [weak self] _, msg in
+            self?.capNhatNutNhacChuNhat()
+            self?.hienThongBao(tieuDe: "Nhắc lịch Chủ nhật hằng tuần", noiDung: msg)
+        }
+    }
+
+    private func capNhatNutNhacChuNhat() {
+        let dangBat = KhoMaTranPhatToRoi.dungChung.dangBatNhacChuNhat
+        nutNhacChuNhat.setTitle(dangBat ? "🔔 Nhắc CN: Bật" : "🔕 Nhắc CN 18h", for: .normal)
+        nutNhacChuNhat.backgroundColor = dangBat ? BangMauBCTD.xanhDatPill : BangMauBCTD.nenHeaderPhu
+        nutNhacChuNhat.setTitleColor(dangBat ? BangMauBCTD.xanhDatChu : BangMauBCTD.chuPhu, for: .normal)
+    }
+
+    @objc private func bamNhapExcelPG() {
+        nhomDangChonExcel = .pg
+        moChonFileExcel()
+    }
+
+    @objc private func bamNhapExcelNV() {
+        nhomDangChonExcel = .nhanVien
+        moChonFileExcel()
+    }
+
+    private func moChonFileExcel() {
+        var types: [UTType] = []
+        if let xlsx = UTType(filenameExtension: "xlsx") {
+            types.append(xlsx)
+        }
+        types.append(.spreadsheet)
+        types.append(.data)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        present(picker, animated: true)
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let url = urls.first else { return }
+        let nhom = nhomDangChonExcel
+        nhanTrangThaiExcel.text = "Đang đọc file Excel \(nhom.rawValue): \(url.lastPathComponent)..."
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let dsKhoi = try BoPhanTichLichCaExcel.phanTichWorkbook(tu: url, nhom: nhom)
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    guard !dsKhoi.isEmpty else {
+                        self.hienThongBao(
+                            tieuDe: "Không tìm thấy bảng lịch ca",
+                            noiDung: "File "\(url.lastPathComponent)" không có bảng lịch theo Thứ 2 – Chủ nhật hợp lệ."
+                        )
+                        self.capNhatGiaoDienMaTran()
+                        return
+                    }
+                    if dsKhoi.count == 1, let duyNhat = dsKhoi.first {
+                        self.apDungKhoiLichExcel(duyNhat)
+                    } else {
+                        self.hienChonTuanTrongExcel(dsKhoi: dsKhoi, tenFile: url.lastPathComponent)
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    self?.hienThongBao(tieuDe: "Lỗi đọc file Excel", noiDung: error.localizedDescription)
+                    self?.capNhatGiaoDienMaTran()
+                }
+            }
+        }
+    }
+
+    private func hienChonTuanTrongExcel(dsKhoi: [KhoiLichTuanExcel], tenFile: String) {
+        // Đưa các tuần mới nhất (ở cuối file) lên đầu để dễ chọn
+        let moiNhatTruoc = Array(dsKhoi.reversed().prefix(12))
+        let ac = UIAlertController(
+            title: "Chọn Tuần lịch từ \(tenFile)",
+            message: "File có \(dsKhoi.count) tuần lịch. Chọn tuần bạn muốn phân lịch phát tờ rơi (không trùng ca):",
+            preferredStyle: .actionSheet
+        )
+        for khoi in moiNhatTruoc {
+            let title = "\(khoi.tenSheet) • \(khoi.tenTuan) (\(khoi.danhSachNguoi.count) \(khoi.nhom.rawValue))"
+            ac.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+                self?.apDungKhoiLichExcel(khoi)
+            })
+        }
+        ac.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        if let pop = ac.popoverPresentationController {
+            pop.sourceView = khungMaTranToRoi
+            pop.sourceRect = CGRect(x: khungMaTranToRoi.bounds.midX, y: 80, width: 2, height: 2)
+        }
+        present(ac, animated: true)
+    }
+
+    private func apDungKhoiLichExcel(_ khoi: KhoiLichTuanExcel) {
+        if khoi.nhom == .pg {
+            khoiLichPG = khoi
+            KhoMaTranPhatToRoi.dungChung.luuKhoiPG(khoi)
+        } else {
+            khoiLichNV = khoi
+            KhoMaTranPhatToRoi.dungChung.luuKhoiNV(khoi)
+        }
+        bamTaoMaTranXoayVong()
+    }
+
+    @objc private func bamTaoMaTranXoayVong() {
+        let dau = danhSachTamDangChonDeQuet().first?.toaDo ?? tamQuet
+        let cacTuyen: [TuyenPhatToRoiMaTran]
+        if !tatCaDiaDiem.isEmpty {
+            cacTuyen = BoLapMaTranToRoiXoayVong.taoCacTuyenTuKetQuaQuet(tamLat: dau.latitude, tamLon: dau.longitude, danhSach: tatCaDiaDiem)
+        } else if let cu = keHoachMaTran, !cu.cacTuyen.isEmpty {
+            cacTuyen = cu.cacTuyen
+        } else {
+            cacTuyen = BoLapMaTranToRoiXoayVong.taoCacTuyenTuKetQuaQuet(tamLat: dau.latitude, tamLon: dau.longitude, danhSach: [])
+        }
+
+        let kh = BoLapMaTranToRoiXoayVong.lapMaTranTuan(
+            cacTuyen: cacTuyen,
+            khoiPG: khoiLichPG,
+            khoiNV: khoiLichNV,
+            giuTrangThaiCu: keHoachMaTran
+        )
+        keHoachMaTran = kh
+        KhoMaTranPhatToRoi.dungChung.luuKeHoach(kh)
+        capNhatGiaoDienMaTran()
+    }
+
+    @objc private func doiBoLocMaTran() {
+        capNhatGiaoDienMaTran()
+    }
+
+    @objc private func bamDanhDauDaPhat(_ sender: UIButton) {
+        guard var kh = keHoachMaTran, let idO = sender.accessibilityIdentifier,
+              let idx = kh.cacO.firstIndex(where: { $0.id == idO }) else { return }
+        kh.cacO[idx].daPhat.toggle()
+        keHoachMaTran = kh
+        KhoMaTranPhatToRoi.dungChung.luuKeHoach(kh)
+        capNhatGiaoDienMaTran()
+    }
+
+    private func capNhatGiaoDienMaTran() {
+        capNhatNutNhacChuNhat()
+
+        let pgInfo = khoiLichPG.map { "PG: \($0.tenSheet) – \($0.tenTuan) (\($0.danhSachNguoi.count) người)" } ?? "PG: Chưa nhập file Excel"
+        let nvInfo = khoiLichNV.map { "NV: \($0.tenSheet) – \($0.tenTuan) (\($0.danhSachNguoi.count) người)" } ?? "NV: Chưa nhập file Excel"
+        let laChuNhat = (Calendar(identifier: .gregorian).component(.weekday, from: Date()) == 1)
+        let ghiChuCN = laChuNhat
+            ? "📌 Hôm nay là Chủ nhật — hãy nhập file Excel mới để đăng ký lịch tuần tiếp theo!"
+            : "🗓️ Lịch cập nhật theo tuần (Chủ nhật hằng tuần nhập Excel cho tuần tới)."
+        nhanTrangThaiExcel.text = "• \(pgInfo)
+• \(nvInfo)
+\(ghiChuCN)"
+
+        nganDanhSachMaTran.arrangedSubviews.forEach {
+            nganDanhSachMaTran.removeArrangedSubview($0)
+            $0.removeFromSuperview()
+        }
+
+        guard let kh = keHoachMaTran else {
+            nhanNhacTuyenChuaPhat.text = "  💡 Quét khu vực trên bản đồ hoặc nhập file Excel PG/NV rồi bấm "⚡ Phân lịch xoay vòng"."
+            nhanNhacTuyenChuaPhat.textColor = BangMauBCTD.xanhChuDaoDam
+            nhanNhacTuyenChuaPhat.backgroundColor = BangMauBCTD.nenHeaderPhu
+            return
+        }
+
+        // Tính các tuyến chưa phát trong tuần để hiện cảnh báo nhắc nhở
+        let tuyenDaPhatIDs = Set(kh.cacO.filter { $0.daPhat }.map { $0.tuyenId })
+        let tuyenChuaPhat = kh.cacTuyen.filter { !tuyenDaPhatIDs.contains($0.id) }
+        let soBuoiChuaPhat = kh.cacO.filter { !$0.daPhat }.count
+
+        if tuyenChuaPhat.isEmpty {
+            nhanNhacTuyenChuaPhat.text = "  ✅ Tuyệt vời! Tuần này (\(kh.nhanTuan)) đã phủ kín tất cả \(kh.cacTuyen.count) tuyến tờ rơi!"
+            nhanNhacTuyenChuaPhat.textColor = BangMauBCTD.xanhDatChu
+            nhanNhacTuyenChuaPhat.backgroundColor = BangMauBCTD.xanhDatPill
+        } else {
+            let tenChuaPhat = tuyenChuaPhat.map { $0.ten }.joined(separator: " • ")
+            nhanNhacTuyenChuaPhat.text = "  ⚠️ Nhắc tuyến chưa phát (\(tuyenChuaPhat.count)/\(kh.cacTuyen.count) tuyến • \(soBuoiChuaPhat) buổi chưa xong):
+  \(tenChuaPhat)"
+            nhanNhacTuyenChuaPhat.textColor = BangMauBCTD.doYeuChu
+            nhanNhacTuyenChuaPhat.backgroundColor = BangMauBCTD.doYeuPill
+        }
+
+        let dsHien: [OMaTranPhatToRoi]
+        switch chonLocMaTran.selectedSegmentIndex {
+        case 1: dsHien = kh.cacO.filter { !$0.daPhat }
+        case 2: dsHien = kh.cacO.filter { $0.daPhat }
+        default: dsHien = kh.cacO
+        }
+
+        if dsHien.isEmpty {
+            let lb = UILabel()
+            lb.text = "Không có buổi nào thuộc bộ lọc này."
+            lb.font = .systemFont(ofSize: 12, weight: .medium)
+            lb.textColor = BangMauBCTD.chuMo
+            lb.textAlignment = .center
+            nganDanhSachMaTran.addArrangedSubview(lb)
+            return
+        }
+
+        for o in dsHien {
+            nganDanhSachMaTran.addArrangedSubview(taoDongMaTran(o))
+        }
+    }
+
+    private func taoDongMaTran(_ o: OMaTranPhatToRoi) -> UIView {
+        let the = UIView()
+        the.backgroundColor = o.daPhat ? BangMauBCTD.xanhDatNenDong : BangMauBCTD.nenThePhu
+        the.layer.cornerRadius = 10
+        the.layer.borderWidth = 1
+        the.layer.borderColor = (o.daPhat ? BangMauBCTD.xanhDatVach.withAlphaComponent(0.45) : BangMauBCTD.vienThe).cgColor
+
+        let tenThu = (o.thuIndex >= 0 && o.thuIndex < BoPhanTichLichCaExcel.tenThu.count) ? BoPhanTichLichCaExcel.tenThu[o.thuIndex] : "Thứ"
+        let khungGio = (o.buoi == "Sáng") ? "07:00–09:00" : "16:30–18:30"
+
+        let lbThu = UILabel()
+        lbThu.text = "\(tenThu) • \(o.buoi) (\(khungGio))"
+        lbThu.font = .systemFont(ofSize: 12, weight: .heavy)
+        lbThu.textColor = (o.buoi == "Sáng") ? BangMauBCTD.xanhChuDaoDam : BangMauBCTD.camPhanTich
+
+        let nutCheck = UIButton(type: .system)
+        nutCheck.setTitle(o.daPhat ? "✅ Đã phát" : "☐ Chưa phát", for: .normal)
+        nutCheck.titleLabel?.font = .systemFont(ofSize: 11, weight: .bold)
+        nutCheck.setTitleColor(o.daPhat ? BangMauBCTD.xanhDatChu : BangMauBCTD.doYeuChu, for: .normal)
+        nutCheck.backgroundColor = o.daPhat ? BangMauBCTD.xanhDatPill : BangMauBCTD.doYeuPill
+        nutCheck.layer.cornerRadius = 7
+        nutCheck.contentEdgeInsets = UIEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
+        nutCheck.accessibilityIdentifier = o.id
+        nutCheck.setContentHuggingPriority(.required, for: .horizontal)
+        nutCheck.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutCheck.addTarget(self, action: #selector(bamDanhDauDaPhat(_:)), for: .touchUpInside)
+
+        let hangTren = UIStackView(arrangedSubviews: [lbThu, UIView(), nutCheck])
+        hangTren.axis = .horizontal
+        hangTren.alignment = .center
+
+        let lbTuyen = UILabel()
+        lbTuyen.text = "🛣️ \(o.tenTuyen)"
+        lbTuyen.font = .systemFont(ofSize: 13, weight: .bold)
+        lbTuyen.textColor = BangMauBCTD.chuChinh
+        lbTuyen.numberOfLines = 0
+
+        let lbMoTa = UILabel()
+        lbMoTa.text = o.moTaTuyen
+        lbMoTa.font = .systemFont(ofSize: 11.5, weight: .medium)
+        lbMoTa.textColor = BangMauBCTD.chuPhu
+        lbMoTa.numberOfLines = 2
+
+        var dongNhanSu: [String] = []
+        if !o.danhSachPG.isEmpty {
+            dongNhanSu.append("👩‍💼 PG rảnh (ko trùng ca): \(o.danhSachPG.joined(separator: ", "))")
+        } else if khoiLichPG != nil {
+            dongNhanSu.append("👩‍💼 PG: Không có PG rảnh buổi này (đều đang trực ca/OFF)")
+        }
+        if !o.danhSachNV.isEmpty {
+            dongNhanSu.append("🧑‍🔧 NV siêu thị rảnh: \(o.danhSachNV.joined(separator: ", "))")
+        } else if khoiLichNV != nil {
+            dongNhanSu.append("🧑‍🔧 NV: Không có NV rảnh buổi này")
+        }
+        if dongNhanSu.isEmpty {
+            dongNhanSu.append("ℹ️ Nhập file Excel lịch PG / NV để tự động phân người không trùng ca.")
+        }
+
+        let lbNS = UILabel()
+        lbNS.text = dongNhanSu.joined(separator: "
+")
+        lbNS.font = .systemFont(ofSize: 11.5, weight: .semibold)
+        lbNS.textColor = BangMauBCTD.xanhLaDam
+        lbNS.numberOfLines = 0
+
+        let stack = UIStackView(arrangedSubviews: [hangTren, lbTuyen, lbMoTa, lbNS])
+        stack.axis = .vertical
+        stack.spacing = 4
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        the.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: the.topAnchor, constant: 9),
+            stack.leadingAnchor.constraint(equalTo: the.leadingAnchor, constant: 10),
+            stack.trailingAnchor.constraint(equalTo: the.trailingAnchor, constant: -10),
+            stack.bottomAnchor.constraint(equalTo: the.bottomAnchor, constant: -9)
+        ])
+
+        return the
+    }
+
+    @objc private func bamCopyMaTranTuan() {
+        guard let kh = keHoachMaTran else {
+            hienThongBao(tieuDe: "Chưa có ma trận", noiDung: "Hãy bấm "⚡ Phân lịch xoay vòng" trước khi sao chép.")
+            return
+        }
+        let tuyenDaPhatIDs = Set(kh.cacO.filter { $0.daPhat }.map { $0.tuyenId })
+        let tuyenChuaPhat = kh.cacTuyen.filter { !tuyenDaPhatIDs.contains($0.id) }
+
+        var dong: [String] = [
+            "📅 MA TRẬN PHÁT TỜ RƠI XOAY VÒNG (\(kh.nhanTuan))",
+            "• Nguồn PG: \(kh.tenNguonPG)",
+            "• Nguồn NV: \(kh.tenNguonNV)"
+        ]
+        if !tuyenChuaPhat.isEmpty {
+            dong.append("⚠️ Tuyến chưa phát: \(tuyenChuaPhat.map { $0.ten }.joined(separator: ", "))")
+        } else {
+            dong.append("✅ Đã phát đủ tất cả \(kh.cacTuyen.count) tuyến!")
+        }
+        dong.append("")
+
+        for o in kh.cacO {
+            let thu = (o.thuIndex >= 0 && o.thuIndex < BoPhanTichLichCaExcel.tenThu.count) ? BoPhanTichLichCaExcel.tenThu[o.thuIndex] : ""
+            let tt = o.daPhat ? "[ĐÃ PHÁT]" : "[CHƯA PHÁT]"
+            var ns: [String] = []
+            if !o.danhSachPG.isEmpty { ns.append("PG: \(o.danhSachPG.joined(separator: ", "))") }
+            if !o.danhSachNV.isEmpty { ns.append("NV: \(o.danhSachNV.joined(separator: ", "))") }
+            let chuoiNS = ns.isEmpty ? "Chưa phân nhân sự" : ns.joined(separator: " | ")
+            dong.append("• \(thu) (\(o.buoi)) \(tt): \(o.tenTuyen) → \(chuoiNS)")
+        }
+
+        UIPasteboard.general.string = dong.joined(separator: "
+")
+        hienThongBao(tieuDe: "Đã sao chép", noiDung: "Đã sao chép toàn bộ Ma trận phát tờ rơi xoay vòng tuần này để gửi nhóm LINE/Zalo.")
+    }
+
 }
