@@ -1,8 +1,6 @@
 import UIKit
 import MapKit
 import CoreLocation
-import UniformTypeIdentifiers
-import PhotosUI
 
 // MARK: - Mô Hình Dữ Liệu Quét Khu Vực, Siêu Thị Đã Lưu & Tuyến Phát Tờ Rơi
 
@@ -1093,7 +1091,7 @@ private final class BoToiUuTuyenPhatToRoi {
 
 // MARK: - Màn Hình Chính Tích Hợp Google Maps & Quét Bán Kính
 
-final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationManagerDelegate, UITextFieldDelegate, UIDocumentPickerDelegate, PHPickerViewControllerDelegate {
+final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationManagerDelegate, UITextFieldDelegate {
 
     private enum KieuNenBanDo: Int {
         case googleDuongPho = 0
@@ -1177,21 +1175,21 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     private let nganDanhSachDiaDiem = UIStackView()
     private let nhanTrongDanhSach = UILabel()
 
-    // Trạng thái & giao diện Ma trận phát tờ rơi xoay vòng + Trang tính Google Sheets + Kiểm soát phát
-    private var nhomDangChonExcel: NhomNhanSuLich = .pg
+    // Trạng thái & giao diện Ma trận phát tờ rơi xoay vòng + 1 Link Google Trang tính (PG & NV) + Kiểm soát phát
+    private var danhSachKhoiPG: [KhoiLichTuanExcel] = []
     private var khoiLichPG: KhoiLichTuanExcel? = nil
     private var khoiLichNV: KhoiLichTuanExcel? = nil
     private var keHoachMaTran: KeHoachMaTranTuan? = nil
     private var cauHinhPhanTuyen: CauHinhPhanTuyenToRoi = KhoMaTranPhatToRoi.dungChung.taiCauHinhPhanTuyen()
-    private var locMaTranChiChuaPhat: Bool = false
 
     private let khungMaTranToRoi = UIView()
     private let nutNhacChuNhat = UIButton(type: .system)
     private let nhanNhacTuyenChuaPhat = UILabel()
-    private let nutQuetAnhPG = UIButton(type: .system)
-    private let nutQuetAnhNV = UIButton(type: .system)
-    private let nutTrangTinhPG = UIButton(type: .system)
-    private let nutTrangTinhNV = UIButton(type: .system)
+    private let oLinkTrangTinh = UITextField()
+    private let nutDanLinkTrangTinh = UIButton(type: .system)
+    private let nutTaiTrangTinh = UIButton(type: .system)
+    private let vongQuayTrangTinh = UIActivityIndicatorView(style: .medium)
+    private let nutChonTuanPG = UIButton(type: .system)
     private let nutChonSoPG = UIButton(type: .system)
     private let nutChonSoNV = UIButton(type: .system)
     private let nutChonSoTuyen = UIButton(type: .system)
@@ -1234,6 +1232,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
             banKinhMet = bk
         }
         dsSieuThiDaLuu = KhoDiaDiemSieuThi.dungChung.taiDanhSach()
+        danhSachKhoiPG = KhoMaTranPhatToRoi.dungChung.taiDanhSachKhoiPG()
         khoiLichPG = KhoMaTranPhatToRoi.dungChung.taiKhoiPG()
         khoiLichNV = KhoMaTranPhatToRoi.dungChung.taiKhoiNV()
         keHoachMaTran = KhoMaTranPhatToRoi.dungChung.taiKeHoach()
@@ -2266,12 +2265,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         capNhatKhungTuyenPhatToRoi()
         capNhatDanhSachChiTiet()
         if !tatCaDiaDiem.isEmpty {
-            let dau = danhSachTamDangChonDeQuet().first?.toaDo ?? tamQuet
-            let cacTuyen = BoLapMaTranToRoiXoayVong.taoCacTuyenTuKetQuaQuet(tamLat: dau.latitude, tamLon: dau.longitude, danhSach: tatCaDiaDiem, banKinhMet: banKinhMet)
-            let kh = BoLapMaTranToRoiXoayVong.lapMaTranTuan(cacTuyen: cacTuyen, khoiPG: khoiLichPG, khoiNV: khoiLichNV, giuTrangThaiCu: keHoachMaTran)
-            keHoachMaTran = kh
-            KhoMaTranPhatToRoi.dungChung.luuKeHoach(kh)
-            capNhatGiaoDienMaTran()
+            bamTaoMaTranXoayVong()
         }
     }
 
@@ -2597,6 +2591,10 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
             bamTimDiaChi()
             return true
         }
+        if textField === oLinkTrangTinh {
+            bamTaiTrangTinh()
+            return true
+        }
         textField.resignFirstResponder()
         return true
     }
@@ -2737,7 +2735,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         }
     }
 
-    // MARK: - Thẻ Ma Trận Phát Tờ Rơi Xoay Vòng & Nhập Excel Lịch PG / NV Siêu Thị
+    // MARK: - Thẻ Ma Trận Phát Tờ Rơi Xoay Vòng & Đồng Bộ Google Trang Tính (1 Link Chung PG + NV)
 
     private func taoTheMaTranPhatToRoi() -> UIView {
         khungMaTranToRoi.backgroundColor = BangMauBCTD.nenThe
@@ -2750,6 +2748,8 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         tieuDe.font = .systemFont(ofSize: 13, weight: .heavy)
         tieuDe.textColor = BangMauBCTD.xanhChuDaoDam
         tieuDe.numberOfLines = 0
+        tieuDe.lineBreakMode = .byWordWrapping
+        tieuDe.adjustsFontSizeToFitWidth = false
 
         nutNhacChuNhat.titleLabel?.font = .systemFont(ofSize: 11, weight: .bold)
         nutNhacChuNhat.layer.cornerRadius = 8
@@ -2765,58 +2765,103 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
 
         nhanNhacTuyenChuaPhat.font = .systemFont(ofSize: 12, weight: .bold)
         nhanNhacTuyenChuaPhat.numberOfLines = 0
+        nhanNhacTuyenChuaPhat.lineBreakMode = .byWordWrapping
+        nhanNhacTuyenChuaPhat.adjustsFontSizeToFitWidth = false
         nhanNhacTuyenChuaPhat.layer.cornerRadius = 9
         nhanNhacTuyenChuaPhat.clipsToBounds = true
 
-        // 2 nút Quét ảnh lịch ca PG & NV (chọn ít nhất 1 ảnh bằng Gemini AI)
-        nutQuetAnhPG.setTitle("🖼️ Quét ảnh lịch PG", for: .normal)
-        nutQuetAnhPG.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .heavy)
-        nutQuetAnhPG.setTitleColor(.white, for: .normal)
-        nutQuetAnhPG.backgroundColor = BangMauBCTD.xanhChuDao
-        nutQuetAnhPG.layer.cornerRadius = 9
-        nutQuetAnhPG.heightAnchor.constraint(equalToConstant: 40).isActive = true
-        nutQuetAnhPG.addTarget(self, action: #selector(bamQuetAnhLichPG), for: .touchUpInside)
+        // 1 ô duy nhất nhập link Google Trang tính (tự đọc đồng thời cả tab Lịch PG & tab TEAM NV.)
+        let khungLinkTrangTinh = UIView()
+        khungLinkTrangTinh.backgroundColor = BangMauBCTD.nenHeaderPhu
+        khungLinkTrangTinh.layer.cornerRadius = 11
+        khungLinkTrangTinh.layer.borderWidth = 1
+        khungLinkTrangTinh.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
 
-        nutQuetAnhNV.setTitle("🖼️ Quét ảnh lịch NV", for: .normal)
-        nutQuetAnhNV.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .heavy)
-        nutQuetAnhNV.setTitleColor(.white, for: .normal)
-        nutQuetAnhNV.backgroundColor = BangMauBCTD.indigoDam
-        nutQuetAnhNV.layer.cornerRadius = 9
-        nutQuetAnhNV.heightAnchor.constraint(equalToConstant: 40).isActive = true
-        nutQuetAnhNV.addTarget(self, action: #selector(bamQuetAnhLichNV), for: .touchUpInside)
+        let nhanTieuDeLink = UILabel()
+        nhanTieuDeLink.text = "📗 Link Google Trang tính lịch làm việc (PG & Nhân viên)"
+        nhanTieuDeLink.font = .systemFont(ofSize: 12, weight: .bold)
+        nhanTieuDeLink.textColor = BangMauBCTD.xanhChuDaoDam
+        nhanTieuDeLink.numberOfLines = 0
+        nhanTieuDeLink.lineBreakMode = .byWordWrapping
+        nhanTieuDeLink.adjustsFontSizeToFitWidth = false
 
-        let hangAnhLich = UIStackView(arrangedSubviews: [nutQuetAnhPG, nutQuetAnhNV])
-        hangAnhLich.axis = .horizontal
-        hangAnhLich.spacing = 8
-        hangAnhLich.distribution = .fillEqually
+        oLinkTrangTinh.placeholder = "Dán link Google Trang tính (chứa tab Lịch PG & TEAM NV.)..."
+        oLinkTrangTinh.text = KhoMaTranPhatToRoi.dungChung.layLinkTrangTinhChung()
+        oLinkTrangTinh.font = .systemFont(ofSize: 13, weight: .medium)
+        oLinkTrangTinh.textColor = BangMauBCTD.chuChinh
+        oLinkTrangTinh.backgroundColor = BangMauBCTD.nenThe
+        oLinkTrangTinh.layer.cornerRadius = 9
+        oLinkTrangTinh.layer.borderWidth = 1
+        oLinkTrangTinh.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        oLinkTrangTinh.keyboardType = .URL
+        oLinkTrangTinh.autocapitalizationType = .none
+        oLinkTrangTinh.autocorrectionType = .no
+        oLinkTrangTinh.clearButtonMode = .whileEditing
+        oLinkTrangTinh.returnKeyType = .go
+        oLinkTrangTinh.delegate = self
+        oLinkTrangTinh.leftView = UIView(frame: CGRect(x: CGFloat(0), y: CGFloat(0), width: CGFloat(10), height: CGFloat(10)))
+        oLinkTrangTinh.leftViewMode = .always
+        oLinkTrangTinh.heightAnchor.constraint(equalToConstant: 40).isActive = true
 
-        // 2 nút lấy dữ liệu lịch PG và lịch Nhân viên trực tiếp từ Google Trang tính (Google Sheets)
-        nutTrangTinhPG.setTitle("📗 Trang tính PG", for: .normal)
-        nutTrangTinhPG.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
-        nutTrangTinhPG.titleLabel?.numberOfLines = 0
-        nutTrangTinhPG.titleLabel?.lineBreakMode = .byWordWrapping
-        nutTrangTinhPG.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutTrangTinhPG.setTitleColor(.white, for: .normal)
-        nutTrangTinhPG.backgroundColor = BangMauBCTD.xanhDatVach
-        nutTrangTinhPG.layer.cornerRadius = 9
-        nutTrangTinhPG.contentEdgeInsets = UIEdgeInsets(top: 9, left: 8, bottom: 9, right: 8)
-        nutTrangTinhPG.addTarget(self, action: #selector(bamTrangTinhPG), for: .touchUpInside)
+        nutDanLinkTrangTinh.setTitle("📋 Dán & Tải", for: .normal)
+        nutDanLinkTrangTinh.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
+        nutDanLinkTrangTinh.titleLabel?.numberOfLines = 0
+        nutDanLinkTrangTinh.titleLabel?.lineBreakMode = .byWordWrapping
+        nutDanLinkTrangTinh.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutDanLinkTrangTinh.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+        nutDanLinkTrangTinh.backgroundColor = BangMauBCTD.nenThe
+        nutDanLinkTrangTinh.layer.cornerRadius = 9
+        nutDanLinkTrangTinh.layer.borderWidth = 1
+        nutDanLinkTrangTinh.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutDanLinkTrangTinh.contentEdgeInsets = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 10)
+        nutDanLinkTrangTinh.setContentHuggingPriority(.required, for: .horizontal)
+        nutDanLinkTrangTinh.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutDanLinkTrangTinh.addTarget(self, action: #selector(bamDanVaTaiTrangTinh), for: .touchUpInside)
 
-        nutTrangTinhNV.setTitle("📗 Trang tính NV", for: .normal)
-        nutTrangTinhNV.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
-        nutTrangTinhNV.titleLabel?.numberOfLines = 0
-        nutTrangTinhNV.titleLabel?.lineBreakMode = .byWordWrapping
-        nutTrangTinhNV.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutTrangTinhNV.setTitleColor(.white, for: .normal)
-        nutTrangTinhNV.backgroundColor = BangMauBCTD.xanhBienChuDao
-        nutTrangTinhNV.layer.cornerRadius = 9
-        nutTrangTinhNV.contentEdgeInsets = UIEdgeInsets(top: 9, left: 8, bottom: 9, right: 8)
-        nutTrangTinhNV.addTarget(self, action: #selector(bamTrangTinhNV), for: .touchUpInside)
+        nutTaiTrangTinh.setTitle("🔄 Tải lịch PG & NV", for: .normal)
+        nutTaiTrangTinh.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .heavy)
+        nutTaiTrangTinh.titleLabel?.numberOfLines = 0
+        nutTaiTrangTinh.titleLabel?.lineBreakMode = .byWordWrapping
+        nutTaiTrangTinh.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutTaiTrangTinh.setTitleColor(.white, for: .normal)
+        nutTaiTrangTinh.backgroundColor = BangMauBCTD.xanhDatVach
+        nutTaiTrangTinh.layer.cornerRadius = 9
+        nutTaiTrangTinh.contentEdgeInsets = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 10)
+        nutTaiTrangTinh.addTarget(self, action: #selector(bamTaiTrangTinh), for: .touchUpInside)
 
-        let hangTrangTinh = UIStackView(arrangedSubviews: [nutTrangTinhPG, nutTrangTinhNV])
-        hangTrangTinh.axis = .horizontal
-        hangTrangTinh.spacing = 8
-        hangTrangTinh.distribution = .fillEqually
+        vongQuayTrangTinh.color = BangMauBCTD.xanhChuDao
+        vongQuayTrangTinh.hidesWhenStopped = true
+
+        let hangNutTrangTinh = UIStackView(arrangedSubviews: [nutDanLinkTrangTinh, nutTaiTrangTinh, vongQuayTrangTinh])
+        hangNutTrangTinh.axis = .horizontal
+        hangNutTrangTinh.spacing = 8
+        hangNutTrangTinh.alignment = .center
+
+        nutChonTuanPG.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        nutChonTuanPG.titleLabel?.numberOfLines = 0
+        nutChonTuanPG.titleLabel?.lineBreakMode = .byWordWrapping
+        nutChonTuanPG.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutChonTuanPG.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+        nutChonTuanPG.backgroundColor = BangMauBCTD.nenThe
+        nutChonTuanPG.layer.cornerRadius = 8
+        nutChonTuanPG.layer.borderWidth = 1
+        nutChonTuanPG.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
+        nutChonTuanPG.contentHorizontalAlignment = .left
+        nutChonTuanPG.contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        nutChonTuanPG.showsMenuAsPrimaryAction = true
+        nutChonTuanPG.isHidden = true
+
+        let stackLinkSheet = UIStackView(arrangedSubviews: [nhanTieuDeLink, oLinkTrangTinh, hangNutTrangTinh, nutChonTuanPG])
+        stackLinkSheet.axis = .vertical
+        stackLinkSheet.spacing = 7
+        stackLinkSheet.translatesAutoresizingMaskIntoConstraints = false
+        khungLinkTrangTinh.addSubview(stackLinkSheet)
+        NSLayoutConstraint.activate([
+            stackLinkSheet.topAnchor.constraint(equalTo: khungLinkTrangTinh.topAnchor, constant: 10),
+            stackLinkSheet.leadingAnchor.constraint(equalTo: khungLinkTrangTinh.leadingAnchor, constant: 10),
+            stackLinkSheet.trailingAnchor.constraint(equalTo: khungLinkTrangTinh.trailingAnchor, constant: -10),
+            stackLinkSheet.bottomAnchor.constraint(equalTo: khungLinkTrangTinh.bottomAnchor, constant: -10)
+        ])
 
         // Khung chỉnh số nhân sự phát theo tuyến -> app tự chia tuyến tương ứng
         let khungCauHinhTuyen = UIView()
@@ -2942,7 +2987,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         hangKiemTra.distribution = .fillEqually
 
         let stack = UIStackView(arrangedSubviews: [
-            hangDau, nhanNhacTuyenChuaPhat, hangTrangTinh, hangAnhLich, khungCauHinhTuyen, nhanTrangThaiExcel, hangHanhDong, hangKiemTra, chonLocMaTran, nganDanhSachMaTran
+            hangDau, nhanNhacTuyenChuaPhat, khungLinkTrangTinh, khungCauHinhTuyen, nhanTrangThaiExcel, hangHanhDong, hangKiemTra, chonLocMaTran, nganDanhSachMaTran
         ])
         stack.axis = .vertical
         stack.spacing = 9
@@ -2974,166 +3019,108 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nutNhacChuNhat.setTitleColor(dangBat ? BangMauBCTD.xanhDatChu : BangMauBCTD.chuPhu, for: .normal)
     }
 
-    @objc private func bamQuetAnhLichPG() {
-        nhomDangChonExcel = .pg
-        moChonAnhLichCa()
-    }
-
-    @objc private func bamQuetAnhLichNV() {
-        nhomDangChonExcel = .nhanVien
-        moChonAnhLichCa()
-    }
-
-    private func moChonAnhLichCa() {
-        var cfg = PHPickerConfiguration(photoLibrary: .shared())
-        cfg.filter = .images
-        cfg.selectionLimit = 0 // Cho phép chọn ít nhất 1 ảnh hoặc nhiều ảnh của cùng 1 tuần
-        let picker = PHPickerViewController(configuration: cfg)
-        picker.delegate = self
-        present(picker, animated: true)
-    }
-
-    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-        picker.dismiss(animated: true)
-        guard !results.isEmpty else { return }
-
-        let nhom = nhomDangChonExcel
-        nhanTrangThaiExcel.text = "⏳ Đang nạp \(results.count) ảnh lịch \(nhom.rawValue) để quét..."
-        nutQuetAnhPG.isEnabled = false
-        nutQuetAnhNV.isEnabled = false
-
-        let nhomTai = DispatchGroup()
-        let khoa = NSLock()
-        var danhSachAnh: [(Int, UIImage)] = []
-
-        for (idx, res) in results.enumerated() {
-            guard res.itemProvider.canLoadObject(ofClass: UIImage.self) else { continue }
-            nhomTai.enter()
-            res.itemProvider.loadObject(ofClass: UIImage.self) { obj, _ in
-                if let img = obj as? UIImage {
-                    khoa.lock()
-                    danhSachAnh.append((idx, img))
-                    khoa.unlock()
-                }
-                nhomTai.leave()
-            }
-        }
-
-        nhomTai.notify(queue: .main) { [weak self] in
-            guard let self = self else { return }
-            let dsAnh = danhSachAnh.sorted { $0.0 < $1.0 }.map { $0.1 }
-            guard !dsAnh.isEmpty else {
-                self.nutQuetAnhPG.isEnabled = true
-                self.nutQuetAnhNV.isEnabled = true
-                self.hienThongBao(tieuDe: "Chưa đọc được ảnh", noiDung: "Vui lòng chọn ít nhất 1 ảnh lịch làm việc rõ chữ.")
-                return
-            }
-
-            BoQuetAnhLichCaGemini.dungChung.quetAnhLichCa(
-                danhSachAnh: dsAnh,
-                nhom: nhom,
-                tienTrinh: { [weak self] msg in
-                    self?.nhanTrangThaiExcel.text = msg
-                },
-                hoanTat: { [weak self] ketQua in
-                    guard let self = self else { return }
-                    self.nutQuetAnhPG.isEnabled = true
-                    self.nutQuetAnhNV.isEnabled = true
-                    switch ketQua {
-                    case .success(let khoi):
-                        self.apDungKhoiLichExcel(khoi)
-                        self.hienThongBao(
-                            tieuDe: "Quét ảnh lịch thành công",
-                            noiDung: "Đã đọc được \(khoi.danhSachNguoi.count) \(khoi.nhom.rawValue) (\(khoi.tenTuan)) và tự động phân ma trận theo nguyên tắc dùng người đang làm việc, ai đã phát không phát nữa."
-                        )
-                    case .failure(let err):
-                        self.capNhatGiaoDienMaTran()
-                        self.hienThongBao(tieuDe: "Lỗi quét ảnh lịch ca", noiDung: err.localizedDescription)
-                    }
-                }
-            )
-        }
-    }
-
-    @objc private func bamTrangTinhPG() {
-        nhomDangChonExcel = .pg
-        moHopTrangTinh(nhom: .pg)
-    }
-
-    @objc private func bamTrangTinhNV() {
-        nhomDangChonExcel = .nhanVien
-        moHopTrangTinh(nhom: .nhanVien)
-    }
-
-    private func moHopTrangTinh(nhom: NhomNhanSuLich) {
-        let linkDaLuu = KhoMaTranPhatToRoi.dungChung.layLinkTrangTinh(nhom: nhom)
-        let tb = UIAlertController(
-            title: "📗 Lấy lịch \(nhom.rawValue) từ Google Trang tính",
-            message: "Dán link Google Trang tính (đã bật chia sẻ “Bất kỳ ai có đường liên kết — Người xem”). App tự nhớ link để tuần sau chỉ cần bấm tải lại.",
-            preferredStyle: .alert
-        )
-        tb.addTextField { tf in
-            tf.placeholder = "https://docs.google.com/spreadsheets/d/..."
-            tf.text = linkDaLuu
-            tf.keyboardType = .URL
-            tf.autocapitalizationType = .none
-            tf.autocorrectionType = .no
-            tf.clearButtonMode = .whileEditing
-        }
-        tb.addAction(UIAlertAction(title: "📥 Tải dữ liệu Trang tính", style: .default) { [weak self, weak tb] _ in
-            let link = (tb?.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            self?.thucThiTaiTrangTinh(link: link, nhom: nhom)
-        })
-        tb.addAction(UIAlertAction(title: "📋 Dán từ bộ nhớ tạm & Tải", style: .default) { [weak self] _ in
-            let clip = (UIPasteboard.general.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            self?.thucThiTaiTrangTinh(link: clip, nhom: nhom)
-        })
-        tb.addAction(UIAlertAction(title: "📂 Hoặc chọn file Excel (.xlsx)", style: .default) { [weak self] _ in
-            self?.nhomDangChonExcel = nhom
-            self?.moChonFileExcel()
-        })
-        tb.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
-        present(tb, animated: true)
-    }
-
-    private func thucThiTaiTrangTinh(link: String, nhom: NhomNhanSuLich) {
-        let linkSach = link.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !linkSach.isEmpty else {
-            hienThongBao(tieuDe: "Thiếu link Trang tính", noiDung: "Hãy dán đường dẫn Google Trang tính (Google Sheets) trước khi tải.")
+    @objc private func bamDanVaTaiTrangTinh() {
+        view.endEditing(true)
+        guard let clip = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines), !clip.isEmpty else {
+            hienThongBao(tieuDe: "Bộ nhớ tạm trống", noiDung: "Hãy sao chép link Google Trang tính trước rồi bấm “📋 Dán & Tải”.")
             return
         }
-        KhoMaTranPhatToRoi.dungChung.luuLinkTrangTinh(linkSach, nhom: nhom)
-        nhanTrangThaiExcel.text = "⏳ Đang tải dữ liệu \(nhom.rawValue) từ Google Trang tính…"
-        nutTrangTinhPG.isEnabled = false
-        nutTrangTinhNV.isEnabled = false
+        oLinkTrangTinh.text = clip
+        thucThiTaiTrangTinhChung(link: clip)
+    }
 
-        BoTaiTrangTinhGoogleSheets.dungChung.taiLichTuGoogleSheets(link: linkSach, nhom: nhom) { [weak self] ketQua in
+    @objc private func bamTaiTrangTinh() {
+        view.endEditing(true)
+        let link = (oLinkTrangTinh.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        thucThiTaiTrangTinhChung(link: link)
+    }
+
+    private func thucThiTaiTrangTinhChung(link: String) {
+        let linkSach = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !linkSach.isEmpty else {
+            hienThongBao(
+                tieuDe: "Chưa nhập link Trang tính",
+                noiDung: "Hãy dán link Google Trang tính chứa lịch PG và TEAM NV. vào ô phía trên rồi bấm “🔄 Tải lịch PG & NV”."
+            )
+            return
+        }
+
+        KhoMaTranPhatToRoi.dungChung.luuLinkTrangTinhChung(linkSach)
+        nhanTrangThaiExcel.text = "⏳ Đang tải lịch PG & Nhân viên từ Google Trang tính…"
+        nutDanLinkTrangTinh.isEnabled = false
+        nutTaiTrangTinh.isEnabled = false
+        vongQuayTrangTinh.startAnimating()
+
+        BoTaiTrangTinhGoogleSheets.dungChung.taiToanBoLichTuGoogleSheets(link: linkSach) { [weak self] ketQua in
             guard let self else { return }
-            self.nutTrangTinhPG.isEnabled = true
-            self.nutTrangTinhNV.isEnabled = true
+            self.nutDanLinkTrangTinh.isEnabled = true
+            self.nutTaiTrangTinh.isEnabled = true
+            self.vongQuayTrangTinh.stopAnimating()
+
             switch ketQua {
             case .success(let res):
-                if res.dsKhoi.count == 1, let duyNhat = res.dsKhoi.first {
-                    self.apDungKhoiLichExcel(duyNhat)
-                    self.hienThongBao(
-                        tieuDe: "✅ Đã tải Google Trang tính",
-                        noiDung: "Đã đọc được \(duyNhat.danhSachNguoi.count) \(duyNhat.nhom.rawValue) (\(duyNhat.tenTuan)) và tự động chia tuyến theo số nhân sự đã cấu hình."
-                    )
-                } else {
-                    self.hienChonTuanTrongExcel(dsKhoi: res.dsKhoi, tenFile: res.tenNguon)
+                let kq = res.ketQua
+                if !kq.dsKhoiPG.isEmpty {
+                    self.danhSachKhoiPG = kq.dsKhoiPG
+                    KhoMaTranPhatToRoi.dungChung.luuDanhSachKhoiPG(kq.dsKhoiPG)
+                    if let pg = kq.khoiPGMacDinh {
+                        self.khoiLichPG = pg
+                        KhoMaTranPhatToRoi.dungChung.luuKhoiPG(pg)
+                    }
                 }
+                if let nv = kq.khoiNVMacDinh {
+                    self.khoiLichNV = nv
+                    KhoMaTranPhatToRoi.dungChung.luuKhoiNV(nv)
+                }
+
+                self.bamTaoMaTranXoayVong()
+
+                var dongTomTat: [String] = []
+                if let pg = kq.khoiPGMacDinh {
+                    let themTuan = kq.dsKhoiPG.count > 1 ? " (có \(kq.dsKhoiPG.count) tuần — bấm Đổi tuần PG nếu cần)" : ""
+                    dongTomTat.append("• PG: \(pg.tenTuan) — \(pg.danhSachNguoi.count) người\(themTuan)")
+                } else {
+                    dongTomTat.append("• PG: Không thấy tab lịch PG đang hiển thị")
+                }
+                if let nv = kq.khoiNVMacDinh {
+                    dongTomTat.append("• Nhân viên (\(nv.tenSheet)): \(nv.tenTuan) — \(nv.danhSachNguoi.count) người")
+                } else {
+                    dongTomTat.append("• Nhân viên: Không thấy tab TEAM NV. đang hiển thị")
+                }
+                self.hienThongBao(
+                    tieuDe: "✅ Đã đồng bộ Google Trang tính",
+                    noiDung: dongTomTat.joined(separator: "\n") + "\n\nApp đã tự động khớp tuần và chia tuyến theo cấu hình nhân sự."
+                )
+
             case .failure(let loi):
                 self.capNhatGiaoDienMaTran()
-                self.hienThongBao(tieuDe: "Chưa tải được Trang tính", noiDung: loi.localizedDescription)
+                self.hienThongBao(tieuDe: "Chưa tải được Google Trang tính", noiDung: loi.localizedDescription)
             }
+        }
+    }
+
+    private func capNhatMenuChonTuanPG() {
+        if danhSachKhoiPG.count > 1 {
+            nutChonTuanPG.isHidden = false
+            let dangChon = khoiLichPG?.tenTuan ?? danhSachKhoiPG.first?.tenTuan ?? "Chọn tuần"
+            nutChonTuanPG.setTitle("📅 Tuần PG: \(dangChon) ▾", for: .normal)
+            nutChonTuanPG.menu = UIMenu(title: "Chọn tuần trong bảng lịch PG", children: danhSachKhoiPG.map { khoi in
+                let isSelected = (khoi.id == khoiLichPG?.id)
+                let title = "\(khoi.tenTuan) (\(khoi.danhSachNguoi.count) PG)"
+                return UIAction(title: title, state: isSelected ? .on : .off) { [weak self] _ in
+                    guard let self else { return }
+                    self.khoiLichPG = khoi
+                    KhoMaTranPhatToRoi.dungChung.luuKhoiPG(khoi)
+                    self.bamTaoMaTranXoayVong()
+                }
+            })
+        } else {
+            nutChonTuanPG.isHidden = true
         }
     }
 
     private func capNhatMenuCauHinhPhanTuyen() {
-        let linkPGCo = !KhoMaTranPhatToRoi.dungChung.layLinkTrangTinh(nhom: .pg).isEmpty
-        let linkNVCo = !KhoMaTranPhatToRoi.dungChung.layLinkTrangTinh(nhom: .nhanVien).isEmpty
-        nutTrangTinhPG.setTitle(linkPGCo ? "📗 Trang tính PG 🔄" : "📗 Trang tính PG", for: .normal)
-        nutTrangTinhNV.setTitle(linkNVCo ? "📗 Trang tính NV 🔄" : "📗 Trang tính NV", for: .normal)
+        capNhatMenuChonTuanPG()
 
         nutChonSoPG.setTitle("👩‍💼 PG/tuyến: \(cauHinhPhanTuyen.soPGMoiTuyen) ▾", for: .normal)
         nutChonSoPG.menu = UIMenu(title: "Số PG phát trên mỗi tuyến", children: (0...5).map { so in
@@ -3178,84 +3165,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
             soDiemNong: soDiemNong
         )
         let tongNS = (khoiLichPG?.danhSachNguoi.count ?? 0) + (khoiLichNV?.danhSachNguoi.count ?? 0)
-        nhanTomTatChiaTuyen.text = "⚙️ Định mức: \(cauHinhPhanTuyen.soPGMoiTuyen) PG + \(cauHinhPhanTuyen.soNVMoiTuyen) NV (\(cauHinhPhanTuyen.tongNhanSuMoiTuyen) người/tuyến) → Chia \(soTuyenDuKien) tuyến\(tongNS > 0 ? " (từ \(tongNS) nhân sự có lịch)" : ""). Chạm “👥 Sửa nhân sự” trên từng tuyến để thêm/bớt tay."
-    }
-
-    private func moChonFileExcel() {
-        var types: [UTType] = []
-        if let xlsx = UTType(filenameExtension: "xlsx") {
-            types.append(xlsx)
-        }
-        types.append(.spreadsheet)
-        types.append(.data)
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
-        picker.delegate = self
-        picker.allowsMultipleSelection = false
-        present(picker, animated: true)
-    }
-
-    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        guard let url = urls.first else { return }
-        let nhom = nhomDangChonExcel
-        nhanTrangThaiExcel.text = "Đang đọc file Excel \(nhom.rawValue): \(url.lastPathComponent)..."
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                let dsKhoi = try BoPhanTichLichCaExcel.phanTichWorkbook(tu: url, nhom: nhom)
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self else { return }
-                    guard !dsKhoi.isEmpty else {
-                        self.hienThongBao(
-                            tieuDe: "Không tìm thấy bảng lịch ca",
-                            noiDung: "File \"\(url.lastPathComponent)\" không có bảng lịch theo Thứ 2 – Chủ nhật hợp lệ."
-                        )
-                        self.capNhatGiaoDienMaTran()
-                        return
-                    }
-                    if dsKhoi.count == 1, let duyNhat = dsKhoi.first {
-                        self.apDungKhoiLichExcel(duyNhat)
-                    } else {
-                        self.hienChonTuanTrongExcel(dsKhoi: dsKhoi, tenFile: url.lastPathComponent)
-                    }
-                }
-            } catch {
-                DispatchQueue.main.async { [weak self] in
-                    self?.hienThongBao(tieuDe: "Lỗi đọc file Excel", noiDung: error.localizedDescription)
-                    self?.capNhatGiaoDienMaTran()
-                }
-            }
-        }
-    }
-
-    private func hienChonTuanTrongExcel(dsKhoi: [KhoiLichTuanExcel], tenFile: String) {
-        // Sắp xếp tuần có ngày mới nhất lên đầu tiên, sau đó giữ thứ tự ngược cho các tuần không có số ngày
-        let sapXep = dsKhoi.enumerated().sorted { a, b in
-            if a.element.ngaySerialSapXep != b.element.ngaySerialSapXep {
-                return a.element.ngaySerialSapXep > b.element.ngaySerialSapXep
-            }
-            return a.offset > b.offset
-        }.map { $0.element }
-
-        let pickerVC = HopChonTuanExcelViewController(dsKhoi: sapXep, tenFile: tenFile) { [weak self] khoi in
-            self?.apDungKhoiLichExcel(khoi)
-        }
-        let nav = UINavigationController(rootViewController: pickerVC)
-        if let sheet = nav.sheetPresentationController {
-            sheet.detents = [.medium(), .large()]
-            sheet.prefersGrabberVisible = true
-        }
-        present(nav, animated: true)
-    }
-
-    private func apDungKhoiLichExcel(_ khoi: KhoiLichTuanExcel) {
-        if khoi.nhom == .pg {
-            khoiLichPG = khoi
-            KhoMaTranPhatToRoi.dungChung.luuKhoiPG(khoi)
-        } else {
-            khoiLichNV = khoi
-            KhoMaTranPhatToRoi.dungChung.luuKhoiNV(khoi)
-        }
-        bamTaoMaTranXoayVong()
+        nhanTomTatChiaTuyen.text = "⚙️ Định mức: \(cauHinhPhanTuyen.soPGMoiTuyen) PG + \(cauHinhPhanTuyen.soNVMoiTuyen) NV (\(cauHinhPhanTuyen.tongNhanSuMoiTuyen) người/tuyến) → Chia \(soTuyenDuKien) tuyến\(tongNS > 0 ? " (từ \(tongNS) nhân sự có lịch)" : ""). Chạm “👥 Thêm/Bớt nhân sự” trên từng tuyến để chỉnh tay."
     }
 
     @objc private func bamTaoMaTranXoayVong() {
@@ -3318,13 +3228,13 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         capNhatNutNhacChuNhat()
         capNhatMenuCauHinhPhanTuyen()
 
-        let pgInfo = khoiLichPG.map { "PG: \($0.tenSheet) – \($0.tenTuan) (\($0.danhSachNguoi.count) người)" } ?? "PG: Chưa tải Google Trang tính"
-        let nvInfo = khoiLichNV.map { "NV: \($0.tenSheet) – \($0.tenTuan) (\($0.danhSachNguoi.count) người)" } ?? "NV: Chưa tải Google Trang tính"
+        let pgInfo = khoiLichPG.map { "PG: \($0.tenTuan) (\($0.danhSachNguoi.count) người • \($0.tenSheet))" } ?? "PG: Chưa tải từ Google Trang tính"
+        let nvInfo = khoiLichNV.map { "NV: \($0.tenTuan) (\($0.danhSachNguoi.count) người • \($0.tenSheet))" } ?? "NV: Chưa tải từ Google Trang tính"
         let laChuNhat = (Calendar(identifier: .gregorian).component(.weekday, from: Date()) == 1)
         let ghiChuCN = laChuNhat
-            ? "📌 Hôm nay là Chủ nhật — bấm Trang tính PG/NV để cập nhật lịch tuần tiếp theo!"
-            : "🗓️ Lịch cập nhật theo tuần từ Google Trang tính (hoặc Quét ảnh)."
-                let bangThang = KhoSoXoayTuaThang.dungChung.layBangThang()
+            ? "📌 Hôm nay là Chủ nhật — bấm “🔄 Tải lịch PG & NV” để cập nhật tuần tiếp theo!"
+            : "🗓️ 1 link Google Trang tính duy nhất tự động đọc cả lịch PG và tab TEAM NV. (Ca 1–Ca 6)."
+        let bangThang = KhoSoXoayTuaThang.dungChung.layBangThang()
         let daPhatThang = bangThang.filter { !$0.cacTuanDaPhat.isEmpty }.count
         let chuaPhatThang = bangThang.filter { $0.cacTuanDaPhat.isEmpty }
         var thongKePhan = ""
@@ -3350,7 +3260,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         }
 
         guard let kh = keHoachMaTran else {
-            nhanNhacTuyenChuaPhat.text = "  💡 Quét khu vực trên bản đồ hoặc nhập file Excel PG/NV rồi bấm \"⚡ Phân lịch xoay vòng\"."
+            nhanNhacTuyenChuaPhat.text = "  💡 Dán link Google Trang tính PG & NV ở trên rồi bấm “🔄 Tải lịch PG & NV” để tự phân tuyến."
             nhanNhacTuyenChuaPhat.textColor = BangMauBCTD.xanhChuDaoDam
             nhanNhacTuyenChuaPhat.backgroundColor = BangMauBCTD.nenHeaderPhu
             return
@@ -3614,15 +3524,15 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     }
 
     @objc private func bamXemLichCaDaQuet() {
-        var dsHien: [LichTuanMotNguoi] = []
-        if let pg = khoiLichPG { dsHien.append(contentsOf: pg.danhSachNguoi) }
-        if let nv = khoiLichNV { dsHien.append(contentsOf: nv.danhSachNguoi) }
-        guard !dsHien.isEmpty else {
-            hienThongBao(tieuDe: "Chưa có dữ liệu lịch ca", noiDung: "Hãy bấm \"📊 Nhập Excel PG\" hoặc \"👥 Nhập Excel NV\" để tải lịch làm việc tuần trước.")
+        let dsPG = khoiLichPG?.danhSachNguoi ?? []
+        let dsNV = khoiLichNV?.danhSachNguoi ?? []
+        guard !dsPG.isEmpty || !dsNV.isEmpty else {
+            hienThongBao(tieuDe: "Chưa có dữ liệu lịch ca", noiDung: "Hãy dán link Google Trang tính ở ô phía trên rồi bấm “🔄 Tải lịch PG & NV”.")
             return
         }
-        let tieuDeTuan = khoiLichPG?.tenTuan ?? khoiLichNV?.tenTuan ?? "Tuần hiện tại"
-        let vc = HopXemLichCaDaQuetViewController(danhSach: dsHien, tieuDeTuan: tieuDeTuan)
+        let tieuDePG = khoiLichPG.map { "👩‍💼 Lịch PG — \($0.tenTuan) (\($0.danhSachNguoi.count) người)" } ?? "👩‍💼 Lịch PG"
+        let tieuDeNV = khoiLichNV.map { "🧑‍🔧 Lịch Nhân viên (\($0.tenSheet)) — \($0.tenTuan) (\($0.danhSachNguoi.count) người)" } ?? "🧑‍🔧 Lịch Nhân viên"
+        let vc = HopXemLichCaDaQuetViewController(dsPG: dsPG, dsNV: dsNV, tieuDePG: tieuDePG, tieuDeNV: tieuDeNV)
         let nav = UINavigationController(rootViewController: vc)
         if let sheet = nav.sheetPresentationController {
             sheet.detents = [.large()]
@@ -3737,7 +3647,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     @objc private func bamXemSoXoayTuaThang() {
         let bang = KhoSoXoayTuaThang.dungChung.layBangThang()
         guard !bang.isEmpty else {
-            hienThongBao(tieuDe: "Chưa có sổ xoay tua tháng", noiDung: "Hãy nhập ảnh hoặc file Excel lịch PG/NV rồi bấm \"⚡ Phân lịch xoay vòng\" để bắt đầu theo dõi xoay tua tháng.")
+            hienThongBao(tieuDe: "Chưa có sổ xoay tua tháng", noiDung: "Hãy tải dữ liệu từ link Google Trang tính PG & NV rồi bấm “⚡ Phân lịch xoay vòng” để theo dõi xoay tua tháng.")
             return
         }
         let vc = HopSoXoayTuaThangViewController(danhSach: bang) { [weak self] in
@@ -3788,82 +3698,16 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
 }
 
 
-// MARK: - Hộp Chọn Tuần Lịch Excel Dạng Danh Sách Cuộn Sạch Đẹp (Không Bị Đè Chữ)
-
-private final class HopChonTuanExcelViewController: UITableViewController {
-    private let dsKhoi: [KhoiLichTuanExcel]
-    private let tenFile: String
-    private let khiChon: (KhoiLichTuanExcel) -> Void
-
-    init(dsKhoi: [KhoiLichTuanExcel], tenFile: String, khiChon: @escaping (KhoiLichTuanExcel) -> Void) {
-        self.dsKhoi = dsKhoi
-        self.tenFile = tenFile
-        self.khiChon = khiChon
-        super.init(style: .insetGrouped)
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("Khong ho tro coder")
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        title = "Chọn Tuần (\(dsKhoi.count) tuần)"
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Đóng", style: .done, target: self, action: #selector(bamDong))
-        tableView.rowHeight = UITableView.automaticDimension
-        tableView.estimatedRowHeight = 58
-    }
-
-    @objc private func bamDong() {
-        dismiss(animated: true)
-    }
-
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        return "Nguồn: \(tenFile) (mới nhất ở trên)"
-    }
-
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return dsKhoi.count
-    }
-
-    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let id = "CellTuanExcel"
-        let cell = tableView.dequeueReusableCell(withIdentifier: id)
-            ?? UITableViewCell(style: .subtitle, reuseIdentifier: id)
-        let khoi = dsKhoi[indexPath.row]
-        cell.textLabel?.text = khoi.tenTuan
-        cell.textLabel?.font = .systemFont(ofSize: 14.5, weight: .bold)
-        cell.textLabel?.textColor = BangMauBCTD.chuChinh
-        cell.textLabel?.numberOfLines = 1
-        cell.textLabel?.lineBreakMode = .byTruncatingTail
-
-        cell.detailTextLabel?.text = "Sheet: \(khoi.tenSheet) • \(khoi.danhSachNguoi.count) \(khoi.nhom.rawValue)"
-        cell.detailTextLabel?.font = .systemFont(ofSize: 12.5, weight: .medium)
-        cell.detailTextLabel?.textColor = BangMauBCTD.xanhChuDaoDam
-        cell.detailTextLabel?.numberOfLines = 1
-        cell.accessoryType = .disclosureIndicator
-        return cell
-    }
-
-    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.deselectRow(at: indexPath, animated: true)
-        let khoi = dsKhoi[indexPath.row]
-        dismiss(animated: true) { [weak self] in
-            self?.khiChon(khoi)
-        }
-    }
-}
-
-
-// MARK: - Màn Hình Đối Chiếu Tên & Thời Gian Làm Việc Đã Quét Từ Excel
+// MARK: - Màn Hình Đối Chiếu Tên & Thời Gian Làm Việc Đã Đọc Từ Google Trang Tính
 
 private final class HopXemLichCaDaQuetViewController: UITableViewController {
-    private let danhSach: [LichTuanMotNguoi]
-    private let tieuDeTuan: String
+    private let cacNhom: [(tieuDe: String, danhSach: [LichTuanMotNguoi])]
 
-    init(danhSach: [LichTuanMotNguoi], tieuDeTuan: String) {
-        self.danhSach = danhSach
-        self.tieuDeTuan = tieuDeTuan
+    init(dsPG: [LichTuanMotNguoi], dsNV: [LichTuanMotNguoi], tieuDePG: String, tieuDeNV: String) {
+        var nhom: [(String, [LichTuanMotNguoi])] = []
+        if !dsPG.isEmpty { nhom.append((tieuDePG, dsPG)) }
+        if !dsNV.isEmpty { nhom.append((tieuDeNV, dsNV)) }
+        self.cacNhom = nhom
         super.init(style: .insetGrouped)
     }
 
@@ -3873,44 +3717,51 @@ private final class HopXemLichCaDaQuetViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Lịch ca (\(danhSach.count) người)"
+        let tong = cacNhom.reduce(0) { $0 + $1.danhSach.count }
+        title = "Lịch ca (\(tong) người)"
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Đóng", style: .done, target: self, action: #selector(bamDong))
         tableView.rowHeight = UITableView.automaticDimension
-        tableView.estimatedRowHeight = 96
+        tableView.estimatedRowHeight = 104
     }
 
     @objc private func bamDong() {
         dismiss(animated: true)
     }
 
+    override func numberOfSections(in tableView: UITableView) -> Int {
+        return cacNhom.count
+    }
+
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        return "\(tieuDeTuan) — Kiểm tra tên & ca đang làm việc (dùng để phân phát tờ rơi)"
+        return cacNhom[section].tieuDe
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return danhSach.count
+        return cacNhom[section].danhSach.count
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let id = "CellXemLichCa"
         let cell = tableView.dequeueReusableCell(withIdentifier: id)
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: id)
-        let nguoi = danhSach[indexPath.row]
+        let nguoi = cacNhom[indexPath.section].danhSach[indexPath.row]
         let nganh = nguoi.nganhHang.isEmpty ? nguoi.nhom.rawValue : "\(nguoi.nhom.rawValue) • \(nguoi.nganhHang)"
-        cell.textLabel?.text = "\(nguoi.ten)  (\(nganh))"
-        cell.textLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+        cell.textLabel?.text = "\(nguoi.ten) (\(nganh))"
+        cell.textLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
         cell.textLabel?.textColor = BangMauBCTD.chuChinh
-        cell.textLabel?.numberOfLines = 1
+        cell.textLabel?.numberOfLines = 0
+        cell.textLabel?.lineBreakMode = .byWordWrapping
+        cell.textLabel?.adjustsFontSizeToFitWidth = false
 
         let tenThuNgan = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
         var dongChiTiet: [String] = []
         for (i, ca) in nguoi.lich7Ngay.enumerated() where i < tenThuNgan.count {
             let caText = [ca.nhanCaGoc, ca.gioLamGoc].filter { !$0.isEmpty }.joined(separator: " ")
             let ranhTag: String
-            if ca.dangLamSang && ca.dangLamChieu { ranhTag = "→ Làm SÁNG & CHIỀU" }
-            else if ca.dangLamSang { ranhTag = "→ Làm SÁNG (phát Sáng)" }
-            else if ca.dangLamChieu { ranhTag = "→ Làm CHIỀU (phát Chiều)" }
-            else { ranhTag = "(OFF/Không trực)" }
+            if ca.dangLamSang && ca.dangLamChieu { ranhTag = "→ Sáng & Chiều" }
+            else if ca.dangLamSang { ranhTag = "→ Sáng" }
+            else if ca.dangLamChieu { ranhTag = "→ Chiều" }
+            else { ranhTag = "(OFF)" }
             let noiDungCa = caText.isEmpty ? "Trống" : caText
             dongChiTiet.append("\(tenThuNgan[i]): \(noiDungCa) \(ranhTag)")
         }
@@ -3919,6 +3770,8 @@ private final class HopXemLichCaDaQuetViewController: UITableViewController {
         cell.detailTextLabel?.font = .systemFont(ofSize: 11.5, weight: .medium)
         cell.detailTextLabel?.textColor = BangMauBCTD.chuPhu
         cell.detailTextLabel?.numberOfLines = 0
+        cell.detailTextLabel?.lineBreakMode = .byWordWrapping
+        cell.detailTextLabel?.adjustsFontSizeToFitWidth = false
         cell.selectionStyle = .none
         return cell
     }

@@ -46,10 +46,9 @@ final class BoTaiTrangTinhGoogleSheets {
         return KetQuaTachLink(spreadsheetId: sheetId, gid: gid, linkCSVTrucTiep: nil)
     }
 
-    func taiLichTuGoogleSheets(
+    func taiToanBoLichTuGoogleSheets(
         link: String,
-        nhom: NhomNhanSuLich,
-        hoanTat: @escaping (Result<(dsKhoi: [KhoiLichTuanExcel], tenNguon: String), Error>) -> Void
+        hoanTat: @escaping (Result<(ketQua: KetQuaPhanTichTrangTinhTongHop, tenNguon: String), Error>) -> Void
     ) {
         guard let thongTin = Self.tachThongTinLink(link) else {
             DispatchQueue.main.async {
@@ -59,13 +58,13 @@ final class BoTaiTrangTinhGoogleSheets {
         }
 
         if let csvURL = thongTin.linkCSVTrucTiep {
-            taiCSV(url: csvURL, tenSheet: "Google Trang tính", nhom: nhom, hoanTat: hoanTat)
+            taiCSVTongHop(url: csvURL, tenSheet: "Google Trang tính", hoanTat: hoanTat)
             return
         }
 
-        // Ưu tiên 1: Xuất toàn bộ file Google Sheets dạng .xlsx để giữ đủ tất cả các tab tuần!
+        // Ưu tiên 1: Xuất toàn bộ Google Sheets (.xlsx) để lấy đồng thời CẢ tab Lịch PG (nhiều tuần) VÀ tab TEAM NV. (Ca 1..Ca 6)
         guard let urlXlsx = URL(string: "https://docs.google.com/spreadsheets/d/\(thongTin.spreadsheetId)/export?format=xlsx") else {
-            DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Không tạo được đường dẫn tải Trang tính."))) }
+            DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Không tạo được đường dẫn tải Google Trang tính."))) }
             return
         }
 
@@ -96,15 +95,15 @@ final class BoTaiTrangTinhGoogleSheets {
                 let laZip = bytes.count >= 2 && bytes[0] == 0x50 && bytes[1] == 0x4B
                 if laZip {
                     do {
-                        let dsKhoi = try BoPhanTichLichCaExcel.phanTichWorkbook(tuData: data, nhom: nhom)
-                        if !dsKhoi.isEmpty {
+                        let kq = try BoPhanTichLichCaExcel.phanTichWorkbookTongHop(tuData: data)
+                        if !kq.dsKhoiPG.isEmpty || !kq.dsKhoiNV.isEmpty {
                             DispatchQueue.main.async {
-                                hoanTat(.success((dsKhoi: dsKhoi, tenNguon: "Google Trang tính")))
+                                hoanTat(.success((ketQua: kq, tenNguon: "Google Trang tính")))
                             }
                             return
                         }
                     } catch {
-                        // Thử dự phòng CSV nếu bảng có cấu trúc khác
+                        // Thử dự phòng CSV nếu cấu trúc khác
                     }
                 } else if let textDau = String(data: data.prefix(512), encoding: .utf8)?.lowercased(),
                           textDau.contains("<html") || textDau.contains("<!doctype html") {
@@ -115,7 +114,7 @@ final class BoTaiTrangTinhGoogleSheets {
                 }
             }
 
-            // Dự phòng 2: Xuất tab CSV (ưu tiên đúng gid trong link nếu có)
+            // Dự phòng 2: Xuất tab CSV theo đúng gid trong link (nếu có)
             let gidQuery = thongTin.gid.map { "&gid=\($0)" } ?? ""
             guard let urlCsv = URL(string: "https://docs.google.com/spreadsheets/d/\(thongTin.spreadsheetId)/export?format=csv\(gidQuery)") else {
                 DispatchQueue.main.async {
@@ -123,15 +122,14 @@ final class BoTaiTrangTinhGoogleSheets {
                 }
                 return
             }
-            self.taiCSV(url: urlCsv, tenSheet: "Trang tính", nhom: nhom, hoanTat: hoanTat)
+            self.taiCSVTongHop(url: urlCsv, tenSheet: "Google Trang tính", hoanTat: hoanTat)
         }.resume()
     }
 
-    private func taiCSV(
+    private func taiCSVTongHop(
         url: URL,
         tenSheet: String,
-        nhom: NhomNhanSuLich,
-        hoanTat: @escaping (Result<(dsKhoi: [KhoiLichTuanExcel], tenNguon: String), Error>) -> Void
+        hoanTat: @escaping (Result<(ketQua: KetQuaPhanTichTrangTinhTongHop, tenNguon: String), Error>) -> Void
     ) {
         var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
         req.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
@@ -166,13 +164,13 @@ final class BoTaiTrangTinhGoogleSheets {
             }
 
             let cacDong = Self.phanTichCSV(csvText)
-            let sheet = BangSheetExcel(tenSheet: tenSheet, cacDong: cacDong)
-            let dsKhoi = BoPhanTichLichCaExcel.phanTichSheets([sheet], nhom: nhom)
+            let sheet = BangSheetExcel(tenSheet: tenSheet, cacDong: cacDong, biAn: false)
+            let kq = BoPhanTichLichCaExcel.phanTichSheetsTongHop([sheet])
             DispatchQueue.main.async {
-                if dsKhoi.isEmpty {
-                    hoanTat(.failure(NSError.dmx("Đã tải Trang tính nhưng không tìm thấy bảng lịch theo Thứ 2 – Chủ nhật hợp lệ.")))
+                if kq.dsKhoiPG.isEmpty && kq.dsKhoiNV.isEmpty {
+                    hoanTat(.failure(NSError.dmx("Đã tải Trang tính nhưng không tìm thấy bảng lịch PG (Thứ 2 – Chủ nhật) hoặc bảng TEAM NV (Ca 1 – Ca 6) hợp lệ.")))
                 } else {
-                    hoanTat(.success((dsKhoi: dsKhoi, tenNguon: "Google Trang tính")))
+                    hoanTat(.success((ketQua: kq, tenNguon: "Google Trang tính")))
                 }
             }
         }.resume()
