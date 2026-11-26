@@ -17,9 +17,16 @@ struct ThongTinFanpageFacebook: Codable, Equatable, Identifiable {
     }
 }
 
+enum CheDoDangFacebook {
+    case banNhapChiMinhToi
+    case congKhaiNgay
+    case henGio(Date)
+}
+
 struct KetQuaDangBaiFacebook {
     var postId: String
     var duongDanBai: URL?
+    var laBanNhap: Bool
     var laHenGio: Bool
     var thoiGianHenGio: Date?
 }
@@ -483,14 +490,14 @@ final class DichVuFacebookFanpage {
         }.resume()
     }
 
-    // MARK: - 3. Đăng bài (Ảnh + Bài / Video + Bài / Chỉ chữ) & Hẹn giờ đăng
+    // MARK: - 3. Đăng bài (Ảnh + Bài / Video + Bài / Chỉ chữ) — Bản nháp (Chỉ mình tôi) / Công khai / Hẹn giờ
 
     func dangBaiLenFanpage(
         pageId: String,
         noiDung: String,
         anh: UIImage?,
         videoURL: URL?,
-        thoiGianHenGio: Date?,
+        cheDo: CheDoDangFacebook,
         hoanTat: @escaping (Result<KetQuaDangBaiFacebook, Error>) -> Void
     ) {
         guard let token = KhoKeychainFacebookFanpage.dungChung.layToken(choPageId: pageId) else {
@@ -508,8 +515,15 @@ final class DichVuFacebookFanpage {
             return
         }
 
+        var laBanNhap = false
         var mocHenGioUnix: Int? = nil
-        if let henGio = thoiGianHenGio {
+        var thoiGianHenGio: Date? = nil
+        switch cheDo {
+        case .banNhapChiMinhToi:
+            laBanNhap = true
+        case .congKhaiNgay:
+            break
+        case .henGio(let henGio):
             let khoangCach = henGio.timeIntervalSinceNow
             if khoangCach < 11 * 60 {
                 DispatchQueue.main.async {
@@ -524,6 +538,7 @@ final class DichVuFacebookFanpage {
                 return
             }
             mocHenGioUnix = Int(henGio.timeIntervalSince1970)
+            thoiGianHenGio = henGio
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -533,25 +548,37 @@ final class DichVuFacebookFanpage {
                     token: token,
                     moTa: noiDungSach,
                     videoURL: videoURL,
+                    laBanNhap: laBanNhap,
                     mocHenGioUnix: mocHenGioUnix,
                     thoiGianHenGio: thoiGianHenGio,
                     hoanTat: hoanTat
                 )
             } else if let anh {
-                self.dangAnhLenFanpage(
-                    pageId: pageId,
-                    token: token,
-                    chuThich: noiDungSach,
-                    anh: anh,
-                    mocHenGioUnix: mocHenGioUnix,
-                    thoiGianHenGio: thoiGianHenGio,
-                    hoanTat: hoanTat
-                )
+                if laBanNhap {
+                    self.dangAnhBanNhapLenFanpage(
+                        pageId: pageId,
+                        token: token,
+                        chuThich: noiDungSach,
+                        anh: anh,
+                        hoanTat: hoanTat
+                    )
+                } else {
+                    self.dangAnhLenFanpage(
+                        pageId: pageId,
+                        token: token,
+                        chuThich: noiDungSach,
+                        anh: anh,
+                        mocHenGioUnix: mocHenGioUnix,
+                        thoiGianHenGio: thoiGianHenGio,
+                        hoanTat: hoanTat
+                    )
+                }
             } else {
                 self.dangVanBanLenFanpage(
                     pageId: pageId,
                     token: token,
                     noiDung: noiDungSach,
+                    laBanNhap: laBanNhap,
                     mocHenGioUnix: mocHenGioUnix,
                     thoiGianHenGio: thoiGianHenGio,
                     hoanTat: hoanTat
@@ -564,6 +591,7 @@ final class DichVuFacebookFanpage {
         pageId: String,
         token: String,
         noiDung: String,
+        laBanNhap: Bool,
         mocHenGioUnix: Int?,
         thoiGianHenGio: Date?,
         hoanTat: @escaping (Result<KetQuaDangBaiFacebook, Error>) -> Void
@@ -574,7 +602,10 @@ final class DichVuFacebookFanpage {
         }
 
         var thamSo: [(String, String)] = [("message", noiDung)]
-        if let unix = mocHenGioUnix {
+        if laBanNhap {
+            thamSo.append(("published", "false"))
+            thamSo.append(("unpublished_content_type", "DRAFT"))
+        } else if let unix = mocHenGioUnix {
             thamSo.append(("published", "false"))
             thamSo.append(("scheduled_publish_time", String(unix)))
         }
@@ -595,10 +626,101 @@ final class DichVuFacebookFanpage {
                 error: error,
                 pageId: pageId,
                 tokenAn: token,
+                laBanNhap: laBanNhap,
                 laHenGio: mocHenGioUnix != nil,
                 thoiGianHenGio: thoiGianHenGio,
                 hoanTat: hoanTat
             )
+        }.resume()
+    }
+
+    /// Đăng ảnh dạng Bản nháp (Chỉ quản trị viên thấy trong Meta Business Suite -> Bản nháp):
+    /// Bước 1: Upload ảnh chưa công khai (published=false, temporary=true) lấy media_fbid.
+    /// Bước 2: Tạo bài nháp trên /{pageId}/feed với attached_media[0] và unpublished_content_type=DRAFT.
+    private func dangAnhBanNhapLenFanpage(
+        pageId: String,
+        token: String,
+        chuThich: String,
+        anh: UIImage,
+        hoanTat: @escaping (Result<KetQuaDangBaiFacebook, Error>) -> Void
+    ) {
+        guard let duLieuAnh = chuanHoaAnhDangFB(anh) else {
+            DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Không chuẩn hóa được dữ liệu ảnh để tải lên Facebook."))) }
+            return
+        }
+        guard let urlPhoto = URL(string: "https://graph.facebook.com/\(phienBanGraph)/\(pageId)/photos") else {
+            DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Page ID không hợp lệ."))) }
+            return
+        }
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+        themTruongForm(&body, boundary: boundary, ten: "published", giaTri: "false")
+        themTruongForm(&body, boundary: boundary, ten: "temporary", giaTri: "true")
+        themTepForm(&body, boundary: boundary, ten: "source", tenTep: "poster-dmx.jpg", mimeType: "image/jpeg", duLieu: duLieuAnh)
+        if let end = "--\(boundary)--\r\n".data(using: .utf8) {
+            body.append(end)
+        }
+
+        var reqPhoto = URLRequest(url: urlPhoto)
+        reqPhoto.httpMethod = "POST"
+        reqPhoto.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        reqPhoto.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        reqPhoto.httpBody = body
+
+        phienMang.dataTask(with: reqPhoto) { [weak self] data, response, error in
+            guard let self else { return }
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if let error {
+                DispatchQueue.main.async {
+                    hoanTat(.failure(NSError.dmx("Lỗi mạng khi tải ảnh nháp lên Facebook: \(self.lamSachThongDiep(error.localizedDescription, anToken: token))")))
+                }
+                return
+            }
+            guard status >= 200 && status < 300,
+                  let data,
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let mediaId = obj["id"] as? String, !mediaId.isEmpty else {
+                let loi = self.giaiMaLoiFacebook(data: data, status: status, anToken: token)
+                DispatchQueue.main.async { hoanTat(.failure(NSError.dmx(loi))) }
+                return
+            }
+
+            guard let urlFeed = URL(string: "https://graph.facebook.com/\(self.phienBanGraph)/\(pageId)/feed") else {
+                DispatchQueue.main.async { hoanTat(.failure(NSError.dmx("Page ID không hợp lệ."))) }
+                return
+            }
+            var thamSo: [(String, String)] = [
+                ("published", "false"),
+                ("unpublished_content_type", "DRAFT"),
+                ("attached_media[0]", "{\"media_fbid\":\"\(mediaId)\"}")
+            ]
+            if !chuThich.isEmpty {
+                thamSo.append(("message", chuThich))
+            }
+            let bodyFeed = thamSo
+                .map { "\(self.maHoaFormURL($0.0))=\(self.maHoaFormURL($0.1))" }
+                .joined(separator: "&")
+
+            var reqFeed = URLRequest(url: urlFeed)
+            reqFeed.httpMethod = "POST"
+            reqFeed.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            reqFeed.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
+            reqFeed.httpBody = bodyFeed.data(using: .utf8)
+
+            self.phienMang.dataTask(with: reqFeed) { [weak self] data2, response2, error2 in
+                self?.xuLyPhanHoiDangBai(
+                    data: data2,
+                    response: response2,
+                    error: error2,
+                    pageId: pageId,
+                    tokenAn: token,
+                    laBanNhap: true,
+                    laHenGio: false,
+                    thoiGianHenGio: nil,
+                    hoanTat: hoanTat
+                )
+            }.resume()
         }.resume()
     }
 
@@ -647,6 +769,7 @@ final class DichVuFacebookFanpage {
                 error: error,
                 pageId: pageId,
                 tokenAn: token,
+                laBanNhap: false,
                 laHenGio: mocHenGioUnix != nil,
                 thoiGianHenGio: thoiGianHenGio,
                 hoanTat: hoanTat
@@ -659,6 +782,7 @@ final class DichVuFacebookFanpage {
         token: String,
         moTa: String,
         videoURL: URL,
+        laBanNhap: Bool,
         mocHenGioUnix: Int?,
         thoiGianHenGio: Date?,
         hoanTat: @escaping (Result<KetQuaDangBaiFacebook, Error>) -> Void
@@ -694,7 +818,10 @@ final class DichVuFacebookFanpage {
             if !moTa.isEmpty {
                 themTruongForm(&headerData, boundary: boundary, ten: "description", giaTri: moTa)
             }
-            if let unix = mocHenGioUnix {
+            if laBanNhap {
+                themTruongForm(&headerData, boundary: boundary, ten: "published", giaTri: "false")
+                themTruongForm(&headerData, boundary: boundary, ten: "unpublished_content_type", giaTri: "DRAFT")
+            } else if let unix = mocHenGioUnix {
                 themTruongForm(&headerData, boundary: boundary, ten: "published", giaTri: "false")
                 themTruongForm(&headerData, boundary: boundary, ten: "scheduled_publish_time", giaTri: String(unix))
             }
@@ -733,6 +860,7 @@ final class DichVuFacebookFanpage {
                 error: error,
                 pageId: pageId,
                 tokenAn: token,
+                laBanNhap: laBanNhap,
                 laHenGio: mocHenGioUnix != nil,
                 thoiGianHenGio: thoiGianHenGio,
                 hoanTat: hoanTat
@@ -748,6 +876,7 @@ final class DichVuFacebookFanpage {
         error: Error?,
         pageId: String,
         tokenAn: String,
+        laBanNhap: Bool,
         laHenGio: Bool,
         thoiGianHenGio: Date?,
         hoanTat: @escaping (Result<KetQuaDangBaiFacebook, Error>) -> Void
@@ -769,7 +898,11 @@ final class DichVuFacebookFanpage {
 
         let postId = (obj["post_id"] as? String) ?? (obj["id"] as? String) ?? ""
         let urlBai: URL?
-        if postId.contains("_") {
+        if laBanNhap {
+            urlBai = URL(string: "https://business.facebook.com/latest/posts/draft_posts?asset_id=\(pageId)")
+        } else if laHenGio {
+            urlBai = URL(string: "https://business.facebook.com/latest/posts/scheduled_posts?asset_id=\(pageId)")
+        } else if postId.contains("_") {
             urlBai = URL(string: "https://www.facebook.com/\(postId)")
         } else if !postId.isEmpty {
             urlBai = URL(string: "https://www.facebook.com/\(pageId)/posts/\(postId)")
@@ -779,6 +912,7 @@ final class DichVuFacebookFanpage {
         let kq = KetQuaDangBaiFacebook(
             postId: postId,
             duongDanBai: urlBai,
+            laBanNhap: laBanNhap,
             laHenGio: laHenGio,
             thoiGianHenGio: thoiGianHenGio
         )

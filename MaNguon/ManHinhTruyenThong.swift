@@ -1211,7 +1211,8 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private let nutChonFanpageFB = UIButton(type: .system)
     private let nutQuanLyKhoaFB = UIButton(type: .system)
     private let chonLoaiDinhKemFB = UISegmentedControl(items: ["🖼️ Ảnh + Bài", "🎬 Video + Bài", "📝 Chỉ chữ"])
-    private let congTacHenGioFB = UISwitch()
+    private let chonCheDoDangFB = UISegmentedControl(items: ["🔒 Test (Nháp)", "🌍 Công khai", "⏰ Hẹn giờ"])
+    private let nhanMoTaCheDoDangFB = UILabel()
     private let nganHenGioFB = UIStackView()
     private let chonThoiGianHenGioFB = UIDatePicker()
     private let nutDangLenFanpageFB = UIButton(type: .system)
@@ -5254,18 +5255,20 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         chonLoaiDinhKemFB.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12, weight: .bold), .foregroundColor: UIColor.white], for: .selected)
         stack.addArrangedSubview(chonLoaiDinhKemFB)
 
-        let nhanHenGio = taoNhanNho("Hẹn giờ đăng trên Facebook (11 phút – 29 ngày):")
-        nhanHenGio.font = .systemFont(ofSize: 13, weight: .semibold)
-        nhanHenGio.textColor = BangMauBCTD.chuChinh
-        congTacHenGioFB.onTintColor = BangMauBCTD.xanhChuDao
-        congTacHenGioFB.isOn = false
-        congTacHenGioFB.addTarget(self, action: #selector(doiCheDoHenGioFB), for: .valueChanged)
-        let hangBatHenGio = UIStackView(arrangedSubviews: [nhanHenGio, congTacHenGioFB])
-        hangBatHenGio.axis = .horizontal
-        hangBatHenGio.alignment = .center
-        hangBatHenGio.distribution = .equalSpacing
-        hangBatHenGio.spacing = 8
-        stack.addArrangedSubview(hangBatHenGio)
+        stack.addArrangedSubview(taoNhanNho("Chế độ hiển thị khi đăng:"))
+        chonCheDoDangFB.selectedSegmentIndex = 0
+        chonCheDoDangFB.selectedSegmentTintColor = BangMauBCTD.xanhChuDao
+        chonCheDoDangFB.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: BangMauBCTD.chuChinh], for: .normal)
+        chonCheDoDangFB.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12, weight: .bold), .foregroundColor: UIColor.white], for: .selected)
+        chonCheDoDangFB.addTarget(self, action: #selector(doiCheDoDangFB), for: .valueChanged)
+        stack.addArrangedSubview(chonCheDoDangFB)
+
+        nhanMoTaCheDoDangFB.font = .systemFont(ofSize: 12, weight: .medium)
+        nhanMoTaCheDoDangFB.textColor = BangMauBCTD.camPhanTich
+        nhanMoTaCheDoDangFB.numberOfLines = 0
+        nhanMoTaCheDoDangFB.lineBreakMode = .byWordWrapping
+        nhanMoTaCheDoDangFB.adjustsFontSizeToFitWidth = false
+        stack.addArrangedSubview(nhanMoTaCheDoDangFB)
 
         nganHenGioFB.axis = .vertical
         nganHenGioFB.spacing = 6
@@ -5283,12 +5286,10 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         nganHenGioFB.addArrangedSubview(hangChonGioFB)
         stack.addArrangedSubview(nganHenGioFB)
 
-        nutDangLenFanpageFB.setTitle("🚀 Đăng ngay lên Fanpage", for: .normal)
         nutDangLenFanpageFB.titleLabel?.font = .systemFont(ofSize: 15, weight: .bold)
         nutDangLenFanpageFB.titleLabel?.numberOfLines = 0
         nutDangLenFanpageFB.titleLabel?.lineBreakMode = .byWordWrapping
         nutDangLenFanpageFB.titleLabel?.adjustsFontSizeToFitWidth = false
-        nutDangLenFanpageFB.backgroundColor = BangMauBCTD.xanhChuDao
         nutDangLenFanpageFB.setTitleColor(.white, for: .normal)
         nutDangLenFanpageFB.layer.cornerRadius = 11
         nutDangLenFanpageFB.contentEdgeInsets = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
@@ -5308,6 +5309,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         hangTrangThaiFB.alignment = .center
         stack.addArrangedSubview(hangTrangThaiFB)
 
+        doiCheDoDangFB()
         return the
     }
 
@@ -5357,18 +5359,31 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         }
     }
 
-    @objc private func doiCheDoHenGioFB() {
-        let bat = congTacHenGioFB.isOn
-        nganHenGioFB.isHidden = !bat
-        if bat {
+    @objc private func doiCheDoDangFB() {
+        let idx = chonCheDoDangFB.selectedSegmentIndex
+        nganHenGioFB.isHidden = (idx != 2)
+        if idx == 0 {
+            nhanMoTaCheDoDangFB.text = "🔒 Chỉ mình tôi / Quản trị viên thấy: Lưu bài vào mục Bản nháp trên Meta Business Suite để test, khách hàng hoàn toàn KHÔNG thấy."
+            nhanMoTaCheDoDangFB.textColor = BangMauBCTD.camPhanTich
+            nutDangLenFanpageFB.setTitle("🔒 Đăng thử Bản nháp (Chỉ mình tôi)", for: .normal)
+            nutDangLenFanpageFB.backgroundColor = BangMauBCTD.camPhanTich
+        } else if idx == 1 {
+            nhanMoTaCheDoDangFB.text = "🌍 Công khai ngay: Bài sẽ xuất hiện trực tiếp trên bảng tin Fanpage cho mọi khách hàng xem."
+            nhanMoTaCheDoDangFB.textColor = BangMauBCTD.xanhChuDaoDam
+            nutDangLenFanpageFB.setTitle("🚀 Đăng công khai lên Fanpage", for: .normal)
+            nutDangLenFanpageFB.backgroundColor = BangMauBCTD.xanhChuDao
+        } else {
             let mocToiThieu = Date().addingTimeInterval(12 * 60)
             chonThoiGianHenGioFB.minimumDate = mocToiThieu
             chonThoiGianHenGioFB.maximumDate = Date().addingTimeInterval(29 * 24 * 3600)
             if chonThoiGianHenGioFB.date < mocToiThieu {
                 chonThoiGianHenGioFB.date = Date().addingTimeInterval(30 * 60)
             }
+            nhanMoTaCheDoDangFB.text = "⏰ Hẹn giờ đăng: Facebook giữ kín bài và tự động đăng công khai đúng thời điểm đã chọn (11 phút – 29 ngày)."
+            nhanMoTaCheDoDangFB.textColor = BangMauBCTD.xanhLaDam
+            nutDangLenFanpageFB.setTitle("⏰ Hẹn giờ đăng lên Fanpage", for: .normal)
+            nutDangLenFanpageFB.backgroundColor = BangMauBCTD.xanhLaDam
         }
-        nutDangLenFanpageFB.setTitle(bat ? "⏰ Hẹn giờ đăng lên Fanpage" : "🚀 Đăng ngay lên Fanpage", for: .normal)
     }
 
     @objc private func bamMoQuanLyKhoaFB() {
@@ -5442,8 +5457,23 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
             tenCheDo = "📝 Chỉ bài viết"
         }
 
-        let henGio: Date? = congTacHenGioFB.isOn ? chonThoiGianHenGioFB.date : nil
-        if let moc = henGio {
+        let dinhDangGio = DateFormatter()
+        dinhDangGio.locale = Locale(identifier: "vi_VN")
+        dinhDangGio.dateFormat = "HH:mm dd/MM/yyyy"
+
+        let cheDoDang: CheDoDangFacebook
+        let tieuDeXacNhan: String
+        let nutXacNhan: String
+        let dongThoiGian: String
+
+        switch chonCheDoDangFB.selectedSegmentIndex {
+        case 0:
+            cheDoDang = .banNhapChiMinhToi
+            tieuDeXacNhan = "Xác nhận đăng thử Bản nháp?"
+            nutXacNhan = "Đăng thử (Chỉ mình tôi)"
+            dongThoiGian = "🔒 Bản nháp (Chỉ quản trị viên thấy trong Business Suite, khách hàng KHÔNG thấy)"
+        case 2:
+            let moc = chonThoiGianHenGioFB.date
             if moc.timeIntervalSinceNow < 11 * 60 {
                 hienThongBao(tieuDe: "Thời gian hẹn giờ quá gần", noiDung: "Facebook yêu cầu thời điểm hẹn giờ phải cách hiện tại ít nhất 11 phút.")
                 return
@@ -5452,29 +5482,34 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 hienThongBao(tieuDe: "Thời gian hẹn giờ quá xa", noiDung: "Facebook chỉ hỗ trợ hẹn giờ tối đa trong vòng 29 ngày tới.")
                 return
             }
+            cheDoDang = .henGio(moc)
+            tieuDeXacNhan = "Xác nhận hẹn giờ đăng bài?"
+            nutXacNhan = "Hẹn giờ đăng"
+            dongThoiGian = "⏰ Hẹn giờ: \(dinhDangGio.string(from: moc))"
+        default:
+            cheDoDang = .congKhaiNgay
+            tieuDeXacNhan = "Xác nhận đăng CÔNG KHAI lên Fanpage?"
+            nutXacNhan = "Đăng công khai ngay"
+            dongThoiGian = "🌍 Đăng công khai ngay trên bảng tin Fanpage"
         }
 
-        let dinhDangGio = DateFormatter()
-        dinhDangGio.locale = Locale(identifier: "vi_VN")
-        dinhDangGio.dateFormat = "HH:mm dd/MM/yyyy"
-        let dongThoiGian = henGio.map { "⏰ Hẹn giờ: \(dinhDangGio.string(from: $0))" } ?? "🚀 Đăng công khai ngay"
         let tomTatNoiDung = noiDung.isEmpty
             ? "(Không kèm chữ)"
             : String(noiDung.prefix(160)) + (noiDung.count > 160 ? "…" : "")
 
         let hopXacNhan = UIAlertController(
-            title: henGio == nil ? "Xác nhận đăng lên Fanpage?" : "Xác nhận hẹn giờ đăng bài?",
+            title: tieuDeXacNhan,
             message: "Fanpage: \(fanpage.tenFanpage)\nHình thức: \(tenCheDo)\n\(dongThoiGian)\n\nNội dung:\n\(tomTatNoiDung)",
             preferredStyle: .alert
         )
         hopXacNhan.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
-        hopXacNhan.addAction(UIAlertAction(title: henGio == nil ? "Đăng ngay" : "Hẹn giờ đăng", style: .default) { [weak self] _ in
+        hopXacNhan.addAction(UIAlertAction(title: nutXacNhan, style: .default) { [weak self] _ in
             self?.thucThiDangLenFanpageFB(
                 fanpage: fanpage,
                 noiDung: noiDung,
                 anh: anhGui,
                 videoURL: videoGui,
-                thoiGianHenGio: henGio
+                cheDo: cheDoDang
             )
         })
         present(hopXacNhan, animated: true)
@@ -5485,23 +5520,32 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         noiDung: String,
         anh: UIImage?,
         videoURL: URL?,
-        thoiGianHenGio: Date?
+        cheDo: CheDoDangFacebook
     ) {
         dangDangBaiFB = true
         nutDangLenFanpageFB.isEnabled = false
         nutQuanLyKhoaFB.isEnabled = false
         vongQuayDangFB.startAnimating()
         nhanTrangThaiDangFB.textColor = BangMauBCTD.xanhChuDao
-        nhanTrangThaiDangFB.text = videoURL != nil
-            ? "⏳ Đang tải video lên Fanpage \(fanpage.tenFanpage)…"
-            : (anh != nil ? "⏳ Đang tải ảnh poster lên Fanpage \(fanpage.tenFanpage)…" : "⏳ Đang gửi bài viết lên Fanpage \(fanpage.tenFanpage)…")
+        let hanhDongText: String
+        switch cheDo {
+        case .banNhapChiMinhToi:
+            hanhDongText = "⏳ Đang lưu bản nháp thử nghiệm lên Fanpage \(fanpage.tenFanpage)…"
+        case .henGio:
+            hanhDongText = "⏳ Đang gửi lịch hẹn giờ lên Fanpage \(fanpage.tenFanpage)…"
+        case .congKhaiNgay:
+            hanhDongText = videoURL != nil
+                ? "⏳ Đang tải video lên Fanpage \(fanpage.tenFanpage)…"
+                : (anh != nil ? "⏳ Đang tải ảnh poster lên Fanpage \(fanpage.tenFanpage)…" : "⏳ Đang gửi bài viết lên Fanpage \(fanpage.tenFanpage)…")
+        }
+        nhanTrangThaiDangFB.text = hanhDongText
 
         DichVuFacebookFanpage.dungChung.dangBaiLenFanpage(
             pageId: fanpage.pageId,
             noiDung: noiDung,
             anh: anh,
             videoURL: videoURL,
-            thoiGianHenGio: thoiGianHenGio
+            cheDo: cheDo
         ) { [weak self] ketQua in
             guard let self else { return }
             self.dangDangBaiFB = false
@@ -5514,22 +5558,32 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
                 let dinhDang = DateFormatter()
                 dinhDang.locale = Locale(identifier: "vi_VN")
                 dinhDang.dateFormat = "HH:mm dd/MM/yyyy"
+                let tieuDeTB: String
                 let thongDiep: String
-                if kq.laHenGio, let moc = kq.thoiGianHenGio {
+                let tenNutMo: String
+                if kq.laBanNhap {
+                    tieuDeTB = "🔒 Đã lưu Bản nháp thử nghiệm"
+                    thongDiep = "✅ Bài thử đã lưu vào mục Bản nháp của Fanpage \"\(fanpage.tenFanpage)\" (Mã: \(kq.postId)). Chỉ quản trị viên mới thấy trong Meta Business Suite → Nội dung → Bản nháp, khách hàng hoàn toàn không thấy."
+                    tenNutMo = "🌐 Mở mục Bản nháp (Business Suite)"
+                } else if kq.laHenGio, let moc = kq.thoiGianHenGio {
+                    tieuDeTB = "⏰ Đã hẹn giờ đăng bài"
                     thongDiep = "✅ Đã hẹn giờ đăng lên Fanpage \"\(fanpage.tenFanpage)\" lúc \(dinhDang.string(from: moc))."
+                    tenNutMo = "🌐 Mở mục Bài đã lên lịch"
                 } else {
+                    tieuDeTB = "✅ Đã đăng công khai lên Facebook"
                     thongDiep = "✅ Đã đăng thành công lên Fanpage \"\(fanpage.tenFanpage)\"!"
+                    tenNutMo = "🌐 Mở bài trên Facebook"
                 }
                 self.nhanTrangThaiDangFB.textColor = BangMauBCTD.xanhLaDam
                 self.nhanTrangThaiDangFB.text = thongDiep
 
                 let tb = UIAlertController(
-                    title: kq.laHenGio ? "⏰ Đã hẹn giờ đăng bài" : "✅ Đã đăng lên Facebook",
+                    title: tieuDeTB,
                     message: thongDiep,
                     preferredStyle: .alert
                 )
-                if let urlBai = kq.duongDanBai, !kq.laHenGio {
-                    tb.addAction(UIAlertAction(title: "🌐 Mở bài trên Facebook", style: .default) { _ in
+                if let urlBai = kq.duongDanBai {
+                    tb.addAction(UIAlertAction(title: tenNutMo, style: .default) { _ in
                         UIApplication.shared.open(urlBai)
                     })
                 }
