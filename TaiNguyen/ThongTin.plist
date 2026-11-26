@@ -15,6 +15,9 @@
 <key>LSSupportsOpeningDocumentsInPlace</key><true/>
 <key>NSPhotoLibraryUsageDescription</key><string>Ứng dụng cần quyền truy cập Thư viện ảnh để chọn ảnh chụp màn hình tổng hợp số liệu.</string>
 <key>NSPhotoLibraryAddUsageDescription</key><string>Ứng dụng cần quyền lưu ảnh bảng tổng hợp vào Thư viện ảnh.</string>
+<key>NSLocationWhenInUseUsageDescription</key><string>Ứng dụng cần quyền vị trí để đặt tâm quét đối thủ, trường học, chợ và vẽ tuyến đường phát tờ rơi.</string>
+<key>LSApplicationQueriesSchemes</key>
+<array><string>comgooglemaps</string></array>
 <key>UIBackgroundModes</key>
 <array><string>audio</string></array>
 <key>UILaunchScreen</key><dict/>
