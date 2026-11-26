@@ -1109,6 +1109,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     private let nhanTrangThaiExcel = UILabel()
     private let nutTaoMaTran = UIButton(type: .system)
     private let nutCopyMaTran = UIButton(type: .system)
+    private let nutXemLichCa = UIButton(type: .system)
     private let chonLocMaTran = UISegmentedControl(items: ["Tất cả", "Chưa phát", "Đã phát"])
     private let nganDanhSachMaTran = UIStackView()
 
@@ -2636,6 +2637,16 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nutCopyMaTran.heightAnchor.constraint(equalToConstant: 38).isActive = true
         nutCopyMaTran.addTarget(self, action: #selector(bamCopyMaTranTuan), for: .touchUpInside)
 
+        nutXemLichCa.setTitle("👀 Xem lịch ca", for: .normal)
+        nutXemLichCa.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        nutXemLichCa.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutXemLichCa.backgroundColor = BangMauBCTD.nenThePhu
+        nutXemLichCa.layer.cornerRadius = 9
+        nutXemLichCa.layer.borderWidth = 1
+        nutXemLichCa.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutXemLichCa.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        nutXemLichCa.addTarget(self, action: #selector(bamXemLichCaDaQuet), for: .touchUpInside)
+
         let hangHanhDong = UIStackView(arrangedSubviews: [nutTaoMaTran, nutCopyMaTran])
         hangHanhDong.axis = .horizontal
         hangHanhDong.spacing = 8
@@ -2648,7 +2659,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nganDanhSachMaTran.spacing = 7
 
         let stack = UIStackView(arrangedSubviews: [
-            hangDau, nhanNhacTuyenChuaPhat, hangExcel, nhanTrangThaiExcel, hangHanhDong, chonLocMaTran, nganDanhSachMaTran
+            hangDau, nhanNhacTuyenChuaPhat, hangExcel, nhanTrangThaiExcel, hangHanhDong, nutXemLichCa, chonLocMaTran, nganDanhSachMaTran
         ])
         stack.axis = .vertical
         stack.spacing = 9
@@ -2737,25 +2748,23 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     }
 
     private func hienChonTuanTrongExcel(dsKhoi: [KhoiLichTuanExcel], tenFile: String) {
-        // Đưa các tuần mới nhất (ở cuối file) lên đầu để dễ chọn
-        let moiNhatTruoc = Array(dsKhoi.reversed().prefix(12))
-        let ac = UIAlertController(
-            title: "Chọn Tuần lịch từ \(tenFile)",
-            message: "File có \(dsKhoi.count) tuần lịch. Chọn tuần bạn muốn phân lịch phát tờ rơi (không trùng ca):",
-            preferredStyle: .actionSheet
-        )
-        for khoi in moiNhatTruoc {
-            let title = "\(khoi.tenSheet) • \(khoi.tenTuan) (\(khoi.danhSachNguoi.count) \(khoi.nhom.rawValue))"
-            ac.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
-                self?.apDungKhoiLichExcel(khoi)
-            })
+        // Sắp xếp tuần có ngày mới nhất lên đầu tiên, sau đó giữ thứ tự ngược cho các tuần không có số ngày
+        let sapXep = dsKhoi.enumerated().sorted { a, b in
+            if a.element.ngaySerialSapXep != b.element.ngaySerialSapXep {
+                return a.element.ngaySerialSapXep > b.element.ngaySerialSapXep
+            }
+            return a.offset > b.offset
+        }.map { $0.element }
+
+        let pickerVC = HopChonTuanExcelViewController(dsKhoi: sapXep, tenFile: tenFile) { [weak self] khoi in
+            self?.apDungKhoiLichExcel(khoi)
         }
-        ac.addAction(UIAlertAction(title: "Hủy", style: .cancel))
-        if let pop = ac.popoverPresentationController {
-            pop.sourceView = khungMaTranToRoi
-            pop.sourceRect = CGRect(x: khungMaTranToRoi.bounds.midX, y: 80, width: 2, height: 2)
+        let nav = UINavigationController(rootViewController: pickerVC)
+        if let sheet = nav.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
         }
-        present(ac, animated: true)
+        present(nav, animated: true)
     }
 
     private func apDungKhoiLichExcel(_ khoi: KhoiLichTuanExcel) {
@@ -2945,6 +2954,24 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         return the
     }
 
+    @objc private func bamXemLichCaDaQuet() {
+        var dsHien: [LichTuanMotNguoi] = []
+        if let pg = khoiLichPG { dsHien.append(contentsOf: pg.danhSachNguoi) }
+        if let nv = khoiLichNV { dsHien.append(contentsOf: nv.danhSachNguoi) }
+        guard !dsHien.isEmpty else {
+            hienThongBao(tieuDe: "Chưa có dữ liệu lịch ca", noiDung: "Hãy bấm \"📊 Nhập Excel PG\" hoặc \"👥 Nhập Excel NV\" để tải lịch làm việc tuần trước.")
+            return
+        }
+        let tieuDeTuan = khoiLichPG?.tenTuan ?? khoiLichNV?.tenTuan ?? "Tuần hiện tại"
+        let vc = HopXemLichCaDaQuetViewController(danhSach: dsHien, tieuDeTuan: tieuDeTuan)
+        let nav = UINavigationController(rootViewController: vc)
+        if let sheet = nav.sheetPresentationController {
+            sheet.detents = [.large()]
+            sheet.prefersGrabberVisible = true
+        }
+        present(nav, animated: true)
+    }
+
     @objc private func bamCopyMaTranTuan() {
         guard let kh = keHoachMaTran else {
             hienThongBao(tieuDe: "Chưa có ma trận", noiDung: "Hãy bấm \"⚡ Phân lịch xoay vòng\" trước khi sao chép.")
@@ -2979,4 +3006,141 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         hienThongBao(tieuDe: "Đã sao chép", noiDung: "Đã sao chép toàn bộ Ma trận phát tờ rơi xoay vòng tuần này để gửi nhóm LINE/Zalo.")
     }
 
+}
+
+
+// MARK: - Hộp Chọn Tuần Lịch Excel Dạng Danh Sách Cuộn Sạch Đẹp (Không Bị Đè Chữ)
+
+private final class HopChonTuanExcelViewController: UITableViewController {
+    private let dsKhoi: [KhoiLichTuanExcel]
+    private let tenFile: String
+    private let khiChon: (KhoiLichTuanExcel) -> Void
+
+    init(dsKhoi: [KhoiLichTuanExcel], tenFile: String, khiChon: @escaping (KhoiLichTuanExcel) -> Void) {
+        self.dsKhoi = dsKhoi
+        self.tenFile = tenFile
+        self.khiChon = khiChon
+        super.init(style: .insetGrouped)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("Khong ho tro coder")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Chọn Tuần (\(dsKhoi.count) tuần)"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Đóng", style: .done, target: self, action: #selector(bamDong))
+        tableView.rowHeight = UITableView.automaticDimension
+        tableView.estimatedRowHeight = 58
+    }
+
+    @objc private func bamDong() {
+        dismiss(animated: true)
+    }
+
+    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        return "Nguồn: \(tenFile) (mới nhất ở trên)"
+    }
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return dsKhoi.count
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let id = "CellTuanExcel"
+        let cell = tableView.dequeueReusableCell(withIdentifier: id)
+            ?? UITableViewCell(style: .subtitle, reuseIdentifier: id)
+        let khoi = dsKhoi[indexPath.row]
+        cell.textLabel?.text = khoi.tenTuan
+        cell.textLabel?.font = .systemFont(ofSize: 14.5, weight: .bold)
+        cell.textLabel?.textColor = BangMauBCTD.chuChinh
+        cell.textLabel?.numberOfLines = 1
+        cell.textLabel?.lineBreakMode = .byTruncatingTail
+
+        cell.detailTextLabel?.text = "Sheet: \(khoi.tenSheet) • \(khoi.danhSachNguoi.count) \(khoi.nhom.rawValue)"
+        cell.detailTextLabel?.font = .systemFont(ofSize: 12.5, weight: .medium)
+        cell.detailTextLabel?.textColor = BangMauBCTD.xanhChuDaoDam
+        cell.detailTextLabel?.numberOfLines = 1
+        cell.accessoryType = .disclosureIndicator
+        return cell
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        let khoi = dsKhoi[indexPath.row]
+        dismiss(animated: true) { [weak self] in
+            self?.khiChon(khoi)
+        }
+    }
+}
+
+
+// MARK: - Màn Hình Đối Chiếu Tên & Thời Gian Làm Việc Đã Quét Từ Excel
+
+private final class HopXemLichCaDaQuetViewController: UITableViewController {
+    private let danhSach: [LichTuanMotNguoi]
+    private let tieuDeTuan: String
+
+    init(danhSach: [LichTuanMotNguoi], tieuDeTuan: String) {
+        self.danhSach = danhSach
+        self.tieuDeTuan = tieuDeTuan
+        super.init(style: .insetGrouped)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("Khong ho tro coder")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Lịch ca (\(danhSach.count) người)"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Đóng", style: .done, target: self, action: #selector(bamDong))
+        tableView.rowHeight = UITableView.automaticDimension
+        tableView.estimatedRowHeight = 96
+    }
+
+    @objc private func bamDong() {
+        dismiss(animated: true)
+    }
+
+    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        return "\(tieuDeTuan) — Kiểm tra tên, ca & khung rảnh phát tờ rơi"
+    }
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return danhSach.count
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let id = "CellXemLichCa"
+        let cell = tableView.dequeueReusableCell(withIdentifier: id)
+            ?? UITableViewCell(style: .subtitle, reuseIdentifier: id)
+        let nguoi = danhSach[indexPath.row]
+        let nganh = nguoi.nganhHang.isEmpty ? nguoi.nhom.rawValue : "\(nguoi.nhom.rawValue) • \(nguoi.nganhHang)"
+        cell.textLabel?.text = "\(nguoi.ten)  (\(nganh))"
+        cell.textLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+        cell.textLabel?.textColor = BangMauBCTD.chuChinh
+        cell.textLabel?.numberOfLines = 1
+
+        let tenThuNgan = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+        var dongChiTiet: [String] = []
+        for (i, ca) in nguoi.lich7Ngay.enumerated() where i < tenThuNgan.count {
+            let caText = [ca.nhanCaGoc, ca.gioLamGoc].filter { !$0.isEmpty }.joined(separator: " ")
+            let ranhTag: String
+            if ca.ranhSang { ranhTag = "→ Rảnh SÁNG" }
+            else if ca.ranhChieu { ranhTag = "→ Rảnh CHIỀU" }
+            else if ca.laNghiOff { ranhTag = "(Nghỉ/OFF)" }
+            else { ranhTag = "(Bận ca)" }
+            let noiDungCa = caText.isEmpty ? "Trống" : caText
+            dongChiTiet.append("\(tenThuNgan[i]): \(noiDungCa) \(ranhTag)")
+        }
+
+        cell.detailTextLabel?.text = dongChiTiet.joined(separator: "\n")
+        cell.detailTextLabel?.font = .systemFont(ofSize: 11.5, weight: .medium)
+        cell.detailTextLabel?.textColor = BangMauBCTD.chuPhu
+        cell.detailTextLabel?.numberOfLines = 0
+        cell.selectionStyle = .none
+        return cell
+    }
 }

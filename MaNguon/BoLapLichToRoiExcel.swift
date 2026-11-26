@@ -389,6 +389,7 @@ struct KhoiLichTuanExcel: Codable, Equatable {
     let tenTuan: String
     let nhom: NhomNhanSuLich
     let danhSachNguoi: [LichTuanMotNguoi]
+    let ngaySerialSapXep: Int
 }
 
 // MARK: - Bộ Phân Tích File Excel Lịch Ca (Chuẩn PG 275 QUANG TRUNG.xlsx & File NV Siêu Thị)
@@ -488,57 +489,65 @@ final class BoPhanTichLichCaExcel {
                 vungCotTheoThu[pair.key] = cStart..<max(cStart + 1, min(cEnd, cStart + 4))
             }
 
-            // Tìm dòng sub-header (TÊN, CA, TIME...) ngay dưới dòng Thứ 2..CN
-            var colTen = 2
-            var colNganh = 1
+            // Tìm dòng sub-header (NGÀNH HÀNG, TÊN, CA, TIME...) ngay dưới dòng Thứ 2..CN
+            // Luôn lấy cột TÊN & NGÀNH HÀNG đầu tiên nằm BÊN TRÁI cột Thứ 2 (không bị cột lặp bên phải ghi đè!)
+            let cotThuDauTien = thuSapXep.first?.value ?? 3
+            var colTenFound: Int? = nil
+            var colNganhFound: Int? = nil
             var dataStartRow = startRow + 1
             if startRow + 1 <= endRow {
                 let sub = rows[startRow + 1]
                 var laSubHeader = false
                 for (c, v) in sub.enumerated() {
                     let lv = chuanHoa(v)
-                    if lv == "ten" || lv.contains("ho ten") || lv.contains("ten nv") || lv.contains("ten pg") || lv.contains("nhan vien") {
-                        colTen = c
-                        laSubHeader = true
-                    } else if lv.contains("nganh") || lv.contains("bo phan") || lv.contains("nhom") {
-                        colNganh = c
-                        laSubHeader = true
-                    } else if lv == "ca" || lv == "buoi" || lv == "sang" || lv == "time" {
+                    if c < cotThuDauTien {
+                        if colTenFound == nil && (lv == "ten" || lv.contains("ho ten") || lv.contains("ten nv") || lv.contains("ten pg") || lv.contains("nhan vien")) {
+                            colTenFound = c
+                            laSubHeader = true
+                        } else if colNganhFound == nil && (lv.contains("nganh") || lv.contains("bo phan") || lv.contains("nhom")) {
+                            colNganhFound = c
+                            laSubHeader = true
+                        }
+                    }
+                    if lv == "ca" || lv == "buoi" || lv == "sang" || lv == "time" {
                         laSubHeader = true
                     }
                 }
                 if laSubHeader {
                     dataStartRow = startRow + 2
                 } else {
-                    // Fallback nếu tên cột nằm cùng dòng với Thứ 2
-                    for (c, v) in rows[startRow].enumerated() {
+                    for (c, v) in rows[startRow].enumerated() where c < cotThuDauTien {
                         let lv = chuanHoa(v)
-                        if lv == "ten" || lv.contains("ho ten") || lv.contains("nhan vien") {
-                            colTen = c
+                        if colTenFound == nil && (lv == "ten" || lv.contains("ho ten") || lv.contains("nhan vien")) {
+                            colTenFound = c
                         }
-                    }
-                    if colTen >= (thuSapXep.first?.value ?? 2) {
-                        colTen = max(0, (thuSapXep.first?.value ?? 2) - 1)
                     }
                 }
             }
+            let colTen = colTenFound ?? max(0, cotThuDauTien - 1)
+            let colNganh = colNganhFound ?? max(0, colTen - 1)
 
-            // Tìm tên tuần (quét ngược lên 3 dòng trên header để tìm "TUẦN X" hoặc ngày dd/MM)
+            // Tìm tên tuần ngắn gọn (tránh lấy nhầm dòng tiêu đề dài "LỊCH ĐI CA PG TẠI DML...")
             var nhanTuan = "Tuần \(bIdx + 1)"
             var ngayDauCuoi: [String] = []
-            for rCheck in max(0, startRow - 3)...startRow {
+            var serialMax = 0
+            for rCheck in max(0, startRow - 4)...startRow {
                 for v in rows[rCheck] {
-                    let lv = chuanHoa(v)
-                    if lv.contains("tuan ") {
-                        nhanTuan = v.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+                    let sach = v.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+                    let lv = chuanHoa(sach)
+                    if lv.contains("tuan") && !lv.contains("lich di ca") && sach.count <= 28 {
+                        nhanTuan = sach
                     }
-                    if let ngayStr = doiSoSerialExcelSangNgay(v) {
+                    if let num = Double(sach), num > 40000 && num < 55000 {
+                        serialMax = max(serialMax, Int(num))
+                    }
+                    if let ngayStr = doiSoSerialExcelSangNgay(sach) {
                         ngayDauCuoi.append(ngayStr)
                     }
                 }
             }
             if let d1 = ngayDauCuoi.first, let d2 = ngayDauCuoi.last, d1 != d2 {
-                nhanTuan += " (\(d1)–\(d2))"
+                nhanTuan += " (\(d1) – \(d2))"
             }
 
             // Đọc danh sách nhân sự trong khối tuần này
@@ -582,8 +591,10 @@ final class BoPhanTichLichCaExcel {
                     lich7.append(trangThai)
                 }
 
-                if nguoiCoLich { soCoDuLieu += 1 }
-                dsNguoi.append(LichTuanMotNguoi(ten: tenRaw, nganhHang: nganhHienTai, nhom: nhom, lich7Ngay: lich7))
+                if nguoiCoLich {
+                    soCoDuLieu += 1
+                    dsNguoi.append(LichTuanMotNguoi(ten: tenRaw, nganhHang: nganhHienTai, nhom: nhom, lich7Ngay: lich7))
+                }
             }
 
             if !dsNguoi.isEmpty && soCoDuLieu >= 2 {
@@ -593,7 +604,8 @@ final class BoPhanTichLichCaExcel {
                     tenSheet: sheet.tenSheet.trimmingCharacters(in: .whitespacesAndNewlines),
                     tenTuan: nhanTuan,
                     nhom: nhom,
-                    danhSachNguoi: dsNguoi
+                    danhSachNguoi: dsNguoi,
+                    ngaySerialSapXep: serialMax
                 ))
             }
         }
@@ -601,93 +613,123 @@ final class BoPhanTichLichCaExcel {
         return ketQua
     }
 
-    /// Phân tích ca làm việc 1 ngày để xác định chắc chắn buổi Rảnh Sáng / Rảnh Chiều (KHÔNG trùng ca!)
+    /// Phân tích ca làm việc 1 ngày (xử lý đủ: SÁNG, CHIỀU, GÃY nhiều khung giờ như "9h-13h 16h-20h", "7h30-21h30", "15h-2130", "sáng/ off chiều", OFF, ST #)
+    /// Khung phát tờ rơi chuẩn:
+    /// - Buổi Sáng: 07:00 – 08:45 (ưu tiên người làm ca Chiều >= 12h, không trùng bất kỳ khung giờ làm nào)
+    /// - Buổi Chiều: 16:30 – 18:30 (ưu tiên người làm ca Sáng tan ca <= 16:15, không trùng bất kỳ khung giờ làm nào)
     private static func phanTichCaMotNgay(thu: Int, cacGiaTri: [String]) -> TrangThaiCaNgay {
         guard !cacGiaTri.isEmpty else {
             return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: "", gioLamGoc: "", ranhSang: false, ranhChieu: false, laNghiOff: true)
         }
 
-        let gop = cacGiaTri.joined(separator: " ")
-        let low = chuanHoa(gop)
         let nhanCa = cacGiaTri.first ?? ""
         let gioLam = cacGiaTri.count > 1 ? cacGiaTri.dropFirst().joined(separator: " ") : ""
+        let gop = cacGiaTri.joined(separator: " ")
+        let low = chuanHoa(gop)
+        let lowCa = chuanHoa(nhanCa)
+        let lowGio = chuanHoa(gioLam)
 
-        // 1. Nghỉ OFF / Phép / Đi siêu thị khác (ST #, NVL, 661, NĐC, CC, họp...) -> không xếp phát tờ rơi
-        let laOff = low.contains("off") || low.contains("phep") || low.contains("st #")
-            || low.contains("st#") || low.contains("nvl") || low.contains("hop")
-            || low.contains("team building") || low == "cc" || low == "ndc"
+        // 1. Trường hợp đặc biệt trong file: "sáng/ off chiều" -> làm sáng, nghỉ chiều => Rảnh Chiều
+        if lowGio.contains("sang") && lowGio.contains("off chieu") {
+            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: "SÁNG", gioLamGoc: gioLam, ranhSang: false, ranhChieu: true, laNghiOff: false)
+        }
+        if lowGio.contains("chieu") && lowGio.contains("off sang") {
+            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: "CHIỀU", gioLamGoc: gioLam, ranhSang: true, ranhChieu: false, laNghiOff: false)
+        }
+
+        // 2. Nghỉ OFF / Phép / Lễ / Đi siêu thị khác (ST #, NVL, 661, NĐC, CC, họp...) -> không phân công
+        let laOff = lowCa.contains("off") || lowCa.contains("st #") || lowCa.contains("st#")
+            || low.contains("phep") || low.contains("off le") || low.contains("off tuan")
+            || low.contains("nvl") || low.contains("hop") || low.contains("team building")
+            || low == "le" || low == "cc" || low == "ndc"
         if laOff {
             return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: true)
         }
 
-        // 2. Ca gãy / Hành chính cả ngày / Làm cả Sáng & Chiều (VD: 8h-20h, 9h-20h, "GÃY (SÁNG VS CHIỀU)") -> bận cả ngày!
-        let coSang = low.contains("sang")
-        let coChieu = low.contains("chieu")
-        let laGay = low.contains("gay") || (coSang && coChieu) || low.contains("ca ngay") || low.contains("full")
-        if laGay {
-            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: false)
-        }
+        // 3. Trích xuất TẤT CẢ các khung giờ làm trong ô TIME (VD: "9h-16h", "15h-2130", "9h-13h 16h-20h", "7h30-21h30")
+        let cacKhungLam = tachTatCaKhungGio(low)
+        if !cacKhungLam.isEmpty {
+            // Kiểm tra có bị trùng khung phát Sáng [7.0 .. 8.75] không
+            let trungSang = cacKhungLam.contains { (s, e) in
+                return s < 8.75 && e > 7.0
+            }
+            // Kiểm tra có bị trùng khung phát Chiều [16.5 .. 18.5] không
+            let trungChieu = cacKhungLam.contains { (s, e) in
+                return s < 18.5 && e > 16.25
+            }
 
-        // 3. Phân tích khung giờ cụ thể nếu có (VD: 8h-16h, 9h-16h30, 14h-20h, 15-21h, 8h-20h)
-        if let (gioBatDau, gioKetThuc) = tachKhungGio(low) {
-            // Nếu làm kéo dài từ sáng tới tối (>= 18h mà bắt đầu <= 11h) -> bận cả ngày
-            if gioBatDau <= 11.5 && gioKetThuc >= 18.0 {
+            // Nếu ca làm bắt đầu từ 12h trở đi (ca Chiều) -> rảnh Sáng tuyệt đối!
+            // Nếu ca làm bắt đầu >= 9h và kết thúc <= 16h15 (ca Sáng ngắn) -> rảnh Chiều sau ca (và không bận Sáng trước 8h45, nhưng ưu tiên phân buổi Chiều để hợp lý!)
+            let gioVaoSomNhat = cacKhungLam.map { $0.0 }.min() ?? 8.0
+            let gioTanMuonNhat = cacKhungLam.map { $0.1 }.max() ?? 20.0
+
+            // Nếu làm kéo dài cả ngày (VD: 7h30-21h30, 8-20h, 9-20h) -> nghỉ mệt, không phân phát tờ rơi
+            if gioVaoSomNhat <= 9.5 && gioTanMuonNhat >= 19.0 && cacKhungLam.count == 1 {
                 return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: false)
             }
-            // Vào ca từ 12h trở đi (ca Chiều) -> RẢNH BUỔI SÁNG (06:30 - 09:30)
-            if gioBatDau >= 12.0 {
-                return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: true, ranhChieu: false, laNghiOff: false)
+
+            // Hợp lý nhất:
+            // - Người làm ca Chiều (vào ca >= 12h): rảnh Sáng = true, rảnh Chiều = false
+            // - Người làm ca Sáng (tan ca <= 16h15): rảnh Chiều = true (tránh bắt người làm sáng 9h đi phát 7h sáng rồi đứng siêu thị tới 16h!)
+            // - Ca Gãy có khoảng trống (VD: 9h-13h & 16h-20h): cả sáng 9h và chiều 16h đều sát giờ làm -> không ép đi phát tờ rơi để tránh mệt/trễ ca!
+            if gioVaoSomNhat >= 12.0 {
+                return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: !trungSang, ranhChieu: false, laNghiOff: false)
             }
-            // Tan ca trước hoặc bằng 16h45 (ca Sáng) -> RẢNH BUỔI CHIỀU (16:45 - 18:30)
-            if gioKetThuc <= 16.75 {
-                return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: true, laNghiOff: false)
+            if gioTanMuonNhat <= 16.25 {
+                return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: !trungChieu, laNghiOff: false)
             }
-            // Trường hợp tan ca 17h -> vẫn bận chiều sớm
             return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: false)
         }
 
-        // 4. Nếu không ghi giờ rõ, dựa theo chữ CA:
+        // 4. Nếu không ghi giờ TIME rõ, dựa theo chữ CA (SÁNG / CHIỀU / GÃY)
+        let coSang = lowCa.contains("sang")
+        let coChieu = lowCa.contains("chieu")
+        if lowCa.contains("gay") || (coSang && coChieu) || lowCa.contains("hanh chinh") || lowCa == "hc" {
+            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: false)
+        }
         if coChieu {
-            // Làm ca Chiều tại siêu thị -> Rảnh Sáng để đi phát tờ rơi
             return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: true, ranhChieu: false, laNghiOff: false)
         }
         if coSang {
-            // Làm ca Sáng tại siêu thị -> Rảnh Chiều sau ca để đi phát tờ rơi
             return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: true, laNghiOff: false)
-        }
-        if low.contains("hanh chinh") || low == "hc" {
-            // Hành chính thường 8h30-17h -> tránh trùng
-            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: false)
         }
 
         return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: false)
     }
 
-    private static func tachKhungGio(_ text: String) -> (Double, Double)? {
-        // Khớp các dạng: "9h-16h", "8h30-16h30", "15-21h", "14:00-20:00", "9g-16h30", "8h 16h"
-        let pattern = #"(\d{1,2})(?:[:hg](\d{1,2}))?\s*[-–/]\s*(\d{1,2})(?:[:hg](\d{1,2}))?"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else {
-            return nil
+    private static func tachTatCaKhungGio(_ text: String) -> [(Double, Double)] {
+        // Hỗ trợ tất cả kiểu viết thực tế trong Excel VN:
+        // "9h-16h", "8h30-16h30", "15-21h", "15h-2130", "7h30-21h30", "9h-13h 16h-20h", "8-16h.", "14:00-20:00", "9g-16h30"
+        let pattern = #"(\d{1,2})(?:[:hg](\d{1,2}))?\s*[-–/]\s*(\d{1,4})(?:[:hg](\d{1,2}))?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        var ketQua: [(Double, Double)] = []
+
+        for match in matches {
+            func layInt(_ idx: Int) -> Int? {
+                let r = match.range(at: idx)
+                guard r.location != NSNotFound, let sr = Range(r, in: text) else { return nil }
+                return Int(text[sr])
+            }
+            guard let h1Raw = layInt(1), let h2Raw = layInt(3) else { continue }
+            let m1 = layInt(2) ?? 0
+            var h2 = h2Raw
+            var m2 = layInt(4) ?? 0
+
+            // Xử lý kiểu viết "15h-2130" -> h2 = 21, m2 = 30
+            if h2Raw >= 100 && h2Raw <= 2359 && layInt(4) == nil {
+                h2 = h2Raw / 100
+                m2 = h2Raw % 100
+            }
+            guard h1Raw >= 1 && h1Raw <= 23 && h2 >= 6 && h2 <= 23 && m1 < 60 && m2 < 60 else { continue }
+            let h1 = (h1Raw < 6 && h2 >= 18) ? (h1Raw + 12) : h1Raw
+            let start = Double(h1) + Double(m1) / 60.0
+            let end = Double(h2) + Double(m2) / 60.0
+            if end > start {
+                ketQua.append((start, end))
+            }
         }
-
-        func layInt(_ idx: Int) -> Int? {
-            let r = match.range(at: idx)
-            guard r.location != NSNotFound, let sr = Range(r, in: text) else { return nil }
-            return Int(text[sr])
-        }
-
-        guard let h1 = layInt(1), let h2 = layInt(3) else { return nil }
-        let m1 = layInt(2) ?? 0
-        let m2 = layInt(4) ?? 0
-        guard h1 >= 5 && h1 <= 23 && h2 >= 6 && h2 <= 23 else { return nil }
-
-        // Xử lý kiểu ghi "3h30-20h" (tức 15h30-20h)
-        let h1Chuan = (h1 < 6 && h2 >= 18) ? (h1 + 12) : h1
-        let start = Double(h1Chuan) + Double(m1) / 60.0
-        let end = Double(h2) + Double(m2) / 60.0
-        guard end > start else { return nil }
-        return (start, end)
+        return ketQua
     }
 }
 
