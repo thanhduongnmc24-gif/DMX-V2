@@ -3938,7 +3938,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
 
         switch muc {
         case .guiBaoCao:
-            nhanMoTaMucMoRong.text = "Chọn nhóm LINE, giờ gửi, ngày gửi và các báo cáo cần gửi tự động. Mỗi nhóm chỉ đọc dữ liệu mới nhất của đúng tài khoản DMX đã gắn."
+            nhanMoTaMucMoRong.text = "Chọn nhóm LINE, giờ gửi, ngày gửi rồi chọn gửi ảnh báo cáo dữ liệu hoặc nhập văn bản tùy chỉnh để bot tự động gửi."
             nganHanhDongMucMoRong.addArrangedSubview(bangGuiBaoCao)
             bangGuiBaoCao.napDuLieu()
 

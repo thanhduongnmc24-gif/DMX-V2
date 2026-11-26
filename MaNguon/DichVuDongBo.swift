@@ -70,6 +70,9 @@ struct NhomLineDMX: Codable, Hashable {
 }
 
 struct LichGuiBaoCaoDMX: Codable, Hashable, Identifiable {
+    static let tienToVanBanTuyChinh = "dmx_text_v1:"
+    static let gioiHanKyTuVanBan = 5000
+
     var id: String
     var lineGroupId: String
     var gio: String
@@ -78,6 +81,16 @@ struct LichGuiBaoCaoDMX: Codable, Hashable, Identifiable {
     var kieuGui: String?
     var dangHoatDong: Bool
     var sieuThiId: String? = nil
+
+    static func maHoaVanBanTuyChinh(_ vanBan: String) -> String {
+        return "\(tienToVanBanTuyChinh)\(vanBan)"
+    }
+
+    var noiDungVanBanTuyChinh: String? {
+        guard let dau = cacNoiDung.first, dau.hasPrefix(Self.tienToVanBanTuyChinh) else { return nil }
+        return String(dau.dropFirst(Self.tienToVanBanTuyChinh.count))
+    }
+
     enum CodingKeys: String, CodingKey {
         case id
         case lineGroupId = "line_group_id"
@@ -1906,7 +1919,26 @@ final class DichVuDongBo {
     func luuLichGuiBaoCao(id: String? = nil, groupId: String, gio: String, cacThu: [Int], cacNoiDung: [String], kieuGui: String, dangHoatDong: Bool = true, hoanTat: @escaping (Result<LichGuiBaoCaoDMX, Error>) -> Void) {
         let gioSach = gio.trimmingCharacters(in: .whitespacesAndNewlines)
         let thuHopLe = cacThu.filter { (1...7).contains($0) }
-        let noiDungHopLe = cacNoiDung.filter { !$0.isEmpty }
+        let laGuiVanBan = kieuGui == "text"
+        let noiDungHopLe: [String]
+        if laGuiVanBan {
+            let raw = cacNoiDung.first ?? ""
+            let vanBanGoc = raw.hasPrefix(LichGuiBaoCaoDMX.tienToVanBanTuyChinh)
+                ? String(raw.dropFirst(LichGuiBaoCaoDMX.tienToVanBanTuyChinh.count))
+                : raw
+            let vanBanSach = vanBanGoc.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !vanBanSach.isEmpty else {
+                hoanTat(.failure(NSError.dmx("Hãy nhập nội dung văn bản cần hẹn giờ gửi.")))
+                return
+            }
+            guard vanBanSach.count <= LichGuiBaoCaoDMX.gioiHanKyTuVanBan else {
+                hoanTat(.failure(NSError.dmx("Nội dung văn bản tối đa \(LichGuiBaoCaoDMX.gioiHanKyTuVanBan) ký tự.")))
+                return
+            }
+            noiDungHopLe = [LichGuiBaoCaoDMX.maHoaVanBanTuyChinh(vanBanSach)]
+        } else {
+            noiDungHopLe = cacNoiDung.filter { !$0.isEmpty }
+        }
         guard gioSach.range(of: "^([01]\\d|2[0-3]):[0-5]\\d$", options: .regularExpression) != nil,
               !thuHopLe.isEmpty, !noiDungHopLe.isEmpty, !groupId.isEmpty else {
             hoanTat(.failure(NSError.dmx("Hãy chọn nhóm, giờ, ngày gửi và ít nhất một nội dung.")))

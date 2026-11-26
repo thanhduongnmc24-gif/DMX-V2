@@ -2,8 +2,16 @@ import { createHash } from "node:crypto";
 import { sbRest, sbStorageSign } from "./api.mjs";
 import { createLineClient } from "./client.mjs";
 
+const CUSTOM_TEXT_PREFIX = "dmx_text_v1:";
+
 function reportType(value) {
   return String(value || "").split("~", 1)[0];
+}
+
+function customTextContent(value) {
+  const raw = String(value || "");
+  if (!raw.startsWith(CUSTOM_TEXT_PREFIX)) return null;
+  return raw.slice(CUSTOM_TEXT_PREFIX.length);
 }
 
 function bamMa(ma) {
@@ -255,7 +263,7 @@ async function taiBaoCaoTuSupabase(loai, userId, sieuThiId) {
 
 async function sendText(chat, text) {
   try {
-    return await chat.sendMessage(text);
+    return await base.talk.sendMessage({ to: chat.mid, text, e2ee: true });
   } catch (error) {
     if (error?.data?.code !== "E2EE_RETRY_PLAIN") throw error;
     await base.talk.sendMessage({ to: chat.mid, text, e2ee: false });
@@ -331,13 +339,16 @@ for (const schedule of dueList) {
     let success = true;
     for (const rawType of schedule.cac_noi_dung || []) {
       if (!await stillActive(schedule.id)) { success = false; break; }
-      const type = reportType(rawType);
-      const report = await taiBaoCaoTuSupabase(type, schedule.nguoi_dung_id, schedule.sieu_thi_id);
-
       if (schedule.kieu_gui === "text") {
-        await sendText(chat, String(report.fullText || report.text || "Báo cáo chưa có nội dung.").slice(0, 5000));
+        const customText = customTextContent(rawType);
+        if (customText && customText.trim()) {
+          await sendText(chat, customText.slice(0, 5000));
+        }
         continue;
       }
+
+      const type = reportType(rawType);
+      const report = await taiBaoCaoTuSupabase(type, schedule.nguoi_dung_id, schedule.sieu_thi_id);
 
       const imageUrl = String(report.imageUrl || "");
       if (imageUrl) {
