@@ -2,17 +2,28 @@ import UIKit
 import MapKit
 import CoreLocation
 
-// MARK: - Mô Hình Dữ Liệu Quét Khu Vực & Tuyến Phát Tờ Rơi
+// MARK: - Mô Hình Dữ Liệu Quét Khu Vực, Siêu Thị Đã Lưu & Tuyến Phát Tờ Rơi
 
 enum LoaiDiaDiemQuet: String, CaseIterable, Codable {
     case doiThu = "doi_thu"
+    case heThongMWG = "he_thong_mwg"
     case truongHoc = "truong_hoc"
     case cho = "cho"
 
     var tieuDe: String {
         switch self {
         case .doiThu: return "Đối thủ"
+        case .heThongMWG: return "ĐMX/TGDĐ"
         case .truongHoc: return "Trường học"
+        case .cho: return "Chợ"
+        }
+    }
+
+    var tieuDeNgan: String {
+        switch self {
+        case .doiThu: return "Đối thủ"
+        case .heThongMWG: return "ĐMX/TGDĐ"
+        case .truongHoc: return "Trường"
         case .cho: return "Chợ"
         }
     }
@@ -20,6 +31,7 @@ enum LoaiDiaDiemQuet: String, CaseIterable, Codable {
     var tieuDeDayDu: String {
         switch self {
         case .doiThu: return "Đối thủ (Điện máy / Gia dụng)"
+        case .heThongMWG: return "Cửa hàng ĐMX / TGDĐ"
         case .truongHoc: return "Trường học"
         case .cho: return "Chợ"
         }
@@ -28,6 +40,7 @@ enum LoaiDiaDiemQuet: String, CaseIterable, Codable {
     var bieuTuongSF: String {
         switch self {
         case .doiThu: return "storefront.fill"
+        case .heThongMWG: return "bolt.fill"
         case .truongHoc: return "graduationcap.fill"
         case .cho: return "basket.fill"
         }
@@ -35,15 +48,17 @@ enum LoaiDiaDiemQuet: String, CaseIterable, Codable {
 
     var mauChuDao: UIColor {
         switch self {
-        case .doiThu: return UIColor(red: 0.86, green: 0.15, blue: 0.15, alpha: 1.0)     // Đỏ #DC2626
-        case .truongHoc: return UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1.0)  // Xanh dương #2563EB
-        case .cho: return UIColor(red: 0.85, green: 0.47, blue: 0.02, alpha: 1.0)        // Cam vàng #D97706
+        case .doiThu: return UIColor(red: 0.86, green: 0.15, blue: 0.15, alpha: 1.0)      // Đỏ #DC2626
+        case .heThongMWG: return UIColor(red: 0.05, green: 0.58, blue: 0.53, alpha: 1.0)  // Xanh ngọc #0D9488
+        case .truongHoc: return UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1.0)   // Xanh dương #2563EB
+        case .cho: return UIColor(red: 0.85, green: 0.47, blue: 0.02, alpha: 1.0)         // Cam vàng #D97706
         }
     }
 
     var mauNenNhat: UIColor {
         switch self {
         case .doiThu: return UIColor(red: 1.00, green: 0.95, blue: 0.95, alpha: 1.0)
+        case .heThongMWG: return UIColor(red: 0.91, green: 0.99, blue: 0.97, alpha: 1.0)
         case .truongHoc: return UIColor(red: 0.93, green: 0.96, blue: 1.00, alpha: 1.0)
         case .cho: return UIColor(red: 1.00, green: 0.97, blue: 0.88, alpha: 1.0)
         }
@@ -55,6 +70,40 @@ enum LoaiDiaDiemQuet: String, CaseIterable, Codable {
         case .cho: return 10.0
         case .truongHoc: return 9.0
         case .doiThu: return 7.0
+        case .heThongMWG: return 0.0
+        }
+    }
+}
+
+struct DiaDiemSieuThiLuu: Codable, Equatable {
+    let id: String
+    var ten: String
+    var viDo: Double
+    var kinhDo: Double
+    var dangChon: Bool
+
+    var toaDo: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: viDo, longitude: kinhDo)
+    }
+}
+
+private final class KhoDiaDiemSieuThi {
+    static let dungChung = KhoDiaDiemSieuThi()
+    private init() {}
+
+    private let khoaLuu = "dmx_bando_ds_sieu_thi_luu_v1"
+
+    func taiDanhSach() -> [DiaDiemSieuThiLuu] {
+        guard let data = UserDefaults.standard.data(forKey: khoaLuu),
+              let ds = try? JSONDecoder().decode([DiaDiemSieuThiLuu].self, from: data) else {
+            return []
+        }
+        return ds
+    }
+
+    func luuDanhSach(_ ds: [DiaDiemSieuThiLuu]) {
+        if let data = try? JSONEncoder().encode(ds) {
+            UserDefaults.standard.set(data, forKey: khoaLuu)
         }
     }
 }
@@ -90,11 +139,18 @@ private final class GhimTamQuetAnnotation: NSObject, MKAnnotation {
     dynamic var coordinate: CLLocationCoordinate2D
     var title: String?
     var subtitle: String?
+    var laSieuThiDaLuu: Bool = false
 
-    init(coordinate: CLLocationCoordinate2D, title: String = "Tâm quét (Siêu thị)", subtitle: String? = "Chạm giữ bản đồ để di chuyển") {
+    init(
+        coordinate: CLLocationCoordinate2D,
+        title: String = "Tâm quét (Siêu thị)",
+        subtitle: String? = "Chạm giữ bản đồ để di chuyển",
+        laSieuThiDaLuu: Bool = false
+    ) {
         self.coordinate = coordinate
         self.title = title
         self.subtitle = subtitle
+        self.laSieuThiDaLuu = laSieuThiDaLuu
     }
 }
 
@@ -144,11 +200,53 @@ private final class DichVuQuetKhuVuc {
         return URLSession(configuration: cfg)
     }()
 
-    /// Quét đồng thời nhiều nguồn và gộp, loại trùng, lọc chính xác theo bán kính (mét)
-    func quetKhuVuc(
-        tam: CLLocationCoordinate2D,
+    /// Quét đồng thời nhiều tâm (1 hoặc nhiều siêu thị/địa điểm) rồi hợp nhất, loại trùng
+    func quetNhieuTam(
+        cacTam: [CLLocationCoordinate2D],
         banKinhMet: Double,
         capNhatTrangThai: @escaping (String) -> Void,
+        hoanThanh: @escaping ([DiaDiemQuet], [String]) -> Void
+    ) {
+        guard !cacTam.isEmpty else {
+            DispatchQueue.main.async { hoanThanh([], []) }
+            return
+        }
+
+        let nhomTong = DispatchGroup()
+        let khoa = NSLock()
+        var tatCaGop: [DiaDiemQuet] = []
+        var nguonSet: Set<String> = []
+
+        DispatchQueue.main.async {
+            if cacTam.count > 1 {
+                capNhatTrangThai("Đang quét đồng thời \(cacTam.count) vị trí đã chọn...")
+            } else {
+                capNhatTrangThai("Đang quét đối thủ, ĐMX/TGDĐ, trường học & chợ...")
+            }
+        }
+
+        for tam in cacTam {
+            nhomTong.enter()
+            quetMotTam(tam: tam, banKinhMet: banKinhMet) { ds, dsNguon in
+                khoa.lock()
+                tatCaGop.append(contentsOf: ds)
+                for n in dsNguon { nguonSet.insert(n) }
+                khoa.unlock()
+                nhomTong.leave()
+            }
+        }
+
+        nhomTong.notify(queue: .global(qos: .userInitiated)) {
+            let daLoc = self.hopNhatVaLoaiTrungNhieuTam(tatCaGop, cacTam: cacTam, banKinhMet: banKinhMet)
+            DispatchQueue.main.async {
+                hoanThanh(daLoc, Array(nguonSet).sorted())
+            }
+        }
+    }
+
+    private func quetMotTam(
+        tam: CLLocationCoordinate2D,
+        banKinhMet: Double,
         hoanThanh: @escaping ([DiaDiemQuet], [String]) -> Void
     ) {
         let nhom = DispatchGroup()
@@ -159,19 +257,18 @@ private final class DichVuQuetKhuVuc {
         func themKetQua(_ ds: [DiaDiemQuet], tenNguon: String) {
             khoa.lock()
             tatCa.append(contentsOf: ds)
-            if !ds.isEmpty { ghiChuNguon.append("\(tenNguon) (\(ds.count))") }
+            if !ds.isEmpty { ghiChuNguon.append(tenNguon) }
             khoa.unlock()
         }
 
-        // 1. Nguồn Apple MapKit LocalSearch (nhanh, dữ liệu Việt Nam rất phong phú, miễn phí)
-        DispatchQueue.main.async { capNhatTrangThai("Đang quét đối thủ, trường học & chợ...") }
+        // 1. Nguồn Apple MapKit LocalSearch
         nhom.enter()
         quetBangAppleLocalSearch(tam: tam, banKinhMet: banKinhMet) { ds in
-            themKetQua(ds, tenNguon: "Bản đồ địa điểm")
+            themKetQua(ds, tenNguon: "Apple Map")
             nhom.leave()
         }
 
-        // 2. Nguồn OpenStreetMap Overpass API (truy vấn chính xác theo bán kính mét, miễn phí)
+        // 2. Nguồn OpenStreetMap Overpass API
         nhom.enter()
         quetBangOverpassOSM(tam: tam, banKinhMet: banKinhMet) { ds in
             themKetQua(ds, tenNguon: "OpenStreetMap")
@@ -189,10 +286,7 @@ private final class DichVuQuetKhuVuc {
         }
 
         nhom.notify(queue: .global(qos: .userInitiated)) {
-            let daLoc = self.hopNhatVaLoaiTrung(tatCa, tam: tam, banKinhMet: banKinhMet)
-            DispatchQueue.main.async {
-                hoanThanh(daLoc, ghiChuNguon)
-            }
+            hoanThanh(tatCa, ghiChuNguon)
         }
     }
 
@@ -209,6 +303,8 @@ private final class DichVuQuetKhuVuc {
             longitudinalMeters: banKinhMet * 2.15
         )
         let truyVan: [(String, LoaiDiaDiemQuet)] = [
+            ("Điện Máy Xanh", .heThongMWG),
+            ("Thế Giới Di Động", .heThongMWG),
             ("điện máy", .doiThu),
             ("gia dụng", .doiThu),
             ("điện lạnh", .doiThu),
@@ -245,11 +341,11 @@ private final class DichVuQuetKhuVuc {
                     let kc = viTriTam.distance(from: CLLocation(latitude: toaDo.latitude, longitude: toaDo.longitude))
                     guard kc <= banKinhMet else { continue }
 
-                    guard let loaiChuan = self.phanLoaiChinhXac(ten: ten, diaChi: self.dinhDangDiaChi(item.placemark), goiY: loaiGoiY) else {
+                    let diaChi = self.dinhDangDiaChi(item.placemark)
+                    guard let loaiChuan = self.phanLoaiChinhXac(ten: ten, diaChi: diaChi, goiY: loaiGoiY) else {
                         continue
                     }
 
-                    let diaChi = self.dinhDangDiaChi(item.placemark)
                     let id = "apple_\(loaiChuan.rawValue)_\(Int(toaDo.latitude * 100000))_\(Int(toaDo.longitude * 100000))"
                     danhSachTam.append(DiaDiemQuet(
                         id: id,
@@ -295,10 +391,10 @@ private final class DichVuQuetKhuVuc {
         [out:json][timeout:14];
         (
           nwr(around:\(r),\(lat),\(lon))["amenity"~"^(school|kindergarten|college|university|marketplace)$"];
-          nwr(around:\(r),\(lat),\(lon))["shop"~"^(electronics|appliance|electrical|houseware|hardware|department_store|hifi|computer|marketplace)$"];
-          nwr(around:\(r),\(lat),\(lon))["name"~"^(Chợ|Trường|Điện [Mm]áy|Gia [Dd]ụng|Siêu [Tt]hị Điện)",i];
+          nwr(around:\(r),\(lat),\(lon))["shop"~"^(electronics|appliance|electrical|houseware|hardware|department_store|hifi|computer|mobile_phone|marketplace)$"];
+          nwr(around:\(r),\(lat),\(lon))["name"~"^(Chợ|Trường|Điện [Mm]áy|Thế [Gg]iới [Dd]i [Đđ]ộng|TopZone|Gia [Dd]ụng|Siêu [Tt]hị Điện)",i];
         );
-        out center tags 250;
+        out center tags 280;
         """
 
         let cacMayChu = [
@@ -416,6 +512,7 @@ private final class DichVuQuetKhuVuc {
         let r = Int(max(100, min(50000, banKinhMet)))
         let loc = "\(tam.latitude),\(tam.longitude)"
         let dsTruyVan: [(String, LoaiDiaDiemQuet)] = [
+            ("keyword=Điện+Máy+Xanh+Thế+Giới+Di+Động", .heThongMWG),
             ("type=electronics_store&keyword=điện+máy+gia+dụng", .doiThu),
             ("type=home_goods_store&keyword=gia+dụng", .doiThu),
             ("type=school", .truongHoc),
@@ -492,13 +589,19 @@ private final class DichVuQuetKhuVuc {
         let t = chuanHoaChuoi(ten)
         guard !t.isEmpty else { return nil }
 
-        // 1. Loại trừ hệ thống nhà mình (Điện Máy Xanh / Thế Giới Di Động) khỏi danh sách đối thủ
-        let laHeThongNhaMinh = t.contains("dien may xanh") || t.contains("the gioi di dong") || t.contains("topzone") || t == "dmx" || t.hasPrefix("dmx ")
-        if laHeThongNhaMinh {
-            return nil
+        // 1. Nhận diện hệ thống Điện Máy Xanh / Thế Giới Di Động / TopZone (hiện riêng mục ĐMX/TGDĐ)
+        let laHeThongMWG = t.contains("dien may xanh")
+            || t.contains("the gioi di dong")
+            || t.contains("topzone")
+            || t == "dmx"
+            || t.hasPrefix("dmx ")
+            || t == "tgdd"
+            || t.hasPrefix("tgdd ")
+        if laHeThongMWG {
+            return .heThongMWG
         }
 
-        // 2. Nhận diện Đối thủ điện máy / gia dụng trước (tránh nhầm "Điện Máy Chợ Lớn" thành Chợ!)
+        // 2. Nhận diện Đối thủ điện máy / gia dụng
         let tuKhoaDoiThu = [
             "dien may", "gia dung", "dien lanh", "nguyen kim", "mediamart", "pico", "hc ",
             "sieu thi dien may", "dien may cho lon", "cho lon", "fpt shop", "cellphones",
@@ -507,7 +610,6 @@ private final class DichVuQuetKhuVuc {
             "do gia dung", "thiet bi dien", "dien tu", "noi that gia dung", "bep tu", "may lanh", "tu lanh"
         ]
         if tuKhoaDoiThu.contains(where: { t.contains($0) }) {
-            // Tránh nhầm tên chợ thật là "Chợ Lớn" nếu không có chữ điện máy
             if t == "cho lon" || (t.hasPrefix("cho ") && !t.contains("dien may")) {
                 return .cho
             }
@@ -521,7 +623,6 @@ private final class DichVuQuetKhuVuc {
             "university", "college", "academy", "anh ngu", "ngoai ngu"
         ]
         if tuKhoaTruong.contains(where: { t.contains($0) }) {
-            // Loại bỏ mấy quán ăn/tiệm photo gần trường kiểu "Cơm Trường Học", "Quán trà sữa ..."
             let loaiTru = ["quan ", "cafe", "ca phe", "tra sua", "com ", "pho ", "bun ", "nha tro", "khach san", "hotel", "pharmacy", "nha thuoc"]
             if loaiTru.contains(where: { t.hasPrefix($0) }) { return nil }
             return .truongHoc
@@ -539,10 +640,13 @@ private final class DichVuQuetKhuVuc {
             return .cho
         }
 
-        // 5. Nếu đến từ nguồn có tag rõ ràng (OSM / Google / Apple) thì giữ lại nếu không phải rác
+        // 5. Fallback theo gợi ý của nguồn
         if let goiY = goiY {
+            if goiY == .heThongMWG {
+                // Chỉ nhận đúng ĐMX / TGDĐ / TopZone ở bước 1, không nhận nhầm tiệm khác
+                return nil
+            }
             if goiY == .cho {
-                // Với gợi ý "chợ", bắt buộc tên có chứa chữ chợ/market để tránh kết quả lạc đề
                 if t.contains("cho") || t.contains("market") {
                     let loaiTru = ["bach hoa xanh", "winmart", "vinmart", "circle k", "quan ", "cafe", "ca phe", "nha thuoc", "ngan hang"]
                     if loaiTru.contains(where: { t.contains($0) }) { return nil }
@@ -565,12 +669,18 @@ private final class DichVuQuetKhuVuc {
         return nil
     }
 
-    private func hopNhatVaLoaiTrung(
+    private func hopNhatVaLoaiTrungNhieuTam(
         _ danhSach: [DiaDiemQuet],
-        tam: CLLocationCoordinate2D,
+        cacTam: [CLLocationCoordinate2D],
         banKinhMet: Double
     ) -> [DiaDiemQuet] {
-        // Ưu tiên nguồn: Google > Apple > OSM (vì tên & địa chỉ Google/Apple thường đầy đủ hơn)
+        let dsLocTam = cacTam.map { CLLocation(latitude: $0.latitude, longitude: $0.longitude) }
+
+        func khoangCachNhoNhatDenCacTam(_ item: DiaDiemQuet) -> Double {
+            let loc = CLLocation(latitude: item.viDo, longitude: item.kinhDo)
+            return dsLocTam.map { $0.distance(from: loc) }.min() ?? item.khoangCachMet
+        }
+
         func uuTienNguon(_ n: String) -> Int {
             switch n {
             case "Google": return 3
@@ -579,14 +689,27 @@ private final class DichVuQuetKhuVuc {
             }
         }
 
-        let sapXep = danhSach
-            .filter { $0.khoangCachMet <= banKinhMet }
-            .sorted { a, b in
-                if uuTienNguon(a.nguon) != uuTienNguon(b.nguon) {
-                    return uuTienNguon(a.nguon) > uuTienNguon(b.nguon)
-                }
-                return a.khoangCachMet < b.khoangCachMet
+        let chuanHoaKC: [DiaDiemQuet] = danhSach.compactMap { item in
+            let kcMin = khoangCachNhoNhatDenCacTam(item)
+            guard kcMin <= banKinhMet else { return nil }
+            return DiaDiemQuet(
+                id: item.id,
+                ten: item.ten,
+                diaChi: item.diaChi,
+                loai: item.loai,
+                viDo: item.viDo,
+                kinhDo: item.kinhDo,
+                khoangCachMet: kcMin,
+                nguon: item.nguon
+            )
+        }
+
+        let sapXep = chuanHoaKC.sorted { a, b in
+            if uuTienNguon(a.nguon) != uuTienNguon(b.nguon) {
+                return uuTienNguon(a.nguon) > uuTienNguon(b.nguon)
             }
+            return a.khoangCachMet < b.khoangCachMet
+        }
 
         var ketQua: [DiaDiemQuet] = []
         for item in sapXep {
@@ -626,23 +749,22 @@ private final class BoToiUuTuyenPhatToRoi {
         return URLSession(configuration: cfg)
     }()
 
-    /// Chọn các điểm nóng hiệu quả nhất (Chợ + Trường học + Cụm đối thủ), sắp xếp lộ trình tối ưu (Nearest-Neighbor + 2-opt) và vẽ đường thực tế qua OSRM
     func tinhTuyenHieuQuaNhat(
         tam: CLLocationCoordinate2D,
         danhSach: [DiaDiemQuet],
         hoanThanh: @escaping (KetQuaTuyenPhatToRoi?) -> Void
     ) {
-        guard !danhSach.isEmpty else {
+        // Chỉ chọn điểm phát tờ rơi là Chợ, Trường học và Đối thủ (không đưa ĐMX/TGDĐ nhà mình vào điểm dừng phát tờ rơi)
+        let dsPhatToRoi = danhSach.filter { $0.loai != .heThongMWG }
+        guard !dsPhatToRoi.isEmpty else {
             DispatchQueue.main.async { hoanThanh(nil) }
             return
         }
 
-        // 1. Chấm điểm mật độ & giá trị phát tờ rơi cho từng điểm
-        let viTriAll = danhSach.map { CLLocation(latitude: $0.viDo, longitude: $0.kinhDo) }
+        let viTriAll = dsPhatToRoi.map { CLLocation(latitude: $0.viDo, longitude: $0.kinhDo) }
         var diemSo: [(DiaDiemQuet, Double)] = []
-        for (i, item) in danhSach.enumerated() {
+        for (i, item) in dsPhatToRoi.enumerated() {
             var score = item.loai.diemUuTienToRoi
-            // Thưởng điểm cụm mật độ: càng nhiều điểm nóng khác trong bán kính 300m càng đáng ghé phát tờ rơi
             var lanCan = 0
             for (j, otherLoc) in viTriAll.enumerated() where i != j {
                 if viTriAll[i].distance(from: otherLoc) <= 300 {
@@ -650,13 +772,10 @@ private final class BoToiUuTuyenPhatToRoi {
                 }
             }
             score += Double(min(lanCan, 6)) * 1.4
-            // Ưu tiên nhẹ các điểm không quá sát rìa
             score += max(0, 2.0 - item.khoangCachMet / 1500.0)
             diemSo.append((item, score))
         }
 
-        // 2. Gom cụm nhỏ (< 90m) để không dừng 2 lần quá sát nhau, chọn tối đa 11 điểm dừng chiến lược
-        // (Vừa chuẩn hiệu quả thực tế vừa khớp giới hạn waypoint khi mở Google Maps dẫn đường)
         let sapXepDiem = diemSo.sorted { $0.1 > $1.1 }
         var daChon: [DiaDiemQuet] = []
         for (ungVien, _) in sapXepDiem {
@@ -669,11 +788,10 @@ private final class BoToiUuTuyenPhatToRoi {
                 daChon.append(ungVien)
             }
         }
-        if daChon.isEmpty, let dau = danhSach.first {
+        if daChon.isEmpty, let dau = dsPhatToRoi.first {
             daChon = [dau]
         }
 
-        // 3. Tối ưu thứ tự đi qua: Nearest Neighbor từ điểm xuất phát (Siêu thị) + cải thiện 2-opt
         let thuTuToiUu = toiUuThuTuTSP(xuatPhat: tam, cacDiem: daChon)
         var diemCoSoThuTu: [DiaDiemQuet] = []
         for (idx, var d) in thuTuToiUu.enumerated() {
@@ -681,7 +799,6 @@ private final class BoToiUuTuyenPhatToRoi {
             diemCoSoThuTu.append(d)
         }
 
-        // 4. Tính khoảng cách từng chặng thẳng làm dự phòng
         var kcTungChang: [Double] = []
         var diemTruoc = CLLocation(latitude: tam.latitude, longitude: tam.longitude)
         var tongThang: Double = 0
@@ -693,7 +810,6 @@ private final class BoToiUuTuyenPhatToRoi {
             diemTruoc = loc
         }
 
-        // 5. Gọi OSRM để bám theo đường giao thông thực tế
         var chuoiToaDo: [String] = [String(format: "%.6f,%.6f", tam.longitude, tam.latitude)]
         for d in diemCoSoThuTu {
             chuoiToaDo.append(String(format: "%.6f,%.6f", d.kinhDo, d.viDo))
@@ -731,7 +847,6 @@ private final class BoToiUuTuyenPhatToRoi {
                     legDists = legs.map { ($0["distance"] as? Double) ?? 0 }
                 }
 
-                // Cộng thêm ~3 phút dừng phát tờ rơi cho mỗi điểm nóng
                 let phutDiChuyen = max(1, Int(ceil(durSec / 60.0)))
                 let ketQua = KetQuaTuyenPhatToRoi(
                     cacDiemDung: diemCoSoThuTu,
@@ -780,7 +895,6 @@ private final class BoToiUuTuyenPhatToRoi {
         var loTrinh: [DiaDiemQuet] = []
         var hienTai = xuatPhat
 
-        // Nearest Neighbor
         while !conLai.isEmpty {
             var chiSoTotNhat = 0
             var kcNhoNhat = Double.greatestFiniteMagnitude
@@ -796,7 +910,6 @@ private final class BoToiUuTuyenPhatToRoi {
             hienTai = chon.toaDo
         }
 
-        // 2-opt cải thiện đường đi mở (từ xuatPhat qua loTrinh[0...n-1])
         func tongChieuDai(_ arr: [DiaDiemQuet]) -> Double {
             guard !arr.isEmpty else { return 0 }
             var sum = khoangCach(xuatPhat, arr[0].toaDo)
@@ -813,8 +926,7 @@ private final class BoToiUuTuyenPhatToRoi {
             vong += 1
             let n = loTrinh.count
             guard n >= 3 else { break }
-            let bestInit = tongChieuDai(loTrinh)
-            var bestLen = bestInit
+            var bestLen = tongChieuDai(loTrinh)
             for i in 0..<(n - 1) {
                 for j in (i + 1)..<n {
                     var thu = loTrinh
@@ -846,8 +958,9 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     private enum BoLocDanhSach: Int {
         case tatCa = 0
         case doiThu = 1
-        case truongHoc = 2
-        case cho = 3
+        case heThongMWG = 2
+        case truongHoc = 3
+        case cho = 4
     }
 
     private static let khoaViDoLuu = "dmx_bando_tam_lat_v1"
@@ -865,6 +978,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     private var dangQuet: Bool = false
     private var boLocHienTai: BoLocDanhSach = .tatCa
 
+    private var dsSieuThiDaLuu: [DiaDiemSieuThiLuu] = []
     private var tatCaDiaDiem: [DiaDiemQuet] = []
     private var ketQuaTuyen: KetQuaTuyenPhatToRoi? = nil
     private var lopTileGoogle: MKTileOverlay?
@@ -873,10 +987,14 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     private let cuonChinh = UIScrollView()
     private let nganChinh = UIStackView()
 
-    // Khối điều khiển tìm kiếm & bán kính
+    // Khối điều khiển tìm kiếm, siêu thị đã lưu & bán kính
     private let oTimDiaChi = UITextField()
     private let nutTimDiaChi = UIButton(type: .system)
     private let nutViTriToi = UIButton(type: .system)
+    private let nutLuuSieuThi = UIButton(type: .system)
+    private let cuonSieuThiDaLuu = UIScrollView()
+    private let nganSieuThiDaLuu = UIStackView()
+    private let nhanGoiYSieuThi = UILabel()
     private let oNhapBanKinh = UITextField()
     private let nutQuetKhuVuc = UIButton(type: .system)
     private let vongQuayQuet = UIActivityIndicatorView(style: .medium)
@@ -893,8 +1011,9 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     private let nutPhongToBanDo = UIButton(type: .system)
     private let nhanGoiYBanDo = UILabel()
 
-    // 3 thẻ thống kê KPI
+    // 4 thẻ thống kê KPI
     private let nhanSoDoiThu = UILabel()
+    private let nhanSoMWG = UILabel()
     private let nhanSoTruongHoc = UILabel()
     private let nhanSoCho = UILabel()
 
@@ -908,7 +1027,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
 
     // Thẻ Danh sách chi tiết địa điểm
     private let khungDanhSach = UIView()
-    private let chonBoLoc = UISegmentedControl(items: ["Tất cả", "Đối thủ", "Trường học", "Chợ"])
+    private let chonBoLoc = UISegmentedControl(items: ["Tất cả", "Đối thủ", "ĐMX/TG", "Trường", "Chợ"])
     private let nganDanhSachDiaDiem = UIStackView()
     private let nhanTrongDanhSach = UILabel()
 
@@ -919,6 +1038,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         cauHinhViTri()
         taoGiaoDien()
         apDungLopNenBanDo()
+        dungLaiThanhSieuThiDaLuu()
         capNhatTamVaVongTronTrenBanDo(diChuyenCamera: true)
     }
 
@@ -935,6 +1055,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         if bk >= 100 && bk <= 20000 {
             banKinhMet = bk
         }
+        dsSieuThiDaLuu = KhoDiaDiemSieuThi.dungChung.taiDanhSach()
     }
 
     private func luuTrangThaiTamVaBanKinh() {
@@ -950,6 +1071,14 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         if quanLyViTri.authorizationStatus == .authorizedWhenInUse || quanLyViTri.authorizationStatus == .authorizedAlways {
             quanLyViTri.requestLocation()
         }
+    }
+
+    private func danhSachTamDangChonDeQuet() -> [(ten: String, toaDo: CLLocationCoordinate2D, laSieuThiLuu: Bool)] {
+        let daChon = dsSieuThiDaLuu.filter { $0.dangChon }
+        if !daChon.isEmpty {
+            return daChon.map { ($0.ten, $0.toaDo, true) }
+        }
+        return [(tenTamQuet, tamQuet, false)]
     }
 
     // MARK: - Dựng Giao Diện
@@ -980,7 +1109,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
 
         nganChinh.addArrangedSubview(taoTheDieuKhienQuet())
         nganChinh.addArrangedSubview(taoTheBanDo())
-        nganChinh.addArrangedSubview(taoHang3TheKPI())
+        nganChinh.addArrangedSubview(taoHang4TheKPI())
         nganChinh.addArrangedSubview(taoTheTuyenPhatToRoi())
         nganChinh.addArrangedSubview(taoTheDanhSachChiTiet())
 
@@ -1017,13 +1146,15 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nutCauHinhGoogleKey.backgroundColor = BangMauBCTD.nenHeaderPhu
         nutCauHinhGoogleKey.layer.cornerRadius = 7
         nutCauHinhGoogleKey.contentEdgeInsets = UIEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
+        nutCauHinhGoogleKey.setContentHuggingPriority(.required, for: .horizontal)
+        nutCauHinhGoogleKey.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutCauHinhGoogleKey.addTarget(self, action: #selector(bamCaiDatGoogleKey), for: .touchUpInside)
 
         let hangTieuDe = UIStackView(arrangedSubviews: [tieuDe, UIView(), nutCauHinhGoogleKey])
         hangTieuDe.axis = .horizontal
         hangTieuDe.alignment = .center
 
-        // Hàng 1: Tìm địa chỉ / Siêu thị + GPS
+        // Hàng 1: Tìm địa chỉ / Siêu thị + Nút Tìm (cố định chiều rộng không bị bóp) + GPS
         oTimDiaChi.placeholder = "Tìm siêu thị ĐMX hoặc nhập địa chỉ..."
         oTimDiaChi.font = .systemFont(ofSize: 13.5, weight: .medium)
         oTimDiaChi.textColor = BangMauBCTD.chuChinh
@@ -1036,6 +1167,8 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         oTimDiaChi.clearButtonMode = .whileEditing
         oTimDiaChi.returnKeyType = .search
         oTimDiaChi.delegate = self
+        oTimDiaChi.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        oTimDiaChi.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         oTimDiaChi.heightAnchor.constraint(equalToConstant: 38).isActive = true
 
         nutTimDiaChi.setTitle("Tìm", for: .normal)
@@ -1043,9 +1176,10 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nutTimDiaChi.setTitleColor(.white, for: .normal)
         nutTimDiaChi.backgroundColor = BangMauBCTD.xanhBienChuDao
         nutTimDiaChi.layer.cornerRadius = 9
-        nutTimDiaChi.contentEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+        nutTimDiaChi.widthAnchor.constraint(equalToConstant: 56).isActive = true
         nutTimDiaChi.heightAnchor.constraint(equalToConstant: 38).isActive = true
         nutTimDiaChi.setContentHuggingPriority(.required, for: .horizontal)
+        nutTimDiaChi.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutTimDiaChi.addTarget(self, action: #selector(bamTimDiaChi), for: .touchUpInside)
 
         let cfgGPS = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
@@ -1057,18 +1191,64 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nutViTriToi.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
         nutViTriToi.widthAnchor.constraint(equalToConstant: 38).isActive = true
         nutViTriToi.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        nutViTriToi.setContentHuggingPriority(.required, for: .horizontal)
+        nutViTriToi.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutViTriToi.addTarget(self, action: #selector(bamLayViTriHienTai), for: .touchUpInside)
 
         let hangTim = UIStackView(arrangedSubviews: [oTimDiaChi, nutTimDiaChi, nutViTriToi])
         hangTim.axis = .horizontal
         hangTim.spacing = 6
+        hangTim.alignment = .center
 
-        // Hàng 2: Nhập bán kính (mét) + Nút Quét khu vực
+        // Hàng 2: Chọn & lưu nhiều vị trí siêu thị của mình
+        nutLuuSieuThi.setTitle("＋ Lưu siêu thị", for: .normal)
+        nutLuuSieuThi.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        nutLuuSieuThi.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutLuuSieuThi.backgroundColor = BangMauBCTD.vangSang
+        nutLuuSieuThi.layer.cornerRadius = 8
+        nutLuuSieuThi.layer.borderWidth = 1
+        nutLuuSieuThi.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
+        nutLuuSieuThi.contentEdgeInsets = UIEdgeInsets(top: 5, left: 10, bottom: 5, right: 10)
+        nutLuuSieuThi.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        nutLuuSieuThi.setContentHuggingPriority(.required, for: .horizontal)
+        nutLuuSieuThi.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nutLuuSieuThi.addTarget(self, action: #selector(bamLuuViTriSieuThi), for: .touchUpInside)
+
+        cuonSieuThiDaLuu.showsHorizontalScrollIndicator = false
+        cuonSieuThiDaLuu.translatesAutoresizingMaskIntoConstraints = false
+        cuonSieuThiDaLuu.heightAnchor.constraint(equalToConstant: 32).isActive = true
+
+        nganSieuThiDaLuu.axis = .horizontal
+        nganSieuThiDaLuu.spacing = 6
+        nganSieuThiDaLuu.alignment = .center
+        nganSieuThiDaLuu.translatesAutoresizingMaskIntoConstraints = false
+        cuonSieuThiDaLuu.addSubview(nganSieuThiDaLuu)
+
+        NSLayoutConstraint.activate([
+            nganSieuThiDaLuu.topAnchor.constraint(equalTo: cuonSieuThiDaLuu.contentLayoutGuide.topAnchor),
+            nganSieuThiDaLuu.bottomAnchor.constraint(equalTo: cuonSieuThiDaLuu.contentLayoutGuide.bottomAnchor),
+            nganSieuThiDaLuu.leadingAnchor.constraint(equalTo: cuonSieuThiDaLuu.contentLayoutGuide.leadingAnchor),
+            nganSieuThiDaLuu.trailingAnchor.constraint(equalTo: cuonSieuThiDaLuu.contentLayoutGuide.trailingAnchor),
+            nganSieuThiDaLuu.heightAnchor.constraint(equalTo: cuonSieuThiDaLuu.frameLayoutGuide.heightAnchor)
+        ])
+
+        let hangSieuThi = UIStackView(arrangedSubviews: [nutLuuSieuThi, cuonSieuThiDaLuu])
+        hangSieuThi.axis = .horizontal
+        hangSieuThi.spacing = 6
+        hangSieuThi.alignment = .center
+
+        nhanGoiYSieuThi.text = "Mẹo: Tìm địa chỉ hoặc chạm giữ bản đồ để chọn siêu thị → bấm \"＋ Lưu siêu thị\" (chọn được nhiều điểm để quét cùng lúc, chạm giữ thẻ để xóa)."
+        nhanGoiYSieuThi.font = .systemFont(ofSize: 11, weight: .medium)
+        nhanGoiYSieuThi.textColor = BangMauBCTD.chuMo
+        nhanGoiYSieuThi.numberOfLines = 0
+
+        // Hàng 3: Nhập bán kính (mét) + Nút Quét khu vực
         let nhanBK = UILabel()
         nhanBK.text = "Bán kính:"
         nhanBK.font = .systemFont(ofSize: 13, weight: .bold)
         nhanBK.textColor = BangMauBCTD.chuChinh
         nhanBK.setContentHuggingPriority(.required, for: .horizontal)
+        nhanBK.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         oNhapBanKinh.text = "\(Int(banKinhMet))"
         oNhapBanKinh.placeholder = "VD: 2000"
@@ -1080,7 +1260,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         oNhapBanKinh.layer.cornerRadius = 9
         oNhapBanKinh.layer.borderWidth = 1.2
         oNhapBanKinh.layer.borderColor = BangMauBCTD.vangChuDao.cgColor
-        oNhapBanKinh.widthAnchor.constraint(equalToConstant: 88).isActive = true
+        oNhapBanKinh.widthAnchor.constraint(equalToConstant: 82).isActive = true
         oNhapBanKinh.heightAnchor.constraint(equalToConstant: 40).isActive = true
         let thanhXong = UIToolbar()
         thanhXong.sizeToFit()
@@ -1092,10 +1272,11 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         oNhapBanKinh.addTarget(self, action: #selector(banKinhThayDoi), for: .editingChanged)
 
         let nhanMet = UILabel()
-        nhanMet.text = "mét"
+        nhanMet.text = "m"
         nhanMet.font = .systemFont(ofSize: 13, weight: .semibold)
         nhanMet.textColor = BangMauBCTD.chuPhu
         nhanMet.setContentHuggingPriority(.required, for: .horizontal)
+        nhanMet.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         nutQuetKhuVuc.setTitle("🔍 Quét khu vực", for: .normal)
         nutQuetKhuVuc.titleLabel?.font = .systemFont(ofSize: 14, weight: .heavy)
@@ -1113,7 +1294,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         hangBanKinh.spacing = 6
         hangBanKinh.alignment = .center
 
-        // Hàng 3: Chọn nhanh bán kính
+        // Hàng 4: Chọn nhanh bán kính
         let mucNhanh = [500, 1000, 2000, 3000, 5000]
         let hangChonNhanh = UIStackView()
         hangChonNhanh.axis = .horizontal
@@ -1136,14 +1317,14 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         }
         capNhatNutBanKinhNhanh()
 
-        nhanTrangThaiQuet.text = "Nhập bán kính (mét) hoặc chạm giữ trên bản đồ để đặt tâm, rồi bấm Quét khu vực."
+        nhanTrangThaiQuet.text = "Chọn siêu thị hoặc chạm giữ bản đồ để đặt tâm, nhập bán kính rồi bấm Quét khu vực."
         nhanTrangThaiQuet.font = .systemFont(ofSize: 12, weight: .medium)
         nhanTrangThaiQuet.textColor = BangMauBCTD.chuPhu
         nhanTrangThaiQuet.numberOfLines = 0
 
-        let stack = UIStackView(arrangedSubviews: [hangTieuDe, hangTim, hangBanKinh, hangChonNhanh, nhanTrangThaiQuet])
+        let stack = UIStackView(arrangedSubviews: [hangTieuDe, hangTim, hangSieuThi, nhanGoiYSieuThi, hangBanKinh, hangChonNhanh, nhanTrangThaiQuet])
         stack.axis = .vertical
-        stack.spacing = 9
+        stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
         the.addSubview(stack)
 
@@ -1155,6 +1336,44 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         ])
 
         return the
+    }
+
+    private func dungLaiThanhSieuThiDaLuu() {
+        nganSieuThiDaLuu.arrangedSubviews.forEach {
+            nganSieuThiDaLuu.removeArrangedSubview($0)
+            $0.removeFromSuperview()
+        }
+
+        if dsSieuThiDaLuu.isEmpty {
+            let nhan = UILabel()
+            nhan.text = "Chưa lưu siêu thị nào"
+            nhan.font = .systemFont(ofSize: 11.5, weight: .medium)
+            nhan.textColor = BangMauBCTD.chuMo
+            nganSieuThiDaLuu.addArrangedSubview(nhan)
+            return
+        }
+
+        for (idx, st) in dsSieuThiDaLuu.enumerated() {
+            let nut = UIButton(type: .system)
+            nut.tag = idx
+            let dau = st.dangChon ? "✓ " : ""
+            nut.setTitle("\(dau)\(st.ten)", for: .normal)
+            nut.titleLabel?.font = .systemFont(ofSize: 12, weight: st.dangChon ? .bold : .semibold)
+            nut.setTitleColor(st.dangChon ? .white : BangMauBCTD.chuChinh, for: .normal)
+            nut.backgroundColor = st.dangChon ? BangMauBCTD.xanhChuDao : BangMauBCTD.nenThePhu
+            nut.layer.cornerRadius = 8
+            nut.layer.borderWidth = 1
+            nut.layer.borderColor = (st.dangChon ? BangMauBCTD.xanhChuDaoDam : BangMauBCTD.vienDam).cgColor
+            nut.contentEdgeInsets = UIEdgeInsets(top: 5, left: 10, bottom: 5, right: 10)
+            nut.heightAnchor.constraint(equalToConstant: 30).isActive = true
+            nut.addTarget(self, action: #selector(bamChonSieuThiDaLuu(_:)), for: .touchUpInside)
+
+            let giu = UILongPressGestureRecognizer(target: self, action: #selector(giuXoaSieuThiDaLuu(_:)))
+            giu.minimumPressDuration = 0.5
+            nut.addGestureRecognizer(giu)
+
+            nganSieuThiDaLuu.addArrangedSubview(nut)
+        }
     }
 
     private func taoTheBanDo() -> UIView {
@@ -1176,7 +1395,6 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nhanGiu.minimumPressDuration = 0.45
         banDo.addGestureRecognizer(nhanGiu)
 
-        // Thanh chuyển kiểu bản đồ (Google Maps Road / Satellite / Apple)
         chonKieuBanDo.selectedSegmentIndex = 0
         chonKieuBanDo.backgroundColor = UIColor.white.withAlphaComponent(0.92)
         chonKieuBanDo.selectedSegmentTintColor = BangMauBCTD.xanhChuDao
@@ -1186,7 +1404,6 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         chonKieuBanDo.addTarget(self, action: #selector(doiKieuBanDo), for: .valueChanged)
         khungBanDo.addSubview(chonKieuBanDo)
 
-        // Nút bật/tắt tuyến tờ rơi
         nutBatTatTuyen.setTitle("🛣️ Tuyến: Bật", for: .normal)
         nutBatTatTuyen.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
         nutBatTatTuyen.setTitleColor(.white, for: .normal)
@@ -1197,7 +1414,6 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nutBatTatTuyen.addTarget(self, action: #selector(bamBatTatTuyen), for: .touchUpInside)
         khungBanDo.addSubview(nutBatTatTuyen)
 
-        // Nút phóng to / thu nhỏ bản đồ
         nutPhongToBanDo.setTitle("⤢ Rộng", for: .normal)
         nutPhongToBanDo.titleLabel?.font = .systemFont(ofSize: 11.5, weight: .bold)
         nutPhongToBanDo.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
@@ -1210,7 +1426,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nutPhongToBanDo.addTarget(self, action: #selector(bamPhongToBanDo), for: .touchUpInside)
         khungBanDo.addSubview(nutPhongToBanDo)
 
-        nhanGoiYBanDo.text = "  📍 Chạm giữ bản đồ để dời tâm quét  "
+        nhanGoiYBanDo.text = "  📍 Chạm giữ bản đồ để chọn điểm / dời tâm  "
         nhanGoiYBanDo.font = .systemFont(ofSize: 11, weight: .semibold)
         nhanGoiYBanDo.textColor = .white
         nhanGoiYBanDo.backgroundColor = UIColor.black.withAlphaComponent(0.58)
@@ -1247,14 +1463,15 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         return khungBanDo
     }
 
-    private func taoHang3TheKPI() -> UIView {
+    private func taoHang4TheKPI() -> UIView {
         let theDoiThu = taoMotTheKPI(loai: .doiThu, nhanSo: nhanSoDoiThu, tagLoc: BoLocDanhSach.doiThu.rawValue)
+        let theMWG = taoMotTheKPI(loai: .heThongMWG, nhanSo: nhanSoMWG, tagLoc: BoLocDanhSach.heThongMWG.rawValue)
         let theTruong = taoMotTheKPI(loai: .truongHoc, nhanSo: nhanSoTruongHoc, tagLoc: BoLocDanhSach.truongHoc.rawValue)
         let theCho = taoMotTheKPI(loai: .cho, nhanSo: nhanSoCho, tagLoc: BoLocDanhSach.cho.rawValue)
 
-        let hang = UIStackView(arrangedSubviews: [theDoiThu, theTruong, theCho])
+        let hang = UIStackView(arrangedSubviews: [theDoiThu, theMWG, theTruong, theCho])
         hang.axis = .horizontal
-        hang.spacing = 8
+        hang.spacing = 6
         hang.distribution = .fillEqually
         return hang
     }
@@ -1263,40 +1480,42 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         let the = UIControl()
         the.tag = tagLoc
         the.backgroundColor = loai.mauNenNhat
-        the.layer.cornerRadius = 12
+        the.layer.cornerRadius = 11
         the.layer.borderWidth = 1.2
         the.layer.borderColor = loai.mauChuDao.withAlphaComponent(0.35).cgColor
         the.addTarget(self, action: #selector(bamTheKPI(_:)), for: .touchUpInside)
 
-        let cfg = UIImage.SymbolConfiguration(pointSize: 16, weight: .bold)
+        let cfg = UIImage.SymbolConfiguration(pointSize: 15, weight: .bold)
         let icon = UIImageView(image: UIImage(systemName: loai.bieuTuongSF, withConfiguration: cfg))
         icon.tintColor = loai.mauChuDao
         icon.contentMode = .scaleAspectFit
 
         let tieuDe = UILabel()
-        tieuDe.text = loai.tieuDe
-        tieuDe.font = .systemFont(ofSize: 12, weight: .bold)
+        tieuDe.text = loai.tieuDeNgan
+        tieuDe.font = .systemFont(ofSize: 11, weight: .bold)
         tieuDe.textColor = BangMauBCTD.chuChinh
         tieuDe.textAlignment = .center
+        tieuDe.adjustsFontSizeToFitWidth = true
+        tieuDe.minimumScaleFactor = 0.8
 
         nhanSo.text = "0"
-        nhanSo.font = .systemFont(ofSize: 24, weight: .heavy)
+        nhanSo.font = .systemFont(ofSize: 21, weight: .heavy)
         nhanSo.textColor = loai.mauChuDao
         nhanSo.textAlignment = .center
 
         let stack = UIStackView(arrangedSubviews: [icon, nhanSo, tieuDe])
         stack.axis = .vertical
         stack.alignment = .center
-        stack.spacing = 3
+        stack.spacing = 2
         stack.isUserInteractionEnabled = false
         stack.translatesAutoresizingMaskIntoConstraints = false
         the.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: the.topAnchor, constant: 10),
-            stack.leadingAnchor.constraint(equalTo: the.leadingAnchor, constant: 6),
-            stack.trailingAnchor.constraint(equalTo: the.trailingAnchor, constant: -6),
-            stack.bottomAnchor.constraint(equalTo: the.bottomAnchor, constant: -10)
+            stack.topAnchor.constraint(equalTo: the.topAnchor, constant: 8),
+            stack.leadingAnchor.constraint(equalTo: the.leadingAnchor, constant: 4),
+            stack.trailingAnchor.constraint(equalTo: the.trailingAnchor, constant: -4),
+            stack.bottomAnchor.constraint(equalTo: the.bottomAnchor, constant: -8)
         ])
 
         return the
@@ -1380,6 +1599,8 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         tieuDe.textColor = BangMauBCTD.xanhChuDaoDam
 
         chonBoLoc.selectedSegmentIndex = 0
+        chonBoLoc.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 10.5, weight: .semibold)], for: .normal)
+        chonBoLoc.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 10.5, weight: .bold)], for: .selected)
         chonBoLoc.addTarget(self, action: #selector(doiBoLocDanhSach), for: .valueChanged)
 
         nhanTrongDanhSach.text = "Chưa có dữ liệu quét. Hãy nhập bán kính và bấm \"Quét khu vực\"."
@@ -1434,35 +1655,58 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     }
 
     private func capNhatTamVaVongTronTrenBanDo(diChuyenCamera: Bool) {
-        // Xóa vòng tròn cũ và ghim tâm cũ
         let vongCu = banDo.overlays.filter { $0 is MKCircle }
         banDo.removeOverlays(vongCu)
 
         let ghimTamCu = banDo.annotations.filter { $0 is GhimTamQuetAnnotation }
         banDo.removeAnnotations(ghimTamCu)
 
-        let ghimMoi = GhimTamQuetAnnotation(coordinate: tamQuet, title: tenTamQuet, subtitle: "Bán kính quét: \(Int(banKinhMet)) m")
-        banDo.addAnnotation(ghimMoi)
+        let cacTam = danhSachTamDangChonDeQuet()
+        for t in cacTam {
+            let ghim = GhimTamQuetAnnotation(
+                coordinate: t.toaDo,
+                title: t.ten,
+                subtitle: "Bán kính quét: \(Int(banKinhMet)) m",
+                laSieuThiDaLuu: t.laSieuThiLuu
+            )
+            banDo.addAnnotation(ghim)
 
-        let vongMoi = MKCircle(center: tamQuet, radius: banKinhMet)
-        banDo.addOverlay(vongMoi, level: .aboveLabels)
+            let vong = MKCircle(center: t.toaDo, radius: banKinhMet)
+            banDo.addOverlay(vong, level: .aboveLabels)
+        }
 
         if diChuyenCamera {
-            let spanMet = max(600, banKinhMet * 2.55)
-            let region = MKCoordinateRegion(center: tamQuet, latitudinalMeters: spanMet, longitudinalMeters: spanMet)
-            banDo.setRegion(region, animated: true)
+            if cacTam.count == 1, let dau = cacTam.first {
+                let spanMet = max(600, banKinhMet * 2.55)
+                let region = MKCoordinateRegion(center: dau.toaDo, latitudinalMeters: spanMet, longitudinalMeters: spanMet)
+                banDo.setRegion(region, animated: true)
+            } else if cacTam.count > 1 {
+                var minLat = Double.greatestFiniteMagnitude
+                var maxLat = -Double.greatestFiniteMagnitude
+                var minLon = Double.greatestFiniteMagnitude
+                var maxLon = -Double.greatestFiniteMagnitude
+                for t in cacTam {
+                    minLat = min(minLat, t.toaDo.latitude)
+                    maxLat = max(maxLat, t.toaDo.latitude)
+                    minLon = min(minLon, t.toaDo.longitude)
+                    maxLon = max(maxLon, t.toaDo.longitude)
+                }
+                let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2.0, longitude: (minLon + maxLon) / 2.0)
+                let latDelta = max((maxLat - minLat) * 1.45, (banKinhMet * 2.6) / 111000.0)
+                let lonDelta = max((maxLon - minLon) * 1.45, (banKinhMet * 2.6) / 111000.0)
+                let region = MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta))
+                banDo.setRegion(region, animated: true)
+            }
         }
     }
 
     private func veLaiGhimVaTuyenTrenBanDo() {
-        // Xóa ghim địa điểm cũ & polyline cũ
         let ghimCu = banDo.annotations.filter { $0 is GhimDiaDiemAnnotation }
         banDo.removeAnnotations(ghimCu)
 
         let duongCu = banDo.overlays.filter { $0 is MKPolyline }
         banDo.removeOverlays(duongCu)
 
-        // Gắn số thứ tự tuyến vào các địa điểm nếu có
         var banDoSTT: [String: Int] = [:]
         if let tuyen = ketQuaTuyen {
             for d in tuyen.cacDiemDung {
@@ -1489,10 +1733,96 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         }
     }
 
-    // MARK: - Hành Động Người Dùng
+    // MARK: - Hành Động Người Dùng (Lưu / Chọn Nhiều Siêu Thị & Quét)
 
     @objc private func anBanPhim() {
         view.endEditing(true)
+    }
+
+    @objc private func bamLuuViTriSieuThi() {
+        view.endEditing(true)
+        let goiYTen: String
+        let tuTim = (oTimDiaChi.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tuTim.isEmpty {
+            goiYTen = tuTim
+        } else if !tenTamQuet.isEmpty && !tenTamQuet.hasPrefix("Tâm quét") {
+            goiYTen = tenTamQuet
+        } else {
+            goiYTen = "Siêu thị ĐMX #\(dsSieuThiDaLuu.count + 1)"
+        }
+
+        let ac = UIAlertController(
+            title: "Lưu vị trí siêu thị / điểm quét",
+            message: "Đặt tên cho vị trí đang ghim trên bản đồ (bạn có thể lưu và chọn nhiều điểm để quét cùng lúc).",
+            preferredStyle: .alert
+        )
+        ac.addTextField { tf in
+            tf.placeholder = "VD: ĐMX 275 Quang Trung"
+            tf.text = goiYTen
+            tf.clearButtonMode = .whileEditing
+        }
+        ac.addAction(UIAlertAction(title: "Lưu & Chọn", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            let ten = (ac.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let tenChuan = ten.isEmpty ? goiYTen : ten
+            let moi = DiaDiemSieuThiLuu(
+                id: UUID().uuidString,
+                ten: tenChuan,
+                viDo: self.tamQuet.latitude,
+                kinhDo: self.tamQuet.longitude,
+                dangChon: true
+            )
+            self.dsSieuThiDaLuu.append(moi)
+            KhoDiaDiemSieuThi.dungChung.luuDanhSach(self.dsSieuThiDaLuu)
+            self.dungLaiThanhSieuThiDaLuu()
+            self.capNhatTamVaVongTronTrenBanDo(diChuyenCamera: true)
+            let soChon = self.dsSieuThiDaLuu.filter { $0.dangChon }.count
+            self.nhanTrangThaiQuet.text = "Đã lưu \"\(tenChuan)\". Đang chọn \(soChon) vị trí siêu thị để quét."
+        })
+        ac.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        present(ac, animated: true)
+    }
+
+    @objc private func bamChonSieuThiDaLuu(_ sender: UIButton) {
+        let idx = sender.tag
+        guard idx >= 0 && idx < dsSieuThiDaLuu.count else { return }
+        dsSieuThiDaLuu[idx].dangChon.toggle()
+        if dsSieuThiDaLuu[idx].dangChon {
+            tamQuet = dsSieuThiDaLuu[idx].toaDo
+            tenTamQuet = dsSieuThiDaLuu[idx].ten
+        }
+        KhoDiaDiemSieuThi.dungChung.luuDanhSach(dsSieuThiDaLuu)
+        dungLaiThanhSieuThiDaLuu()
+        capNhatTamVaVongTronTrenBanDo(diChuyenCamera: true)
+
+        let soChon = dsSieuThiDaLuu.filter { $0.dangChon }.count
+        if soChon > 0 {
+            nhanTrangThaiQuet.text = "Đang chọn \(soChon) vị trí siêu thị. Bấm \"Quét khu vực\" để quét tất cả vùng đã chọn."
+        } else {
+            nhanTrangThaiQuet.text = "Đã bỏ chọn siêu thị đã lưu — sẽ quét quanh ghim hiện tại trên bản đồ."
+        }
+    }
+
+    @objc private func giuXoaSieuThiDaLuu(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began, let btn = gesture.view as? UIButton else { return }
+        let idx = btn.tag
+        guard idx >= 0 && idx < dsSieuThiDaLuu.count else { return }
+        let item = dsSieuThiDaLuu[idx]
+
+        let ac = UIAlertController(title: item.ten, message: "Bạn muốn xóa vị trí đã lưu này?", preferredStyle: .actionSheet)
+        ac.addAction(UIAlertAction(title: "Xóa vị trí này", style: .destructive) { [weak self] _ in
+            guard let self = self else { return }
+            self.dsSieuThiDaLuu.remove(at: idx)
+            KhoDiaDiemSieuThi.dungChung.luuDanhSach(self.dsSieuThiDaLuu)
+            self.dungLaiThanhSieuThiDaLuu()
+            self.capNhatTamVaVongTronTrenBanDo(diChuyenCamera: true)
+        })
+        ac.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        if let pop = ac.popoverPresentationController {
+            pop.sourceView = btn
+            pop.sourceRect = btn.bounds
+        }
+        present(ac, animated: true)
     }
 
     @objc private func banKinhThayDoi() {
@@ -1550,10 +1880,37 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         let diem = gesture.location(in: banDo)
         let toaDo = banDo.convert(diem, toCoordinateFrom: banDo)
         tamQuet = toaDo
-        tenTamQuet = String(format: "Tâm quét (%.4f, %.4f)", toaDo.latitude, toaDo.longitude)
+        tenTamQuet = String(format: "Điểm chọn (%.4f, %.4f)", toaDo.latitude, toaDo.longitude)
         luuTrangThaiTamVaBanKinh()
-        capNhatTamVaVongTronTrenBanDo(diChuyenCamera: false)
-        nhanTrangThaiQuet.text = "Đã dời tâm quét tới vị trí mới. Bấm \"Quét khu vực\" để quét lại."
+
+        // Nếu đang có danh sách siêu thị đã lưu, hỏi nhanh có muốn thêm thẳng điểm vừa chạm vào danh sách hay chỉ dời ghim
+        if dsSieuThiDaLuu.contains(where: { $0.dangChon }) {
+            let ac = UIAlertController(
+                title: "Đã chọn vị trí trên bản đồ",
+                message: "Bạn muốn thêm vị trí này vào danh sách siêu thị đang quét hay chỉ đặt làm 1 tâm duy nhất?",
+                preferredStyle: .actionSheet
+            )
+            ac.addAction(UIAlertAction(title: "＋ Thêm vào danh sách siêu thị", style: .default) { [weak self] _ in
+                self?.bamLuuViTriSieuThi()
+            })
+            ac.addAction(UIAlertAction(title: "Chỉ quét 1 tâm tại điểm này", style: .default) { [weak self] _ in
+                guard let self = self else { return }
+                for i in 0..<self.dsSieuThiDaLuu.count { self.dsSieuThiDaLuu[i].dangChon = false }
+                KhoDiaDiemSieuThi.dungChung.luuDanhSach(self.dsSieuThiDaLuu)
+                self.dungLaiThanhSieuThiDaLuu()
+                self.capNhatTamVaVongTronTrenBanDo(diChuyenCamera: false)
+                self.nhanTrangThaiQuet.text = "Đã dời tâm quét tới vị trí mới. Bấm \"Quét khu vực\" để quét."
+            })
+            ac.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+            if let pop = ac.popoverPresentationController {
+                pop.sourceView = banDo
+                pop.sourceRect = CGRect(origin: diem, size: CGSize(width: 2, height: 2))
+            }
+            present(ac, animated: true)
+        } else {
+            capNhatTamVaVongTronTrenBanDo(diChuyenCamera: false)
+            nhanTrangThaiQuet.text = "Đã đặt ghim tại vị trí mới. Bấm \"＋ Lưu siêu thị\" để lưu hoặc bấm \"Quét khu vực\"."
+        }
     }
 
     @objc private func bamLayViTriHienTai() {
@@ -1591,10 +1948,13 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
                     self.tamQuet = item.placemark.coordinate
                     self.tenTamQuet = item.name ?? tuKhoa
                     self.luuTrangThaiTamVaBanKinh()
-                    self.capNhatTamVaVongTronTrenBanDo(diChuyenCamera: true)
-                    self.nhanTrangThaiQuet.text = "Đã chuyển tâm tới: \(self.tenTamQuet). Bấm \"Quét khu vực\" để bắt đầu."
+                    // Zoom tới điểm vừa tìm và hiển thị ghim để người dùng bấm Lưu hoặc Quét
+                    let spanMet = max(600, self.banKinhMet * 2.55)
+                    self.banDo.setRegion(MKCoordinateRegion(center: self.tamQuet, latitudinalMeters: spanMet, longitudinalMeters: spanMet), animated: true)
+                    self.capNhatTamVaVongTronTrenBanDo(diChuyenCamera: false)
+                    self.nhanTrangThaiQuet.text = "Đã tìm thấy: \(self.tenTamQuet). Bấm \"＋ Lưu siêu thị\" để thêm hoặc bấm \"Quét khu vực\"."
                 } else {
-                    self.nhanTrangThaiQuet.text = "Không tìm thấy \"\(tuKhoa)\". Thử nhập tên đường, phường/quận rõ hơn (\(err?.localizedDescription ?? "không có kết quả"))."
+                    self.nhanTrangThaiQuet.text = "Không tìm thấy \"\(tuKhoa)\". Thử nhập tên đường kèm quận/tỉnh rõ hơn (\(err?.localizedDescription ?? "không có kết quả"))."
                 }
             }
         }
@@ -1616,14 +1976,18 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         luuTrangThaiTamVaBanKinh()
         capNhatTamVaVongTronTrenBanDo(diChuyenCamera: true)
 
+        let cacTamInfo = danhSachTamDangChonDeQuet()
+        let cacTamToaDo = cacTamInfo.map { $0.toaDo }
+        let diemXuatPhat = cacTamToaDo.first ?? tamQuet
+
         dangQuet = true
         nutQuetKhuVuc.isEnabled = false
         nutQuetKhuVuc.alpha = 0.65
         vongQuayQuet.startAnimating()
-        nhanTrangThaiQuet.text = "Đang quét đối thủ, trường học và chợ trong bán kính \(Int(banKinhMet)) m..."
+        nhanTrangThaiQuet.text = "Đang quét đối thủ, ĐMX/TGDĐ, trường học và chợ trong bán kính \(Int(banKinhMet)) m..."
 
-        DichVuQuetKhuVuc.dungChung.quetKhuVuc(
-            tam: tamQuet,
+        DichVuQuetKhuVuc.dungChung.quetNhieuTam(
+            cacTam: cacTamToaDo,
             banKinhMet: banKinhMet,
             capNhatTrangThai: { [weak self] msg in
                 self?.nhanTrangThaiQuet.text = msg
@@ -1635,20 +1999,22 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
 
                 if dsKetQua.isEmpty {
                     self.ketQuaTuyen = nil
-                    self.ketThucQuet(thongBao: "Không tìm thấy đối thủ, trường học hoặc chợ nào trong bán kính \(Int(self.banKinhMet)) m. Thử tăng bán kính lên nhé!")
+                    self.ketThucQuet(thongBao: "Không tìm thấy địa điểm nào trong bán kính \(Int(self.banKinhMet)) m. Thử tăng bán kính lên nhé!")
                     return
                 }
 
                 self.nhanTrangThaiQuet.text = "Đã tìm thấy \(dsKetQua.count) địa điểm. Đang tối ưu tuyến phát tờ rơi hiệu quả nhất..."
-                BoToiUuTuyenPhatToRoi.dungChung.tinhTuyenHieuQuaNhat(tam: self.tamQuet, danhSach: dsKetQua) { [weak self] tuyen in
+                BoToiUuTuyenPhatToRoi.dungChung.tinhTuyenHieuQuaNhat(tam: diemXuatPhat, danhSach: dsKetQua) { [weak self] tuyen in
                     guard let self = self else { return }
                     self.ketQuaTuyen = tuyen
                     let soDT = dsKetQua.filter { $0.loai == .doiThu }.count
+                    let soMWG = dsKetQua.filter { $0.loai == .heThongMWG }.count
                     let soTH = dsKetQua.filter { $0.loai == .truongHoc }.count
                     let soCho = dsKetQua.filter { $0.loai == .cho }.count
                     let chuoiNguon = nguon.isEmpty ? "" : " • Nguồn: \(nguon.joined(separator: ", "))"
+                    let nhanTam = cacTamInfo.count > 1 ? "\(cacTamInfo.count) điểm, bán kính \(Int(self.banKinhMet))m" : "bán kính \(Int(self.banKinhMet))m"
                     self.ketThucQuet(
-                        thongBao: "Hoàn tất bán kính \(Int(self.banKinhMet))m: \(soDT) đối thủ, \(soTH) trường học, \(soCho) chợ\(chuoiNguon)."
+                        thongBao: "Hoàn tất (\(nhanTam)): \(soDT) đối thủ, \(soMWG) ĐMX/TGDĐ, \(soTH) trường, \(soCho) chợ\(chuoiNguon)."
                     )
                 }
             }
@@ -1668,17 +2034,20 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
 
     private func capNhatThongKeKPI() {
         let soDT = tatCaDiaDiem.filter { $0.loai == .doiThu }.count
+        let soMWG = tatCaDiaDiem.filter { $0.loai == .heThongMWG }.count
         let soTH = tatCaDiaDiem.filter { $0.loai == .truongHoc }.count
         let soCho = tatCaDiaDiem.filter { $0.loai == .cho }.count
 
         nhanSoDoiThu.text = "\(soDT)"
+        nhanSoMWG.text = "\(soMWG)"
         nhanSoTruongHoc.text = "\(soTH)"
         nhanSoCho.text = "\(soCho)"
 
-        chonBoLoc.setTitle("Tất cả (\(tatCaDiaDiem.count))", forSegmentAt: 0)
-        chonBoLoc.setTitle("Đối thủ (\(soDT))", forSegmentAt: 1)
-        chonBoLoc.setTitle("Trường (\(soTH))", forSegmentAt: 2)
-        chonBoLoc.setTitle("Chợ (\(soCho))", forSegmentAt: 3)
+        chonBoLoc.setTitle("Tất cả(\(tatCaDiaDiem.count))", forSegmentAt: 0)
+        chonBoLoc.setTitle("Đ.Thủ(\(soDT))", forSegmentAt: 1)
+        chonBoLoc.setTitle("ĐMX(\(soMWG))", forSegmentAt: 2)
+        chonBoLoc.setTitle("Trường(\(soTH))", forSegmentAt: 3)
+        chonBoLoc.setTitle("Chợ(\(soCho))", forSegmentAt: 4)
     }
 
     private func capNhatKhungTuyenPhatToRoi() {
@@ -1791,6 +2160,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         switch boLocHienTai {
         case .tatCa: dsLoc = tatCaDiaDiem
         case .doiThu: dsLoc = tatCaDiaDiem.filter { $0.loai == .doiThu }
+        case .heThongMWG: dsLoc = tatCaDiaDiem.filter { $0.loai == .heThongMWG }
         case .truongHoc: dsLoc = tatCaDiaDiem.filter { $0.loai == .truongHoc }
         case .cho: dsLoc = tatCaDiaDiem.filter { $0.loai == .cho }
         }
@@ -1800,7 +2170,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
             nhanTrongDanhSach.text = "Không có địa điểm nào thuộc mục đang lọc."
         }
 
-        for diem in dsLoc.prefix(80) {
+        for diem in dsLoc.prefix(100) {
             nganDanhSachDiaDiem.addArrangedSubview(taoDongDanhSachDiaDiem(diem))
         }
     }
@@ -1847,6 +2217,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nutGG.contentEdgeInsets = UIEdgeInsets(top: 5, left: 8, bottom: 5, right: 8)
         nutGG.accessibilityIdentifier = diem.id
         nutGG.setContentHuggingPriority(.required, for: .horizontal)
+        nutGG.setContentCompressionResistancePriority(.required, for: .horizontal)
         nutGG.addTarget(self, action: #selector(bamMoMotDiemTrenGoogleMaps(_:)), for: .touchUpInside)
 
         let hang = UIStackView(arrangedSubviews: [vachMau, cotChu, nutGG])
@@ -1887,7 +2258,8 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     }
 
     private func moGoogleMapsDanDuong(den: CLLocationCoordinate2D) {
-        let origin = "\(tamQuet.latitude),\(tamQuet.longitude)"
+        let dau = danhSachTamDangChonDeQuet().first?.toaDo ?? tamQuet
+        let origin = "\(dau.latitude),\(dau.longitude)"
         let dest = "\(den.latitude),\(den.longitude)"
         let webStr = "https://www.google.com/maps/dir/?api=1&origin=\(origin)&destination=\(dest)&travelmode=driving"
         if let url = URL(string: webStr) {
@@ -1897,12 +2269,12 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
 
     @objc private func bamMoGoogleMapsTuyen() {
         guard let tuyen = ketQuaTuyen, !tuyen.cacDiemDung.isEmpty else { return }
-        let origin = "\(tamQuet.latitude),\(tamQuet.longitude)"
+        let dau = danhSachTamDangChonDeQuet().first?.toaDo ?? tamQuet
+        let origin = "\(dau.latitude),\(dau.longitude)"
         let ds = tuyen.cacDiemDung
         guard let diemCuoi = ds.last else { return }
         let dest = "\(diemCuoi.viDo),\(diemCuoi.kinhDo)"
 
-        // Google Maps URL hỗ trợ tối đa 9 waypoints trung gian
         let trungGian = Array(ds.dropLast().prefix(9))
         var urlStr = "https://www.google.com/maps/dir/?api=1&origin=\(origin)&destination=\(dest)&travelmode=driving"
         if !trungGian.isEmpty {
@@ -1918,14 +2290,17 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
 
     @objc private func bamCopyKeHoach() {
         let soDT = tatCaDiaDiem.filter { $0.loai == .doiThu }.count
+        let soMWG = tatCaDiaDiem.filter { $0.loai == .heThongMWG }.count
         let soTH = tatCaDiaDiem.filter { $0.loai == .truongHoc }.count
         let soCho = tatCaDiaDiem.filter { $0.loai == .cho }.count
+        let dsTenTam = danhSachTamDangChonDeQuet().map { $0.ten }.joined(separator: ", ")
 
         var dong: [String] = [
             "📍 BÁO CÁO QUÉT KHU VỰC & TUYẾN PHÁT TỜ RƠI",
-            "• Tâm quét: \(tenTamQuet)",
+            "• Tâm quét: \(dsTenTam)",
             "• Bán kính: \(Int(banKinhMet)) m",
             "• Đối thủ điện máy/gia dụng: \(soDT)",
+            "• Cửa hàng ĐMX / TGDĐ: \(soMWG)",
             "• Trường học: \(soTH)",
             "• Chợ: \(soCho)"
         ]
@@ -1997,7 +2372,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         tenTamQuet = "Vị trí hiện tại của bạn"
         luuTrangThaiTamVaBanKinh()
         capNhatTamVaVongTronTrenBanDo(diChuyenCamera: true)
-        nhanTrangThaiQuet.text = "Đã định vị GPS thành công. Nhập bán kính và bấm \"Quét khu vực\"."
+        nhanTrangThaiQuet.text = "Đã định vị GPS thành công. Bấm \"＋ Lưu siêu thị\" hoặc \"Quét khu vực\"."
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
@@ -2050,7 +2425,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
             view.annotation = tamAnn
             view.markerTintColor = BangMauBCTD.vangChuDao
             view.glyphTintColor = BangMauBCTD.xanhChuDaoDam
-            view.glyphImage = UIImage(systemName: "star.fill")
+            view.glyphImage = UIImage(systemName: tamAnn.laSieuThiDaLuu ? "building.2.fill" : "star.fill")
             view.displayPriority = .required
             view.canShowCallout = true
             return view
