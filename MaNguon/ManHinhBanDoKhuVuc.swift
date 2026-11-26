@@ -2,6 +2,7 @@ import UIKit
 import MapKit
 import CoreLocation
 import UniformTypeIdentifiers
+import PhotosUI
 
 // MARK: - Mô Hình Dữ Liệu Quét Khu Vực, Siêu Thị Đã Lưu & Tuyến Phát Tờ Rơi
 
@@ -1010,7 +1011,7 @@ private final class BoToiUuTuyenPhatToRoi {
 
 // MARK: - Màn Hình Chính Tích Hợp Google Maps & Quét Bán Kính
 
-final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationManagerDelegate, UITextFieldDelegate, UIDocumentPickerDelegate {
+final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationManagerDelegate, UITextFieldDelegate, UIDocumentPickerDelegate, PHPickerViewControllerDelegate {
 
     private enum KieuNenBanDo: Int {
         case googleDuongPho = 0
@@ -1104,6 +1105,8 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     private let khungMaTranToRoi = UIView()
     private let nutNhacChuNhat = UIButton(type: .system)
     private let nhanNhacTuyenChuaPhat = UILabel()
+    private let nutQuetAnhPG = UIButton(type: .system)
+    private let nutQuetAnhNV = UIButton(type: .system)
     private let nutNhapExcelPG = UIButton(type: .system)
     private let nutNhapExcelNV = UIButton(type: .system)
     private let nhanTrangThaiExcel = UILabel()
@@ -2591,6 +2594,28 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nhanNhacTuyenChuaPhat.layer.cornerRadius = 9
         nhanNhacTuyenChuaPhat.clipsToBounds = true
 
+        // 2 nút Quét ảnh lịch ca PG & NV (chọn ít nhất 1 ảnh bằng Gemini AI)
+        nutQuetAnhPG.setTitle("🖼️ Quét ảnh lịch PG", for: .normal)
+        nutQuetAnhPG.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .heavy)
+        nutQuetAnhPG.setTitleColor(.white, for: .normal)
+        nutQuetAnhPG.backgroundColor = BangMauBCTD.xanhChuDao
+        nutQuetAnhPG.layer.cornerRadius = 9
+        nutQuetAnhPG.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        nutQuetAnhPG.addTarget(self, action: #selector(bamQuetAnhLichPG), for: .touchUpInside)
+
+        nutQuetAnhNV.setTitle("🖼️ Quét ảnh lịch NV", for: .normal)
+        nutQuetAnhNV.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .heavy)
+        nutQuetAnhNV.setTitleColor(.white, for: .normal)
+        nutQuetAnhNV.backgroundColor = BangMauBCTD.indigoDam
+        nutQuetAnhNV.layer.cornerRadius = 9
+        nutQuetAnhNV.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        nutQuetAnhNV.addTarget(self, action: #selector(bamQuetAnhLichNV), for: .touchUpInside)
+
+        let hangAnhLich = UIStackView(arrangedSubviews: [nutQuetAnhPG, nutQuetAnhNV])
+        hangAnhLich.axis = .horizontal
+        hangAnhLich.spacing = 8
+        hangAnhLich.distribution = .fillEqually
+
         // 2 nút nhập file Excel lịch PG và lịch Nhân viên siêu thị
         nutNhapExcelPG.setTitle("📊 Nhập Excel PG", for: .normal)
         nutNhapExcelPG.titleLabel?.font = .systemFont(ofSize: 12.5, weight: .bold)
@@ -2659,7 +2684,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nganDanhSachMaTran.spacing = 7
 
         let stack = UIStackView(arrangedSubviews: [
-            hangDau, nhanNhacTuyenChuaPhat, hangExcel, nhanTrangThaiExcel, hangHanhDong, nutXemLichCa, chonLocMaTran, nganDanhSachMaTran
+            hangDau, nhanNhacTuyenChuaPhat, hangAnhLich, hangExcel, nhanTrangThaiExcel, hangHanhDong, nutXemLichCa, chonLocMaTran, nganDanhSachMaTran
         ])
         stack.axis = .vertical
         stack.spacing = 9
@@ -2689,6 +2714,87 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nutNhacChuNhat.setTitle(dangBat ? "🔔 Nhắc CN: Bật" : "🔕 Nhắc CN 18h", for: .normal)
         nutNhacChuNhat.backgroundColor = dangBat ? BangMauBCTD.xanhDatPill : BangMauBCTD.nenHeaderPhu
         nutNhacChuNhat.setTitleColor(dangBat ? BangMauBCTD.xanhDatChu : BangMauBCTD.chuPhu, for: .normal)
+    }
+
+    @objc private func bamQuetAnhLichPG() {
+        nhomDangChonExcel = .pg
+        moChonAnhLichCa()
+    }
+
+    @objc private func bamQuetAnhLichNV() {
+        nhomDangChonExcel = .nhanVien
+        moChonAnhLichCa()
+    }
+
+    private func moChonAnhLichCa() {
+        var cfg = PHPickerConfiguration(photoLibrary: .shared())
+        cfg.filter = .images
+        cfg.selectionLimit = 0 // Cho phép chọn ít nhất 1 ảnh hoặc nhiều ảnh của cùng 1 tuần
+        let picker = PHPickerViewController(configuration: cfg)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        guard !results.isEmpty else { return }
+
+        let nhom = nhomDangChonExcel
+        nhanTrangThaiExcel.text = "⏳ Đang nạp \(results.count) ảnh lịch \(nhom.rawValue) để quét..."
+        nutQuetAnhPG.isEnabled = false
+        nutQuetAnhNV.isEnabled = false
+
+        let nhomTai = DispatchGroup()
+        let khoa = NSLock()
+        var danhSachAnh: [(Int, UIImage)] = []
+
+        for (idx, res) in results.enumerated() {
+            guard res.itemProvider.canLoadObject(ofClass: UIImage.self) else { continue }
+            nhomTai.enter()
+            res.itemProvider.loadObject(ofClass: UIImage.self) { obj, _ in
+                if let img = obj as? UIImage {
+                    khoa.lock()
+                    danhSachAnh.append((idx, img))
+                    khoa.unlock()
+                }
+                nhomTai.leave()
+            }
+        }
+
+        nhomTai.notify(queue: .main) { [weak self] in
+            guard let self = self else { return }
+            let dsAnh = danhSachAnh.sorted { $0.0 < $1.0 }.map { $0.1 }
+            guard !dsAnh.isEmpty else {
+                self.nutQuetAnhPG.isEnabled = true
+                self.nutQuetAnhNV.isEnabled = true
+                self.hienThongBao(tieuDe: "Chưa đọc được ảnh", noiDung: "Vui lòng chọn ít nhất 1 ảnh lịch làm việc rõ chữ.")
+                return
+            }
+
+            BoQuetAnhLichCaGemini.dungChung.quetAnhLichCa(
+                danhSachAnh: dsAnh,
+                nhom: nhom,
+                tienTrinh: { [weak self] msg in
+                    self?.nhanTrangThaiExcel.text = msg
+                },
+                hoanTat: { [weak self] ketQua in
+                    guard let self = self else { return }
+                    self.nutQuetAnhPG.isEnabled = true
+                    self.nutQuetAnhNV.isEnabled = true
+                    switch ketQua {
+                    case .success(let khoi):
+                        self.apDungKhoiLichExcel(khoi)
+                        self.hienThongBao(
+                            tieuDe: "Quét ảnh lịch thành công",
+                            noiDung: "Đã đọc được \(khoi.danhSachNguoi.count) \(khoi.nhom.rawValue) (\(khoi.tenTuan)) và tự động phân ma trận theo nguyên tắc dùng người đang làm việc, ai đã phát không phát nữa."
+                        )
+                    case .failure(let err):
+                        self.capNhatGiaoDienMaTran()
+                        self.hienThongBao(tieuDe: "Lỗi quét ảnh lịch ca", noiDung: err.localizedDescription)
+                    }
+                }
+            )
+        }
     }
 
     @objc private func bamNhapExcelPG() {
@@ -2822,7 +2928,11 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         let ghiChuCN = laChuNhat
             ? "📌 Hôm nay là Chủ nhật — hãy nhập file Excel mới để đăng ký lịch tuần tiếp theo!"
             : "🗓️ Lịch cập nhật theo tuần (Chủ nhật hằng tuần nhập Excel cho tuần tới)."
-        nhanTrangThaiExcel.text = "• \(pgInfo)\n• \(nvInfo)\n\(ghiChuCN)"
+        var thongKePhan = ""
+        if let kh = keHoachMaTran, kh.tongPGCoLich > 0 {
+            thongKePhan = "\n✅ Đã phân \(kh.tongPGDaPhan)/\(kh.tongPGCoLich) PG (đang làm việc • mỗi PG phát tối đa 1 lần, không lặp lại)."
+        }
+        nhanTrangThaiExcel.text = "• \(pgInfo)\n• \(nvInfo)\(thongKePhan)\n\(ghiChuCN)"
 
         nganDanhSachMaTran.arrangedSubviews.forEach {
             nganDanhSachMaTran.removeArrangedSubview($0)
@@ -2919,17 +3029,17 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
 
         var dongNhanSu: [String] = []
         if !o.danhSachPG.isEmpty {
-            dongNhanSu.append("👩‍💼 PG rảnh (ko trùng ca): \(o.danhSachPG.joined(separator: ", "))")
+            dongNhanSu.append("👩‍💼 PG đang làm ca này (chưa phát): \(o.danhSachPG.joined(separator: ", "))")
         } else if khoiLichPG != nil {
-            dongNhanSu.append("👩‍💼 PG: Không có PG rảnh buổi này (đều đang trực ca/OFF)")
+            dongNhanSu.append("👩‍💼 PG: Đã hết PG chưa phát trong ca này (không lặp người đã phát)")
         }
         if !o.danhSachNV.isEmpty {
-            dongNhanSu.append("🧑‍🔧 NV siêu thị rảnh: \(o.danhSachNV.joined(separator: ", "))")
+            dongNhanSu.append("🧑‍🔧 NV đang làm ca này (chưa phát): \(o.danhSachNV.joined(separator: ", "))")
         } else if khoiLichNV != nil {
-            dongNhanSu.append("🧑‍🔧 NV: Không có NV rảnh buổi này")
+            dongNhanSu.append("🧑‍🔧 NV: Đã hết NV chưa phát trong ca này")
         }
         if dongNhanSu.isEmpty {
-            dongNhanSu.append("ℹ️ Nhập file Excel lịch PG / NV để tự động phân người không trùng ca.")
+            dongNhanSu.append("ℹ️ Quét ảnh (ít nhất 1 ảnh) hoặc nhập Excel lịch PG / NV để phân người đang làm việc.")
         }
 
         let lbNS = UILabel()
@@ -3105,7 +3215,7 @@ private final class HopXemLichCaDaQuetViewController: UITableViewController {
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        return "\(tieuDeTuan) — Kiểm tra tên, ca & khung rảnh phát tờ rơi"
+        return "\(tieuDeTuan) — Kiểm tra tên & ca đang làm việc (dùng để phân phát tờ rơi)"
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -3128,10 +3238,10 @@ private final class HopXemLichCaDaQuetViewController: UITableViewController {
         for (i, ca) in nguoi.lich7Ngay.enumerated() where i < tenThuNgan.count {
             let caText = [ca.nhanCaGoc, ca.gioLamGoc].filter { !$0.isEmpty }.joined(separator: " ")
             let ranhTag: String
-            if ca.ranhSang { ranhTag = "→ Rảnh SÁNG" }
-            else if ca.ranhChieu { ranhTag = "→ Rảnh CHIỀU" }
-            else if ca.laNghiOff { ranhTag = "(Nghỉ/OFF)" }
-            else { ranhTag = "(Bận ca)" }
+            if ca.dangLamSang && ca.dangLamChieu { ranhTag = "→ Làm SÁNG & CHIỀU" }
+            else if ca.dangLamSang { ranhTag = "→ Làm SÁNG (phát Sáng)" }
+            else if ca.dangLamChieu { ranhTag = "→ Làm CHIỀU (phát Chiều)" }
+            else { ranhTag = "(OFF/Không trực)" }
             let noiDungCa = caText.isEmpty ? "Trống" : caText
             dongChiTiet.append("\(tenThuNgan[i]): \(noiDungCa) \(ranhTag)")
         }

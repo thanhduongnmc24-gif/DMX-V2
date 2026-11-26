@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Compression
 import UserNotifications
 
@@ -37,13 +38,11 @@ final class BoDocExcelXLSX {
             throw LoiDocExcel.khongPhaiFileXLSX
         }
 
-        // 1. Đọc sharedStrings.xml (nếu có)
         var chuoiDungChung: [String] = []
         if let ssData = mucZip["xl/sharedStrings.xml"] {
             chuoiDungChung = BoPhanTichSharedStrings().phanTich(data: ssData)
         }
 
-        // 2. Đọc workbook.xml & workbook.xml.rels để lấy đúng tên sheet -> file xml
         var danhSachSheet: [(ten: String, rId: String)] = []
         if let wbData = mucZip["xl/workbook.xml"] {
             danhSachSheet = BoPhanTichWorkbook().phanTich(data: wbData)
@@ -79,8 +78,6 @@ final class BoDocExcelXLSX {
         return ketQua
     }
 
-    // MARK: Giải nén ZIP qua Central Directory (hỗ trợ cả Data Descriptor & DEFLATE)
-
     private static func docUInt16LE(_ bytes: [UInt8], _ off: Int) -> Int {
         guard off + 1 < bytes.count else { return 0 }
         return Int(bytes[off]) | (Int(bytes[off + 1]) << 8)
@@ -99,7 +96,6 @@ final class BoDocExcelXLSX {
         let n = bytes.count
         guard n >= 22 else { return [:] }
 
-        // Tìm End of Central Directory (0x06054b50) từ cuối file
         let minPos = max(0, n - 65557)
         var eocdPos = -1
         var idx = n - 22
@@ -136,7 +132,6 @@ final class BoDocExcelXLSX {
             let tenFile = String(bytes: bytes[(pos + 46)..<(pos + 46 + nameLen)], encoding: .utf8) ?? ""
             pos += 46 + nameLen + extraLen + commentLen
 
-            // Chỉ giải nén các file XML cần thiết để tiết kiệm RAM & siêu nhanh
             let canDoc = tenFile == "xl/workbook.xml"
                 || tenFile == "xl/_rels/workbook.xml.rels"
                 || tenFile == "xl/sharedStrings.xml"
@@ -184,7 +179,7 @@ final class BoDocExcelXLSX {
     }
 }
 
-// MARK: - XML Parsers cho Workbook, Rels, SharedStrings & Worksheet
+// MARK: - XML Parsers
 
 private final class BoPhanTichWorkbook: NSObject, XMLParserDelegate {
     private var ds: [(String, String)] = []
@@ -358,7 +353,7 @@ private final class BoPhanTichWorksheet: NSObject, XMLParserDelegate {
     }
 }
 
-// MARK: - Mô Hình Lịch Làm Việc PG & Nhân Viên Siêu Thị (Cập Nhật Theo Tuần)
+// MARK: - Mô Hình Lịch Làm Việc PG & Nhân Viên Siêu Thị (Dùng Người ĐANG LÀM VIỆC Đi Phát Tờ Rơi)
 
 enum NhomNhanSuLich: String, Codable {
     case pg = "PG"
@@ -370,8 +365,10 @@ struct TrangThaiCaNgay: Codable, Equatable {
     let thuIndex: Int
     let nhanCaGoc: String
     let gioLamGoc: String
-    let ranhSang: Bool
-    let ranhChieu: Bool
+    /// Đang làm việc ca Sáng tại siêu thị -> có thể điều đi phát tờ rơi buổi Sáng
+    let dangLamSang: Bool
+    /// Đang làm việc ca Chiều tại siêu thị -> có thể điều đi phát tờ rơi buổi Chiều
+    let dangLamChieu: Bool
     let laNghiOff: Bool
 }
 
@@ -392,7 +389,7 @@ struct KhoiLichTuanExcel: Codable, Equatable {
     let ngaySerialSapXep: Int
 }
 
-// MARK: - Bộ Phân Tích File Excel Lịch Ca (Chuẩn PG 275 QUANG TRUNG.xlsx & File NV Siêu Thị)
+// MARK: - Bộ Phân Tích Lịch Ca (Excel & Ảnh Chụp Bảng Lịch)
 
 final class BoPhanTichLichCaExcel {
     static let tenThu = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"]
@@ -403,25 +400,21 @@ final class BoPhanTichLichCaExcel {
 
         for sheet in sheets {
             let tenLow = chuanHoa(sheet.tenSheet)
-            // Bỏ qua các sheet phụ không phải lịch đi ca (VD: Lịch đứng cửa, ICT CMR/SIM, Trang tính trống)
             if tenLow.contains("dung cua") || tenLow == "ict" || tenLow.contains("truyen thong") {
                 continue
             }
-            let khoiTrongSheet = tachCacKhoiTuan(trong: sheet, nhom: nhom)
-            tatCaKhoi.append(contentsOf: khoiTrongSheet)
+            tatCaKhoi.append(contentsOf: tachCacKhoiTuan(trong: sheet, nhom: nhom))
         }
 
-        // Nếu không tìm thấy ở các sheet chính, thử quét lại toàn bộ sheet
         if tatCaKhoi.isEmpty {
             for sheet in sheets {
                 tatCaKhoi.append(contentsOf: tachCacKhoiTuan(trong: sheet, nhom: nhom))
             }
         }
-
         return tatCaKhoi
     }
 
-    private static func chuanHoa(_ s: String) -> String {
+    static func chuanHoa(_ s: String) -> String {
         s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "vi_VN"))
             .replacingOccurrences(of: "đ", with: "d")
             .replacingOccurrences(of: "Đ", with: "d")
@@ -460,7 +453,6 @@ final class BoPhanTichLichCaExcel {
         let rows = sheet.cacDong
         guard rows.count >= 4 else { return [] }
 
-        // Tìm tất cả các dòng tiêu đề có ít nhất 4 thứ trong tuần (Thứ 2 ... Thứ 7/CN)
         var viTriHeaderThu: [(rowIdx: Int, cotTheoThu: [Int: Int])] = []
         for (rIdx, row) in rows.enumerated() {
             var mapThu: [Int: Int] = [:]
@@ -480,7 +472,6 @@ final class BoPhanTichLichCaExcel {
             let startRow = hdr.rowIdx
             let endRow = (bIdx + 1 < viTriHeaderThu.count) ? min(viTriHeaderThu[bIdx + 1].rowIdx - 1, startRow + 40) : min(rows.count - 1, startRow + 40)
 
-            // Xác định vùng cột cho từng thứ (từ cột của Thứ đó đến trước cột của Thứ tiếp theo)
             let thuSapXep = hdr.cotTheoThu.sorted { $0.value < $1.value }
             var vungCotTheoThu: [Int: Range<Int>] = [:]
             for (k, pair) in thuSapXep.enumerated() {
@@ -489,8 +480,6 @@ final class BoPhanTichLichCaExcel {
                 vungCotTheoThu[pair.key] = cStart..<max(cStart + 1, min(cEnd, cStart + 4))
             }
 
-            // Tìm dòng sub-header (NGÀNH HÀNG, TÊN, CA, TIME...) ngay dưới dòng Thứ 2..CN
-            // Luôn lấy cột TÊN & NGÀNH HÀNG đầu tiên nằm BÊN TRÁI cột Thứ 2 (không bị cột lặp bên phải ghi đè!)
             let cotThuDauTien = thuSapXep.first?.value ?? 3
             var colTenFound: Int? = nil
             var colNganhFound: Int? = nil
@@ -527,7 +516,6 @@ final class BoPhanTichLichCaExcel {
             let colTen = colTenFound ?? max(0, cotThuDauTien - 1)
             let colNganh = colNganhFound ?? max(0, colTen - 1)
 
-            // Tìm tên tuần ngắn gọn (tránh lấy nhầm dòng tiêu đề dài "LỊCH ĐI CA PG TẠI DML...")
             var nhanTuan = "Tuần \(bIdx + 1)"
             var ngayDauCuoi: [String] = []
             var serialMax = 0
@@ -550,7 +538,6 @@ final class BoPhanTichLichCaExcel {
                 nhanTuan += " (\(d1) – \(d2))"
             }
 
-            // Đọc danh sách nhân sự trong khối tuần này
             var dsNguoi: [LichTuanMotNguoi] = []
             var nganhHienTai = ""
             var soCoDuLieu = 0
@@ -576,7 +563,7 @@ final class BoPhanTichLichCaExcel {
 
                 for thu in 0..<7 {
                     guard let rangeCol = vungCotTheoThu[thu] else {
-                        lich7.append(TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: "", gioLamGoc: "", ranhSang: false, ranhChieu: false, laNghiOff: true))
+                        lich7.append(TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: "", gioLamGoc: "", dangLamSang: false, dangLamChieu: false, laNghiOff: true))
                         continue
                     }
                     var cacO: [String] = []
@@ -613,13 +600,11 @@ final class BoPhanTichLichCaExcel {
         return ketQua
     }
 
-    /// Phân tích ca làm việc 1 ngày (xử lý đủ: SÁNG, CHIỀU, GÃY nhiều khung giờ như "9h-13h 16h-20h", "7h30-21h30", "15h-2130", "sáng/ off chiều", OFF, ST #)
-    /// Khung phát tờ rơi chuẩn:
-    /// - Buổi Sáng: 07:00 – 08:45 (ưu tiên người làm ca Chiều >= 12h, không trùng bất kỳ khung giờ làm nào)
-    /// - Buổi Chiều: 16:30 – 18:30 (ưu tiên người làm ca Sáng tan ca <= 16:15, không trùng bất kỳ khung giờ làm nào)
-    private static func phanTichCaMotNgay(thu: Int, cacGiaTri: [String]) -> TrangThaiCaNgay {
+    /// Phân tích ca làm việc 1 ngày để xác định nhân sự ĐANG LÀM VIỆC buổi Sáng và/hoặc buổi Chiều tại siêu thị
+    /// (Nguyên tắc: Chỉ điều động PG/NV ĐANG LÀM VIỆC trong buổi đó đi phát tờ rơi, KHÔNG điều người OFF/ST# hoặc không trực ca buổi đó!)
+    static func phanTichCaMotNgay(thu: Int, cacGiaTri: [String]) -> TrangThaiCaNgay {
         guard !cacGiaTri.isEmpty else {
-            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: "", gioLamGoc: "", ranhSang: false, ranhChieu: false, laNghiOff: true)
+            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: "", gioLamGoc: "", dangLamSang: false, dangLamChieu: false, laNghiOff: true)
         }
 
         let nhanCa = cacGiaTri.first ?? ""
@@ -629,77 +614,63 @@ final class BoPhanTichLichCaExcel {
         let lowCa = chuanHoa(nhanCa)
         let lowGio = chuanHoa(gioLam)
 
-        // 1. Trường hợp đặc biệt trong file: "sáng/ off chiều" -> làm sáng, nghỉ chiều => Rảnh Chiều
+        // 1. Trường hợp đặc biệt trong bảng: "sáng/ off chiều" -> đang làm SÁNG, nghỉ chiều
         if lowGio.contains("sang") && lowGio.contains("off chieu") {
-            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: "SÁNG", gioLamGoc: gioLam, ranhSang: false, ranhChieu: true, laNghiOff: false)
+            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: "SÁNG", gioLamGoc: gioLam, dangLamSang: true, dangLamChieu: false, laNghiOff: false)
         }
         if lowGio.contains("chieu") && lowGio.contains("off sang") {
-            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: "CHIỀU", gioLamGoc: gioLam, ranhSang: true, ranhChieu: false, laNghiOff: false)
+            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: "CHIỀU", gioLamGoc: gioLam, dangLamSang: false, dangLamChieu: true, laNghiOff: false)
         }
 
-        // 2. Nghỉ OFF / Phép / Lễ / Đi siêu thị khác (ST #, NVL, 661, NĐC, CC, họp...) -> không phân công
+        // 2. Nghỉ OFF / Phép / Lễ / Đi siêu thị khác (ST #, NVL, 661, NĐC, CC, họp...) -> KHÔNG có mặt làm việc
         let laOff = lowCa.contains("off") || lowCa.contains("st #") || lowCa.contains("st#")
             || low.contains("phep") || low.contains("off le") || low.contains("off tuan")
             || low.contains("nvl") || low.contains("hop") || low.contains("team building")
             || low == "le" || low == "cc" || low == "ndc"
         if laOff {
-            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: true)
+            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, dangLamSang: false, dangLamChieu: false, laNghiOff: true)
         }
 
-        // 3. Trích xuất TẤT CẢ các khung giờ làm trong ô TIME (VD: "9h-16h", "15h-2130", "9h-13h 16h-20h", "7h30-21h30")
+        // 3. Kiểm tra trực tiếp các khung giờ làm việc thực tế (VD: 9h-16h, 14h-20h, 15-21h, 8-20h, 9h-13h 16h-20h, 7h30-21h30)
         let cacKhungLam = tachTatCaKhungGio(low)
+        let laGay = lowCa.contains("gay") || (lowCa.contains("sang") && lowCa.contains("chieu"))
+
         if !cacKhungLam.isEmpty {
-            // Kiểm tra có bị trùng khung phát Sáng [7.0 .. 8.75] không
-            let trungSang = cacKhungLam.contains { (s, e) in
-                return s < 8.75 && e > 7.0
+            // Đang làm buổi Sáng: có khung giờ giao với khoảng sáng [07:30 .. 12:00]
+            let lamSang = cacKhungLam.contains { (s, e) in s < 12.0 && e > 8.0 }
+            // Đang làm buổi Chiều: có khung giờ giao với khoảng chiều [14:00 .. 20:00] (VD: ca Chiều 14h-20h, 15h-21h, hoặc ca Gãy 8-20h, 9h-13h 16h-20h)
+            // Lưu ý: người làm ca Sáng 8h-16h / 9h-16h tan lúc 16h -> tính là ca SÁNG (không tính ca Chiều nếu chỉ làm tới <= 16h30 và không ghi CHIỀU/GÃY)
+            let lamChieuTheoGio = cacKhungLam.contains { (s, e) in
+                if s >= 12.5 { return true }
+                if e >= 17.5 { return true }
+                return false
             }
-            // Kiểm tra có bị trùng khung phát Chiều [16.5 .. 18.5] không
-            let trungChieu = cacKhungLam.contains { (s, e) in
-                return s < 18.5 && e > 16.25
-            }
-
-            // Nếu ca làm bắt đầu từ 12h trở đi (ca Chiều) -> rảnh Sáng tuyệt đối!
-            // Nếu ca làm bắt đầu >= 9h và kết thúc <= 16h15 (ca Sáng ngắn) -> rảnh Chiều sau ca (và không bận Sáng trước 8h45, nhưng ưu tiên phân buổi Chiều để hợp lý!)
-            let gioVaoSomNhat = cacKhungLam.map { $0.0 }.min() ?? 8.0
-            let gioTanMuonNhat = cacKhungLam.map { $0.1 }.max() ?? 20.0
-
-            // Nếu làm kéo dài cả ngày (VD: 7h30-21h30, 8-20h, 9-20h) -> nghỉ mệt, không phân phát tờ rơi
-            if gioVaoSomNhat <= 9.5 && gioTanMuonNhat >= 19.0 && cacKhungLam.count == 1 {
-                return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: false)
-            }
-
-            // Hợp lý nhất:
-            // - Người làm ca Chiều (vào ca >= 12h): rảnh Sáng = true, rảnh Chiều = false
-            // - Người làm ca Sáng (tan ca <= 16h15): rảnh Chiều = true (tránh bắt người làm sáng 9h đi phát 7h sáng rồi đứng siêu thị tới 16h!)
-            // - Ca Gãy có khoảng trống (VD: 9h-13h & 16h-20h): cả sáng 9h và chiều 16h đều sát giờ làm -> không ép đi phát tờ rơi để tránh mệt/trễ ca!
-            if gioVaoSomNhat >= 12.0 {
-                return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: !trungSang, ranhChieu: false, laNghiOff: false)
-            }
-            if gioTanMuonNhat <= 16.25 {
-                return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: !trungChieu, laNghiOff: false)
-            }
-            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: false)
+            let lamChieu = lamChieuTheoGio || laGay || lowCa.contains("chieu")
+            return TrangThaiCaNgay(
+                thuIndex: thu,
+                nhanCaGoc: nhanCa,
+                gioLamGoc: gioLam,
+                dangLamSang: lamSang || laGay || lowCa.contains("sang"),
+                dangLamChieu: lamChieu,
+                laNghiOff: false
+            )
         }
 
-        // 4. Nếu không ghi giờ TIME rõ, dựa theo chữ CA (SÁNG / CHIỀU / GÃY)
-        let coSang = lowCa.contains("sang")
-        let coChieu = lowCa.contains("chieu")
-        if lowCa.contains("gay") || (coSang && coChieu) || lowCa.contains("hanh chinh") || lowCa == "hc" {
-            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: false)
+        // 4. Không có ô giờ TIME -> dựa theo chữ CA (SÁNG / CHIỀU / GÃY / HÀNH CHÍNH)
+        if laGay || lowCa.contains("hanh chinh") || lowCa == "hc" || lowCa.contains("ca ngay") || lowCa.contains("full") {
+            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, dangLamSang: true, dangLamChieu: true, laNghiOff: false)
         }
-        if coChieu {
-            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: true, ranhChieu: false, laNghiOff: false)
+        if lowCa.contains("sang") {
+            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, dangLamSang: true, dangLamChieu: false, laNghiOff: false)
         }
-        if coSang {
-            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: true, laNghiOff: false)
+        if lowCa.contains("chieu") {
+            return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, dangLamSang: false, dangLamChieu: true, laNghiOff: false)
         }
 
-        return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, ranhSang: false, ranhChieu: false, laNghiOff: false)
+        return TrangThaiCaNgay(thuIndex: thu, nhanCaGoc: nhanCa, gioLamGoc: gioLam, dangLamSang: false, dangLamChieu: false, laNghiOff: true)
     }
 
     private static func tachTatCaKhungGio(_ text: String) -> [(Double, Double)] {
-        // Hỗ trợ tất cả kiểu viết thực tế trong Excel VN:
-        // "9h-16h", "8h30-16h30", "15-21h", "15h-2130", "7h30-21h30", "9h-13h 16h-20h", "8-16h.", "14:00-20:00", "9g-16h30"
         let pattern = #"(\d{1,2})(?:[:hg](\d{1,2}))?\s*[-–/]\s*(\d{1,4})(?:[:hg](\d{1,2}))?"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
         let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
@@ -716,7 +687,6 @@ final class BoPhanTichLichCaExcel {
             var h2 = h2Raw
             var m2 = layInt(4) ?? 0
 
-            // Xử lý kiểu viết "15h-2130" -> h2 = 21, m2 = 30
             if h2Raw >= 100 && h2Raw <= 2359 && layInt(4) == nil {
                 h2 = h2Raw / 100
                 m2 = h2Raw % 100
@@ -733,7 +703,233 @@ final class BoPhanTichLichCaExcel {
     }
 }
 
-// MARK: - Bộ Lập Ma Trận Phát Tờ Rơi Xoay Vòng & Nhắc Tuyến Chưa Phát
+// MARK: - Bộ Quét Ảnh Lịch Ca PG / NV Siêu Thị Bằng Gemini Vision (1 hoặc nhiều ảnh)
+
+final class BoQuetAnhLichCaGemini {
+    static let dungChung = BoQuetAnhLichCaGemini()
+    private init() {}
+
+    func quetAnhLichCa(
+        danhSachAnh: [UIImage],
+        nhom: NhomNhanSuLich,
+        tienTrinh: @escaping (String) -> Void,
+        hoanTat: @escaping (Result<KhoiLichTuanExcel, Error>) -> Void
+    ) {
+        let cd = KhoDuLieu.dungChung.layCaiDatAnToan()
+        let danhSachKey = cd.danhSachGeminiApiKeyHieuLuc
+        guard !danhSachKey.isEmpty else {
+            hoanTat(.failure(NSError(domain: "GeminiLichCa", code: 400, userInfo: [NSLocalizedDescriptionKey: "Chưa cấu hình Gemini API Key trong Cài đặt."])))
+            return
+        }
+        guard !danhSachAnh.isEmpty else {
+            hoanTat(.failure(NSError(domain: "GeminiLichCa", code: 400, userInfo: [NSLocalizedDescriptionKey: "Vui lòng chọn ít nhất 1 ảnh lịch làm việc."])))
+            return
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            var cacDataAnh: [Data] = []
+            for anh in danhSachAnh {
+                if let d = self.nenAnhRoChu(anh) {
+                    cacDataAnh.append(d)
+                }
+            }
+            guard !cacDataAnh.isEmpty else {
+                DispatchQueue.main.async {
+                    hoanTat(.failure(NSError(domain: "GeminiLichCa", code: 400, userInfo: [NSLocalizedDescriptionKey: "Không thể đọc dữ liệu ảnh đã chọn."])))
+                }
+                return
+            }
+
+            DispatchQueue.main.async {
+                tienTrinh("🤖 Gemini AI đang đọc bảng lịch \(nhom.rawValue) từ \(cacDataAnh.count) ảnh...")
+            }
+
+            let models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"]
+            var capThu: [(key: String, model: String)] = []
+            for m in models {
+                for k in danhSachKey.prefix(3) {
+                    capThu.append((k, m))
+                }
+            }
+
+            self.thuGoiGemini(cacCap: capThu, chiSo: 0, cacDataAnh: cacDataAnh, nhom: nhom, hoanTat: hoanTat)
+        }
+    }
+
+    private func nenAnhRoChu(_ anh: UIImage) -> Data? {
+        let maxSide: CGFloat = 2200
+        let size = anh.size
+        let scale = min(1.0, maxSide / max(size.width, size.height))
+        let targetSize = CGSize(width: max(1, round(size.width * scale)), height: max(1, round(size.height * scale)))
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        let img = renderer.image { _ in
+            anh.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+        return img.jpegData(compressionQuality: 0.86)
+    }
+
+    private func thuGoiGemini(
+        cacCap: [(key: String, model: String)],
+        chiSo: Int,
+        cacDataAnh: [Data],
+        nhom: NhomNhanSuLich,
+        hoanTat: @escaping (Result<KhoiLichTuanExcel, Error>) -> Void
+    ) {
+        guard chiSo < cacCap.count else {
+            DispatchQueue.main.async {
+                hoanTat(.failure(NSError(domain: "GeminiLichCa", code: 500, userInfo: [NSLocalizedDescriptionKey: "Không thể quét ảnh lịch ca lúc này. Hãy thử lại hoặc chụp rõ bảng hơn."])))
+            }
+            return
+        }
+
+        let cap = cacCap[chiSo]
+        let urlStr = "https://generativelanguage.googleapis.com/v1beta/models/\(cap.model):generateContent?key=\(cap.key)"
+        guard let url = URL(string: urlStr) else {
+            thuGoiGemini(cacCap: cacCap, chiSo: chiSo + 1, cacDataAnh: cacDataAnh, nhom: nhom, hoanTat: hoanTat)
+            return
+        }
+
+        let prompt = """
+        Bạn là chuyên gia đọc bảng lịch đi ca \(nhom.rawValue) của siêu thị Điện Máy Xanh từ ảnh chụp bảng Excel/Google Sheets.
+        Hãy đọc CHÍNH XÁC từng dòng nhân sự (NGÀNH HÀNG, TÊN) và từng ngày từ Thứ 2 đến Chủ nhật (CA và TIME).
+        Nếu có nhiều ảnh của cùng 1 tuần (ví dụ ảnh 1 chụp phần trên hoặc Thứ 2–Thứ 5, ảnh 2 chụp phần dưới hoặc Thứ 6–CN), hãy tự gộp đầy đủ lại theo đúng TÊN người.
+        Chỉ trả về JSON thuần (KHÔNG giải thích, KHÔNG markdown ```):
+        {
+          "tenTuan": "Tuần 1 Tháng 11 (2/11 - 8/11)",
+          "danhSach": [
+            {
+              "nganhHang": "Gia dụng",
+              "ten": "LỆ SH",
+              "lich": [
+                {"thu": 2, "ca": "SÁNG", "time": "9h-16h"},
+                {"thu": 3, "ca": "OFF", "time": ""},
+                {"thu": 4, "ca": "SÁNG", "time": "9h-16h"},
+                {"thu": 5, "ca": "CHIỀU", "time": "14h-20h"},
+                {"thu": 6, "ca": "GÃY (SÁNG VS CHIỀU)", "time": "9h-20h"},
+                {"thu": 7, "ca": "GÃY (SÁNG VS CHIỀU)", "time": "9h-20h"},
+                {"thu": 8, "ca": "SÁNG", "time": "9h-16h"}
+              ]
+            }
+          ]
+        }
+        Lưu ý quan trọng:
+        - thu = 2 (Thứ 2), 3 (Thứ 3), 4 (Thứ 4), 5 (Thứ 5), 6 (Thứ 6), 7 (Thứ 7), 8 (Chủ nhật).
+        - Giữ nguyên chữ trong ô CA (SÁNG, CHIỀU, GÃY (SÁNG VS CHIỀU), OFF, ST #, HÀNH CHÍNH) và ô TIME (VD: 9h-16h, 14h-20h, 15-21h, 8-20h, 7h30-16h).
+        - Nếu ô trống thì để "".
+        - Bỏ qua các dòng tiêu đề hoặc dòng hoàn toàn trống không có lịch.
+        """
+
+        var parts: [[String: Any]] = [["text": prompt]]
+        for data in cacDataAnh {
+            parts.append([
+                "inline_data": [
+                    "mime_type": "image/jpeg",
+                    "data": data.base64EncodedString()
+                ]
+            ])
+        }
+
+        let bodyObj: [String: Any] = [
+            "contents": [["parts": parts]],
+            "generationConfig": [
+                "temperature": 0.1,
+                "responseMimeType": "application/json"
+            ]
+        ]
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: bodyObj) else {
+            thuGoiGemini(cacCap: cacCap, chiSo: chiSo + 1, cacDataAnh: cacDataAnh, nhom: nhom, hoanTat: hoanTat)
+            return
+        }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 45
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = bodyData
+
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
+            guard let self = self else { return }
+            let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            guard err == nil, code == 200, let data = data,
+                  let khoi = self.giaiMaKetQuaGemini(data: data, nhom: nhom, soAnh: cacDataAnh.count) else {
+                self.thuGoiGemini(cacCap: cacCap, chiSo: chiSo + 1, cacDataAnh: cacDataAnh, nhom: nhom, hoanTat: hoanTat)
+                return
+            }
+            DispatchQueue.main.async {
+                hoanTat(.success(khoi))
+            }
+        }.resume()
+    }
+
+    private func giaiMaKetQuaGemini(data: Data, nhom: NhomNhanSuLich, soAnh: Int) -> KhoiLichTuanExcel? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let candidates = root["candidates"] as? [[String: Any]],
+              let content = candidates.first?["content"] as? [String: Any],
+              let parts = content["parts"] as? [[String: Any]],
+              var rawText = parts.first?["text"] as? String else {
+            return nil
+        }
+
+        rawText = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let start = rawText.firstIndex(of: "{"), let end = rawText.lastIndex(of: "}") {
+            rawText = String(rawText[start...end])
+        }
+        guard let jsonData = rawText.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let danhSach = obj["danhSach"] as? [[String: Any]] else {
+            return nil
+        }
+
+        let tenTuan = ((obj["tenTuan"] as? String) ?? "Lịch quét từ ảnh").trimmingCharacters(in: .whitespacesAndNewlines)
+        var dsNguoi: [LichTuanMotNguoi] = []
+
+        for item in danhSach {
+            let ten = ((item["ten"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !ten.isEmpty else { continue }
+            let nganh = ((item["nganhHang"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let lichRaw = (item["lich"] as? [[String: Any]]) ?? []
+
+            var mapNgay: [Int: (String, String)] = [:]
+            for l in lichRaw {
+                let thuVal: Int
+                if let iv = l["thu"] as? Int { thuVal = iv }
+                else if let sv = l["thu"] as? String, let iv = Int(sv) { thuVal = iv }
+                else { continue }
+                let idx = thuVal - 2
+                guard idx >= 0 && idx < 7 else { continue }
+                let ca = ((l["ca"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let time = ((l["time"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                mapNgay[idx] = (ca, time)
+            }
+
+            var lich7: [TrangThaiCaNgay] = []
+            var coDuLieu = false
+            for idx in 0..<7 {
+                let (ca, time) = mapNgay[idx] ?? ("", "")
+                var mang: [String] = []
+                if !ca.isEmpty { mang.append(ca) }
+                if !time.isEmpty { mang.append(time) }
+                if !mang.isEmpty { coDuLieu = true }
+                lich7.append(BoPhanTichLichCaExcel.phanTichCaMotNgay(thu: idx, cacGiaTri: mang))
+            }
+            if coDuLieu {
+                dsNguoi.append(LichTuanMotNguoi(ten: ten, nganhHang: nganh, nhom: nhom, lich7Ngay: lich7))
+            }
+        }
+
+        guard !dsNguoi.isEmpty else { return nil }
+        return KhoiLichTuanExcel(
+            id: "anh_\(UUID().uuidString)",
+            tenSheet: "Ảnh chụp (\(soAnh) ảnh)",
+            tenTuan: tenTuan.isEmpty ? "Lịch tuần từ ảnh" : tenTuan,
+            nhom: nhom,
+            danhSachNguoi: dsNguoi,
+            ngaySerialSapXep: Int(Date().timeIntervalSince1970 / 86400)
+        )
+    }
+}
+
+// MARK: - Bộ Lập Ma Trận Phát Tờ Rơi Xoay Vòng (ĐANG LÀM VIỆC & AI ĐÃ PHÁT KHÔNG PHÁT NỮA)
 
 struct TuyenPhatToRoiMaTran: Codable, Equatable {
     let id: String
@@ -763,15 +959,18 @@ struct KeHoachMaTranTuan: Codable, Equatable {
     var cacO: [OMaTranPhatToRoi]
     var tenNguonPG: String
     var tenNguonNV: String
+    var tongPGDaPhan: Int
+    var tongPGCoLich: Int
+    var danhSachPGChuaDuocPhan: [String]
 }
 
 final class KhoMaTranPhatToRoi {
     static let dungChung = KhoMaTranPhatToRoi()
     private init() {}
 
-    private let khoaKeHoach = "dmx_matran_toroi_tuan_v1"
-    private let khoaLichPG = "dmx_lich_pg_excel_v1"
-    private let khoaLichNV = "dmx_lich_nv_excel_v1"
+    private let khoaKeHoach = "dmx_matran_toroi_tuan_v2"
+    private let khoaLichPG = "dmx_lich_pg_excel_v2"
+    private let khoaLichNV = "dmx_lich_nv_excel_v2"
     private let khoaNhacChuNhat = "dmx_nhac_cn_dangky_lich_v1"
 
     func taiKeHoach() -> KeHoachMaTranTuan? {
@@ -816,7 +1015,6 @@ final class KhoMaTranPhatToRoi {
         set { UserDefaults.standard.set(newValue, forKey: khoaNhacChuNhat) }
     }
 
-    /// Bật / tắt thông báo định kỳ 18:00 Chủ nhật hằng tuần để đăng ký lịch tuần tiếp theo
     func capNhatNhacChuNhatHangTuan(bat: Bool, hoanThanh: @escaping (Bool, String) -> Void) {
         let center = UNUserNotificationCenter.current()
         let idTB = "dmx_nhac_dang_ky_lich_tuan_chu_nhat"
@@ -836,11 +1034,11 @@ final class KhoMaTranPhatToRoi {
             }
             let content = UNMutableNotificationContent()
             content.title = "📅 Nhắc đăng ký lịch phát tờ rơi tuần tới"
-            content.body = "Hôm nay là Chủ nhật! Hãy nhập file Excel lịch ca PG & Nhân viên tuần tiếp theo để phân ma trận phát tờ rơi không trùng ca."
+            content.body = "Hôm nay là Chủ nhật! Hãy nhập ảnh hoặc file Excel lịch ca PG & Nhân viên tuần tiếp theo để phân ma trận phát tờ rơi xoay vòng."
             content.sound = .default
 
             var dc = DateComponents()
-            dc.weekday = 1 // Chủ nhật
+            dc.weekday = 1
             dc.hour = 18
             dc.minute = 0
             let trigger = UNCalendarNotificationTrigger(dateMatching: dc, repeats: true)
@@ -862,7 +1060,6 @@ final class KhoMaTranPhatToRoi {
 }
 
 final class BoLapMaTranToRoiXoayVong {
-    /// Tự động chia các địa điểm nóng đã quét (Chợ, Trường, Đối thủ) thành 4–6 tuyến theo hướng địa lý quanh siêu thị
     static func taoCacTuyenTuKetQuaQuet(
         tamLat: Double,
         tamLon: Double,
@@ -878,7 +1075,6 @@ final class BoLapMaTranToRoiXoayVong {
             ]
         }
 
-        // Gom thành 4 hướng (Đông Bắc, Đông Nam, Tây Nam, Tây Bắc) so với tâm siêu thị
         let tenHuong = ["Đông Bắc", "Đông Nam", "Tây Nam", "Tây Bắc"]
         var nhomHuong: [[DiaDiemQuet]] = [[], [], [], []]
 
@@ -917,7 +1113,6 @@ final class BoLapMaTranToRoiXoayVong {
             stt += 1
         }
 
-        // Nếu có ít hơn 2 hướng nhưng nhiều điểm, chia thêm theo khoảng cách Gần / Xa
         if ketQua.count == 1 && diemNong.count >= 4 {
             let sorted = diemNong.sorted { $0.khoangCachMet < $1.khoangCachMet }
             let mid = sorted.count / 2
@@ -942,7 +1137,10 @@ final class BoLapMaTranToRoiXoayVong {
         return ketQua
     }
 
-    /// Lập Ma trận xoay vòng Thứ 2 → Chủ nhật (Sáng & Chiều) dựa trên lịch ca PG + NV để TUYỆT ĐỐI KHÔNG TRÙNG CA!
+    /// Lập Ma trận xoay vòng Thứ 2 → Chủ nhật (Sáng & Chiều)
+    /// NGUYÊN TẮC CỐT LÕI:
+    /// 1. Chỉ sử dụng PG / NV ĐANG LÀM VIỆC trong đúng buổi đó (Sáng dùng người ca Sáng/Gãy, Chiều dùng người ca Chiều/Gãy).
+    /// 2. PG / NV nào ĐÃ PHÁT rồi thì TUYỆT ĐỐI KHÔNG PHÁT NỮA trong tuần đó (mỗi người tối đa 1 lần/tuần).
     static func lapMaTranTuan(
         cacTuyen: [TuyenPhatToRoiMaTran],
         khoiPG: KhoiLichTuanExcel?,
@@ -953,7 +1151,6 @@ final class BoLapMaTranToRoiXoayVong {
             ? [TuyenPhatToRoiMaTran(id: "t1", ten: "Tuyến 1", moTaDiemNong: "Chưa quét bản đồ", soDiemNong: 0)]
             : cacTuyen
 
-        // Tính tuần sắp tới / tuần hiện tại (Chủ nhật đăng ký cho tuần tiếp theo!)
         let (khoaTuan, nhanTuanMacDinh) = tinhKhoaVaNhanTuan()
         let nhanTuan: String
         if let p = khoiPG {
@@ -964,58 +1161,83 @@ final class BoLapMaTranToRoiXoayVong {
             nhanTuan = nhanTuanMacDinh
         }
 
-        // Bộ đếm số buổi đã phân để xoay vòng công bằng giữa tất cả PG và NV
-        var demBuoiPG: [String: Int] = [:]
-        var demBuoiNV: [String: Int] = [:]
+        // Tập đánh dấu người ĐÃ PHÁT -> tuyệt đối không phân lại lần 2 trong tuần!
+        var pgDaPhat: Set<String> = []
+        var nvDaPhat: Set<String> = []
+
         var trangThaiCuMap: [String: Bool] = [:]
         if let cu = giuTrangThaiCu, cu.khoaTuan == khoaTuan {
             for o in cu.cacO { trangThaiCuMap[o.id] = o.daPhat }
         }
 
+        let dsPGAll = khoiPG?.danhSachNguoi ?? []
+        let dsNVAll = khoiNV?.danhSachNguoi ?? []
+
+        // Đếm số buổi làm việc còn lại của mỗi người để ưu tiên xếp người ít buổi làm trước (tối đa hóa độ phủ cả tuần)
+        func soBuoiLamConLai(_ nguoi: LichTuanMotNguoi, tuThu: Int) -> Int {
+            var c = 0
+            for t in tuThu..<min(7, nguoi.lich7Ngay.count) {
+                if nguoi.lich7Ngay[t].dangLamSang { c += 1 }
+                if nguoi.lich7Ngay[t].dangLamChieu { c += 1 }
+            }
+            return c
+        }
+
         var cacO: [OMaTranPhatToRoi] = []
         var chiSoTuyen = 0
+        let tongSoBuoiTrongTuan = 14
 
         for thu in 0..<7 {
-            for buoi in ["Sáng", "Chiều"] {
+            for (buoiIdx, buoi) in ["Sáng", "Chiều"].enumerated() {
                 let laSang = (buoi == "Sáng")
                 let tuyen = tuyenHopLe[chiSoTuyen % tuyenHopLe.count]
+                let soBuoiConLaiKeCaNay = tongSoBuoiTrongTuan - (thu * 2 + buoiIdx)
                 chiSoTuyen += 1
 
-                // Chọn tối đa 2 PG rảnh đúng buổi này (KHÔNG trùng ca làm việc!)
+                // 1. Chọn PG ĐANG LÀM VIỆC buổi này VÀ CHƯA PHÁT LẦN NÀO trong tuần
                 var pgChon: [String] = []
-                if let dsPG = khoiPG?.danhSachNguoi {
-                    let ranh = dsPG.filter { nguoi in
-                        guard thu < nguoi.lich7Ngay.count else { return false }
+                if !dsPGAll.isEmpty {
+                    let ungVienPG = dsPGAll.filter { nguoi in
+                        let key = BoPhanTichLichCaExcel.chuanHoa(nguoi.ten)
+                        guard !pgDaPhat.contains(key), thu < nguoi.lich7Ngay.count else { return false }
                         let ca = nguoi.lich7Ngay[thu]
-                        return laSang ? ca.ranhSang : ca.ranhChieu
+                        return laSang ? ca.dangLamSang : ca.dangLamChieu
                     }.sorted { a, b in
-                        (demBuoiPG[a.ten] ?? 0) < (demBuoiPG[b.ten] ?? 0)
+                        soBuoiLamConLai(a, tuThu: thu) < soBuoiLamConLai(b, tuThu: thu)
                     }
 
-                    for p in ranh.prefix(2) {
+                    // Tự điều tiết 1 hay 2 PG/buổi sao cho trải đều hết cả tuần mà không bị cạn người sớm
+                    let tongPGChuaPhat = dsPGAll.count - pgDaPhat.count
+                    let chiTieuPG = (tongPGChuaPhat >= soBuoiConLaiKeCaNay + 2) ? 2 : 1
+
+                    for p in ungVienPG.prefix(chiTieuPG) {
                         let ca = p.lich7Ngay[thu]
                         let chuThich = ca.gioLamGoc.isEmpty ? ca.nhanCaGoc : "\(ca.nhanCaGoc) \(ca.gioLamGoc)"
-                        pgChon.append("\(p.ten) (ca \(chuThich))")
-                        demBuoiPG[p.ten, default: 0] += 1
+                        pgChon.append("\(p.ten) (\(chuThich))")
+                        pgDaPhat.insert(BoPhanTichLichCaExcel.chuanHoa(p.ten))
                     }
                 }
 
-                // Chọn tối đa 2 NV siêu thị rảnh đúng buổi này (KHÔNG trùng ca làm việc!)
+                // 2. Chọn NV siêu thị ĐANG LÀM VIỆC buổi này VÀ CHƯA PHÁT LẦN NÀO trong tuần
                 var nvChon: [String] = []
-                if let dsNV = khoiNV?.danhSachNguoi {
-                    let ranh = dsNV.filter { nguoi in
-                        guard thu < nguoi.lich7Ngay.count else { return false }
+                if !dsNVAll.isEmpty {
+                    let ungVienNV = dsNVAll.filter { nguoi in
+                        let key = BoPhanTichLichCaExcel.chuanHoa(nguoi.ten)
+                        guard !nvDaPhat.contains(key), thu < nguoi.lich7Ngay.count else { return false }
                         let ca = nguoi.lich7Ngay[thu]
-                        return laSang ? ca.ranhSang : ca.ranhChieu
+                        return laSang ? ca.dangLamSang : ca.dangLamChieu
                     }.sorted { a, b in
-                        (demBuoiNV[a.ten] ?? 0) < (demBuoiNV[b.ten] ?? 0)
+                        soBuoiLamConLai(a, tuThu: thu) < soBuoiLamConLai(b, tuThu: thu)
                     }
 
-                    for nv in ranh.prefix(2) {
+                    let tongNVChuaPhat = dsNVAll.count - nvDaPhat.count
+                    let chiTieuNV = (tongNVChuaPhat >= soBuoiConLaiKeCaNay + 2) ? 2 : 1
+
+                    for nv in ungVienNV.prefix(chiTieuNV) {
                         let ca = nv.lich7Ngay[thu]
                         let chuThich = ca.gioLamGoc.isEmpty ? ca.nhanCaGoc : "\(ca.nhanCaGoc) \(ca.gioLamGoc)"
-                        nvChon.append("\(nv.ten) (ca \(chuThich))")
-                        demBuoiNV[nv.ten, default: 0] += 1
+                        nvChon.append("\(nv.ten) (\(chuThich))")
+                        nvDaPhat.insert(BoPhanTichLichCaExcel.chuanHoa(nv.ten))
                     }
                 }
 
@@ -1034,21 +1256,27 @@ final class BoLapMaTranToRoiXoayVong {
             }
         }
 
+        let dsPGChuaDuocPhan = dsPGAll
+            .filter { !pgDaPhat.contains(BoPhanTichLichCaExcel.chuanHoa($0.ten)) }
+            .map { $0.ten }
+
         return KeHoachMaTranTuan(
             khoaTuan: khoaTuan,
             nhanTuan: nhanTuan,
             cacTuyen: tuyenHopLe,
             cacO: cacO,
-            tenNguonPG: khoiPG.map { "\($0.tenSheet) - \($0.tenTuan) (\($0.danhSachNguoi.count) PG)" } ?? "Chưa nhập file PG",
-            tenNguonNV: khoiNV.map { "\($0.tenSheet) - \($0.tenTuan) (\($0.danhSachNguoi.count) NV)" } ?? "Chưa nhập file NV"
+            tenNguonPG: khoiPG.map { "\($0.tenSheet) – \($0.tenTuan) (\($0.danhSachNguoi.count) PG)" } ?? "Chưa nhập lịch PG",
+            tenNguonNV: khoiNV.map { "\($0.tenSheet) – \($0.tenTuan) (\($0.danhSachNguoi.count) NV)" } ?? "Chưa nhập lịch NV",
+            tongPGDaPhan: pgDaPhat.count,
+            tongPGCoLich: dsPGAll.count,
+            danhSachPGChuaDuocPhan: dsPGChuaDuocPhan
         )
     }
 
     static func tinhKhoaVaNhanTuan(ngay: Date = Date()) -> (String, String) {
         var cal = Calendar(identifier: .gregorian)
-        cal.firstWeekday = 2 // Thứ 2 đầu tuần
+        cal.firstWeekday = 2
         let weekday = cal.component(.weekday, from: ngay)
-        // Nếu hôm nay là Chủ nhật (weekday == 1) -> mặc định lập cho tuần tiếp theo (bắt đầu Thứ 2 ngày mai)!
         let ngayThamChieu = (weekday == 1) ? (cal.date(byAdding: .day, value: 1, to: ngay) ?? ngay) : ngay
         let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: ngayThamChieu)
         let thu2 = cal.date(from: comps) ?? ngayThamChieu
