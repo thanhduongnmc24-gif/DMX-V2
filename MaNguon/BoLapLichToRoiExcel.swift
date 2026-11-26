@@ -32,6 +32,13 @@ final class BoDocExcelXLSX {
         guard let data = try? Data(contentsOf: url), data.count > 22 else {
             throw LoiDocExcel.khongDocDuocFile
         }
+        return try docTatCaSheet(tuData: data)
+    }
+
+    static func docTatCaSheet(tuData data: Data) throws -> [BangSheetExcel] {
+        guard data.count > 22 else {
+            throw LoiDocExcel.khongDocDuocFile
+        }
 
         let mucZip = giaiNenMucZip(tu: data)
         guard !mucZip.isEmpty else {
@@ -329,7 +336,7 @@ private final class BoPhanTichWorksheet: NSObject, XMLParserDelegate {
         } else if elementName == "t" {
             dangTrongT = false
         } else if elementName == "c" {
-            guard colO >= 0 && colO < 45 else { return }
+            guard colO >= 0 && colO < 100 else { return }
             let text: String
             if kieuO == "s", let idx = Int(giaTriO.trimmingCharacters(in: .whitespacesAndNewlines)), idx >= 0 && idx < sharedStrings.count {
                 text = sharedStrings[idx]
@@ -396,6 +403,15 @@ final class BoPhanTichLichCaExcel {
 
     static func phanTichWorkbook(tu url: URL, nhom: NhomNhanSuLich) throws -> [KhoiLichTuanExcel] {
         let sheets = try BoDocExcelXLSX.docTatCaSheet(tu: url)
+        return phanTichSheets(sheets, nhom: nhom)
+    }
+
+    static func phanTichWorkbook(tuData data: Data, nhom: NhomNhanSuLich) throws -> [KhoiLichTuanExcel] {
+        let sheets = try BoDocExcelXLSX.docTatCaSheet(tuData: data)
+        return phanTichSheets(sheets, nhom: nhom)
+    }
+
+    static func phanTichSheets(_ sheets: [BangSheetExcel], nhom: NhomNhanSuLich) -> [KhoiLichTuanExcel] {
         var tatCaKhoi: [KhoiLichTuanExcel] = []
 
         for sheet in sheets {
@@ -931,6 +947,51 @@ final class BoQuetAnhLichCaGemini {
 
 // MARK: - Bộ Lập Ma Trận Phát Tờ Rơi Xoay Vòng (ĐANG LÀM VIỆC & AI ĐÃ PHÁT KHÔNG PHÁT NỮA)
 
+struct DiemMucTieuTuyen: Codable, Equatable {
+    let id: String
+    var ten: String
+    var diaChi: String
+    var loaiRaw: String
+    var viDo: Double
+    var kinhDo: Double
+}
+
+struct CauHinhPhanTuyenToRoi: Codable, Equatable {
+    /// Số PG phân cho mỗi tuyến/buổi (0..5)
+    var soPGMoiTuyen: Int = 1
+    /// Số NV siêu thị phân cho mỗi tuyến/buổi (0..5)
+    var soNVMoiTuyen: Int = 1
+    /// Số tuyến chia trên bản đồ: 0 = Tự động chia tuyến theo số nhân sự & số người/tuyến; 2...8 = cố định
+    var soTuyenMongMuon: Int = 0
+    /// Bán kính kiểm soát hợp lệ khi nhân viên dán vị trí Google Maps (mặc định 300m)
+    var nguongKiemSoatMet: Double = 300.0
+
+    var tongNhanSuMoiTuyen: Int {
+        return max(1, soPGMoiTuyen + soNVMoiTuyen)
+    }
+
+    init(
+        soPGMoiTuyen: Int = 1,
+        soNVMoiTuyen: Int = 1,
+        soTuyenMongMuon: Int = 0,
+        nguongKiemSoatMet: Double = 300.0
+    ) {
+        self.soPGMoiTuyen = max(0, min(5, soPGMoiTuyen))
+        self.soNVMoiTuyen = max(0, min(5, soNVMoiTuyen))
+        self.soTuyenMongMuon = (soTuyenMongMuon == 0) ? 0 : max(2, min(8, soTuyenMongMuon))
+        self.nguongKiemSoatMet = max(50, min(2000, nguongKiemSoatMet))
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        soPGMoiTuyen = max(0, min(5, (try? c.decode(Int.self, forKey: .soPGMoiTuyen)) ?? 1))
+        soNVMoiTuyen = max(0, min(5, (try? c.decode(Int.self, forKey: .soNVMoiTuyen)) ?? 1))
+        let st = (try? c.decode(Int.self, forKey: .soTuyenMongMuon)) ?? 0
+        soTuyenMongMuon = (st == 0) ? 0 : max(2, min(8, st))
+        nguongKiemSoatMet = max(50, min(2000, (try? c.decode(Double.self, forKey: .nguongKiemSoatMet)) ?? 300.0))
+    }
+}
+
 struct TuyenPhatToRoiMaTran: Codable, Equatable {
     let id: String
     let soThuTu: Int
@@ -939,13 +1000,48 @@ struct TuyenPhatToRoiMaTran: Codable, Equatable {
     var soDiemNong: Int
     /// Danh sách tọa độ [lat, lon] bắt đầu từ tâm siêu thị qua các điểm nóng của tuyến này để vẽ trực tiếp trên bản đồ
     var cacToaDo: [[Double]]
+    /// Danh sách địa điểm mục tiêu chi tiết (tên + tọa độ) để nhân viên check-in kiểm soát phát tờ rơi
+    var cacDiemMucTieu: [DiemMucTieuTuyen]
+
+    init(
+        id: String,
+        soThuTu: Int,
+        ten: String,
+        moTaDiemNong: String,
+        soDiemNong: Int,
+        cacToaDo: [[Double]],
+        cacDiemMucTieu: [DiemMucTieuTuyen] = []
+    ) {
+        self.id = id
+        self.soThuTu = soThuTu
+        self.ten = ten
+        self.moTaDiemNong = moTaDiemNong
+        self.soDiemNong = soDiemNong
+        self.cacToaDo = cacToaDo
+        self.cacDiemMucTieu = cacDiemMucTieu
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        soThuTu = try c.decode(Int.self, forKey: .soThuTu)
+        ten = try c.decode(String.self, forKey: .ten)
+        moTaDiemNong = try c.decode(String.self, forKey: .moTaDiemNong)
+        soDiemNong = try c.decode(Int.self, forKey: .soDiemNong)
+        cacToaDo = (try? c.decode([[Double]].self, forKey: .cacToaDo)) ?? []
+        cacDiemMucTieu = (try? c.decode([DiemMucTieuTuyen].self, forKey: .cacDiemMucTieu)) ?? []
+    }
 
     var mauTuyen: UIColor {
         let bangMau: [UIColor] = [
             UIColor(red: 0.09, green: 0.64, blue: 0.29, alpha: 1.0), // Tuyến 1: Xanh lá đậm
             UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1.0), // Tuyến 2: Xanh dương
             UIColor(red: 0.92, green: 0.35, blue: 0.05, alpha: 1.0), // Tuyến 3: Cam đậm
-            UIColor(red: 0.58, green: 0.20, blue: 0.92, alpha: 1.0)  // Tuyến 4: Tím nổi bật
+            UIColor(red: 0.58, green: 0.20, blue: 0.92, alpha: 1.0), // Tuyến 4: Tím nổi bật
+            UIColor(red: 0.01, green: 0.56, blue: 0.64, alpha: 1.0), // Tuyến 5: Xanh ngọc đậm
+            UIColor(red: 0.85, green: 0.15, blue: 0.45, alpha: 1.0), // Tuyến 6: Hồng đậm
+            UIColor(red: 0.64, green: 0.44, blue: 0.04, alpha: 1.0), // Tuyến 7: Vàng nâu đậm
+            UIColor(red: 0.28, green: 0.33, blue: 0.41, alpha: 1.0)  // Tuyến 8: Xám xanh đậm
         ]
         return bangMau[max(0, soThuTu - 1) % bangMau.count]
     }
@@ -960,8 +1056,8 @@ struct OMaTranPhatToRoi: Codable, Equatable {
     let tuyenId: String
     let tenTuyen: String
     let moTaTuyen: String
-    let danhSachPG: [String]
-    let danhSachNV: [String]
+    var danhSachPG: [String]
+    var danhSachNV: [String]
     var daPhat: Bool
 }
 
@@ -985,6 +1081,38 @@ final class KhoMaTranPhatToRoi {
     private let khoaLichPG = "dmx_lich_pg_excel_v2"
     private let khoaLichNV = "dmx_lich_nv_excel_v2"
     private let khoaNhacChuNhat = "dmx_nhac_cn_dangky_lich_v1"
+    private let khoaCauHinhPhanTuyen = "dmx_cauhinh_phantuyen_toroi_v1"
+    private let khoaLinkSheetPG = "dmx_link_google_sheet_pg_v1"
+    private let khoaLinkSheetNV = "dmx_link_google_sheet_nv_v1"
+
+    func taiCauHinhPhanTuyen() -> CauHinhPhanTuyenToRoi {
+        guard let data = UserDefaults.standard.data(forKey: khoaCauHinhPhanTuyen),
+              let cfg = try? JSONDecoder().decode(CauHinhPhanTuyenToRoi.self, from: data) else {
+            return CauHinhPhanTuyenToRoi()
+        }
+        return cfg
+    }
+
+    func luuCauHinhPhanTuyen(_ cfg: CauHinhPhanTuyenToRoi) {
+        if let data = try? JSONEncoder().encode(cfg) {
+            UserDefaults.standard.set(data, forKey: khoaCauHinhPhanTuyen)
+        }
+    }
+
+    func layLinkTrangTinh(nhom: NhomNhanSuLich) -> String {
+        let key = (nhom == .pg) ? khoaLinkSheetPG : khoaLinkSheetNV
+        return UserDefaults.standard.string(forKey: key) ?? ""
+    }
+
+    func luuLinkTrangTinh(_ link: String, nhom: NhomNhanSuLich) {
+        let key = (nhom == .pg) ? khoaLinkSheetPG : khoaLinkSheetNV
+        let sach = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        if sach.isEmpty {
+            UserDefaults.standard.removeObject(forKey: key)
+        } else {
+            UserDefaults.standard.set(sach, forKey: key)
+        }
+    }
 
     func taiKeHoach() -> KeHoachMaTranTuan? {
         guard let data = UserDefaults.standard.data(forKey: khoaKeHoach) else { return nil }
@@ -1181,30 +1309,82 @@ final class KhoSoXoayTuaThang {
 }
 
 final class BoLapMaTranToRoiXoayVong {
+    static func tinhSoTuyenTuDong(
+        khoiPG: KhoiLichTuanExcel?,
+        khoiNV: KhoiLichTuanExcel?,
+        cauHinh: CauHinhPhanTuyenToRoi,
+        soDiemNong: Int
+    ) -> Int {
+        if cauHinh.soTuyenMongMuon >= 2 && cauHinh.soTuyenMongMuon <= 8 {
+            return cauHinh.soTuyenMongMuon
+        }
+        let tongPG = khoiPG?.danhSachNguoi.count ?? 0
+        let tongNV = khoiNV?.danhSachNguoi.count ?? 0
+        let tongNS = tongPG + tongNV
+        if tongNS > 0 {
+            let soTuyenTheoPG = (cauHinh.soPGMoiTuyen > 0 && tongPG > 0)
+                ? Int(ceil(Double(tongPG) / Double(cauHinh.soPGMoiTuyen)))
+                : 0
+            let soTuyenTheoNV = (cauHinh.soNVMoiTuyen > 0 && tongNV > 0)
+                ? Int(ceil(Double(tongNV) / Double(cauHinh.soNVMoiTuyen)))
+                : 0
+            let soTuyenTong = Int(ceil(Double(tongNS) / Double(cauHinh.tongNhanSuMoiTuyen)))
+            let uocLuong = max(soTuyenTong, max(soTuyenTheoPG, soTuyenTheoNV))
+            let gioiHanTren = soDiemNong >= 2 ? min(8, soDiemNong) : 6
+            return max(2, min(min(6, gioiHanTren), uocLuong))
+        }
+        if soDiemNong >= 2 {
+            return min(4, soDiemNong)
+        }
+        return 4
+    }
+
+    private static func tenHuongTheoGoc(_ gocDo: Double) -> String {
+        let g = (gocDo.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+        switch g {
+        case 337.5..<360, 0..<22.5: return "Bắc"
+        case 22.5..<67.5: return "Đông Bắc"
+        case 67.5..<112.5: return "Đông"
+        case 112.5..<157.5: return "Đông Nam"
+        case 157.5..<202.5: return "Nam"
+        case 202.5..<247.5: return "Tây Nam"
+        case 247.5..<292.5: return "Tây"
+        default: return "Tây Bắc"
+        }
+    }
+
     static func taoCacTuyenTuKetQuaQuet(
         tamLat: Double,
         tamLon: Double,
         danhSach: [DiaDiemQuet],
-        banKinhMet: Double = 2000
+        banKinhMet: Double = 2000,
+        soTuyenMongMuon: Int = 4
     ) -> [TuyenPhatToRoiMaTran] {
+        let soTuyenMucTieu = max(1, min(8, soTuyenMongMuon))
         let diemNong = danhSach.filter { $0.loai != .heThongMWG }
         guard !diemNong.isEmpty else {
-            return [
-                TuyenPhatToRoiMaTran(id: "tuyen_1", soThuTu: 1, ten: "Tuyến 1 — Hướng Đông Bắc", moTaDiemNong: "Quét bản đồ để vẽ tuyến thực tế", soDiemNong: 0, cacToaDo: []),
-                TuyenPhatToRoiMaTran(id: "tuyen_2", soThuTu: 2, ten: "Tuyến 2 — Hướng Đông Nam", moTaDiemNong: "Quét bản đồ để vẽ tuyến thực tế", soDiemNong: 0, cacToaDo: []),
-                TuyenPhatToRoiMaTran(id: "tuyen_3", soThuTu: 3, ten: "Tuyến 3 — Hướng Tây Nam", moTaDiemNong: "Quét bản đồ để vẽ tuyến thực tế", soDiemNong: 0, cacToaDo: []),
-                TuyenPhatToRoiMaTran(id: "tuyen_4", soThuTu: 4, ten: "Tuyến 4 — Hướng Tây Bắc", moTaDiemNong: "Quét bản đồ để vẽ tuyến thực tế", soDiemNong: 0, cacToaDo: [])
-            ]
+            let tenMacDinh = ["Đông Bắc", "Đông Nam", "Tây Nam", "Tây Bắc", "Bắc", "Nam", "Đông", "Tây"]
+            return (0..<soTuyenMucTieu).map { i in
+                TuyenPhatToRoiMaTran(
+                    id: "tuyen_\(i + 1)",
+                    soThuTu: i + 1,
+                    ten: "Tuyến \(i + 1) — Hướng \(tenMacDinh[i % tenMacDinh.count])",
+                    moTaDiemNong: "Quét bản đồ để vẽ tuyến thực tế",
+                    soDiemNong: 0,
+                    cacToaDo: [],
+                    cacDiemMucTieu: []
+                )
+            }
         }
 
         // Trải đều các điểm nóng từ gần tâm ra tới rìa bán kính quét (không bị dồn cục quanh siêu thị!)
-        func taoChuoiToaDoTuyen(tu ds: [DiaDiemQuet]) -> [[Double]] {
+        func taoChuoiToaDoVaDiemTuyen(tu ds: [DiaDiemQuet]) -> (toaDo: [[Double]], diem: [DiemMucTieuTuyen]) {
             let kcToiThieuMet = max(180.0, banKinhMet * 0.14)
             let sapXepUuTien = ds.sorted { a, b in
                 if a.loai.diemUuTienToRoi != b.loai.diemUuTienToRoi {
                     return a.loai.diemUuTienToRoi > b.loai.diemUuTienToRoi
                 }
-                return a.khoangCachMet > b.khoangCachMet // ưu tiên phủ rộng ra ngoài bán kính
+                return a.khoangCachMet > b.khoangCachMet
             }
             var top: [DiaDiemQuet] = []
             for d in sapXepUuTien {
@@ -1222,7 +1402,8 @@ final class BoLapMaTranToRoiXoayVong {
             }
 
             var conLai = top
-            var ketQua: [[Double]] = [[tamLat, tamLon]]
+            var ketQuaToaDo: [[Double]] = [[tamLat, tamLon]]
+            var ketQuaDiem: [DiemMucTieuTuyen] = []
             var curLat = tamLat
             var curLon = tamLon
             while !conLai.isEmpty {
@@ -1236,30 +1417,93 @@ final class BoLapMaTranToRoiXoayVong {
                     }
                 }
                 let chon = conLai.remove(at: bestIdx)
-                ketQua.append([chon.viDo, chon.kinhDo])
+                ketQuaToaDo.append([chon.viDo, chon.kinhDo])
+                ketQuaDiem.append(DiemMucTieuTuyen(
+                    id: chon.id,
+                    ten: chon.ten,
+                    diaChi: chon.diaChi,
+                    loaiRaw: chon.loai.tieuDe,
+                    viDo: chon.viDo,
+                    kinhDo: chon.kinhDo
+                ))
                 curLat = chon.viDo
                 curLon = chon.kinhDo
             }
-            return ketQua
+            return (ketQuaToaDo, ketQuaDiem)
         }
 
-        let tenHuong = ["Đông Bắc", "Đông Nam", "Tây Nam", "Tây Bắc"]
-        var nhomHuong: [[DiaDiemQuet]] = [[], [], [], []]
-
-        for d in diemNong {
+        // Chia thành đúng `soTuyenMucTieu` cung quạt theo góc phương vị quanh siêu thị (nếu dữ liệu tập trung ít hướng, chia theo thứ tự góc đều nhau)
+        let diemTheoGoc: [(diem: DiaDiemQuet, goc: Double)] = diemNong.map { d in
             let dLat = d.viDo - tamLat
             let dLon = d.kinhDo - tamLon
-            let idx: Int
-            if dLat >= 0 && dLon >= 0 { idx = 0 }
-            else if dLat < 0 && dLon >= 0 { idx = 1 }
-            else if dLat < 0 && dLon < 0 { idx = 2 }
-            else { idx = 3 }
-            nhomHuong[idx].append(d)
+            let rad = atan2(dLon, dLat) // 0 = Bắc, 90 = Đông
+            let deg = (rad * 180.0 / .pi + 360.0).truncatingRemainder(dividingBy: 360.0)
+            return (d, deg)
+        }.sorted { $0.goc < $1.goc }
+
+        var nhomTuyen: [(tenHuong: String, ds: [DiaDiemQuet])] = []
+
+        if soTuyenMucTieu == 4 {
+            let ten4Huong = ["Đông Bắc", "Đông Nam", "Tây Nam", "Tây Bắc"]
+            var nhom4: [[DiaDiemQuet]] = [[], [], [], []]
+            for item in diemTheoGoc {
+                let idx = min(3, max(0, Int(item.goc / 90.0)))
+                nhom4[idx].append(item.diem)
+            }
+            for (i, ds) in nhom4.enumerated() where !ds.isEmpty {
+                nhomTuyen.append((ten4Huong[i], ds))
+            }
+        } else {
+            let soNhomThucTe = min(soTuyenMucTieu, diemTheoGoc.count)
+            let buocGoc = 360.0 / Double(soNhomThucTe)
+            var theoCung: [[DiaDiemQuet]] = Array(repeating: [], count: soNhomThucTe)
+            for item in diemTheoGoc {
+                let idx = min(soNhomThucTe - 1, max(0, Int(item.goc / buocGoc)))
+                theoCung[idx].append(item.diem)
+            }
+            let soCungCoDiem = theoCung.filter { !$0.isEmpty }.count
+            if soCungCoDiem >= max(2, soNhomThucTe - 1) {
+                for (i, ds) in theoCung.enumerated() where !ds.isEmpty {
+                    let gocGiua = (Double(i) + 0.5) * buocGoc
+                    nhomTuyen.append((tenHuongTheoGoc(gocGiua), ds))
+                }
+            } else {
+                // Nếu điểm nóng lệch về một phía bản đồ, chia đều số điểm theo góc tăng dần để vẫn đủ đúng số tuyến người dùng chọn
+                var startIdx = 0
+                for i in 0..<soNhomThucTe {
+                    let conLaiDiem = diemTheoGoc.count - startIdx
+                    let conLaiNhom = soNhomThucTe - i
+                    let count = max(1, Int(ceil(Double(conLaiDiem) / Double(conLaiNhom))))
+                    let endIdx = min(diemTheoGoc.count, startIdx + count)
+                    guard startIdx < endIdx else { break }
+                    let slice = diemTheoGoc[startIdx..<endIdx]
+                    let gocTB = slice.reduce(0.0) { $0 + $1.goc } / Double(slice.count)
+                    nhomTuyen.append((tenHuongTheoGoc(gocTB), slice.map { $0.diem }))
+                    startIdx = endIdx
+                }
+            }
+        }
+
+        if nhomTuyen.count == 1 && soTuyenMucTieu >= 2 && diemNong.count >= 2 {
+            let sorted = diemNong.sorted { $0.khoangCachMet < $1.khoangCachMet }
+            let soNhom = min(soTuyenMucTieu, sorted.count)
+            nhomTuyen = []
+            var startIdx = 0
+            for i in 0..<soNhom {
+                let conLaiDiem = sorted.count - startIdx
+                let conLaiNhom = soNhom - i
+                let count = max(1, Int(ceil(Double(conLaiDiem) / Double(conLaiNhom))))
+                let endIdx = min(sorted.count, startIdx + count)
+                guard startIdx < endIdx else { break }
+                let tenVanhDai = (i == 0) ? "Vành đai gần" : ((i == soNhom - 1) ? "Vành đai ngoài" : "Vành đai giữa \(i)")
+                nhomTuyen.append((tenVanhDai, Array(sorted[startIdx..<endIdx])))
+                startIdx = endIdx
+            }
         }
 
         var ketQua: [TuyenPhatToRoiMaTran] = []
-        var stt = 1
-        for (i, ds) in nhomHuong.enumerated() where !ds.isEmpty {
+        for (idx, nhom) in nhomTuyen.enumerated() {
+            let ds = nhom.ds
             let uuTien = ds.sorted { a, b in
                 if a.loai.diemUuTienToRoi != b.loai.diemUuTienToRoi {
                     return a.loai.diemUuTienToRoi > b.loai.diemUuTienToRoi
@@ -1271,41 +1515,17 @@ final class BoLapMaTranToRoiXoayVong {
             let soTH = ds.filter { $0.loai == .truongHoc }.count
             let soDT = ds.filter { $0.loai == .doiThu }.count
             let chiTiet = "\(topTen) (\(soCho) chợ, \(soTH) trường, \(soDT) đối thủ)"
+            let chuoi = taoChuoiToaDoVaDiemTuyen(tu: ds)
 
             ketQua.append(TuyenPhatToRoiMaTran(
-                id: "tuyen_huong_\(i)",
-                soThuTu: stt,
-                ten: "Tuyến \(stt) — Hướng \(tenHuong[i])",
+                id: "tuyen_chia_\(idx + 1)",
+                soThuTu: idx + 1,
+                ten: "Tuyến \(idx + 1) — \(nhom.tenHuong)",
                 moTaDiemNong: chiTiet,
                 soDiemNong: ds.count,
-                cacToaDo: taoChuoiToaDoTuyen(tu: ds)
+                cacToaDo: chuoi.toaDo,
+                cacDiemMucTieu: chuoi.diem
             ))
-            stt += 1
-        }
-
-        if ketQua.count == 1 && diemNong.count >= 4 {
-            let sorted = diemNong.sorted { $0.khoangCachMet < $1.khoangCachMet }
-            let mid = sorted.count / 2
-            let gan = Array(sorted[0..<mid])
-            let xa = Array(sorted[mid...])
-            return [
-                TuyenPhatToRoiMaTran(
-                    id: "tuyen_gan",
-                    soThuTu: 1,
-                    ten: "Tuyến 1 — Vành đai gần siêu thị",
-                    moTaDiemNong: gan.prefix(3).map { $0.ten }.joined(separator: ", "),
-                    soDiemNong: gan.count,
-                    cacToaDo: taoChuoiToaDoTuyen(tu: gan)
-                ),
-                TuyenPhatToRoiMaTran(
-                    id: "tuyen_xa",
-                    soThuTu: 2,
-                    ten: "Tuyến 2 — Vành đai mở rộng",
-                    moTaDiemNong: xa.prefix(3).map { $0.ten }.joined(separator: ", "),
-                    soDiemNong: xa.count,
-                    cacToaDo: taoChuoiToaDoTuyen(tu: xa)
-                )
-            ]
         }
 
         return ketQua
@@ -1315,14 +1535,16 @@ final class BoLapMaTranToRoiXoayVong {
     /// NGUYÊN TẮC CỐT LÕI:
     /// 1. Chỉ sử dụng PG / NV ĐANG LÀM VIỆC trong đúng buổi đó (Sáng dùng người ca Sáng/Gãy, Chiều dùng người ca Chiều/Gãy).
     /// 2. PG / NV nào ĐÃ PHÁT rồi thì TUYỆT ĐỐI KHÔNG PHÁT NỮA trong tuần đó (mỗi người tối đa 1 lần/tuần).
+    /// 3. Phân đúng số PG/tuyến và số NV/tuyến theo cấu hình người dùng chọn.
     static func lapMaTranTuan(
         cacTuyen: [TuyenPhatToRoiMaTran],
         khoiPG: KhoiLichTuanExcel?,
         khoiNV: KhoiLichTuanExcel?,
+        cauHinh: CauHinhPhanTuyenToRoi = KhoMaTranPhatToRoi.dungChung.taiCauHinhPhanTuyen(),
         giuTrangThaiCu: KeHoachMaTranTuan? = nil
     ) -> KeHoachMaTranTuan {
         let tuyenHopLe = cacTuyen.isEmpty
-            ? [TuyenPhatToRoiMaTran(id: "t1", soThuTu: 1, ten: "Tuyến 1", moTaDiemNong: "Chưa quét bản đồ", soDiemNong: 0, cacToaDo: [])]
+            ? [TuyenPhatToRoiMaTran(id: "t1", soThuTu: 1, ten: "Tuyến 1", moTaDiemNong: "Chưa quét bản đồ", soDiemNong: 0, cacToaDo: [], cacDiemMucTieu: [])]
             : cacTuyen
 
         let (khoaTuan, nhanTuanMacDinh) = tinhKhoaVaNhanTuan()
@@ -1347,7 +1569,6 @@ final class BoLapMaTranToRoiXoayVong {
         let dsPGAll = khoiPG?.danhSachNguoi ?? []
         let dsNVAll = khoiNV?.danhSachNguoi ?? []
 
-        // Đếm số buổi làm việc còn lại của mỗi người để ưu tiên xếp người ít buổi làm trước (tối đa hóa độ phủ cả tuần)
         func soBuoiLamConLai(_ nguoi: LichTuanMotNguoi, tuThu: Int) -> Int {
             var c = 0
             for t in tuThu..<min(7, nguoi.lich7Ngay.count) {
@@ -1359,36 +1580,29 @@ final class BoLapMaTranToRoiXoayVong {
 
         var cacO: [OMaTranPhatToRoi] = []
         var chiSoTuyen = 0
-        let tongSoBuoiTrongTuan = 14
 
         for thu in 0..<7 {
-            for (buoiIdx, buoi) in ["Sáng", "Chiều"].enumerated() {
+            for buoi in ["Sáng", "Chiều"] {
                 let laSang = (buoi == "Sáng")
                 let tuyen = tuyenHopLe[chiSoTuyen % tuyenHopLe.count]
-                let soBuoiConLaiKeCaNay = tongSoBuoiTrongTuan - (thu * 2 + buoiIdx)
                 chiSoTuyen += 1
 
-                // 1. Chọn PG ĐANG LÀM VIỆC buổi này VÀ CHƯA PHÁT LẦN NÀO trong tuần
+                // 1. Chọn PG ĐANG LÀM VIỆC buổi này VÀ CHƯA PHÁT LẦN NÀO trong tuần theo đúng số PG/tuyến
                 var pgChon: [String] = []
-                if !dsPGAll.isEmpty {
+                if !dsPGAll.isEmpty && cauHinh.soPGMoiTuyen > 0 {
                     let ungVienPG = dsPGAll.filter { nguoi in
                         let key = BoPhanTichLichCaExcel.chuanHoa(nguoi.ten)
                         guard !pgDaPhat.contains(key), thu < nguoi.lich7Ngay.count else { return false }
                         let ca = nguoi.lich7Ngay[thu]
                         return laSang ? ca.dangLamSang : ca.dangLamChieu
                     }.sorted { a, b in
-                        // Ưu tiên TUYỆT ĐỐI người ít lượt phát nhất trong THÁNG (0 lần lên đầu -> không bỏ sót ai!)
                         let lanThangA = KhoSoXoayTuaThang.dungChung.soLanTrongThang(ten: a.ten)
                         let lanThangB = KhoSoXoayTuaThang.dungChung.soLanTrongThang(ten: b.ten)
                         if lanThangA != lanThangB { return lanThangA < lanThangB }
                         return soBuoiLamConLai(a, tuThu: thu) < soBuoiLamConLai(b, tuThu: thu)
                     }
 
-                    // Tự điều tiết 1 hay 2 PG/buổi sao cho trải đều hết cả tuần mà không bị cạn người sớm
-                    let tongPGChuaPhat = dsPGAll.count - pgDaPhat.count
-                    let chiTieuPG = (tongPGChuaPhat >= soBuoiConLaiKeCaNay + 2) ? 2 : 1
-
-                    for p in ungVienPG.prefix(chiTieuPG) {
+                    for p in ungVienPG.prefix(cauHinh.soPGMoiTuyen) {
                         let ca = p.lich7Ngay[thu]
                         let chuThich = ca.gioLamGoc.isEmpty ? ca.nhanCaGoc : "\(ca.nhanCaGoc) \(ca.gioLamGoc)"
                         pgChon.append("\(p.ten) (\(chuThich))")
@@ -1396,26 +1610,22 @@ final class BoLapMaTranToRoiXoayVong {
                     }
                 }
 
-                // 2. Chọn NV siêu thị ĐANG LÀM VIỆC buổi này VÀ CHƯA PHÁT LẦN NÀO trong tuần
+                // 2. Chọn NV siêu thị ĐANG LÀM VIỆC buổi này VÀ CHƯA PHÁT LẦN NÀO trong tuần theo đúng số NV/tuyến
                 var nvChon: [String] = []
-                if !dsNVAll.isEmpty {
+                if !dsNVAll.isEmpty && cauHinh.soNVMoiTuyen > 0 {
                     let ungVienNV = dsNVAll.filter { nguoi in
                         let key = BoPhanTichLichCaExcel.chuanHoa(nguoi.ten)
                         guard !nvDaPhat.contains(key), thu < nguoi.lich7Ngay.count else { return false }
                         let ca = nguoi.lich7Ngay[thu]
                         return laSang ? ca.dangLamSang : ca.dangLamChieu
                     }.sorted { a, b in
-                        // Ưu tiên TUYỆT ĐỐI người ít lượt phát nhất trong THÁNG (0 lần lên đầu -> không bỏ sót ai!)
                         let lanThangA = KhoSoXoayTuaThang.dungChung.soLanTrongThang(ten: a.ten)
                         let lanThangB = KhoSoXoayTuaThang.dungChung.soLanTrongThang(ten: b.ten)
                         if lanThangA != lanThangB { return lanThangA < lanThangB }
                         return soBuoiLamConLai(a, tuThu: thu) < soBuoiLamConLai(b, tuThu: thu)
                     }
 
-                    let tongNVChuaPhat = dsNVAll.count - nvDaPhat.count
-                    let chiTieuNV = (tongNVChuaPhat >= soBuoiConLaiKeCaNay + 2) ? 2 : 1
-
-                    for nv in ungVienNV.prefix(chiTieuNV) {
+                    for nv in ungVienNV.prefix(cauHinh.soNVMoiTuyen) {
                         let ca = nv.lich7Ngay[thu]
                         let chuThich = ca.gioLamGoc.isEmpty ? ca.nhanCaGoc : "\(ca.nhanCaGoc) \(ca.gioLamGoc)"
                         nvChon.append("\(nv.ten) (\(chuThich))")
@@ -1447,8 +1657,8 @@ final class BoLapMaTranToRoiXoayVong {
             nhanTuan: nhanTuan,
             cacTuyen: tuyenHopLe,
             cacO: cacO,
-            tenNguonPG: khoiPG.map { "\($0.tenSheet) – \($0.tenTuan) (\($0.danhSachNguoi.count) PG)" } ?? "Chưa nhập lịch PG",
-            tenNguonNV: khoiNV.map { "\($0.tenSheet) – \($0.tenTuan) (\($0.danhSachNguoi.count) NV)" } ?? "Chưa nhập lịch NV",
+            tenNguonPG: khoiPG.map { "\($0.tenSheet) – \($0.tenTuan) (\($0.danhSachNguoi.count) PG)" } ?? "Chưa tải Trang tính PG",
+            tenNguonNV: khoiNV.map { "\($0.tenSheet) – \($0.tenTuan) (\($0.danhSachNguoi.count) NV)" } ?? "Chưa tải Trang tính NV",
             tongPGDaPhan: pgDaPhat.count,
             tongPGCoLich: dsPGAll.count,
             danhSachPGChuaDuocPhan: dsPGChuaDuocPhan
