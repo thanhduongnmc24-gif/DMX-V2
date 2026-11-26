@@ -400,7 +400,7 @@ final class BoPhanTichLichCaExcel {
 
         for sheet in sheets {
             let tenLow = chuanHoa(sheet.tenSheet)
-            if tenLow.contains("dung cua") || tenLow == "ict" || tenLow.contains("truyen thong") {
+            if tenLow.contains("muc luc") || tenLow.contains("dung cua") || tenLow.contains("bao cao") || tenLow == "ict" || tenLow.contains("truyen thong") {
                 continue
             }
             tatCaKhoi.append(contentsOf: tachCacKhoiTuan(trong: sheet, nhom: nhom))
