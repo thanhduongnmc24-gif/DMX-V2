@@ -1197,22 +1197,46 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
     private let nutChiaSeAnh = UIButton(type: .system)
 
     // Kết quả 3 phong cách bài đăng Facebook
+    private static let goiYMacDinhBaiDangFB = "Nội dung bài đăng Facebook theo 3 phong cách (Hài hước, Chuyên nghiệp, Chốt sale) sẽ hiển thị ở đây sau khi tạo."
     private var baiDang = KetQua3BaiDangFacebook()
     private let chonPhongCachBai = UISegmentedControl(items: ["😄 Hài hước", "💼 Chuyên nghiệp", "🔥 Chốt sale"])
     private let oBaiDangFB = UITextView()
     private let nutCopyBaiDang = UIButton(type: .system)
     private var chiSoPhongCachHienTai = 0
 
+    // Tự đăng bài lên Fanpage Facebook (khóa Keychain cục bộ tách theo tài khoản)
+    private var danhSachFanpageFB: [ThongTinFanpageFacebook] = []
+    private var pageIdFBDangChon: String = ""
+    private let nhanTaiKhoanFB = UILabel()
+    private let nutChonFanpageFB = UIButton(type: .system)
+    private let nutQuanLyKhoaFB = UIButton(type: .system)
+    private let chonLoaiDinhKemFB = UISegmentedControl(items: ["🖼️ Ảnh + Bài", "🎬 Video + Bài", "📝 Chỉ chữ"])
+    private let congTacHenGioFB = UISwitch()
+    private let nganHenGioFB = UIStackView()
+    private let chonThoiGianHenGioFB = UIDatePicker()
+    private let nutDangLenFanpageFB = UIButton(type: .system)
+    private let vongQuayDangFB = UIActivityIndicatorView(style: .medium)
+    private let nhanTrangThaiDangFB = UILabel()
+    private var dangDangBaiFB = false
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = BangMauBCTD.nenTrang
         dungGiaoDien()
         khoiPhucPhienLamViec()
+        napLaiDanhSachFanpageFB()
         let chamAnBanPhim = UITapGestureRecognizer(target: self, action: #selector(anBanPhim))
         chamAnBanPhim.cancelsTouchesInView = false
         view.addGestureRecognizer(chamAnBanPhim)
         NotificationCenter.default.addObserver(self, selector: #selector(luuPhienKhiVaoNen), name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(luuPhienKhiVaoNen), name: UIApplication.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(napLaiDanhSachFanpageFB), name: .duLieuDMXDaDongBo, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(napLaiDanhSachFanpageFB), name: .taiKhoanDMXBiDangXuat, object: nil)
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        napLaiDanhSachFanpageFB()
     }
 
     deinit {
@@ -1289,6 +1313,7 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         ngan.addArrangedSubview(taoTheAnhKetQua())
         ngan.addArrangedSubview(taoTheVideoKetQua())
         ngan.addArrangedSubview(taoTheBaiDangFacebook())
+        ngan.addArrangedSubview(taoTheDangFanpageFacebook())
 
         dungKhungGoogleFlow()
     }
@@ -5182,6 +5207,341 @@ final class ManHinhTruyenThong: UIViewController, PHPickerViewControllerDelegate
         stack.addArrangedSubview(nutCopyBaiDang)
 
         return the
+    }
+
+    private func taoTheDangFanpageFacebook() -> UIView {
+        let (the, stack) = taoKhungThe(tieuDe: "6. Tự đăng bài lên Fanpage Facebook")
+
+        nhanTaiKhoanFB.font = .systemFont(ofSize: 12, weight: .semibold)
+        nhanTaiKhoanFB.textColor = BangMauBCTD.xanhChuDaoDam
+        nhanTaiKhoanFB.numberOfLines = 0
+        nhanTaiKhoanFB.lineBreakMode = .byWordWrapping
+        nhanTaiKhoanFB.adjustsFontSizeToFitWidth = false
+        stack.addArrangedSubview(nhanTaiKhoanFB)
+
+        nutChonFanpageFB.contentHorizontalAlignment = .left
+        nutChonFanpageFB.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .semibold)
+        nutChonFanpageFB.titleLabel?.numberOfLines = 0
+        nutChonFanpageFB.titleLabel?.lineBreakMode = .byWordWrapping
+        nutChonFanpageFB.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutChonFanpageFB.setTitleColor(BangMauBCTD.chuChinh, for: .normal)
+        nutChonFanpageFB.backgroundColor = BangMauBCTD.nenThePhu
+        nutChonFanpageFB.layer.cornerRadius = 10
+        nutChonFanpageFB.layer.borderWidth = 1
+        nutChonFanpageFB.layer.borderColor = BangMauBCTD.vienDam.cgColor
+        nutChonFanpageFB.contentEdgeInsets = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+        nutChonFanpageFB.addTarget(self, action: #selector(bamNutChonFanpageKhiChuaCo), for: .touchUpInside)
+        stack.addArrangedSubview(nutChonFanpageFB)
+
+        nutQuanLyKhoaFB.setTitle("🔐 Quản lý khóa Fanpage (Keychain • Face ID)", for: .normal)
+        nutQuanLyKhoaFB.titleLabel?.font = .systemFont(ofSize: 13.5, weight: .bold)
+        nutQuanLyKhoaFB.titleLabel?.numberOfLines = 0
+        nutQuanLyKhoaFB.titleLabel?.lineBreakMode = .byWordWrapping
+        nutQuanLyKhoaFB.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutQuanLyKhoaFB.backgroundColor = BangMauBCTD.nenTrang
+        nutQuanLyKhoaFB.setTitleColor(BangMauBCTD.xanhChuDao, for: .normal)
+        nutQuanLyKhoaFB.layer.cornerRadius = 10
+        nutQuanLyKhoaFB.layer.borderWidth = 1.2
+        nutQuanLyKhoaFB.layer.borderColor = BangMauBCTD.xanhChuDao.cgColor
+        nutQuanLyKhoaFB.contentEdgeInsets = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+        nutQuanLyKhoaFB.addTarget(self, action: #selector(bamMoQuanLyKhoaFB), for: .touchUpInside)
+        stack.addArrangedSubview(nutQuanLyKhoaFB)
+
+        stack.addArrangedSubview(taoNhanNho("Nội dung đính kèm khi đăng:"))
+        chonLoaiDinhKemFB.selectedSegmentIndex = 0
+        chonLoaiDinhKemFB.selectedSegmentTintColor = BangMauBCTD.xanhChuDao
+        chonLoaiDinhKemFB.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: BangMauBCTD.chuChinh], for: .normal)
+        chonLoaiDinhKemFB.setTitleTextAttributes([.font: UIFont.systemFont(ofSize: 12, weight: .bold), .foregroundColor: UIColor.white], for: .selected)
+        stack.addArrangedSubview(chonLoaiDinhKemFB)
+
+        let nhanHenGio = taoNhanNho("Hẹn giờ đăng trên Facebook (11 phút – 29 ngày):")
+        nhanHenGio.font = .systemFont(ofSize: 13, weight: .semibold)
+        nhanHenGio.textColor = BangMauBCTD.chuChinh
+        congTacHenGioFB.onTintColor = BangMauBCTD.xanhChuDao
+        congTacHenGioFB.isOn = false
+        congTacHenGioFB.addTarget(self, action: #selector(doiCheDoHenGioFB), for: .valueChanged)
+        let hangBatHenGio = UIStackView(arrangedSubviews: [nhanHenGio, congTacHenGioFB])
+        hangBatHenGio.axis = .horizontal
+        hangBatHenGio.alignment = .center
+        hangBatHenGio.distribution = .equalSpacing
+        hangBatHenGio.spacing = 8
+        stack.addArrangedSubview(hangBatHenGio)
+
+        nganHenGioFB.axis = .vertical
+        nganHenGioFB.spacing = 6
+        nganHenGioFB.isHidden = true
+        chonThoiGianHenGioFB.datePickerMode = .dateAndTime
+        chonThoiGianHenGioFB.locale = Locale(identifier: "vi_VN")
+        chonThoiGianHenGioFB.preferredDatePickerStyle = .compact
+        chonThoiGianHenGioFB.date = Date().addingTimeInterval(30 * 60)
+        chonThoiGianHenGioFB.minimumDate = Date().addingTimeInterval(12 * 60)
+        chonThoiGianHenGioFB.maximumDate = Date().addingTimeInterval(29 * 24 * 3600)
+        let hangChonGioFB = UIStackView(arrangedSubviews: [taoNhanNho("Thời điểm đăng:"), chonThoiGianHenGioFB])
+        hangChonGioFB.axis = .horizontal
+        hangChonGioFB.alignment = .center
+        hangChonGioFB.distribution = .equalSpacing
+        nganHenGioFB.addArrangedSubview(hangChonGioFB)
+        stack.addArrangedSubview(nganHenGioFB)
+
+        nutDangLenFanpageFB.setTitle("🚀 Đăng ngay lên Fanpage", for: .normal)
+        nutDangLenFanpageFB.titleLabel?.font = .systemFont(ofSize: 15, weight: .bold)
+        nutDangLenFanpageFB.titleLabel?.numberOfLines = 0
+        nutDangLenFanpageFB.titleLabel?.lineBreakMode = .byWordWrapping
+        nutDangLenFanpageFB.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutDangLenFanpageFB.backgroundColor = BangMauBCTD.xanhChuDao
+        nutDangLenFanpageFB.setTitleColor(.white, for: .normal)
+        nutDangLenFanpageFB.layer.cornerRadius = 11
+        nutDangLenFanpageFB.contentEdgeInsets = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        nutDangLenFanpageFB.addTarget(self, action: #selector(bamDangLenFanpageFB), for: .touchUpInside)
+        stack.addArrangedSubview(nutDangLenFanpageFB)
+
+        vongQuayDangFB.hidesWhenStopped = true
+        nhanTrangThaiDangFB.font = .systemFont(ofSize: 12.5, weight: .medium)
+        nhanTrangThaiDangFB.textColor = BangMauBCTD.chuPhu
+        nhanTrangThaiDangFB.numberOfLines = 0
+        nhanTrangThaiDangFB.lineBreakMode = .byWordWrapping
+        nhanTrangThaiDangFB.adjustsFontSizeToFitWidth = false
+        nhanTrangThaiDangFB.text = "Khóa Fanpage lưu riêng trong iOS Keychain của tài khoản đang đăng nhập, không đồng bộ đám mây."
+        let hangTrangThaiFB = UIStackView(arrangedSubviews: [vongQuayDangFB, nhanTrangThaiDangFB])
+        hangTrangThaiFB.axis = .horizontal
+        hangTrangThaiFB.spacing = 8
+        hangTrangThaiFB.alignment = .center
+        stack.addArrangedSubview(hangTrangThaiFB)
+
+        return the
+    }
+
+    @objc private func napLaiDanhSachFanpageFB() {
+        let tenTK = KhoKeychainFacebookFanpage.dungChung.tenHienThiTaiKhoanHienTai
+        nhanTaiKhoanFB.text = "🛡️ Keychain cục bộ • Tài khoản: \(tenTK) (chỉ trên máy này)"
+        danhSachFanpageFB = KhoKeychainFacebookFanpage.dungChung.layDanhSachFanpage()
+        if !danhSachFanpageFB.contains(where: { $0.pageId == pageIdFBDangChon }) {
+            let luuGanNhat = KhoKeychainFacebookFanpage.dungChung.layPageIdDangChon() ?? ""
+            if danhSachFanpageFB.contains(where: { $0.pageId == luuGanNhat }) {
+                pageIdFBDangChon = luuGanNhat
+            } else {
+                pageIdFBDangChon = danhSachFanpageFB.first?.pageId ?? ""
+            }
+        }
+        capNhatMenuFanpageFB()
+    }
+
+    private func capNhatMenuFanpageFB() {
+        if danhSachFanpageFB.isEmpty {
+            nutChonFanpageFB.menu = nil
+            nutChonFanpageFB.showsMenuAsPrimaryAction = false
+            nutChonFanpageFB.setTitle("📘 Chưa kết nối Fanpage — Chạm để thêm khóa FB", for: .normal)
+            return
+        }
+        let actions = danhSachFanpageFB.map { page in
+            UIAction(
+                title: "\(page.tenFanpage) (\(page.moTaTokenAn))",
+                state: page.pageId == pageIdFBDangChon ? .on : .off
+            ) { [weak self] _ in
+                guard let self else { return }
+                self.pageIdFBDangChon = page.pageId
+                KhoKeychainFacebookFanpage.dungChung.luuPageIdDangChon(page.pageId)
+                self.capNhatMenuFanpageFB()
+            }
+        }
+        nutChonFanpageFB.menu = UIMenu(title: "Chọn Fanpage đăng bài", children: actions)
+        nutChonFanpageFB.showsMenuAsPrimaryAction = true
+        if let dangChon = danhSachFanpageFB.first(where: { $0.pageId == pageIdFBDangChon }) {
+            nutChonFanpageFB.setTitle("📘 \(dangChon.tenFanpage) (\(dangChon.moTaTokenAn)) ▾", for: .normal)
+        }
+    }
+
+    @objc private func bamNutChonFanpageKhiChuaCo() {
+        if danhSachFanpageFB.isEmpty {
+            bamMoQuanLyKhoaFB()
+        }
+    }
+
+    @objc private func doiCheDoHenGioFB() {
+        let bat = congTacHenGioFB.isOn
+        nganHenGioFB.isHidden = !bat
+        if bat {
+            let mocToiThieu = Date().addingTimeInterval(12 * 60)
+            chonThoiGianHenGioFB.minimumDate = mocToiThieu
+            chonThoiGianHenGioFB.maximumDate = Date().addingTimeInterval(29 * 24 * 3600)
+            if chonThoiGianHenGioFB.date < mocToiThieu {
+                chonThoiGianHenGioFB.date = Date().addingTimeInterval(30 * 60)
+            }
+        }
+        nutDangLenFanpageFB.setTitle(bat ? "⏰ Hẹn giờ đăng lên Fanpage" : "🚀 Đăng ngay lên Fanpage", for: .normal)
+    }
+
+    @objc private func bamMoQuanLyKhoaFB() {
+        view.endEditing(true)
+        KhoKeychainFacebookFanpage.dungChung.xacThucChuThietBi { [weak self] kq in
+            guard let self else { return }
+            switch kq {
+            case .success:
+                let manHinh = ManHinhQuanLyFacebookFanpage()
+                manHinh.khiThayDoiDanhSach = { [weak self] in
+                    self?.napLaiDanhSachFanpageFB()
+                }
+                let nav = UINavigationController(rootViewController: manHinh)
+                nav.modalPresentationStyle = .pageSheet
+                self.present(nav, animated: true)
+            case .failure(let loi):
+                self.nhanTrangThaiDangFB.text = "🔒 \(loi.localizedDescription)"
+                self.nhanTrangThaiDangFB.textColor = .systemOrange
+            }
+        }
+    }
+
+    private func layNoiDungBaiDangThucTe() -> String {
+        let raw = (oBaiDangFB.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw == Self.goiYMacDinhBaiDangFB { return "" }
+        return raw
+    }
+
+    @objc private func bamDangLenFanpageFB() {
+        view.endEditing(true)
+        guard !dangDangBaiFB else { return }
+        guard let fanpage = danhSachFanpageFB.first(where: { $0.pageId == pageIdFBDangChon }) else {
+            let tb = UIAlertController(
+                title: "Chưa kết nối Fanpage Facebook",
+                message: "Tài khoản này chưa lưu khóa Fanpage nào trong Keychain trên máy. Bạn có muốn mở mục Quản lý khóa FB để thêm không?",
+                preferredStyle: .alert
+            )
+            tb.addAction(UIAlertAction(title: "Để sau", style: .cancel))
+            tb.addAction(UIAlertAction(title: "Mở Quản lý khóa FB", style: .default) { [weak self] _ in
+                self?.bamMoQuanLyKhoaFB()
+            })
+            present(tb, animated: true)
+            return
+        }
+
+        let noiDung = layNoiDungBaiDangThucTe()
+        let loai = chonLoaiDinhKemFB.selectedSegmentIndex
+        var anhGui: UIImage? = nil
+        var videoGui: URL? = nil
+        let tenCheDo: String
+
+        if loai == 0 {
+            guard let img = anhKetQua else {
+                hienThongBao(tieuDe: "Chưa có ảnh poster", noiDung: "Hãy tạo ảnh truyền thông trước hoặc chuyển sang chế độ “🎬 Video + Bài” / “📝 Chỉ chữ”.")
+                return
+            }
+            anhGui = img
+            tenCheDo = "🖼️ Ảnh poster + Bài viết"
+        } else if loai == 1 {
+            guard let vUrl = videoKetQuaURL, FileManager.default.fileExists(atPath: vUrl.path) else {
+                hienThongBao(tieuDe: "Chưa có video", noiDung: "Hãy tạo video Google Flow trước hoặc chuyển sang chế độ “🖼️ Ảnh + Bài” / “📝 Chỉ chữ”.")
+                return
+            }
+            videoGui = vUrl
+            tenCheDo = "🎬 Video + Bài viết"
+        } else {
+            guard !noiDung.isEmpty else {
+                hienThongBao(tieuDe: "Chưa có nội dung bài viết", noiDung: "Hãy tạo bài viết Facebook hoặc nhập nội dung vào ô bài đăng ở mục 5 trước khi đăng.")
+                return
+            }
+            tenCheDo = "📝 Chỉ bài viết"
+        }
+
+        let henGio: Date? = congTacHenGioFB.isOn ? chonThoiGianHenGioFB.date : nil
+        if let moc = henGio {
+            if moc.timeIntervalSinceNow < 11 * 60 {
+                hienThongBao(tieuDe: "Thời gian hẹn giờ quá gần", noiDung: "Facebook yêu cầu thời điểm hẹn giờ phải cách hiện tại ít nhất 11 phút.")
+                return
+            }
+            if moc.timeIntervalSinceNow > 29 * 24 * 3600 {
+                hienThongBao(tieuDe: "Thời gian hẹn giờ quá xa", noiDung: "Facebook chỉ hỗ trợ hẹn giờ tối đa trong vòng 29 ngày tới.")
+                return
+            }
+        }
+
+        let dinhDangGio = DateFormatter()
+        dinhDangGio.locale = Locale(identifier: "vi_VN")
+        dinhDangGio.dateFormat = "HH:mm dd/MM/yyyy"
+        let dongThoiGian = henGio.map { "⏰ Hẹn giờ: \(dinhDangGio.string(from: $0))" } ?? "🚀 Đăng công khai ngay"
+        let tomTatNoiDung = noiDung.isEmpty
+            ? "(Không kèm chữ)"
+            : String(noiDung.prefix(160)) + (noiDung.count > 160 ? "…" : "")
+
+        let hopXacNhan = UIAlertController(
+            title: henGio == nil ? "Xác nhận đăng lên Fanpage?" : "Xác nhận hẹn giờ đăng bài?",
+            message: "Fanpage: \(fanpage.tenFanpage)\nHình thức: \(tenCheDo)\n\(dongThoiGian)\n\nNội dung:\n\(tomTatNoiDung)",
+            preferredStyle: .alert
+        )
+        hopXacNhan.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+        hopXacNhan.addAction(UIAlertAction(title: henGio == nil ? "Đăng ngay" : "Hẹn giờ đăng", style: .default) { [weak self] _ in
+            self?.thucThiDangLenFanpageFB(
+                fanpage: fanpage,
+                noiDung: noiDung,
+                anh: anhGui,
+                videoURL: videoGui,
+                thoiGianHenGio: henGio
+            )
+        })
+        present(hopXacNhan, animated: true)
+    }
+
+    private func thucThiDangLenFanpageFB(
+        fanpage: ThongTinFanpageFacebook,
+        noiDung: String,
+        anh: UIImage?,
+        videoURL: URL?,
+        thoiGianHenGio: Date?
+    ) {
+        dangDangBaiFB = true
+        nutDangLenFanpageFB.isEnabled = false
+        nutQuanLyKhoaFB.isEnabled = false
+        vongQuayDangFB.startAnimating()
+        nhanTrangThaiDangFB.textColor = BangMauBCTD.xanhChuDao
+        nhanTrangThaiDangFB.text = videoURL != nil
+            ? "⏳ Đang tải video lên Fanpage \(fanpage.tenFanpage)…"
+            : (anh != nil ? "⏳ Đang tải ảnh poster lên Fanpage \(fanpage.tenFanpage)…" : "⏳ Đang gửi bài viết lên Fanpage \(fanpage.tenFanpage)…")
+
+        DichVuFacebookFanpage.dungChung.dangBaiLenFanpage(
+            pageId: fanpage.pageId,
+            noiDung: noiDung,
+            anh: anh,
+            videoURL: videoURL,
+            thoiGianHenGio: thoiGianHenGio
+        ) { [weak self] ketQua in
+            guard let self else { return }
+            self.dangDangBaiFB = false
+            self.nutDangLenFanpageFB.isEnabled = true
+            self.nutQuanLyKhoaFB.isEnabled = true
+            self.vongQuayDangFB.stopAnimating()
+
+            switch ketQua {
+            case .success(let kq):
+                let dinhDang = DateFormatter()
+                dinhDang.locale = Locale(identifier: "vi_VN")
+                dinhDang.dateFormat = "HH:mm dd/MM/yyyy"
+                let thongDiep: String
+                if kq.laHenGio, let moc = kq.thoiGianHenGio {
+                    thongDiep = "✅ Đã hẹn giờ đăng lên Fanpage \"\(fanpage.tenFanpage)\" lúc \(dinhDang.string(from: moc))."
+                } else {
+                    thongDiep = "✅ Đã đăng thành công lên Fanpage \"\(fanpage.tenFanpage)\"!"
+                }
+                self.nhanTrangThaiDangFB.textColor = BangMauBCTD.xanhLaDam
+                self.nhanTrangThaiDangFB.text = thongDiep
+
+                let tb = UIAlertController(
+                    title: kq.laHenGio ? "⏰ Đã hẹn giờ đăng bài" : "✅ Đã đăng lên Facebook",
+                    message: thongDiep,
+                    preferredStyle: .alert
+                )
+                if let urlBai = kq.duongDanBai, !kq.laHenGio {
+                    tb.addAction(UIAlertAction(title: "🌐 Mở bài trên Facebook", style: .default) { _ in
+                        UIApplication.shared.open(urlBai)
+                    })
+                }
+                tb.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+                self.present(tb, animated: true)
+
+            case .failure(let loi):
+                self.nhanTrangThaiDangFB.textColor = .systemRed
+                self.nhanTrangThaiDangFB.text = "⚠️ \(loi.localizedDescription)"
+                self.hienThongBao(tieuDe: "Chưa đăng được lên Facebook", noiDung: loi.localizedDescription)
+            }
+        }
     }
 
     // MARK: - Chọn ảnh mẫu

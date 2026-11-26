@@ -758,6 +758,25 @@ final class ManHinhQuanLyTaiKhoan: UIViewController, UITableViewDataSource, UITa
     }
 
     @objc private func bamDangXuat() {
+        if KhoKeychainFacebookFanpage.dungChung.coKhoaDaLuuCuaTaiKhoanHienTai() {
+            let tb = UIAlertController(
+                title: "Đăng xuất tài khoản DMX?",
+                message: "Tài khoản này đang lưu khóa Fanpage Facebook trong Keychain trên máy (tài khoản khác đăng nhập sẽ không thấy). Bạn muốn giữ lại hay xóa luôn khóa trên máy này?",
+                preferredStyle: .alert
+            )
+            tb.addAction(UIAlertAction(title: "Đăng xuất (giữ khóa trên máy)", style: .default) { _ in
+                DichVuDongBo.dungChung.dangXuat()
+                (UIApplication.shared.delegate as? UyQuyenUngDung)?.hienThiDangNhap()
+            })
+            tb.addAction(UIAlertAction(title: "Đăng xuất & Xóa khóa FB máy này", style: .destructive) { _ in
+                KhoKeychainFacebookFanpage.dungChung.xoaTatCaCuaTaiKhoanHienTai()
+                DichVuDongBo.dungChung.dangXuat()
+                (UIApplication.shared.delegate as? UyQuyenUngDung)?.hienThiDangNhap()
+            })
+            tb.addAction(UIAlertAction(title: "Huỷ", style: .cancel))
+            present(tb, animated: true)
+            return
+        }
         DichVuDongBo.dungChung.dangXuat()
         (UIApplication.shared.delegate as? UyQuyenUngDung)?.hienThiDangNhap()
     }

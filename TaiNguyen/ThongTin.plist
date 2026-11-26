@@ -16,6 +16,7 @@
 <key>NSPhotoLibraryUsageDescription</key><string>Ứng dụng cần quyền truy cập Thư viện ảnh để chọn ảnh chụp màn hình tổng hợp số liệu.</string>
 <key>NSPhotoLibraryAddUsageDescription</key><string>Ứng dụng cần quyền lưu ảnh bảng tổng hợp vào Thư viện ảnh.</string>
 <key>NSLocationWhenInUseUsageDescription</key><string>Ứng dụng cần quyền vị trí để đặt tâm quét đối thủ, trường học, chợ và vẽ tuyến đường phát tờ rơi.</string>
+<key>NSFaceIDUsageDescription</key><string>Ứng dụng dùng Face ID để bảo vệ thao tác xem, thêm hoặc xóa khóa kết nối Fanpage Facebook trên thiết bị này.</string>
 <key>LSApplicationQueriesSchemes</key>
 <array><string>comgooglemaps</string></array>
 <key>UIBackgroundModes</key>
