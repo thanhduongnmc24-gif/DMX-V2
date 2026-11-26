@@ -464,6 +464,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
     private lazy var manHinhTrinhDuyetNhung = ManHinhTrinhDuyet(ngay: ngayHienTai)
     private let khungTruyenThong = UIView()
     private lazy var manHinhTruyenThongNhung = ManHinhTruyenThong()
+    private let khungBanDoKhuVuc = UIView()
+    private lazy var manHinhBanDoKhuVucNhung = ManHinhBanDoKhuVuc()
     private let khungMucMoRong = UIView()
     private let bangGuiBaoCao = BangGuiBaoCaoView()
     private let bieuTuongMucMoRong = UIImageView()
@@ -1284,6 +1286,7 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         taoKhungQuanTri()
         taoKhungTrinhDuyet()
         taoKhungTruyenThong()
+        taoKhungBanDoKhuVuc()
         taoKhungMucMoRong()
         taoMenuTruotBenTrai()
         taoLopPhuTienTrinh()
@@ -2904,6 +2907,29 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         ])
     }
 
+    private func taoKhungBanDoKhuVuc() {
+        khungBanDoKhuVuc.backgroundColor = BangMauBCTD.nenTrang
+        khungBanDoKhuVuc.isHidden = true
+        khungBanDoKhuVuc.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(khungBanDoKhuVuc)
+
+        addChild(manHinhBanDoKhuVucNhung)
+        manHinhBanDoKhuVucNhung.view.translatesAutoresizingMaskIntoConstraints = false
+        khungBanDoKhuVuc.addSubview(manHinhBanDoKhuVucNhung.view)
+        manHinhBanDoKhuVucNhung.didMove(toParent: self)
+
+        NSLayoutConstraint.activate([
+            khungBanDoKhuVuc.topAnchor.constraint(equalTo: khungThanhDieuHuong.bottomAnchor),
+            khungBanDoKhuVuc.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            khungBanDoKhuVuc.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            khungBanDoKhuVuc.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            manHinhBanDoKhuVucNhung.view.topAnchor.constraint(equalTo: khungBanDoKhuVuc.topAnchor),
+            manHinhBanDoKhuVucNhung.view.leadingAnchor.constraint(equalTo: khungBanDoKhuVuc.leadingAnchor),
+            manHinhBanDoKhuVucNhung.view.trailingAnchor.constraint(equalTo: khungBanDoKhuVuc.trailingAnchor),
+            manHinhBanDoKhuVucNhung.view.bottomAnchor.constraint(equalTo: khungBanDoKhuVuc.bottomAnchor)
+        ])
+    }
+
     private func taoKhungMucMoRong() {
         khungMucMoRong.backgroundColor = BangMauBCTD.nenTrang
         khungMucMoRong.isHidden = true
@@ -3748,6 +3774,9 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         case .truyenThong:
             break
 
+        case .banDoKhuVuc:
+            break
+
         default:
             capNhatNoiDungMucMoRong(mucMenuChinh)
         }
@@ -3782,7 +3811,8 @@ final class ManHinhChinh: UIViewController, PHPickerViewControllerDelegate, UIDo
         khungQuanTri.isHidden = (mucMenuChinh != .quanTri)
         khungTrinhDuyet.isHidden = (mucMenuChinh != .trinhDuyet)
         khungTruyenThong.isHidden = (mucMenuChinh != .truyenThong)
-        khungMucMoRong.isHidden = (mucMenuChinh == .doSoXemSo || laManHinhNhanVien || laManHinhTonKho || mucMenuChinh == .tongQuan || mucMenuChinh == .baoCao || laCaiDat || mucMenuChinh == .quanTri || mucMenuChinh == .trinhDuyet || mucMenuChinh == .truyenThong)
+        khungBanDoKhuVuc.isHidden = (mucMenuChinh != .banDoKhuVuc)
+        khungMucMoRong.isHidden = (mucMenuChinh == .doSoXemSo || laManHinhNhanVien || laManHinhTonKho || mucMenuChinh == .tongQuan || mucMenuChinh == .baoCao || laCaiDat || mucMenuChinh == .quanTri || mucMenuChinh == .trinhDuyet || mucMenuChinh == .truyenThong || mucMenuChinh == .banDoKhuVuc)
 
         guard mucMenuChinh == .doSoXemSo || laManHinhNhanVien || laManHinhTonKho else { return }
 
