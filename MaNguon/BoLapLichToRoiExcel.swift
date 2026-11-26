@@ -933,9 +933,22 @@ final class BoQuetAnhLichCaGemini {
 
 struct TuyenPhatToRoiMaTran: Codable, Equatable {
     let id: String
+    let soThuTu: Int
     var ten: String
     var moTaDiemNong: String
     var soDiemNong: Int
+    /// Danh sách tọa độ [lat, lon] bắt đầu từ tâm siêu thị qua các điểm nóng của tuyến này để vẽ trực tiếp trên bản đồ
+    var cacToaDo: [[Double]]
+
+    var mauTuyen: UIColor {
+        let bangMau: [UIColor] = [
+            UIColor(red: 0.09, green: 0.64, blue: 0.29, alpha: 1.0), // Tuyến 1: Xanh lá đậm
+            UIColor(red: 0.14, green: 0.39, blue: 0.92, alpha: 1.0), // Tuyến 2: Xanh dương
+            UIColor(red: 0.92, green: 0.35, blue: 0.05, alpha: 1.0), // Tuyến 3: Cam đậm
+            UIColor(red: 0.58, green: 0.20, blue: 0.92, alpha: 1.0)  // Tuyến 4: Tím nổi bật
+        ]
+        return bangMau[max(0, soThuTu - 1) % bangMau.count]
+    }
 }
 
 struct OMaTranPhatToRoi: Codable, Equatable {
@@ -1059,20 +1072,175 @@ final class KhoMaTranPhatToRoi {
     }
 }
 
+// MARK: - Sổ Xoay Tua Theo Tháng (Đảm Bảo 100% PG/NV Đều Đi Phát, Không Bỏ Sót Ai)
+
+struct BanGhiXoayTuaThang: Codable, Equatable {
+    var tenGoc: String
+    var nhom: NhomNhanSuLich
+    var cacTuanDaPhat: [String]
+}
+
+final class KhoSoXoayTuaThang {
+    static let dungChung = KhoSoXoayTuaThang()
+    private init() {}
+
+    private let khoaLuu = "dmx_so_xoay_tua_thang_v1"
+
+    static func khoaThangHienTai(ngay: Date = Date()) -> String {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM"
+        return df.string(from: ngay)
+    }
+
+    static func nhanThangHienTai(ngay: Date = Date()) -> String {
+        let df = DateFormatter()
+        df.dateFormat = "MM/yyyy"
+        return "Tháng \(df.string(from: ngay))"
+    }
+
+    private func taiTatCa() -> [String: [String: BanGhiXoayTuaThang]] {
+        guard let data = UserDefaults.standard.data(forKey: khoaLuu),
+              let dict = try? JSONDecoder().decode([String: [String: BanGhiXoayTuaThang]].self, from: data) else {
+            return [:]
+        }
+        return dict
+    }
+
+    private func luuTatCa(_ dict: [String: [String: BanGhiXoayTuaThang]]) {
+        if let data = try? JSONEncoder().encode(dict) {
+            UserDefaults.standard.set(data, forKey: khoaLuu)
+        }
+    }
+
+    func soLanTrongThang(ten: String, khoaThang: String = khoaThangHienTai()) -> Int {
+        let key = BoPhanTichLichCaExcel.chuanHoa(ten)
+        return taiTatCa()[khoaThang]?[key]?.cacTuanDaPhat.count ?? 0
+    }
+
+    func layBangThang(khoaThang: String = khoaThangHienTai()) -> [BanGhiXoayTuaThang] {
+        let map = taiTatCa()[khoaThang] ?? [:]
+        return map.values.sorted { a, b in
+            if a.cacTuanDaPhat.count != b.cacTuanDaPhat.count {
+                return a.cacTuanDaPhat.count < b.cacTuanDaPhat.count
+            }
+            return a.tenGoc < b.tenGoc
+        }
+    }
+
+    /// Ghi nhận danh sách nhân sự đã được phân / đã phát trong tuần vào sổ tháng (tránh bỏ sót sang tuần tiếp theo)
+    func capNhatTuKeHoachTuan(_ kh: KeHoachMaTranTuan, khoaThang: String = khoaThangHienTai()) {
+        var all = taiTatCa()
+        var thangMap = all[khoaThang] ?? [:]
+
+        // Xóa dấu tuần này cũ trước khi ghi lại để đồng bộ chính xác khi sửa/tạo lại tuần này
+        for (k, var rec) in thangMap {
+            rec.cacTuanDaPhat.removeAll { $0 == kh.khoaTuan }
+            thangMap[k] = rec
+        }
+
+        func ghiNhan(chuoiNguoi: String, nhom: NhomNhanSuLich) {
+            // Tách tên gốc trước dấu "(" VD: "LỆ SH (SÁNG 9h-16h)" -> "LỆ SH"
+            let tenSach = chuoiNguoi.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? chuoiNguoi
+            guard !tenSach.isEmpty else { return }
+            let key = BoPhanTichLichCaExcel.chuanHoa(tenSach)
+            var rec = thangMap[key] ?? BanGhiXoayTuaThang(tenGoc: tenSach, nhom: nhom, cacTuanDaPhat: [])
+            if !rec.cacTuanDaPhat.contains(kh.khoaTuan) {
+                rec.cacTuanDaPhat.append(kh.khoaTuan)
+            }
+            thangMap[key] = rec
+        }
+
+        for o in kh.cacO {
+            for p in o.danhSachPG { ghiNhan(chuoiNguoi: p, nhom: .pg) }
+            for n in o.danhSachNV { ghiNhan(chuoiNguoi: n, nhom: .nhanVien) }
+        }
+
+        all[khoaThang] = thangMap
+        luuTatCa(all)
+    }
+
+    /// Bổ sung cả những nhân sự có trong danh sách Excel tuần này (0 lần) để sổ tháng hiện đủ mọi người
+    func damBaoDuNhanSu(danhSach: [LichTuanMotNguoi], khoaThang: String = khoaThangHienTai()) {
+        var all = taiTatCa()
+        var thangMap = all[khoaThang] ?? [:]
+        for nguoi in danhSach {
+            let key = BoPhanTichLichCaExcel.chuanHoa(nguoi.ten)
+            if thangMap[key] == nil {
+                thangMap[key] = BanGhiXoayTuaThang(tenGoc: nguoi.ten, nhom: nguoi.nhom, cacTuanDaPhat: [])
+            }
+        }
+        all[khoaThang] = thangMap
+        luuTatCa(all)
+    }
+
+    func xoaSoThang(khoaThang: String = khoaThangHienTai()) {
+        var all = taiTatCa()
+        all.removeValue(forKey: khoaThang)
+        luuTatCa(all)
+    }
+}
+
 final class BoLapMaTranToRoiXoayVong {
     static func taoCacTuyenTuKetQuaQuet(
         tamLat: Double,
         tamLon: Double,
-        danhSach: [DiaDiemQuet]
+        danhSach: [DiaDiemQuet],
+        banKinhMet: Double = 2000
     ) -> [TuyenPhatToRoiMaTran] {
         let diemNong = danhSach.filter { $0.loai != .heThongMWG }
         guard !diemNong.isEmpty else {
             return [
-                TuyenPhatToRoiMaTran(id: "tuyen_1", ten: "Tuyến 1 (Khu Đông - Chợ & Trường)", moTaDiemNong: "Quét bản đồ để tự động lấy điểm nóng", soDiemNong: 0),
-                TuyenPhatToRoiMaTran(id: "tuyen_2", ten: "Tuyến 2 (Khu Tây - Khu dân cư)", moTaDiemNong: "Quét bản đồ để tự động lấy điểm nóng", soDiemNong: 0),
-                TuyenPhatToRoiMaTran(id: "tuyen_3", ten: "Tuyến 3 (Khu Nam - Trục đối thủ)", moTaDiemNong: "Quét bản đồ để tự động lấy điểm nóng", soDiemNong: 0),
-                TuyenPhatToRoiMaTran(id: "tuyen_4", ten: "Tuyến 4 (Khu Bắc - Trường học)", moTaDiemNong: "Quét bản đồ để tự động lấy điểm nóng", soDiemNong: 0)
+                TuyenPhatToRoiMaTran(id: "tuyen_1", soThuTu: 1, ten: "Tuyến 1 — Hướng Đông Bắc", moTaDiemNong: "Quét bản đồ để vẽ tuyến thực tế", soDiemNong: 0, cacToaDo: []),
+                TuyenPhatToRoiMaTran(id: "tuyen_2", soThuTu: 2, ten: "Tuyến 2 — Hướng Đông Nam", moTaDiemNong: "Quét bản đồ để vẽ tuyến thực tế", soDiemNong: 0, cacToaDo: []),
+                TuyenPhatToRoiMaTran(id: "tuyen_3", soThuTu: 3, ten: "Tuyến 3 — Hướng Tây Nam", moTaDiemNong: "Quét bản đồ để vẽ tuyến thực tế", soDiemNong: 0, cacToaDo: []),
+                TuyenPhatToRoiMaTran(id: "tuyen_4", soThuTu: 4, ten: "Tuyến 4 — Hướng Tây Bắc", moTaDiemNong: "Quét bản đồ để vẽ tuyến thực tế", soDiemNong: 0, cacToaDo: [])
             ]
+        }
+
+        // Trải đều các điểm nóng từ gần tâm ra tới rìa bán kính quét (không bị dồn cục quanh siêu thị!)
+        func taoChuoiToaDoTuyen(tu ds: [DiaDiemQuet]) -> [[Double]] {
+            let kcToiThieuMet = max(180.0, banKinhMet * 0.14)
+            let sapXepUuTien = ds.sorted { a, b in
+                if a.loai.diemUuTienToRoi != b.loai.diemUuTienToRoi {
+                    return a.loai.diemUuTienToRoi > b.loai.diemUuTienToRoi
+                }
+                return a.khoangCachMet > b.khoangCachMet // ưu tiên phủ rộng ra ngoài bán kính
+            }
+            var top: [DiaDiemQuet] = []
+            for d in sapXepUuTien {
+                if top.count >= 6 { break }
+                let quaGan = top.contains {
+                    hypot((d.viDo - $0.viDo) * 111000.0, (d.kinhDo - $0.kinhDo) * 105000.0) < kcToiThieuMet
+                }
+                if !quaGan { top.append(d) }
+            }
+            if top.count < 3 {
+                for d in sapXepUuTien where !top.contains(where: { $0.id == d.id }) {
+                    if top.count >= 5 { break }
+                    top.append(d)
+                }
+            }
+
+            var conLai = top
+            var ketQua: [[Double]] = [[tamLat, tamLon]]
+            var curLat = tamLat
+            var curLon = tamLon
+            while !conLai.isEmpty {
+                var bestIdx = 0
+                var bestDist = Double.greatestFiniteMagnitude
+                for (i, d) in conLai.enumerated() {
+                    let dist = hypot(d.viDo - curLat, d.kinhDo - curLon)
+                    if dist < bestDist {
+                        bestDist = dist
+                        bestIdx = i
+                    }
+                }
+                let chon = conLai.remove(at: bestIdx)
+                ketQua.append([chon.viDo, chon.kinhDo])
+                curLat = chon.viDo
+                curLon = chon.kinhDo
+            }
+            return ketQua
         }
 
         let tenHuong = ["Đông Bắc", "Đông Nam", "Tây Nam", "Tây Bắc"]
@@ -1106,9 +1274,11 @@ final class BoLapMaTranToRoiXoayVong {
 
             ketQua.append(TuyenPhatToRoiMaTran(
                 id: "tuyen_huong_\(i)",
+                soThuTu: stt,
                 ten: "Tuyến \(stt) — Hướng \(tenHuong[i])",
                 moTaDiemNong: chiTiet,
-                soDiemNong: ds.count
+                soDiemNong: ds.count,
+                cacToaDo: taoChuoiToaDoTuyen(tu: ds)
             ))
             stt += 1
         }
@@ -1121,15 +1291,19 @@ final class BoLapMaTranToRoiXoayVong {
             return [
                 TuyenPhatToRoiMaTran(
                     id: "tuyen_gan",
+                    soThuTu: 1,
                     ten: "Tuyến 1 — Vành đai gần siêu thị",
                     moTaDiemNong: gan.prefix(3).map { $0.ten }.joined(separator: ", "),
-                    soDiemNong: gan.count
+                    soDiemNong: gan.count,
+                    cacToaDo: taoChuoiToaDoTuyen(tu: gan)
                 ),
                 TuyenPhatToRoiMaTran(
                     id: "tuyen_xa",
+                    soThuTu: 2,
                     ten: "Tuyến 2 — Vành đai mở rộng",
                     moTaDiemNong: xa.prefix(3).map { $0.ten }.joined(separator: ", "),
-                    soDiemNong: xa.count
+                    soDiemNong: xa.count,
+                    cacToaDo: taoChuoiToaDoTuyen(tu: xa)
                 )
             ]
         }
@@ -1148,7 +1322,7 @@ final class BoLapMaTranToRoiXoayVong {
         giuTrangThaiCu: KeHoachMaTranTuan? = nil
     ) -> KeHoachMaTranTuan {
         let tuyenHopLe = cacTuyen.isEmpty
-            ? [TuyenPhatToRoiMaTran(id: "t1", ten: "Tuyến 1", moTaDiemNong: "Chưa quét bản đồ", soDiemNong: 0)]
+            ? [TuyenPhatToRoiMaTran(id: "t1", soThuTu: 1, ten: "Tuyến 1", moTaDiemNong: "Chưa quét bản đồ", soDiemNong: 0, cacToaDo: [])]
             : cacTuyen
 
         let (khoaTuan, nhanTuanMacDinh) = tinhKhoaVaNhanTuan()
@@ -1203,7 +1377,11 @@ final class BoLapMaTranToRoiXoayVong {
                         let ca = nguoi.lich7Ngay[thu]
                         return laSang ? ca.dangLamSang : ca.dangLamChieu
                     }.sorted { a, b in
-                        soBuoiLamConLai(a, tuThu: thu) < soBuoiLamConLai(b, tuThu: thu)
+                        // Ưu tiên TUYỆT ĐỐI người ít lượt phát nhất trong THÁNG (0 lần lên đầu -> không bỏ sót ai!)
+                        let lanThangA = KhoSoXoayTuaThang.dungChung.soLanTrongThang(ten: a.ten)
+                        let lanThangB = KhoSoXoayTuaThang.dungChung.soLanTrongThang(ten: b.ten)
+                        if lanThangA != lanThangB { return lanThangA < lanThangB }
+                        return soBuoiLamConLai(a, tuThu: thu) < soBuoiLamConLai(b, tuThu: thu)
                     }
 
                     // Tự điều tiết 1 hay 2 PG/buổi sao cho trải đều hết cả tuần mà không bị cạn người sớm
@@ -1227,7 +1405,11 @@ final class BoLapMaTranToRoiXoayVong {
                         let ca = nguoi.lich7Ngay[thu]
                         return laSang ? ca.dangLamSang : ca.dangLamChieu
                     }.sorted { a, b in
-                        soBuoiLamConLai(a, tuThu: thu) < soBuoiLamConLai(b, tuThu: thu)
+                        // Ưu tiên TUYỆT ĐỐI người ít lượt phát nhất trong THÁNG (0 lần lên đầu -> không bỏ sót ai!)
+                        let lanThangA = KhoSoXoayTuaThang.dungChung.soLanTrongThang(ten: a.ten)
+                        let lanThangB = KhoSoXoayTuaThang.dungChung.soLanTrongThang(ten: b.ten)
+                        if lanThangA != lanThangB { return lanThangA < lanThangB }
+                        return soBuoiLamConLai(a, tuThu: thu) < soBuoiLamConLai(b, tuThu: thu)
                     }
 
                     let tongNVChuaPhat = dsNVAll.count - nvDaPhat.count
@@ -1260,7 +1442,7 @@ final class BoLapMaTranToRoiXoayVong {
             .filter { !pgDaPhat.contains(BoPhanTichLichCaExcel.chuanHoa($0.ten)) }
             .map { $0.ten }
 
-        return KeHoachMaTranTuan(
+        let keHoachMoi = KeHoachMaTranTuan(
             khoaTuan: khoaTuan,
             nhanTuan: nhanTuan,
             cacTuyen: tuyenHopLe,
@@ -1271,6 +1453,9 @@ final class BoLapMaTranToRoiXoayVong {
             tongPGCoLich: dsPGAll.count,
             danhSachPGChuaDuocPhan: dsPGChuaDuocPhan
         )
+        KhoSoXoayTuaThang.dungChung.damBaoDuNhanSu(danhSach: dsPGAll + dsNVAll)
+        KhoSoXoayTuaThang.dungChung.capNhatTuKeHoachTuan(keHoachMoi)
+        return keHoachMoi
     }
 
     static func tinhKhoaVaNhanTuan(ngay: Date = Date()) -> (String, String) {
