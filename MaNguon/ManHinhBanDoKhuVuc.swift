@@ -2716,7 +2716,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
                     guard !dsKhoi.isEmpty else {
                         self.hienThongBao(
                             tieuDe: "Không tìm thấy bảng lịch ca",
-                            noiDung: "File "\(url.lastPathComponent)" không có bảng lịch theo Thứ 2 – Chủ nhật hợp lệ."
+                            noiDung: "File \"\(url.lastPathComponent)\" không có bảng lịch theo Thứ 2 – Chủ nhật hợp lệ."
                         )
                         self.capNhatGiaoDienMaTran()
                         return
@@ -2813,9 +2813,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         let ghiChuCN = laChuNhat
             ? "📌 Hôm nay là Chủ nhật — hãy nhập file Excel mới để đăng ký lịch tuần tiếp theo!"
             : "🗓️ Lịch cập nhật theo tuần (Chủ nhật hằng tuần nhập Excel cho tuần tới)."
-        nhanTrangThaiExcel.text = "• \(pgInfo)
-• \(nvInfo)
-\(ghiChuCN)"
+        nhanTrangThaiExcel.text = "• \(pgInfo)\n• \(nvInfo)\n\(ghiChuCN)"
 
         nganDanhSachMaTran.arrangedSubviews.forEach {
             nganDanhSachMaTran.removeArrangedSubview($0)
@@ -2823,7 +2821,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         }
 
         guard let kh = keHoachMaTran else {
-            nhanNhacTuyenChuaPhat.text = "  💡 Quét khu vực trên bản đồ hoặc nhập file Excel PG/NV rồi bấm "⚡ Phân lịch xoay vòng"."
+            nhanNhacTuyenChuaPhat.text = "  💡 Quét khu vực trên bản đồ hoặc nhập file Excel PG/NV rồi bấm \"⚡ Phân lịch xoay vòng\"."
             nhanNhacTuyenChuaPhat.textColor = BangMauBCTD.xanhChuDaoDam
             nhanNhacTuyenChuaPhat.backgroundColor = BangMauBCTD.nenHeaderPhu
             return
@@ -2840,8 +2838,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
             nhanNhacTuyenChuaPhat.backgroundColor = BangMauBCTD.xanhDatPill
         } else {
             let tenChuaPhat = tuyenChuaPhat.map { $0.ten }.joined(separator: " • ")
-            nhanNhacTuyenChuaPhat.text = "  ⚠️ Nhắc tuyến chưa phát (\(tuyenChuaPhat.count)/\(kh.cacTuyen.count) tuyến • \(soBuoiChuaPhat) buổi chưa xong):
-  \(tenChuaPhat)"
+            nhanNhacTuyenChuaPhat.text = "  ⚠️ Nhắc tuyến chưa phát (\(tuyenChuaPhat.count)/\(kh.cacTuyen.count) tuyến • \(soBuoiChuaPhat) buổi chưa xong):\n  \(tenChuaPhat)"
             nhanNhacTuyenChuaPhat.textColor = BangMauBCTD.doYeuChu
             nhanNhacTuyenChuaPhat.backgroundColor = BangMauBCTD.doYeuPill
         }
@@ -2927,8 +2924,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         }
 
         let lbNS = UILabel()
-        lbNS.text = dongNhanSu.joined(separator: "
-")
+        lbNS.text = dongNhanSu.joined(separator: "\n")
         lbNS.font = .systemFont(ofSize: 11.5, weight: .semibold)
         lbNS.textColor = BangMauBCTD.xanhLaDam
         lbNS.numberOfLines = 0
@@ -2951,7 +2947,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
 
     @objc private func bamCopyMaTranTuan() {
         guard let kh = keHoachMaTran else {
-            hienThongBao(tieuDe: "Chưa có ma trận", noiDung: "Hãy bấm "⚡ Phân lịch xoay vòng" trước khi sao chép.")
+            hienThongBao(tieuDe: "Chưa có ma trận", noiDung: "Hãy bấm \"⚡ Phân lịch xoay vòng\" trước khi sao chép.")
             return
         }
         let tuyenDaPhatIDs = Set(kh.cacO.filter { $0.daPhat }.map { $0.tuyenId })
@@ -2979,8 +2975,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
             dong.append("• \(thu) (\(o.buoi)) \(tt): \(o.tenTuyen) → \(chuoiNS)")
         }
 
-        UIPasteboard.general.string = dong.joined(separator: "
-")
+        UIPasteboard.general.string = dong.joined(separator: "\n")
         hienThongBao(tieuDe: "Đã sao chép", noiDung: "Đã sao chép toàn bộ Ma trận phát tờ rơi xoay vòng tuần này để gửi nhóm LINE/Zalo.")
     }
 
