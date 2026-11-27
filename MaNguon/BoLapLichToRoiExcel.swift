@@ -1157,6 +1157,14 @@ struct DiemMucTieuTuyen: Codable, Equatable {
     var kinhDo: Double
 }
 
+struct BuocChiDanTuyen: Codable, Equatable {
+    let stt: Int
+    let hanhDong: String
+    let noiDung: String
+    let khoangCachMet: Double
+    let laDiemDung: Bool
+}
+
 struct CauHinhPhanTuyenToRoi: Codable, Equatable {
     /// Số PG phân cho mỗi tuyến/buổi (0..5)
     var soPGMoiTuyen: Int = 1
@@ -1166,21 +1174,32 @@ struct CauHinhPhanTuyenToRoi: Codable, Equatable {
     var soTuyenMongMuon: Int = 0
     /// Bán kính kiểm soát hợp lệ khi nhân viên dán vị trí Google Maps (mặc định 300m)
     var nguongKiemSoatMet: Double = 300.0
+    /// Bán kính phát tờ rơi riêng (mét): 0 = dùng theo bán kính quét khu vực; >= 200 = giới hạn riêng cho tuyến phát tờ rơi
+    var banKinhPhatToRoiMet: Double = 0
 
     var tongNhanSuMoiTuyen: Int {
         return max(1, soPGMoiTuyen + soNVMoiTuyen)
+    }
+
+    func banKinhPhatHieuLuc(banKinhQuetMet: Double) -> Double {
+        if banKinhPhatToRoiMet >= 200 {
+            return min(20000.0, banKinhPhatToRoiMet)
+        }
+        return max(200.0, banKinhQuetMet)
     }
 
     init(
         soPGMoiTuyen: Int = 1,
         soNVMoiTuyen: Int = 1,
         soTuyenMongMuon: Int = 0,
-        nguongKiemSoatMet: Double = 300.0
+        nguongKiemSoatMet: Double = 300.0,
+        banKinhPhatToRoiMet: Double = 0
     ) {
         self.soPGMoiTuyen = max(0, min(5, soPGMoiTuyen))
         self.soNVMoiTuyen = max(0, min(5, soNVMoiTuyen))
         self.soTuyenMongMuon = (soTuyenMongMuon == 0) ? 0 : max(2, min(8, soTuyenMongMuon))
         self.nguongKiemSoatMet = max(50, min(2000, nguongKiemSoatMet))
+        self.banKinhPhatToRoiMet = (banKinhPhatToRoiMet <= 0) ? 0 : max(200, min(20000, banKinhPhatToRoiMet))
     }
 
     init(from decoder: Decoder) throws {
@@ -1190,6 +1209,8 @@ struct CauHinhPhanTuyenToRoi: Codable, Equatable {
         let st = (try? c.decode(Int.self, forKey: .soTuyenMongMuon)) ?? 0
         soTuyenMongMuon = (st == 0) ? 0 : max(2, min(8, st))
         nguongKiemSoatMet = max(50, min(2000, (try? c.decode(Double.self, forKey: .nguongKiemSoatMet)) ?? 300.0))
+        let bk = (try? c.decode(Double.self, forKey: .banKinhPhatToRoiMet)) ?? 0
+        banKinhPhatToRoiMet = (bk <= 0) ? 0 : max(200, min(20000, bk))
     }
 }
 
@@ -1199,10 +1220,28 @@ struct TuyenPhatToRoiMaTran: Codable, Equatable {
     var ten: String
     var moTaDiemNong: String
     var soDiemNong: Int
-    /// Danh sách tọa độ [lat, lon] bắt đầu từ tâm siêu thị qua các điểm nóng của tuyến này để vẽ trực tiếp trên bản đồ
+    /// Danh sách tọa độ điểm dừng [lat, lon] bắt đầu từ tâm siêu thị qua các điểm nóng của tuyến này
     var cacToaDo: [[Double]]
     /// Danh sách địa điểm mục tiêu chi tiết (tên + tọa độ) để nhân viên check-in kiểm soát phát tờ rơi
     var cacDiemMucTieu: [DiemMucTieuTuyen]
+    /// Tên điểm xuất phát (siêu thị / tâm quét)
+    var tenDiemXuatPhat: String
+    /// Danh sách tọa độ bám sát đường đi thực tế trên bản đồ (từ OSRM / Apple MKDirections)
+    var toaDoDuongThucTe: [[Double]]
+    /// Đã bám đường thực tế trên map hay đang là ước lượng tạm thời
+    var laDuongThucTe: Bool
+    /// Tổng quãng đường (mét)
+    var tongQuangDuongMet: Double
+    /// Thời gian di chuyển ước tính bằng xe máy (phút)
+    var thoiGianXeMayPhut: Int
+    /// Thời gian di chuyển ước tính bằng đi bộ (phút)
+    var thoiGianDiBoPhut: Int
+    /// Chỉ dẫn chi tiết từng bước: xuất phát, đi thẳng, rẽ trái/rẽ phải, vòng xuyến, điểm dừng phát tờ rơi
+    var chiDanTungBuoc: [BuocChiDanTuyen]
+
+    var toaDoVeBanDo: [[Double]] {
+        return toaDoDuongThucTe.count >= 2 ? toaDoDuongThucTe : cacToaDo
+    }
 
     init(
         id: String,
@@ -1211,7 +1250,14 @@ struct TuyenPhatToRoiMaTran: Codable, Equatable {
         moTaDiemNong: String,
         soDiemNong: Int,
         cacToaDo: [[Double]],
-        cacDiemMucTieu: [DiemMucTieuTuyen] = []
+        cacDiemMucTieu: [DiemMucTieuTuyen] = [],
+        tenDiemXuatPhat: String = "",
+        toaDoDuongThucTe: [[Double]] = [],
+        laDuongThucTe: Bool = false,
+        tongQuangDuongMet: Double = 0,
+        thoiGianXeMayPhut: Int = 0,
+        thoiGianDiBoPhut: Int = 0,
+        chiDanTungBuoc: [BuocChiDanTuyen] = []
     ) {
         self.id = id
         self.soThuTu = soThuTu
@@ -1220,6 +1266,13 @@ struct TuyenPhatToRoiMaTran: Codable, Equatable {
         self.soDiemNong = soDiemNong
         self.cacToaDo = cacToaDo
         self.cacDiemMucTieu = cacDiemMucTieu
+        self.tenDiemXuatPhat = tenDiemXuatPhat
+        self.toaDoDuongThucTe = toaDoDuongThucTe
+        self.laDuongThucTe = laDuongThucTe
+        self.tongQuangDuongMet = tongQuangDuongMet
+        self.thoiGianXeMayPhut = thoiGianXeMayPhut
+        self.thoiGianDiBoPhut = thoiGianDiBoPhut
+        self.chiDanTungBuoc = chiDanTungBuoc
     }
 
     init(from decoder: Decoder) throws {
@@ -1231,6 +1284,13 @@ struct TuyenPhatToRoiMaTran: Codable, Equatable {
         soDiemNong = try c.decode(Int.self, forKey: .soDiemNong)
         cacToaDo = (try? c.decode([[Double]].self, forKey: .cacToaDo)) ?? []
         cacDiemMucTieu = (try? c.decode([DiemMucTieuTuyen].self, forKey: .cacDiemMucTieu)) ?? []
+        tenDiemXuatPhat = (try? c.decode(String.self, forKey: .tenDiemXuatPhat)) ?? ""
+        toaDoDuongThucTe = (try? c.decode([[Double]].self, forKey: .toaDoDuongThucTe)) ?? []
+        laDuongThucTe = (try? c.decode(Bool.self, forKey: .laDuongThucTe)) ?? false
+        tongQuangDuongMet = (try? c.decode(Double.self, forKey: .tongQuangDuongMet)) ?? 0
+        thoiGianXeMayPhut = (try? c.decode(Int.self, forKey: .thoiGianXeMayPhut)) ?? 0
+        thoiGianDiBoPhut = (try? c.decode(Int.self, forKey: .thoiGianDiBoPhut)) ?? 0
+        chiDanTungBuoc = (try? c.decode([BuocChiDanTuyen].self, forKey: .chiDanTungBuoc)) ?? []
     }
 
     var mauTuyen: UIColor {
@@ -1584,10 +1644,13 @@ final class BoLapMaTranToRoiXoayVong {
         tamLon: Double,
         danhSach: [DiaDiemQuet],
         banKinhMet: Double = 2000,
-        soTuyenMongMuon: Int = 4
+        soTuyenMongMuon: Int = 4,
+        tenDiemXuatPhat: String = "Siêu thị"
     ) -> [TuyenPhatToRoiMaTran] {
         let soTuyenMucTieu = max(1, min(8, soTuyenMongMuon))
-        let diemNong = danhSach.filter { $0.loai != .heThongMWG }
+        let trongBanKinh = danhSach.filter { $0.khoangCachMet <= banKinhMet + 25.0 }
+        let diemNongUuTien = trongBanKinh.filter { $0.loai == .cho || $0.loai == .truongHoc || $0.loai == .doiThu }
+        let diemNong = !diemNongUuTien.isEmpty ? diemNongUuTien : trongBanKinh.filter { $0.loai != .heThongMWG }
         guard !diemNong.isEmpty else {
             let tenMacDinh = ["Đông Bắc", "Đông Nam", "Tây Nam", "Tây Bắc", "Bắc", "Nam", "Đông", "Tây"]
             return (0..<soTuyenMucTieu).map { i in
@@ -1595,10 +1658,11 @@ final class BoLapMaTranToRoiXoayVong {
                     id: "tuyen_\(i + 1)",
                     soThuTu: i + 1,
                     ten: "Tuyến \(i + 1) — Hướng \(tenMacDinh[i % tenMacDinh.count])",
-                    moTaDiemNong: "Quét bản đồ để vẽ tuyến thực tế",
+                    moTaDiemNong: "Quét bản đồ hoặc mở rộng bán kính phát tờ rơi để vẽ tuyến thực tế",
                     soDiemNong: 0,
                     cacToaDo: [],
-                    cacDiemMucTieu: []
+                    cacDiemMucTieu: [],
+                    tenDiemXuatPhat: tenDiemXuatPhat
                 )
             }
         }
@@ -1740,8 +1804,36 @@ final class BoLapMaTranToRoiXoayVong {
             let soCho = ds.filter { $0.loai == .cho }.count
             let soTH = ds.filter { $0.loai == .truongHoc }.count
             let soDT = ds.filter { $0.loai == .doiThu }.count
-            let chiTiet = "\(topTen) (\(soCho) chợ, \(soTH) trường, \(soDT) đối thủ)"
+            let soKhac = ds.filter { $0.loai == .khac }.count
+            var phanLoaiText = ["\(soCho) chợ", "\(soTH) trường", "\(soDT) đối thủ"]
+            if soKhac > 0 { phanLoaiText.append("\(soKhac) điểm khác") }
+            let chiTiet = "\(topTen) (\(phanLoaiText.joined(separator: ", ")))"
             let chuoi = taoChuoiToaDoVaDiemTuyen(tu: ds)
+
+            // Ước lượng quãng đường & chỉ dẫn cơ sở trước khi bám đường thực tế OSRM/MKDirections
+            var tongMetThang = 0.0
+            var buocCoSo: [BuocChiDanTuyen] = [
+                BuocChiDanTuyen(stt: 1, hanhDong: "🚩 Xuất phát", noiDung: "Xuất phát từ \(tenDiemXuatPhat)", khoangCachMet: 0, laDiemDung: false)
+            ]
+            for j in 1..<chuoi.toaDo.count {
+                let p1 = chuoi.toaDo[j - 1]
+                let p2 = chuoi.toaDo[j]
+                let seg = hypot((p2[0] - p1[0]) * 111000.0, (p2[1] - p1[1]) * 105000.0) * 1.32
+                tongMetThang += seg
+                if j - 1 < chuoi.diem.count {
+                    let d = chuoi.diem[j - 1]
+                    let dc = d.diaChi.isEmpty ? "" : " • \(d.diaChi)"
+                    buocCoSo.append(BuocChiDanTuyen(
+                        stt: buocCoSo.count + 1,
+                        hanhDong: "📍 Điểm #\(j)",
+                        noiDung: "\(d.ten) (\(d.loaiRaw))\(dc)",
+                        khoangCachMet: seg,
+                        laDiemDung: true
+                    ))
+                }
+            }
+            let phutXeMay = max(2, Int(ceil(tongMetThang / 400.0)))
+            let phutDiBo = max(3, Int(ceil(tongMetThang / 75.0)))
 
             ketQua.append(TuyenPhatToRoiMaTran(
                 id: "tuyen_chia_\(idx + 1)",
@@ -1750,7 +1842,14 @@ final class BoLapMaTranToRoiXoayVong {
                 moTaDiemNong: chiTiet,
                 soDiemNong: ds.count,
                 cacToaDo: chuoi.toaDo,
-                cacDiemMucTieu: chuoi.diem
+                cacDiemMucTieu: chuoi.diem,
+                tenDiemXuatPhat: tenDiemXuatPhat,
+                toaDoDuongThucTe: [],
+                laDuongThucTe: false,
+                tongQuangDuongMet: tongMetThang,
+                thoiGianXeMayPhut: phutXeMay,
+                thoiGianDiBoPhut: phutDiBo,
+                chiDanTungBuoc: buocCoSo
             ))
         }
 
