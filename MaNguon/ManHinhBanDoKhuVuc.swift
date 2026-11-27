@@ -1315,6 +1315,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     private let nutXemLichCa = UIButton(type: .system)
     private let nutSoXoayTuaThang = UIButton(type: .system)
     private let nutKiemSoatTuan = UIButton(type: .system)
+    private let nutPWACheckIn = UIButton(type: .system)
     private var tuyenDangLocTrenBanDo: String? = nil
     private let cuonChuThichTuyen = UIScrollView()
     private let nganChuThichTuyen = UIStackView()
@@ -3079,7 +3080,7 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         nhanTieuDeLink.lineBreakMode = .byWordWrapping
         nhanTieuDeLink.adjustsFontSizeToFitWidth = false
 
-        oLinkTrangTinh.placeholder = "Dán link Google Trang tính (chứa tab Lịch PG & TEAM NV.)..."
+        oLinkTrangTinh.placeholder = "Dán link Google Trang tính (tab PG & NV)..."
         oLinkTrangTinh.text = KhoMaTranPhatToRoi.dungChung.layLinkTrangTinhChung()
         oLinkTrangTinh.font = .systemFont(ofSize: 13, weight: .medium)
         oLinkTrangTinh.textColor = BangMauBCTD.chuChinh
@@ -3282,8 +3283,21 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         hangKiemTra.spacing = 6
         hangKiemTra.distribution = .fillEqually
 
+        nutPWACheckIn.setTitle("📲 App PWA Check-in nhân viên (Copy link / Mở Sheet BC)", for: .normal)
+        nutPWACheckIn.titleLabel?.font = .systemFont(ofSize: 12, weight: .bold)
+        nutPWACheckIn.titleLabel?.numberOfLines = 0
+        nutPWACheckIn.titleLabel?.lineBreakMode = .byWordWrapping
+        nutPWACheckIn.titleLabel?.adjustsFontSizeToFitWidth = false
+        nutPWACheckIn.setTitleColor(BangMauBCTD.xanhChuDaoDam, for: .normal)
+        nutPWACheckIn.backgroundColor = BangMauBCTD.nenHeaderPhu
+        nutPWACheckIn.layer.cornerRadius = 9
+        nutPWACheckIn.layer.borderWidth = 1
+        nutPWACheckIn.layer.borderColor = BangMauBCTD.vienXanhNhat.cgColor
+        nutPWACheckIn.contentEdgeInsets = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 10)
+        nutPWACheckIn.addTarget(self, action: #selector(bamMenuPWACheckIn), for: .touchUpInside)
+
         let stack = UIStackView(arrangedSubviews: [
-            hangDau, nhanNhacTuyenChuaPhat, khungLinkTrangTinh, khungCauHinhTuyen, nhanTrangThaiExcel, hangHanhDong, hangKiemTra, chonLocMaTran, nganDanhSachMaTran
+            hangDau, nhanNhacTuyenChuaPhat, khungLinkTrangTinh, khungCauHinhTuyen, nhanTrangThaiExcel, hangHanhDong, hangKiemTra, nutPWACheckIn, chonLocMaTran, nganDanhSachMaTran
         ])
         stack.axis = .vertical
         stack.spacing = 9
@@ -3329,6 +3343,39 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
         view.endEditing(true)
         let link = (oLinkTrangTinh.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         thucThiTaiTrangTinhChung(link: link)
+    }
+
+    @objc private func bamMenuPWACheckIn() {
+        let pwaLink = KhoMaTranPhatToRoi.linkPWACheckInMacDinh
+        let bcLink = KhoMaTranPhatToRoi.linkSheetBaoCaoCheckIn
+        let sheet = UIAlertController(
+            title: "📲 App PWA Check-in Phát Tờ Rơi",
+            message: "Gửi link PWA cho nhân viên/PG check-in GPS + chụp ảnh gửi trực tiếp về tab BC-Phát tờ rơi.",
+            preferredStyle: .actionSheet
+        )
+        sheet.addAction(UIAlertAction(title: "📋 Copy link PWA gửi cho nhân viên", style: .default) { [weak self] _ in
+            UIPasteboard.general.string = pwaLink
+            self?.hienThongBao(
+                tieuDe: "✅ Đã sao chép link PWA",
+                noiDung: "\(pwaLink)\n\nDán gửi vào nhóm Zalo/Line siêu thị. Nhân viên bấm mở là check-in GPS & chụp ảnh được ngay, không cần cài app từ Store."
+            )
+        })
+        sheet.addAction(UIAlertAction(title: "🌐 Mở PWA Check-in trên Safari", style: .default) { _ in
+            if let url = URL(string: pwaLink) {
+                UIApplication.shared.open(url)
+            }
+        })
+        sheet.addAction(UIAlertAction(title: "📗 Mở Google Sheet (Tab BC-Phát tờ rơi)", style: .default) { _ in
+            if let url = URL(string: bcLink) {
+                UIApplication.shared.open(url)
+            }
+        })
+        sheet.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        if let pop = sheet.popoverPresentationController {
+            pop.sourceView = nutPWACheckIn
+            pop.sourceRect = nutPWACheckIn.bounds
+        }
+        present(sheet, animated: true)
     }
 
     private func thucThiTaiTrangTinhChung(link: String) {

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B4F9E" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DMX Check-in" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <link rel="icon" type="image/png" href="./icon-192.png" />
+  <title>DMX Check-in Phát Tờ Rơi</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-top">
+      <div class="brand">
+        <div class="brand-badge">📍</div>
+        <div>
+          <h1>DMX Check-in Phát Tờ Rơi</h1>
+          <p id="headerSub" class="header-sub">Đang kết nối Google Trang tính...</p>
+        </div>
+      </div>
+      <button id="btnReload" class="icon-btn" type="button" title="Đồng bộ lại">🔄</button>
+    </div>
+
+    <div id="installBanner" class="install-banner hidden">
+      <span>📲 Cài lên màn hình chính để dùng như app (mở 1 chạm)</span>
+      <button id="btnInstall" class="btn-mini" type="button">Hướng dẫn</button>
+    </div>
+
+    <nav class="tab-bar">
+      <button class="tab-btn active" data-tab="checkin" type="button">📍 Gửi Check-in</button>
+      <button class="tab-btn" data-tab="history" type="button">📋 Đã nộp (<span id="historyCount">0</span>)</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- TAB 1: FORM CHECK-IN -->
+    <section id="tab-checkin" class="tab-panel active">
+      <div id="alertBox" class="alert-box hidden"></div>
+
+      <!-- 1. Chọn nhân sự -->
+      <div class="card">
+        <div class="card-title">1. Nhân sự đi phát tờ rơi</div>
+        <div class="seg-group" id="groupSelector">
+          <button type="button" class="seg-btn active" data-group="PG">👩‍💼 PG (<span id="countPG">0</span>)</button>
+          <button type="button" class="seg-btn" data-group="NV">🧑‍🔧 Nhân viên (<span id="countNV">0</span>)</button>
+        </div>
+        <label class="field-label" for="staffSelect">Chọn tên từ lịch tuần trên Google Sheet:</label>
+        <select id="staffSelect" class="input-field">
+          <option value="">-- Đang tải danh sách nhân sự... --</option>
+        </select>
+        <input id="staffCustom" class="input-field mt-8 hidden" type="text" placeholder="Nhập họ tên của bạn (nếu không có trong danh sách)..." />
+        <div id="staffMeta" class="hint-text"></div>
+      </div>
+
+      <!-- 2. Vị trí GPS / Google Maps -->
+      <div class="card">
+        <div class="card-title">2. Vị trí đang phát tờ rơi (bắt buộc)</div>
+        <div class="btn-row">
+          <button id="btnGetGPS" class="btn btn-primary" type="button">📍 Lấy vị trí GPS ngay</button>
+          <button id="btnPasteMaps" class="btn btn-outline" type="button">📋 Dán link Map</button>
+        </div>
+        <input id="mapsInput" class="input-field mt-8" type="url" placeholder="Hoặc dán link vị trí Google Maps (maps.app.goo.gl/...)" />
+        <div id="gpsStatus" class="status-pill neutral mt-8">Chưa lấy tọa độ. Bấm “📍 Lấy vị trí GPS ngay” khi tới điểm phát.</div>
+        <a id="gpsMapLink" class="map-link hidden" href="#" target="_blank" rel="noopener">🗺️ Kiểm tra vị trí vừa lấy trên Google Maps ↗</a>
+      </div>
+
+      <!-- 3. Tuyến & Địa điểm -->
+      <div class="card">
+        <div class="card-title">3. Tuyến & Địa điểm đã phát</div>
+        <div class="chip-wrap" id="routeChips">
+          <button type="button" class="chip active" data-route="Tuyến 1">Tuyến 1</button>
+          <button type="button" class="chip" data-route="Tuyến 2">Tuyến 2</button>
+          <button type="button" class="chip" data-route="Tuyến 3">Tuyến 3</button>
+          <button type="button" class="chip" data-route="Tuyến 4">Tuyến 4</button>
+          <button type="button" class="chip" data-route="Tuyến 5">Tuyến 5</button>
+          <button type="button" class="chip" data-route="Tuyến 6">Tuyến 6</button>
+          <button type="button" class="chip" data-route="Tuyến khác">Khác</button>
+        </div>
+        <input id="locationName" class="input-field mt-8" type="text" placeholder="Tên địa điểm (VD: Cổng chợ, Trường Tiểu học, Ngã tư...)" />
+        <input id="noteInput" class="input-field mt-8" type="text" placeholder="Ghi chú thêm (VD: Đã phát 150 tờ, đông khách)" />
+      </div>
+
+      <!-- 4. Chụp / Tải ảnh minh chứng -->
+      <div class="card">
+        <div class="card-title">4. Ảnh minh chứng tại địa điểm (tự đóng dấu giờ & GPS)</div>
+        <div class="photo-box" id="photoBox">
+          <img id="photoPreview" class="photo-preview hidden" alt="Ảnh minh chứng phát tờ rơi" />
+          <div id="photoPlaceholder" class="photo-placeholder">
+            <div class="photo-icon">📷</div>
+            <div>Chưa có ảnh minh chứng.<br />Chụp 1 tấm ảnh rõ điểm phát tờ rơi.</div>
+          </div>
+        </div>
+        <div class="btn-row mt-8">
+          <label class="btn btn-success file-btn">
+            📸 Chụp ảnh trực tiếp
+            <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden />
+          </label>
+          <label class="btn btn-outline file-btn">
+            🖼️ Chọn từ máy
+            <input id="galleryInput" type="file" accept="image/*" hidden />
+          </label>
+        </div>
+        <div id="photoMeta" class="hint-text"></div>
+      </div>
+
+      <!-- Nút gửi -->
+      <button id="btnSubmit" class="btn btn-submit" type="button">✅ GỬI CHECK-IN LÊN GOOGLE SHEET</button>
+      <div class="footer-note">
+        Ảnh tự động nén gọn, đóng dấu thời gian + GPS và lưu thẳng vào tab <strong>BC-Phát tờ rơi</strong>.
+      </div>
+    </section>
+
+    <!-- TAB 2: LỊCH SỬ CHECK-IN -->
+    <section id="tab-history" class="tab-panel">
+      <div class="card">
+        <div class="history-head">
+          <div class="card-title" style="margin:0">📋 Lịch sử check-in trên Sheet</div>
+          <div class="seg-mini" id="historyFilter">
+            <button type="button" class="seg-mini-btn active" data-filter="all">Tất cả</button>
+            <button type="button" class="seg-mini-btn" data-filter="mine">Của tôi</button>
+          </div>
+        </div>
+        <div id="historyList" class="history-list mt-8">
+          <div class="empty-state">Đang tải lịch sử check-in...</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal xem ảnh lớn -->
+  <div id="imgModal" class="modal hidden">
+    <div class="modal-backdrop" id="modalCloseBg"></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <span id="modalTitle">Ảnh minh chứng</span>
+        <button id="modalCloseBtn" class="btn-mini" type="button">Đóng</button>
+      </div>
+      <img id="modalImg" src="" alt="Xem ảnh lớn" />
+      <a id="modalDriveLink" class="btn btn-primary mt-8" href="#" target="_blank" rel="noopener">Mở ảnh gốc trên Google Drive ↗</a>
+    </div>
+  </div>
+
+  <!-- Modal hướng dẫn cài PWA trên iPhone/Android -->
+  <div id="installModal" class="modal hidden">
+    <div class="modal-backdrop" id="installCloseBg"></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <span>📲 Cài DMX Check-in ra màn hình chính</span>
+        <button id="installCloseBtn" class="btn-mini" type="button">Đóng</button>
+      </div>
+      <div class="install-guide">
+        <p><strong>Trên iPhone (Safari):</strong></p>
+        <ol>
+          <li>Bấm biểu tượng <strong>Chia sẻ (ô vuông có mũi tên lên ⬆️)</strong> ở thanh dưới cùng Safari.</li>
+          <li>Kéo xuống chọn <strong>“Thêm vào MH chính” (Add to Home Screen)</strong>.</li>
+          <li>Bấm <strong>Thêm</strong> → mở trực tiếp từ icon ngoài màn hình như app thật!</li>
+        </ol>
+        <p class="mt-8"><strong>Trên Android (Chrome):</strong></p>
+        <ol>
+          <li>Bấm dấu <strong>⋮</strong> góc trên phải Chrome.</li>
+          <li>Chọn <strong>“Cài đặt ứng dụng”</strong> hoặc <strong>“Thêm vào màn hình chính”</strong>.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -434,7 +434,10 @@ final class BoPhanTichLichCaExcel {
         for sheet in sheets {
             let tenLow = chuanHoa(sheet.tenSheet)
             if boQuaSheetPhu {
-                if tenLow.contains("muc luc") || tenLow.contains("dung cua") || tenLow.contains("bao cao") || tenLow == "ict" || tenLow.contains("truyen thong") {
+                if tenLow.contains("muc luc") || tenLow.contains("dung cua") || tenLow.contains("bao cao")
+                    || tenLow == "ict" || tenLow.contains("truyen thong")
+                    || tenLow.contains("phat to roi") || tenLow.hasPrefix("bc-") || tenLow.hasPrefix("bc ")
+                    || tenLow.contains("check in") || tenLow.contains("checkin") {
                     continue
                 }
             }
@@ -445,7 +448,7 @@ final class BoPhanTichLichCaExcel {
                 continue
             }
 
-            let laSheetTenNV = (tenLow.contains("team nv") || tenLow.contains("nhan vien") || tenLow.contains("lich nv") || tenLow.contains("nv.") || tenLow.hasSuffix(" nv"))
+            let laSheetTenNV = (tenLow == "nv" || tenLow.contains("team nv") || tenLow.contains("nhan vien") || tenLow.contains("lich nv") || tenLow.contains("nv.") || tenLow.hasSuffix(" nv"))
                 && !tenLow.contains("pg")
             if laSheetTenNV {
                 let khoiNV = tachCacKhoiTuan(trong: sheet, nhom: .nhanVien)
@@ -947,10 +950,40 @@ final class BoPhanTichLichCaExcel {
             var ngayDauCuoi: [String] = []
             var serialMax = 0
             for rCheck in max(0, startRow - 4)...startRow {
-                for v in rows[rCheck] {
+                let dongCheck = rows[rCheck]
+                // Hỗ trợ bảng PG chuẩn có hàng trên ghi "Tuần | Tháng/Năm" và hàng kế tiếp ghi số tuần + MM/YYYY (VD: 5.0 | 11/2026)
+                if rCheck + 1 < rows.count {
+                    var cotTuan: Int? = nil
+                    var cotThangNam: Int? = nil
+                    for (cIdx, val) in dongCheck.enumerated() {
+                        let lv = chuanHoa(gonKhoangTrang(val))
+                        if lv == "tuan" { cotTuan = cIdx }
+                        else if lv.contains("thang") && lv.contains("nam") { cotThangNam = cIdx }
+                    }
+                    if let cT = cotTuan {
+                        let dongGiaTri = rows[rCheck + 1]
+                        let rawTuan = (cT < dongGiaTri.count) ? gonKhoangTrang(dongGiaTri[cT]) : ""
+                        let soTuanStr: String = {
+                            if let d = Double(rawTuan), d >= 1 && d <= 6 {
+                                return "\(Int(d.rounded()))"
+                            }
+                            return rawTuan
+                        }()
+                        let rawThang = (cotThangNam != nil && cotThangNam! < dongGiaTri.count)
+                            ? gonKhoangTrang(dongGiaTri[cotThangNam!])
+                            : ""
+                        if !soTuanStr.isEmpty && !rawThang.isEmpty {
+                            nhanTuan = "Tuần \(soTuanStr) • \(rawThang)"
+                        } else if !soTuanStr.isEmpty {
+                            nhanTuan = "Tuần \(soTuanStr)"
+                        }
+                    }
+                }
+
+                for v in dongCheck {
                     let sach = gonKhoangTrang(v)
                     let lv = chuanHoa(sach)
-                    if lv.contains("tuan") && !lv.contains("lich di ca") && sach.count <= 32 {
+                    if lv.contains("tuan") && lv != "tuan" && !lv.contains("lich di ca") && sach.count <= 32 {
                         nhanTuan = sach
                     }
                     if let num = Double(sach), num > 40000 && num < 55000 {
@@ -1338,13 +1371,17 @@ final class KhoMaTranPhatToRoi {
     static let dungChung = KhoMaTranPhatToRoi()
     private init() {}
 
+    static let linkTrangTinhMacDinh = "https://docs.google.com/spreadsheets/d/1hHbwvf-xCq1zT_qCuasYGcCotnHKCM_s5fJgre3M1Qg/edit?gid=0#gid=0"
+    static let linkSheetBaoCaoCheckIn = "https://docs.google.com/spreadsheets/d/1hHbwvf-xCq1zT_qCuasYGcCotnHKCM_s5fJgre3M1Qg/edit?gid=1263278153#gid=1263278153"
+    static let linkPWACheckInMacDinh = "https://thanhduongnmc24-gif.github.io/DMX-V2/"
+
     private let khoaKeHoach = "dmx_matran_toroi_tuan_v2"
     private let khoaLichPG = "dmx_lich_pg_excel_v2"
     private let khoaDanhSachPG = "dmx_danhsach_lich_pg_sheet_v1"
     private let khoaLichNV = "dmx_lich_nv_excel_v2"
     private let khoaNhacChuNhat = "dmx_nhac_cn_dangky_lich_v1"
     private let khoaCauHinhPhanTuyen = "dmx_cauhinh_phantuyen_toroi_v1"
-    private let khoaLinkSheetChung = "dmx_link_google_sheet_chung_v1"
+    private let khoaLinkSheetChung = "dmx_link_google_sheet_chung_v2"
     private let khoaLinkSheetPGCu = "dmx_link_google_sheet_pg_v1"
     private let khoaLinkSheetNVCu = "dmx_link_google_sheet_nv_v1"
 
@@ -1366,13 +1403,7 @@ final class KhoMaTranPhatToRoi {
         if let chung = UserDefaults.standard.string(forKey: khoaLinkSheetChung), !chung.isEmpty {
             return chung
         }
-        if let pg = UserDefaults.standard.string(forKey: khoaLinkSheetPGCu), !pg.isEmpty {
-            return pg
-        }
-        if let nv = UserDefaults.standard.string(forKey: khoaLinkSheetNVCu), !nv.isEmpty {
-            return nv
-        }
-        return ""
+        return Self.linkTrangTinhMacDinh
     }
 
     func luuLinkTrangTinhChung(_ link: String) {
