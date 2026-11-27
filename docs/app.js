@@ -19,6 +19,14 @@ const state = {
   staff: { pg: [], nv: [] },
   history: [],
   schedule: null,
+  pgWeeks: [],
+  nvSchedule: null,
+  pgRegWeekKind: 'current',
+  pgRegDraft: ['', '', '', '', '', '', ''],
+  teamMode: 'nv',
+  teamPGWeekKind: 'current',
+  teamDayFilter: 'all',
+  teamSearchQuery: '',
   historyFilter: 'all',
   selectedRoute: localStorage.getItem('dmx_checkin_route') || 'Tuyến 1',
   lat: null,
@@ -363,6 +371,8 @@ async function loadInitData() {
     state.staff = data.nhanSu || { pg: [], nv: [] };
     state.history = data.lichSu || [];
     state.schedule = data.lichPhanCong || null;
+    state.pgWeeks = Array.isArray(data.pgHaiTuan) ? data.pgHaiTuan : [];
+    state.nvSchedule = data.lichTongNV || null;
     el('countPG').textContent = state.staff.pg.length;
     el('countNV').textContent = state.staff.nv.length;
     el('historyCount').textContent = state.history.length;
@@ -372,6 +382,8 @@ async function loadInitData() {
 
     applyGroupUI();
     renderHistory();
+    renderPGRegSection();
+    renderTeamSchedule();
   } catch (err) {
     el('headerSub').textContent = '⚠️ Chưa kết nối được Apps Script';
     showAlert('⚠️ Không tải được danh sách từ Google Sheet: ' + err.message, 'err');
@@ -683,6 +695,472 @@ function escapeHtml(s) {
 function escapeAttr(s) {
   return escapeHtml(s);
 }
+
+// ============================================================================
+// TAB 2: ĐĂNG KÝ CA LÀM VIỆC CHO PG (TUẦN HIỆN TẠI / TUẦN TIẾP THEO)
+// ============================================================================
+
+const PG_SHIFT_OPTIONS = [
+  { val: 'SÁNG', label: 'SÁNG', gio: '8h-16h', cls: 'sh-sang' },
+  { val: 'CHIỀU', label: 'CHIỀU', gio: '15h-20h', cls: 'sh-chieu' },
+  { val: 'GÃY ( SÁNG VS CHIỀU)', label: 'GÃY', gio: '8h-20h', cls: 'sh-gay' },
+  { val: 'OFF', label: 'OFF', gio: 'Nghỉ', cls: 'sh-off' },
+  { val: 'ST #', label: 'ST #', gio: 'ST khác', cls: 'sh-st' }
+];
+
+function getPGWeekObj(kind) {
+  return state.pgWeeks.find((w) => w.kind === kind) || state.pgWeeks[0] || null;
+}
+
+function showPGRegAlert(msg, type = 'ok') {
+  const box = el('pgRegAlert');
+  if (!box) return;
+  box.className = 'alert-box ' + type;
+  box.innerHTML = msg;
+  box.classList.remove('hidden');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function normalizePGShiftVal(raw) {
+  const up = String(raw || '').trim().toUpperCase();
+  if (!up) return '';
+  if (up === 'SÁNG' || up === 'SANG') return 'SÁNG';
+  if (up === 'CHIỀU' || up === 'CHIEU') return 'CHIỀU';
+  if (up.indexOf('GÃY') !== -1 || up.indexOf('GAY') !== -1) return 'GÃY ( SÁNG VS CHIỀU)';
+  if (up === 'OFF') return 'OFF';
+  if (up.indexOf('ST') === 0) return 'ST #';
+  return raw;
+}
+
+function renderPGRegSection() {
+  const sel = el('pgRegSelect');
+  if (!sel) return;
+
+  // Cập nhật tên nút chọn 2 tuần
+  const wCur = getPGWeekObj('current');
+  const wNext = getPGWeekObj('next');
+  document.querySelectorAll('#pgWeekSelector .seg-btn').forEach((btn) => {
+    const k = btn.dataset.week;
+    btn.classList.toggle('active', k === state.pgRegWeekKind);
+    if (k === 'current' && wCur) btn.textContent = `📍 Tuần hiện tại (${wCur.khoangNgay})`;
+    if (k === 'next' && wNext) btn.textContent = `⏭️ Tuần tiếp theo (${wNext.khoangNgay})`;
+  });
+
+  const activeWeek = getPGWeekObj(state.pgRegWeekKind);
+  el('pgWeekInfo').textContent = activeWeek
+    ? `Đang chọn: ${activeWeek.label}`
+    : 'Chưa có dữ liệu 2 tuần PG từ Apps Script (bấm 🔄 đồng bộ lại).';
+
+  // Đổ danh sách 21 PG
+  const prevVal = sel.value || localStorage.getItem('dmx_pg_reg_name') || localStorage.getItem('dmx_checkin_name_PG') || '';
+  const listPG = (activeWeek && activeWeek.rows && activeWeek.rows.length)
+    ? activeWeek.rows.map((r) => ({ ten: r.ten, boPhan: r.nganh }))
+    : state.staff.pg;
+
+  sel.innerHTML = '';
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = listPG.length ? `-- Chọn tên PG (${listPG.length} người) --` : '-- Đang tải danh sách PG... --';
+  sel.appendChild(opt0);
+
+  for (const p of listPG) {
+    const opt = document.createElement('option');
+    opt.value = p.ten;
+    opt.textContent = p.boPhan ? `${p.ten} (${p.boPhan})` : p.ten;
+    sel.appendChild(opt);
+  }
+  if (prevVal && listPG.some((x) => x.ten === prevVal)) {
+    sel.value = prevVal;
+  }
+
+  loadPGDraftFromSheet();
+}
+
+function loadPGDraftFromSheet() {
+  const ten = el('pgRegSelect')?.value || '';
+  const weekObj = getPGWeekObj(state.pgRegWeekKind);
+  if (!ten || !weekObj) {
+    state.pgRegDraft = ['', '', '', '', '', '', ''];
+    renderPGDaysList();
+    return;
+  }
+  const row = (weekObj.rows || []).find((r) => normVN(r.ten) === normVN(ten));
+  if (row && Array.isArray(row.days) && row.days.length === 7) {
+    state.pgRegDraft = row.days.map((d) => normalizePGShiftVal(d.ca));
+  } else {
+    state.pgRegDraft = ['', '', '', '', '', '', ''];
+  }
+  renderPGDaysList();
+}
+
+function renderPGDaysList() {
+  const container = el('pgDaysList');
+  const summaryEl = el('pgRegSummary');
+  if (!container || !summaryEl) return;
+
+  const ten = el('pgRegSelect')?.value || '';
+  const weekObj = getPGWeekObj(state.pgRegWeekKind);
+
+  if (!weekObj) {
+    container.innerHTML = '<div class="empty-state">Chưa đồng bộ được lịch tuần PG từ Google Sheet.</div>';
+    return;
+  }
+  if (!ten) {
+    summaryEl.className = 'status-pill neutral';
+    summaryEl.textContent = '👆 Chọn tên PG ở Mục 2 để xem ca hiện có và đăng ký cho 7 ngày.';
+    container.innerHTML = '';
+    return;
+  }
+
+  // Thống kê nhanh 7 ngày đang chọn
+  let cSang = 0, cChieu = 0, cGay = 0, cOff = 0, cSt = 0, cTrong = 0;
+  for (const v of state.pgRegDraft) {
+    if (v === 'SÁNG') cSang++;
+    else if (v === 'CHIỀU') cChieu++;
+    else if (v === 'GÃY ( SÁNG VS CHIỀU)') cGay++;
+    else if (v === 'OFF') cOff++;
+    else if (v === 'ST #') cSt++;
+    else cTrong++;
+  }
+  const tongLam = cSang + cChieu + cGay;
+  summaryEl.className = cTrong === 0 ? 'status-pill ok' : 'status-pill warn';
+  summaryEl.textContent = `📊 ${ten}: ${tongLam} ngày làm (${cSang} Sáng, ${cChieu} Chiều, ${cGay} Gãy) • ${cOff} OFF${cSt ? ' • ' + cSt + ' ST #' : ''}${cTrong ? ' • Còn ' + cTrong + ' ngày chưa chọn' : ' • Đủ 7/7 ngày'}`;
+
+  container.innerHTML = '';
+  const headers = weekObj.ngayHeaders || [];
+  for (let d = 0; d < 7; d++) {
+    const h = headers[d] || { thuDai: 'Ngày ' + (d + 1), ngay: '' };
+    const curVal = state.pgRegDraft[d] || '';
+    const optObj = PG_SHIFT_OPTIONS.find((o) => o.val === curVal);
+
+    const card = document.createElement('div');
+    card.className = 'pg-day-card';
+    card.innerHTML =
+      `<div class="pg-day-head">` +
+        `<span>${escapeHtml(h.thuDai)} (${escapeHtml(h.ngay)})</span>` +
+        `<span class="pg-day-time">${optObj ? escapeHtml(optObj.label + ' • ' + optObj.gio) : 'Chưa chọn'}</span>` +
+      `</div>` +
+      `<div class="pg-shift-btns"></div>`;
+
+    const btnWrap = card.querySelector('.pg-shift-btns');
+    for (const opt of PG_SHIFT_OPTIONS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pg-shift-btn ' + opt.cls + (curVal === opt.val ? ' active' : '');
+      b.textContent = opt.label;
+      b.addEventListener('click', () => {
+        state.pgRegDraft[d] = (state.pgRegDraft[d] === opt.val) ? '' : opt.val;
+        renderPGDaysList();
+      });
+      btnWrap.appendChild(b);
+    }
+    container.appendChild(card);
+  }
+}
+
+document.querySelectorAll('#pgWeekSelector .seg-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    state.pgRegWeekKind = btn.dataset.week;
+    el('pgRegAlert')?.classList.add('hidden');
+    renderPGRegSection();
+  });
+});
+
+el('pgRegSelect')?.addEventListener('change', () => {
+  const val = el('pgRegSelect').value;
+  if (val) localStorage.setItem('dmx_pg_reg_name', val);
+  el('pgRegAlert')?.classList.add('hidden');
+  loadPGDraftFromSheet();
+});
+
+el('btnCopyPrevWeekPG')?.addEventListener('click', () => {
+  const ten = el('pgRegSelect')?.value || '';
+  if (!ten) {
+    showPGRegAlert('⚠️ Vui lòng chọn tên PG trước khi sao chép.', 'err');
+    return;
+  }
+  const otherKind = state.pgRegWeekKind === 'current' ? 'next' : 'current';
+  const otherWeek = getPGWeekObj(otherKind);
+  const row = otherWeek && (otherWeek.rows || []).find((r) => normVN(r.ten) === normVN(ten));
+  if (!row || !row.days || !row.days.some((d) => d.ca)) {
+    showPGRegAlert('⚠️ Tuần còn lại chưa có lịch của ' + escapeHtml(ten) + ' để sao chép.', 'err');
+    return;
+  }
+  state.pgRegDraft = row.days.map((d) => normalizePGShiftVal(d.ca));
+  renderPGDaysList();
+  showPGRegAlert(`📋 Đã sao chép lịch 7 ngày của <strong>${escapeHtml(ten)}</strong> từ ${escapeHtml(otherWeek.badge)}. Bấm <strong>LƯU ĐĂNG KÝ CA</strong> để ghi lên Sheet!`, 'ok');
+});
+
+el('btnClearPGWeek')?.addEventListener('click', () => {
+  state.pgRegDraft = ['', '', '', '', '', '', ''];
+  renderPGDaysList();
+});
+
+el('btnSavePGShift')?.addEventListener('click', async () => {
+  el('pgRegAlert')?.classList.add('hidden');
+  const ten = el('pgRegSelect')?.value || '';
+  const weekObj = getPGWeekObj(state.pgRegWeekKind);
+  if (!ten) {
+    showPGRegAlert('⚠️ Vui lòng chọn tên PG ở Mục 2 trước khi lưu.', 'err');
+    return;
+  }
+  if (!weekObj) {
+    showPGRegAlert('⚠️ Chưa tải được thông tin tuần từ Google Sheet. Bấm 🔄 ở góc trên phải để tải lại.', 'err');
+    return;
+  }
+
+  const btn = el('btnSavePGShift');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang lưu lịch ca lên Google Sheet...';
+
+  try {
+    const res = await fetch(getScriptUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      redirect: 'follow',
+      body: JSON.stringify({
+        action: 'registerPGShift',
+        weekKey: weekObj.weekKey,
+        hoTen: ten,
+        shifts: state.pgRegDraft
+      })
+    });
+    const kq = await res.json();
+    if (!kq || !kq.ok) {
+      throw new Error((kq && kq.error) || 'Không lưu được lịch đăng ký.');
+    }
+    if (Array.isArray(kq.pgHaiTuan)) {
+      state.pgWeeks = kq.pgHaiTuan;
+    }
+    renderPGRegSection();
+    renderTeamSchedule();
+    showPGRegAlert(
+      `✅ <strong>Đã lưu lịch làm việc cho ${escapeHtml(ten)}!</strong><br />` +
+      `Tuần ${escapeHtml(kq.tuan)} • ${escapeHtml(kq.thangNam)} (${escapeHtml(kq.khoangNgay)}) — cập nhật lúc ${escapeHtml(kq.capNhatLuc)}.`,
+      'ok'
+    );
+  } catch (err) {
+    showPGRegAlert('⚠️ Lưu thất bại: ' + escapeHtml(err.message), 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✅ LƯU ĐĂNG KÝ CA LÊN GOOGLE SHEET';
+  }
+});
+
+// ============================================================================
+// TAB 3: XEM LỊCH LÀM VIỆC TỔNG 21 NHÂN VIÊN (& 21 PG)
+// ============================================================================
+
+function pillClassForNV(day) {
+  if (!day || day.off) return 'sp-off';
+  if (day.sang && day.chieu) return 'sp-full';
+  if (day.sang) return 'sp-sang';
+  if (day.chieu) return 'sp-chieu';
+  return 'sp-sang';
+}
+
+function pillInfoForPG(day) {
+  const ca = normalizePGShiftVal(day && day.ca);
+  if (!ca) return { text: '—', gio: '', cls: 'sp-off', sang: false, chieu: false, off: true };
+  if (ca === 'SÁNG') return { text: 'SÁNG', gio: day.gio || '8h-16h', cls: 'sp-sang', sang: true, chieu: false, off: false };
+  if (ca === 'CHIỀU') return { text: 'CHIỀU', gio: day.gio || '15h-20h', cls: 'sp-chieu', sang: false, chieu: true, off: false };
+  if (ca === 'GÃY ( SÁNG VS CHIỀU)') return { text: 'GÃY', gio: day.gio || '8h-20h', cls: 'sp-full', sang: true, chieu: true, off: false };
+  if (ca === 'OFF') return { text: 'OFF', gio: '', cls: 'sp-off', sang: false, chieu: false, off: true };
+  if (ca === 'ST #') return { text: 'ST #', gio: day.gio || 'ST khác', cls: 'sp-st', sang: false, chieu: false, off: true };
+  return { text: ca, gio: day.gio || '', cls: 'sp-sang', sang: false, chieu: false, off: false };
+}
+
+function renderTeamSchedule() {
+  const box = el('teamScheduleContent');
+  const labelEl = el('teamWeekLabel');
+  const hcEl = el('teamHeadcount');
+  const pgWeekBar = el('teamPGWeekBar');
+  if (!box || !labelEl || !hcEl) return;
+
+  document.querySelectorAll('#teamModeSelector .seg-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.mode === state.teamMode);
+  });
+  pgWeekBar.classList.toggle('hidden', state.teamMode !== 'pg');
+
+  const wCur = getPGWeekObj('current');
+  const wNext = getPGWeekObj('next');
+  document.querySelectorAll('#teamPGWeekBar .seg-btn').forEach((b) => {
+    const k = b.dataset.tweek;
+    b.classList.toggle('active', k === state.teamPGWeekKind);
+    if (k === 'current' && wCur) b.textContent = `📍 Tuần hiện tại (${wCur.khoangNgay})`;
+    if (k === 'next' && wNext) b.textContent = `⏭️ Tuần tiếp theo (${wNext.khoangNgay})`;
+  });
+
+  const q = normVN(state.teamSearchQuery);
+
+  if (state.teamMode === 'nv') {
+    const nv = state.nvSchedule;
+    if (!nv || !Array.isArray(nv.rows) || !nv.rows.length) {
+      labelEl.textContent = 'Chưa tải được dữ liệu lịch 21 Nhân viên từ sheet NV.';
+      hcEl.classList.add('hidden');
+      box.innerHTML = '<div class="empty-state">Bấm nút 🔄 ở góc trên phải để đồng bộ lịch 21 Nhân viên.</div>';
+      return;
+    }
+
+    const headers = nv.ngayHeaders || ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+    updateTeamDayChipLabels(headers);
+    labelEl.textContent = `📅 Lịch tổng ${nv.rows.length} Nhân viên siêu thị • ${nv.tuanLabel}`;
+
+    // Thống kê quân số đi làm mỗi ngày
+    hcEl.classList.remove('hidden');
+    hcEl.innerHTML = headers.map((h, dIdx) => {
+      let lam = 0, sang = 0, chieu = 0;
+      for (const r of nv.rows) {
+        const dy = r.days[dIdx];
+        if (dy && !dy.off) {
+          lam++;
+          if (dy.sang) sang++;
+          if (dy.chieu) chieu++;
+        }
+      }
+      const shortD = String(h).split(' ')[0];
+      return `<div class="hc-cell"><div class="hc-day">${escapeHtml(shortD)}</div><div class="hc-ok">${lam} NV</div><div>S:${sang} T:${chieu}</div></div>`;
+    }).join('');
+
+    const filtered = nv.rows.filter((r) => !q || normVN(r.hoTen).includes(q) || normVN(r.boPhan).includes(q));
+    if (!filtered.length) {
+      box.innerHTML = '<div class="empty-state">Không tìm thấy nhân viên khớp từ khóa.</div>';
+      return;
+    }
+
+    if (state.teamDayFilter === 'all') {
+      let html = '<div class="matrix-wrap"><table class="matrix-table"><thead><tr><th class="sticky-col">Nhân viên (' + filtered.length + ')</th>';
+      for (const h of headers) html += `<th>${escapeHtml(h)}</th>`;
+      html += '<th>Tổng giờ</th></tr></thead><tbody>';
+      for (const r of filtered) {
+        html += `<tr><td class="sticky-col"><div class="staff-cell-name">${r.stt}. ${escapeHtml(r.hoTen)}</div><div class="staff-cell-dept">${escapeHtml(r.boPhan)}</div></td>`;
+        for (let d = 0; d < headers.length; d++) {
+          const dy = r.days[d] || { nhan: 'OFF', gio: '', off: true };
+          html += `<td><span class="shift-pill ${pillClassForNV(dy)}">${escapeHtml(dy.nhan)}</span>${dy.gio ? `<span class="shift-subtime">${escapeHtml(dy.gio)}</span>` : ''}</td>`;
+        }
+        html += `<td><strong>${escapeHtml(r.tongGio || '—')}</strong></td></tr>`;
+      }
+      html += '</tbody></table></div>';
+      box.innerHTML = html;
+    } else {
+      const dIdx = parseInt(state.teamDayFilter, 10);
+      const sorted = filtered.slice().sort((a, b) => Number(Boolean(a.days[dIdx]?.off)) - Number(Boolean(b.days[dIdx]?.off)));
+      let html = '<div class="day-card-list">';
+      for (const r of sorted) {
+        const dy = r.days[dIdx] || { nhan: 'OFF', gio: '', off: true };
+        html +=
+          `<div class="day-staff-row">` +
+            `<div class="day-staff-left"><div class="staff-cell-name">${r.stt}. ${escapeHtml(r.hoTen)}</div><div class="staff-cell-dept">${escapeHtml(r.boPhan)}</div></div>` +
+            `<div class="day-staff-right"><span class="shift-pill ${pillClassForNV(dy)}">${escapeHtml(dy.nhan)}</span>${dy.gio ? `<span class="shift-subtime">${escapeHtml(dy.gio)}</span>` : ''}</div>` +
+          `</div>`;
+      }
+      html += '</div>';
+      box.innerHTML = html;
+    }
+  } else {
+    // Chế độ xem lịch tổng 21 PG (Tuần hiện tại hoặc Tuần tiếp theo)
+    const wk = getPGWeekObj(state.teamPGWeekKind);
+    if (!wk || !Array.isArray(wk.rows) || !wk.rows.length) {
+      labelEl.textContent = 'Chưa tải được lịch 21 PG.';
+      hcEl.classList.add('hidden');
+      box.innerHTML = '<div class="empty-state">Bấm nút 🔄 ở góc trên phải để đồng bộ lịch 21 PG.</div>';
+      return;
+    }
+
+    const headers = (wk.ngayHeaders || []).map((h) => `${h.thu} (${h.ngay})`);
+    updateTeamDayChipLabels(headers);
+    labelEl.textContent = `📅 Lịch tổng ${wk.rows.length} PG • ${wk.label}`;
+
+    // Thống kê quân số Sáng / Tối mỗi ngày (đối chiếu min 10 bạn mỗi sáng & tối trên sheet PG!)
+    hcEl.classList.remove('hidden');
+    hcEl.innerHTML = (wk.ngayHeaders || []).map((h, dIdx) => {
+      let s = 0, t = 0;
+      for (const r of wk.rows) {
+        const info = pillInfoForPG(r.days[dIdx]);
+        if (info.sang) s++;
+        if (info.chieu) t++;
+      }
+      const clsS = s >= 10 ? 'hc-ok' : 'hc-warn';
+      const clsT = t >= 10 ? 'hc-ok' : 'hc-warn';
+      return `<div class="hc-cell"><div class="hc-day">${escapeHtml(h.thu)}</div><div class="${clsS}">S:${s}</div><div class="${clsT}">T:${t}</div></div>`;
+    }).join('');
+
+    const filtered = wk.rows.filter((r) => !q || normVN(r.ten).includes(q) || normVN(r.nganh).includes(q));
+    if (!filtered.length) {
+      box.innerHTML = '<div class="empty-state">Không tìm thấy PG khớp từ khóa.</div>';
+      return;
+    }
+
+    if (state.teamDayFilter === 'all') {
+      let html = '<div class="matrix-wrap"><table class="matrix-table"><thead><tr><th class="sticky-col">PG (' + filtered.length + ')</th>';
+      for (const h of headers) html += `<th>${escapeHtml(h)}</th>`;
+      html += '</tr></thead><tbody>';
+      for (let i = 0; i < filtered.length; i++) {
+        const r = filtered[i];
+        html += `<tr><td class="sticky-col"><div class="staff-cell-name">${i + 1}. ${escapeHtml(r.ten)}</div><div class="staff-cell-dept">${escapeHtml(r.nganh)}</div></td>`;
+        for (let d = 0; d < 7; d++) {
+          const info = pillInfoForPG(r.days[d]);
+          html += `<td><span class="shift-pill ${info.cls}">${escapeHtml(info.text)}</span>${info.gio ? `<span class="shift-subtime">${escapeHtml(info.gio)}</span>` : ''}</td>`;
+        }
+        html += '</tr>';
+      }
+      html += '</tbody></table></div>';
+      box.innerHTML = html;
+    } else {
+      const dIdx = parseInt(state.teamDayFilter, 10);
+      const sorted = filtered.slice().sort((a, b) => Number(pillInfoForPG(a.days[dIdx]).off) - Number(pillInfoForPG(b.days[dIdx]).off));
+      let html = '<div class="day-card-list">';
+      for (let i = 0; i < sorted.length; i++) {
+        const r = sorted[i];
+        const info = pillInfoForPG(r.days[dIdx]);
+        html +=
+          `<div class="day-staff-row">` +
+            `<div class="day-staff-left"><div class="staff-cell-name">${i + 1}. ${escapeHtml(r.ten)}</div><div class="staff-cell-dept">${escapeHtml(r.nganh)}</div></div>` +
+            `<div class="day-staff-right"><span class="shift-pill ${info.cls}">${escapeHtml(info.text)}</span>${info.gio ? `<span class="shift-subtime">${escapeHtml(info.gio)}</span>` : ''}</div>` +
+          `</div>`;
+      }
+      html += '</div>';
+      box.innerHTML = html;
+    }
+  }
+}
+
+function updateTeamDayChipLabels(headers) {
+  document.querySelectorAll('#teamDayChips .chip').forEach((chip) => {
+    const d = chip.dataset.day;
+    if (d === 'all') return;
+    const idx = parseInt(d, 10);
+    if (headers[idx]) chip.textContent = headers[idx];
+  });
+}
+
+document.querySelectorAll('#teamModeSelector .seg-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    state.teamMode = btn.dataset.mode;
+    renderTeamSchedule();
+  });
+});
+
+document.querySelectorAll('#teamPGWeekBar .seg-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    state.teamPGWeekKind = btn.dataset.tweek;
+    renderTeamSchedule();
+  });
+});
+
+document.querySelectorAll('#teamDayChips .chip').forEach((chip) => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('#teamDayChips .chip').forEach((c) => c.classList.remove('active'));
+    chip.classList.add('active');
+    state.teamDayFilter = chip.dataset.day;
+    renderTeamSchedule();
+  });
+});
+
+el('teamSearch')?.addEventListener('input', (e) => {
+  state.teamSearchQuery = e.target.value || '';
+  renderTeamSchedule();
+});
 
 // Khởi chạy
 loadInitData();

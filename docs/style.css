@@ -639,3 +639,257 @@ body {
   color: #475569;
   line-height: 1.45;
 }
+
+/* 4-tab navigation bar */
+.tab-bar-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.tab-bar-4 .tab-btn {
+  font-size: 11.5px;
+  padding: 8px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* PG Shift Registration */
+.pg-days-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pg-day-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 9px 10px;
+}
+
+.pg-day-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.pg-day-time {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0b4f9e;
+}
+
+.pg-shift-btns {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+
+.pg-shift-btn {
+  border: 1.2px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  border-radius: 8px;
+  padding: 7px 3px;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: center;
+}
+
+.pg-shift-btn.active.sh-sang {
+  background: #0b4f9e;
+  border-color: #0b4f9e;
+  color: #ffffff;
+}
+
+.pg-shift-btn.active.sh-chieu {
+  background: #d97706;
+  border-color: #d97706;
+  color: #ffffff;
+}
+
+.pg-shift-btn.active.sh-gay {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #ffffff;
+}
+
+.pg-shift-btn.active.sh-off {
+  background: #64748b;
+  border-color: #64748b;
+  color: #ffffff;
+}
+
+.pg-shift-btn.active.sh-st {
+  background: #0d9488;
+  border-color: #0d9488;
+  color: #ffffff;
+}
+
+/* Team 21 NV & 21 PG Schedule Matrix */
+.headcount-bar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.hc-cell {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 5px 2px;
+  text-align: center;
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+.hc-day {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.hc-ok {
+  color: #15803d;
+  font-weight: 800;
+}
+
+.hc-warn {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+.matrix-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  min-width: 680px;
+}
+
+.matrix-table th,
+.matrix-table td {
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #f1f5f9;
+  padding: 6px 5px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.matrix-table thead th {
+  background: #0b4f9e;
+  color: #ffffff;
+  font-weight: 800;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.matrix-table .sticky-col {
+  position: sticky;
+  left: 0;
+  background: #ffffff;
+  text-align: left;
+  min-width: 132px;
+  max-width: 155px;
+  z-index: 1;
+  box-shadow: 2px 0 4px rgba(15, 23, 42, 0.06);
+}
+
+.matrix-table thead .sticky-col {
+  background: #083b78;
+  z-index: 3;
+}
+
+.staff-cell-name {
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.staff-cell-dept {
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.shift-pill {
+  display: inline-block;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+
+.shift-pill.sp-sang {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.shift-pill.sp-chieu {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.shift-pill.sp-full {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.shift-pill.sp-off {
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.shift-pill.sp-st {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.shift-subtime {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #475569;
+  margin-top: 2px;
+}
+
+.day-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.day-staff-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.day-staff-left {
+  min-width: 0;
+}
+
+.day-staff-right {
+  text-align: right;
+  flex-shrink: 0;
+}

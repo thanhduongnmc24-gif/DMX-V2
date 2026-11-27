@@ -850,6 +850,364 @@ function _layThuMucAnh(thangNam) {
   return subs.hasNext() ? subs.next() : rootFolder.createFolder(thangNam);
 }
 
+// ============================================================================
+// 4B. API ĐĂNG KÝ CA LÀM VIỆC PG (TUẦN HIỆN TẠI + TUẦN TIẾP THEO) & LỊCH TỔNG 21 NV
+// ============================================================================
+
+const PG_VALID_SHIFTS = {
+  "": "",
+  "SÁNG": "SÁNG",
+  "SANG": "SÁNG",
+  "CHIỀU": "CHIỀU",
+  "CHIEU": "CHIỀU",
+  "GÃY": "GÃY ( SÁNG VS CHIỀU)",
+  "GAY": "GÃY ( SÁNG VS CHIỀU)",
+  "GÃY ( SÁNG VS CHIỀU)": "GÃY ( SÁNG VS CHIỀU)",
+  "GÃY (SÁNG VS CHIỀU)": "GÃY ( SÁNG VS CHIỀU)",
+  "OFF": "OFF",
+  "ST #": "ST #",
+  "ST#": "ST #"
+};
+
+function _taoNgayHeadersTuMonday(monday) {
+  const thuNgan = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+  const thuDai = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
+  const arr = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i, 12, 0, 0);
+    arr.push({
+      index: i,
+      thu: thuNgan[i],
+      thuDai: thuDai[i],
+      ngay: _formatDDMM(d),
+      iso: _formatISODate(d)
+    });
+  }
+  return arr;
+}
+
+function _docHaiTuanPGDayDu(ss) {
+  const shPG = ss.getSheetByName(SHEET_PG);
+  if (!shPG) return [];
+
+  const gridAP = shPG.getRange(PG_START_ROW, 1, PG_NUM_ROWS, 16).getDisplayValues();
+  const curMeta = _docThangNamVaTuan(shPG);
+
+  // Đọc danh sách 21 PG chuẩn từ A7:B27
+  const dsTen = [];
+  let nganhHienTai = "";
+  for (let r = 0; r < PG_NUM_ROWS; r++) {
+    const ng = String(gridAP[r][0] || "").replace(/\s+/g, " ").trim();
+    const ten = String(gridAP[r][1] || "").replace(/\s+/g, " ").trim();
+    if (ng && ng.toLowerCase().indexOf("ngành") === -1) nganhHienTai = ng;
+    dsTen.push({ rowIndex: r, nganh: nganhHienTai || "PG", ten: ten });
+  }
+
+  // Đọc toàn bộ Data_PG 1 lần duy nhất
+  const mapKho = {};
+  const shData = ss.getSheetByName(SHEET_DATA_PG);
+  if (shData && shData.getLastRow() >= 2) {
+    const rowsData = shData.getRange(2, 1, shData.getLastRow() - 1, 6).getValues();
+    for (let i = 0; i < rowsData.length; i++) {
+      const wk = String(rowsData[i][0] || "").trim();
+      const raw = String(rowsData[i][5] || "");
+      if (wk && raw) {
+        try {
+          mapKho[wk] = JSON.parse(raw);
+        } catch (e) {}
+      }
+    }
+  }
+
+  const t1 = _tinhThongTinTuanHomNay();
+  const nextMonday = new Date(t1.monday.getFullYear(), t1.monday.getMonth(), t1.monday.getDate() + 7, 12, 0, 0);
+  const t2 = _xacDinhTuanThangTuMonday(nextMonday);
+
+  const ketQua = [];
+  const targets = [
+    { kind: "current", badge: "Tuần hiện tại", info: t1 },
+    { kind: "next", badge: "Tuần tiếp theo", info: t2 }
+  ];
+
+  for (let k = 0; k < targets.length; k++) {
+    const item = targets[k];
+    const info = item.info;
+    let lich21x14 = null;
+
+    // Nếu tab PG đang mở đúng tuần này -> lấy trực tiếp từ PG (mới nhất)
+    if (curMeta.weekKey === info.weekKey) {
+      lich21x14 = [];
+      for (let r = 0; r < PG_NUM_ROWS; r++) {
+        lich21x14.push(gridAP[r].slice(2, 16));
+      }
+    } else if (mapKho[info.weekKey] && Array.isArray(mapKho[info.weekKey].lich)) {
+      lich21x14 = mapKho[info.weekKey].lich;
+    }
+
+    const rows = [];
+    for (let r = 0; r < PG_NUM_ROWS; r++) {
+      const p = dsTen[r];
+      if (!p.ten) continue;
+      const lichRow = (lich21x14 && lich21x14[r]) ? lich21x14[r] : [];
+      const days = [];
+      for (let d = 0; d < 7; d++) {
+        const ca = String(lichRow[d * 2] || "").trim();
+        const gio = String(lichRow[d * 2 + 1] || "").trim();
+        days.push({ ca: ca, gio: gio });
+      }
+      rows.push({
+        rowIndex: r,
+        nganh: p.nganh,
+        ten: p.ten,
+        days: days
+      });
+    }
+
+    ketQua.push({
+      kind: item.kind,
+      badge: item.badge,
+      weekKey: info.weekKey,
+      tuan: info.tuan,
+      thangNam: info.thangNam,
+      khoangNgay: info.khoangNgay,
+      label: item.badge + " • Tuần " + info.tuan + "/" + info.month + " (" + info.khoangNgay + ")",
+      ngayHeaders: _taoNgayHeadersTuMonday(info.monday),
+      rows: rows
+    });
+  }
+
+  return ketQua;
+}
+
+function _dangKyCaLamViecPG(ss, payload) {
+  const shPG = ss.getSheetByName(SHEET_PG);
+  if (!shPG) return { ok: false, error: "Không tìm thấy sheet PG." };
+
+  const weekKey = String(payload.weekKey || "").trim();
+  const hoTen = String(payload.hoTen || "").trim();
+  const shifts = Array.isArray(payload.shifts) ? payload.shifts : [];
+  const customTimes = Array.isArray(payload.customTimes) ? payload.customTimes : [];
+
+  if (!hoTen) return { ok: false, error: "Vui lòng chọn tên PG trước khi đăng ký ca." };
+  if (shifts.length !== 7) return { ok: false, error: "Dữ liệu đăng ký phải đủ 7 ngày (Thứ 2 – Chủ nhật)." };
+
+  // Chỉ cho phép đăng ký cho Tuần hiện tại hoặc Tuần tiếp theo
+  const t1 = _tinhThongTinTuanHomNay();
+  const nextMonday = new Date(t1.monday.getFullYear(), t1.monday.getMonth(), t1.monday.getDate() + 7, 12, 0, 0);
+  const t2 = _xacDinhTuanThangTuMonday(nextMonday);
+
+  let targetMeta = null;
+  if (weekKey === t1.weekKey) targetMeta = t1;
+  else if (weekKey === t2.weekKey) targetMeta = t2;
+  else return { ok: false, error: "Chỉ hỗ trợ đăng ký ca cho Tuần hiện tại (" + t1.khoangNgay + ") hoặc Tuần tiếp theo (" + t2.khoangNgay + ")." };
+
+  // Tìm đúng dòng của PG trên PG!A7:B27
+  const nganhTenVals = shPG.getRange(PG_START_ROW, 1, PG_NUM_ROWS, 2).getDisplayValues();
+  const tenKey = hoTen.toLowerCase().replace(/\s+/g, " ").trim();
+  let matchedIdx = -1;
+  for (let r = 0; r < PG_NUM_ROWS; r++) {
+    const t = String(nganhTenVals[r][1] || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (t === tenKey) {
+      matchedIdx = r;
+      break;
+    }
+  }
+  if (matchedIdx < 0) {
+    return { ok: false, error: "Không tìm thấy PG \"" + hoTen + "\" trong danh sách 21 PG trên sheet PG." };
+  }
+
+  // Chuẩn hóa 7 cặp [CA, TIME] khớp đúng DataValidation trên Google Sheet
+  const row14 = [];
+  for (let d = 0; d < 7; d++) {
+    const rawCa = String(shifts[d] || "").trim().toUpperCase();
+    const caChuan = (PG_VALID_SHIFTS[rawCa] !== undefined) ? PG_VALID_SHIFTS[rawCa] : String(shifts[d] || "").trim();
+    const customGio = String(customTimes[d] || "").trim();
+    const gioChuan = customGio || (TIME_MAP[caChuan.toUpperCase()] || "");
+    row14.push(caChuan);
+    row14.push(gioChuan);
+  }
+
+  const curMeta = _docThangNamVaTuan(shPG);
+  const tz = Session.getScriptTimeZone() || "Asia/Ho_Chi_Minh";
+  const capNhatLuc = Utilities.formatDate(new Date(), tz, "HH:mm dd/MM/yyyy");
+
+  if (curMeta.weekKey === targetMeta.weekKey) {
+    // Tuần đăng ký chính là tuần đang mở trên sheet PG -> ghi thẳng lên PG và đồng bộ vào Data_PG!
+    shPG.getRange(PG_START_ROW + matchedIdx, 3, 1, 14).setValues([row14]);
+    _luuTuanPGVaoKho(ss, shPG, curMeta);
+  } else {
+    // Tuần đăng ký là tuần khác (VD Tuần tiếp theo) -> cập nhật thẳng vào kho Data_PG mà không làm xáo trộn tuần đang xem trên PG!
+    const shData = _damBaoSheetDataPG(ss);
+    const saved = _timDuLieuTuanTrongKho(ss, targetMeta.weekKey);
+    const lich = [];
+    const diemDanh = [];
+    for (let r = 0; r < PG_NUM_ROWS; r++) {
+      if (saved && saved.grid && Array.isArray(saved.grid.lich) && saved.grid.lich[r] && saved.grid.lich[r].length === 14) {
+        lich.push(saved.grid.lich[r].slice());
+      } else {
+        lich.push(["", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+      }
+      if (saved && saved.grid && Array.isArray(saved.grid.diemDanh) && saved.grid.diemDanh[r]) {
+        diemDanh.push([saved.grid.diemDanh[r][0] || ""]);
+      } else {
+        diemDanh.push([""]);
+      }
+    }
+    lich[matchedIdx] = row14;
+
+    const jsonStr = JSON.stringify({
+      nganhTen: nganhTenVals,
+      lich: lich,
+      diemDanh: diemDanh
+    });
+
+    const lastRow = shData.getLastRow();
+    let foundRow = -1;
+    if (lastRow >= 2) {
+      const keys = shData.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (let i = 0; i < keys.length; i++) {
+        if (String(keys[i][0] || "").trim() === targetMeta.weekKey) {
+          foundRow = i + 2;
+          break;
+        }
+      }
+    }
+
+    const rowData = [[
+      "'" + targetMeta.weekKey,
+      "'" + targetMeta.khoangNgay,
+      "'" + targetMeta.thangNam,
+      targetMeta.tuan,
+      "'" + capNhatLuc,
+      jsonStr
+    ]];
+
+    if (foundRow >= 2) {
+      shData.getRange(foundRow, 1, 1, 6).setValues(rowData);
+    } else {
+      shData.getRange(Math.max(2, lastRow + 1), 1, 1, 6).setValues(rowData);
+    }
+  }
+
+  return {
+    ok: true,
+    action: "registerPGShift",
+    hoTen: hoTen,
+    weekKey: targetMeta.weekKey,
+    tuan: targetMeta.tuan,
+    thangNam: targetMeta.thangNam,
+    khoangNgay: targetMeta.khoangNgay,
+    capNhatLuc: capNhatLuc,
+    pgHaiTuan: _docHaiTuanPGDayDu(ss)
+  };
+}
+
+function _docLichTong21NV(ss) {
+  const shNV = ss.getSheetByName(SHEET_NV);
+  if (!shNV) return null;
+
+  const lastRow = Math.min(Math.max(shNV.getLastRow(), 23), 60);
+  const lastCol = Math.min(Math.max(shNV.getLastColumn(), 46), 55);
+  if (lastRow < 3 || lastCol < 10) return null;
+
+  const vals = shNV.getRange(1, 1, lastRow, lastCol).getDisplayValues();
+  const row1 = vals[0];
+  const row2 = vals[1];
+
+  // Khung giờ mặc định Ca 1..Ca 6
+  const caGio = {
+    1: { s: "7h30", e: "9h", sang: true, chieu: false },
+    2: { s: "9h", e: "12h", sang: true, chieu: false },
+    3: { s: "12h", e: "15h", sang: false, chieu: false },
+    4: { s: "15h", e: "18h", sang: false, chieu: true },
+    5: { s: "18h", e: "21h", sang: false, chieu: true },
+    6: { s: "21h", e: "21h30", sang: false, chieu: true }
+  };
+
+  // Tìm vị trí cột đầu của 7 ngày T2..CN trên hàng 1
+  const dayCols = [];
+  for (let c = 4; c < row1.length; c++) {
+    const label = String(row1[c] || "").trim();
+    if (label && /^(T[2-7]|CN)\b/i.test(label)) {
+      dayCols.push({ label: label, colStart: c });
+    }
+  }
+  if (dayCols.length === 0) {
+    const macDinh = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+    for (let d = 0; d < 7; d++) {
+      dayCols.push({ label: macDinh[d], colStart: 4 + d * 6 });
+    }
+  }
+
+  function gopChuoiCa(cacCa) {
+    if (!cacCa.length) return { nhan: "OFF", gio: "", sang: false, chieu: false, off: true };
+    const nhom = [];
+    let s = cacCa[0], e = cacCa[0];
+    for (let i = 1; i < cacCa.length; i++) {
+      if (cacCa[i] === e + 1) e = cacCa[i];
+      else { nhom.push([s, e]); s = cacCa[i]; e = cacCa[i]; }
+    }
+    nhom.push([s, e]);
+    const nhan = "Ca " + nhom.map(function (p) { return p[0] === p[1] ? ("" + p[0]) : (p[0] + "-" + p[1]); }).join(",");
+    const gio = nhom.map(function (p) { return caGio[p[0]].s + "-" + caGio[p[1]].e; }).join(", ");
+    let sang = false, chieu = false;
+    for (let i = 0; i < cacCa.length; i++) {
+      if (caGio[cacCa[i]].sang) sang = true;
+      if (caGio[cacCa[i]].chieu) chieu = true;
+    }
+    return { nhan: nhan, gio: gio, sang: sang, chieu: chieu, off: false };
+  }
+
+  const rows = [];
+  let bpHienTai = "";
+  for (let r = 2; r < vals.length; r++) {
+    const row = vals[r];
+    const bp = String(row[0] || "").replace(/\s+/g, " ").trim();
+    const user = String(row[1] || "").trim();
+    const ten = String(row[2] || "").replace(/\s+/g, " ").trim();
+    const tong = String(row[3] || "").trim();
+    const bpLow = bp.toLowerCase();
+    if (bpLow.indexOf("note") === 0 || bpLow === "ca" || bpLow.indexOf("thời gian") === 0) break;
+    if (bp && bpLow.indexOf("bộ phận") === -1) bpHienTai = bp;
+    if (!ten || ten.toLowerCase().indexOf("họ tên") !== -1 || !isNaN(Number(ten))) continue;
+
+    const days = [];
+    for (let d = 0; d < dayCols.length; d++) {
+      const cStart = dayCols[d].colStart;
+      const cEnd = (d + 1 < dayCols.length) ? dayCols[d + 1].colStart : Math.min(cStart + 6, row.length);
+      const cacCa = [];
+      for (let c = cStart; c < cEnd && c < row.length; c++) {
+        const v = String(row[c] || "").trim();
+        if (!v) continue;
+        const vLow = v.toLowerCase();
+        if (vLow === "0" || vLow === "0.0" || vLow === "-" || vLow.indexOf("off") !== -1 || vLow.indexOf("nghỉ") !== -1) continue;
+        const sub = String(row2[c] || "");
+        const mCa = sub.match(/(\d)/);
+        const caSo = mCa ? parseInt(mCa[1], 10) : (c - cStart + 1);
+        if (caSo >= 1 && caSo <= 6) cacCa.push(caSo);
+      }
+      days.push(gopChuoiCa(cacCa));
+    }
+
+    rows.push({
+      stt: rows.length + 1,
+      boPhan: bpHienTai || "NV Siêu thị",
+      user: user,
+      hoTen: ten,
+      tongGio: tong,
+      days: days
+    });
+  }
+
+  const dau = dayCols[0] ? dayCols[0].label : "";
+  const cuoi = dayCols[dayCols.length - 1] ? dayCols[dayCols.length - 1].label : "";
+  return {
+    tuanLabel: dau && cuoi ? (dau + " – " + cuoi) : "Tuần hiện tại",
+    ngayHeaders: dayCols.map(function (d) { return d.label; }),
+    rows: rows
+  };
+}
+
 function doGet(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -869,9 +1227,19 @@ function doGet(e) {
       });
     }
 
+    if (action === "schedules") {
+      return _jsonOut({
+        ok: true,
+        pgHaiTuan: _docHaiTuanPGDayDu(ss),
+        lichTongNV: _docLichTong21NV(ss)
+      });
+    }
+
     const nhanSu = _docDanhSachNhanSu(ss);
     const lichSu = _docCheckInGanNhat(ss, limit);
     const lichPhanCong = _docLichPhanCongPhatToRoi(ss);
+    const pgHaiTuan = _docHaiTuanPGDayDu(ss);
+    const lichTongNV = _docLichTong21NV(ss);
 
     let tuanHienTai = "";
     const shPG = ss.getSheetByName(SHEET_PG);
@@ -886,7 +1254,9 @@ function doGet(e) {
       tuanHienTai: tuanHienTai,
       nhanSu: nhanSu,
       lichSu: lichSu,
-      lichPhanCong: lichPhanCong
+      lichPhanCong: lichPhanCong,
+      pgHaiTuan: pgHaiTuan,
+      lichTongNV: lichTongNV
     });
   } catch (err) {
     return _jsonOut({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -911,6 +1281,11 @@ function doPost(e) {
     // Nhánh 1: App DMX-V2 đồng bộ ma trận phân tuyến & lịch phát tờ rơi lên Sheet cho PWA đọc
     if (String(data.action || "") === "syncSchedule") {
       return _jsonOut(_luuLichPhanCongPhatToRoi(ss, data));
+    }
+
+    // Nhánh 2: PG đăng ký ca làm việc cho Tuần hiện tại hoặc Tuần tiếp theo từ PWA
+    if (String(data.action || "") === "registerPGShift") {
+      return _jsonOut(_dangKyCaLamViecPG(ss, data));
     }
 
     // Nhánh 2: Nhân viên / PG gửi check-in + ảnh minh chứng từ PWA
