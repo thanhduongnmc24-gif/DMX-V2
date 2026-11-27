@@ -69,6 +69,55 @@ function _tinhKhoangNgayTuMonday(monday) {
   return _formatDDMM(monday) + " – " + _formatDDMM(sunday);
 }
 
+/**
+ * Từ ngày Thứ 2 bất kỳ, tính chính xác (Tuần mấy, Tháng/Năm nào) khớp 100% công thức hàng 4 sheet PG:
+ * - Chủ nhật của tuần thuộc tháng nào thì tuần đó thuộc tháng đó (mỗi tuần duy nhất 1 mã, không trùng lặp, không bỏ sót).
+ * - Khi hết tuần cuối của tháng, cộng thêm 7 ngày sẽ tự động chuyển sang Tuần 1 của tháng tiếp theo!
+ */
+function _xacDinhTuanThangTuMonday(monday) {
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 12, 0, 0);
+  const month = sunday.getMonth() + 1;
+  const year = sunday.getFullYear();
+  const thangNam = _pad2(month) + "/" + year;
+  const w1Monday = _tinhNgayThu2(thangNam, 1);
+  const diffDays = Math.round((monday.getTime() - w1Monday.getTime()) / 86400000);
+  const tuan = Math.floor(diffDays / 7) + 1;
+  return {
+    tuan: tuan,
+    month: month,
+    year: year,
+    thangNam: thangNam,
+    monday: monday,
+    weekKey: _formatISODate(monday),
+    khoangNgay: _tinhKhoangNgayTuMonday(monday)
+  };
+}
+
+/** Dựa vào ngày hiện tại (múi giờ Việt Nam) để xác định chính xác Thứ 2, Tuần mấy & Tháng/Năm hiện tại */
+function _tinhThongTinTuanHomNay() {
+  const tz = Session.getScriptTimeZone() || "Asia/Ho_Chi_Minh";
+  const parts = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd").split("-");
+  const today = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0);
+  const dow = today.getDay() === 0 ? 7 : today.getDay(); // T2=1 .. CN=7
+  const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (dow - 1), 12, 0, 0);
+  return _xacDinhTuanThangTuMonday(monday);
+}
+
+/** Đếm số tuần thực tế (4 hoặc 5 tuần) thuộc về một tháng/năm nhất định */
+function _soTuanCuaThang(month, year) {
+  const thangNam = _pad2(month) + "/" + year;
+  let maxW = 4;
+  for (let w = 4; w <= 5; w++) {
+    const mon = _tinhNgayThu2(thangNam, w);
+    if (!mon) break;
+    const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6, 12, 0, 0);
+    if (sun.getMonth() + 1 === month && sun.getFullYear() === year) {
+      maxW = w;
+    }
+  }
+  return maxW;
+}
+
 function _docThangNamVaTuan(sheetPG) {
   const vals = sheetPG.getRange("A2:B2").getValues()[0];
   const tuan = parseInt(vals[0], 10);
@@ -80,8 +129,11 @@ function _docThangNamVaTuan(sheetPG) {
     thangNam = String(rawB2 || "").trim();
   }
   const monday = _tinhNgayThu2(thangNam, tuan);
-  const weekKey = monday ? _formatISODate(monday) : "";
-  const khoangNgay = monday ? _tinhKhoangNgayTuMonday(monday) : "";
+  if (!monday) {
+    return _tinhThongTinTuanHomNay();
+  }
+  const weekKey = _formatISODate(monday);
+  const khoangNgay = _tinhKhoangNgayTuMonday(monday);
   return { tuan: isNaN(tuan) ? 1 : tuan, thangNam: thangNam, monday: monday, weekKey: weekKey, khoangNgay: khoangNgay };
 }
 
@@ -223,21 +275,45 @@ function _napTuanPGTuKho(ss, sheetPG, weekKey) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("⚡ DMX Tiện ích")
-    .addItem("🚀 Khởi tạo kho tuần PG + Dropdown nhanh + Bảng Check-in", "khoiTaoNhanhBangTinh")
+    .addItem("📍 Về đúng Tuần hiện tại (theo ngày hôm nay)", "veTuanHienTai")
     .addItem("📋 Sao chép lịch tuần trước sang tuần đang mở", "saoChepTuanTruocSangTuanNay")
+    .addItem("🚀 Khởi tạo kho tuần PG + Dropdown nhanh + Bảng Check-in", "khoiTaoNhanhBangTinh")
     .addItem("💾 Lưu thủ công tuần PG hiện tại vào kho", "luuTuanPGHienTai")
     .addItem("🗑️ Xóa lịch làm việc tuần đang mở (PG)", "xoaLichLamViec")
     .addToUi();
 }
 
+/** Nhảy thẳng về đúng Tuần & Tháng của ngày hiện tại (tự lưu tuần cũ trước khi chuyển) */
+function veTuanHienTai() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = _laySheetPG(ss);
+  if (!sheet) return;
+
+  const curMeta = _docThangNamVaTuan(sheet);
+  const todayInfo = _tinhThongTinTuanHomNay();
+
+  if (curMeta.weekKey) {
+    _luuTuanPGVaoKho(ss, sheet, curMeta);
+  }
+  sheet.getRange("A2:B2").setValues([[todayInfo.tuan, "'" + todayInfo.thangNam]]);
+  CacheService.getDocumentCache().put("dmx_pg_b2", todayInfo.thangNam, 300);
+
+  if (todayInfo.weekKey !== curMeta.weekKey) {
+    _napTuanPGTuKho(ss, sheet, todayInfo.weekKey);
+  } else {
+    PropertiesService.getDocumentProperties().setProperty(PROP_ACTIVE_PG_KEY, todayInfo.weekKey);
+  }
+  return todayInfo;
+}
+
 function khoiTaoNhanhBangTinh() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // 1. Gắn dropdown chọn nhanh trên PG!A2 (Tuần 1..6) và PG!B2 (Tháng/Năm)
+  // 1. Gắn dropdown chọn nhanh trên PG!A2 (Tuần 1..5) và PG!B2 (Tháng/Năm)
   const sheetPG = ss.getSheetByName(SHEET_PG);
   if (sheetPG) {
     const ruleTuan = SpreadsheetApp.newDataValidation()
-      .requireValueInList(["1", "2", "3", "4", "5", "6"], true)
+      .requireValueInList(["1", "2", "3", "4", "5"], true)
       .setAllowInvalid(true)
       .build();
     sheetPG.getRange("A2").setDataValidation(ruleTuan);
@@ -255,11 +331,15 @@ function khoiTaoNhanhBangTinh() {
       .build();
     sheetPG.getRange("B2").setNumberFormat("@").setDataValidation(ruleThang);
 
-    // Tạo kho Data_PG & lưu ngay tuần đang hiển thị để không bao giờ mất dữ liệu cũ
+    // Chụp lưu tuần đang hiển thị vào Data_PG, đồng thời chuẩn hóa A2:B2 đúng theo ngày hiện tại nếu đang sai chuẩn
     const meta = _docThangNamVaTuan(sheetPG);
     if (meta.weekKey) {
       _luuTuanPGVaoKho(ss, sheetPG, meta);
-      PropertiesService.getDocumentProperties().setProperty(PROP_ACTIVE_PG_KEY, meta.weekKey);
+      const chuan = _xacDinhTuanThangTuMonday(meta.monday);
+      sheetPG.getRange("A2:B2").setValues([[chuan.tuan, "'" + chuan.thangNam]]);
+      PropertiesService.getDocumentProperties().setProperty(PROP_ACTIVE_PG_KEY, chuan.weekKey);
+    } else {
+      veTuanHienTai();
     }
   }
 
@@ -349,13 +429,16 @@ function changeMonth(delta) {
     year += 1;
   }
 
+  const maxWeek = _soTuanCuaThang(month, year);
+  const newWeek = Math.min(Math.max(curMeta.tuan, 1), maxWeek);
   const formatted = _pad2(month) + "/" + year;
-  // 2. Cập nhật B2 (dùng "'" ép văn bản MM/yyyy trong 1 lần gọi)
-  sheet.getRange("B2").setValue("'" + formatted);
+
+  // 2. Cập nhật A2:B2 trong đúng 1 lần gọi setValues
+  sheet.getRange("A2:B2").setValues([[newWeek, "'" + formatted]]);
   CacheService.getDocumentCache().put("dmx_pg_b2", formatted, 300);
 
   // 3. Nạp dữ liệu riêng của tuần/tháng mới từ kho Data_PG (trống nếu chưa nhập!)
-  const newMonday = _tinhNgayThu2(formatted, curMeta.tuan);
+  const newMonday = _tinhNgayThu2(formatted, newWeek);
   if (newMonday) {
     const newKey = _formatISODate(newMonday);
     if (newKey !== curMeta.weekKey) {
@@ -372,33 +455,41 @@ function nextWeek() {
   changeWeek(1);
 }
 
+/**
+ * Chuyển tuần tiến (+1) / lùi (-1) liên tục theo lịch thực tế:
+ * - Bấm mũi tên tuần tới tuần cuối của tháng -> TỰ ĐỘNG nhảy sang Tháng sau & đặt về Tuần 1!
+ * - Bấm mũi tên lùi từ Tuần 1 -> TỰ ĐỘNG lùi về Tháng trước & đặt đúng Tuần cuối (Tuần 4 hoặc 5)!
+ * - Tự động lưu dữ liệu tuần cũ vào kho Data_PG và nạp dữ liệu riêng của tuần mới.
+ */
 function changeWeek(delta) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = _laySheetPG(ss);
   if (!sheet) return;
 
   const curMeta = _docThangNamVaTuan(sheet);
-  const oldWeek = curMeta.tuan;
-  let newWeek = oldWeek + delta;
-  if (newWeek < 1) newWeek = 1;
-  if (newWeek > 6) newWeek = 6;
-  if (newWeek === oldWeek) return;
+  const baseMonday = curMeta.monday || _tinhThongTinTuanHomNay().monday;
 
-  // 1. Lưu tuần hiện tại vào kho Data_PG trước khi nhảy sang tuần khác
+  // 1. Lưu tuần hiện tại vào kho Data_PG trước khi nhảy tuần/tháng
   if (curMeta.weekKey) {
     _luuTuanPGVaoKho(ss, sheet, curMeta);
   }
 
-  // 2. Cập nhật ô A2 sang tuần mới
-  sheet.getRange("A2").setValue(newWeek);
+  // 2. Cộng/trừ đúng 7 ngày -> tự tính chính xác (Tuần mới, Tháng/Năm mới)
+  const targetMonday = new Date(
+    baseMonday.getFullYear(),
+    baseMonday.getMonth(),
+    baseMonday.getDate() + delta * 7,
+    12, 0, 0
+  );
+  const nextInfo = _xacDinhTuanThangTuMonday(targetMonday);
 
-  // 3. Nạp dữ liệu riêng của tuần mới từ kho Data_PG (trống nếu chưa nhập!)
-  const newMonday = _tinhNgayThu2(curMeta.thangNam, newWeek);
-  if (newMonday) {
-    const newKey = _formatISODate(newMonday);
-    if (newKey !== curMeta.weekKey) {
-      _napTuanPGTuKho(ss, sheet, newKey);
-    }
+  // 3. Ghi đồng thời cả ô Tuần (A2) và ô Tháng/Năm (B2) trong ĐÚNG 1 lần gọi API cho nhanh tối đa
+  sheet.getRange("A2:B2").setValues([[nextInfo.tuan, "'" + nextInfo.thangNam]]);
+  CacheService.getDocumentCache().put("dmx_pg_b2", nextInfo.thangNam, 300);
+
+  // 4. Nạp dữ liệu riêng của tuần mới từ kho Data_PG (trống nếu chưa nhập!)
+  if (nextInfo.weekKey !== curMeta.weekKey) {
+    _napTuanPGTuKho(ss, sheet, nextInfo.weekKey);
   }
 }
 
@@ -424,7 +515,12 @@ function onEdit(e) {
   if (startRow <= 2 && endRow >= 2 && startCol <= 2) {
     const props = PropertiesService.getDocumentProperties();
     const oldKey = props.getProperty(PROP_ACTIVE_PG_KEY) || "";
-    const newMeta = _docThangNamVaTuan(sheet);
+    const rawMeta = _docThangNamVaTuan(sheet);
+    const newMeta = rawMeta.monday ? _xacDinhTuanThangTuMonday(rawMeta.monday) : _tinhThongTinTuanHomNay();
+    // Nếu tuần vừa chọn vượt sang tháng kế tiếp (VD: chọn Tuần 5 của tháng chỉ có 4 tuần) -> tự chỉnh về đúng Tuần 1 tháng sau
+    if (newMeta.tuan !== rawMeta.tuan || newMeta.thangNam !== rawMeta.thangNam) {
+      sheet.getRange("A2:B2").setValues([[newMeta.tuan, "'" + newMeta.thangNam]]);
+    }
     if (newMeta.weekKey && newMeta.weekKey !== oldKey) {
       // Lưu lưới hiện tại vào đúng khóa tuần cũ trước khi nạp dữ liệu tuần mới
       if (oldKey) {

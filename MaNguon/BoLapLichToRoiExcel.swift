@@ -477,6 +477,24 @@ final class BoPhanTichLichCaExcel {
         return "\(df.string(from: monday)) – \(df.string(from: sunday))"
     }
 
+    private static func xacDinhTuanThangTuMonday(_ monday: Date) -> (tuan: Int, thang: Int, nam: Int) {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Ho_Chi_Minh") ?? .current
+        let sunday = cal.date(byAdding: .day, value: 6, to: monday) ?? monday
+        let compSun = cal.dateComponents([.year, .month], from: sunday)
+        let thang = compSun.month ?? 1
+        let nam = compSun.year ?? 2026
+        var compDauThang = DateComponents()
+        compDauThang.year = nam; compDauThang.month = thang; compDauThang.day = 1; compDauThang.hour = 12
+        let ngay1 = cal.date(from: compDauThang) ?? monday
+        let wd = cal.component(.weekday, from: ngay1) // CN=1, T2=2..T7=7
+        let isoDow = (wd == 1) ? 7 : (wd - 1)
+        let w1Monday = cal.date(byAdding: .day, value: 1 - isoDow, to: ngay1) ?? ngay1
+        let diffDays = cal.dateComponents([.day], from: w1Monday, to: monday).day ?? 0
+        let tuan = max(1, (diffDays / 7) + 1)
+        return (tuan, thang, nam)
+    }
+
     private static func ghepHaiTuanPGTuDataPG(
         sheetDataPG: BangSheetExcel,
         dsPGHienTai: [KhoiLichTuanExcel]
@@ -555,12 +573,14 @@ final class BoPhanTichLichCaExcel {
 
         let dsTuan1 = mapTheoWeekKey[keyHienTai] ?? []
         let dsTuan2 = mapTheoWeekKey[keyTiepTheo] ?? []
+        let tt1 = xacDinhTuanThangTuMonday(mondayHienTai)
+        let tt2 = xacDinhTuanThangTuMonday(mondayTiepTheo)
 
-        // Luôn trả về đúng 2 tuần (Tuần hiện tại & Tuần tiếp theo) để người dùng chọn trong app
+        // Luôn trả về đúng 2 tuần (Tuần hiện tại & Tuần tiếp theo) khớp đúng số Tuần/Tháng trên Google Sheet PG
         let khoiTuanHienTai = KhoiLichTuanExcel(
             id: "PG_\(keyHienTai)",
             tenSheet: "PG",
-            tenTuan: "📍 Tuần hiện tại (\(khoangHienTai))",
+            tenTuan: "📍 Tuần hiện tại • Tuần \(tt1.tuan)/\(tt1.thang) (\(khoangHienTai))",
             nhom: .pg,
             danhSachNguoi: dsTuan1,
             ngaySerialSapXep: tinhSerialExcel(tu: mondayHienTai)
@@ -568,7 +588,7 @@ final class BoPhanTichLichCaExcel {
         let khoiTuanTiepTheo = KhoiLichTuanExcel(
             id: "PG_\(keyTiepTheo)",
             tenSheet: "PG",
-            tenTuan: "⏭️ Tuần tiếp theo (\(khoangTiepTheo))",
+            tenTuan: "⏭️ Tuần tiếp theo • Tuần \(tt2.tuan)/\(tt2.thang) (\(khoangTiepTheo))",
             nhom: .pg,
             danhSachNguoi: dsTuan2,
             ngaySerialSapXep: tinhSerialExcel(tu: mondayTiepTheo)
