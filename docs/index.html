@@ -34,7 +34,7 @@
     <nav class="tab-bar tab-bar-4">
       <button class="tab-btn active" data-tab="checkin" type="button">📍 Check-in</button>
       <button class="tab-btn" data-tab="pgreg" type="button">🗓️ ĐK Ca PG</button>
-      <button class="tab-btn" data-tab="team" type="button">👥 Lịch 21 NV</button>
+      <button class="tab-btn" data-tab="team" type="button">👥 Lịch 21 PG</button>
       <button class="tab-btn" data-tab="history" type="button">📋 Đã nộp (<span id="historyCount">0</span>)</button>
     </nav>
   </header>
@@ -154,23 +154,18 @@
       </div>
     </section>
 
-    <!-- TAB 3: XEM LỊCH LÀM VIỆC TỔNG 21 NHÂN VIÊN (& 21 PG) -->
+    <!-- TAB 3: XEM LỊCH LÀM VIỆC TỔNG 21 PG (CHỈ HIỂN THỊ PG, KHÔNG HIỂN THỊ LỊCH NHÂN VIÊN) -->
     <section id="tab-team" class="tab-panel">
       <div class="card">
-        <div class="card-title">👥 Lịch làm việc tổng siêu thị</div>
-        <div class="seg-group" id="teamModeSelector">
-          <button type="button" class="seg-btn active" data-mode="nv">🧑‍🔧 21 Nhân viên</button>
-          <button type="button" class="seg-btn" data-mode="pg">👩‍💼 21 PG</button>
-        </div>
-
-        <div id="teamPGWeekBar" class="seg-group mt-8 hidden">
+        <div class="card-title">👩‍💼 Lịch làm việc tổng 21 PG</div>
+        <div id="teamPGWeekBar" class="seg-group">
           <button type="button" class="seg-btn active" data-tweek="current">📍 Tuần hiện tại</button>
           <button type="button" class="seg-btn" data-tweek="next">⏭️ Tuần tiếp theo</button>
         </div>
 
-        <div id="teamWeekLabel" class="hint-text mt-8">Đang tải lịch tổng...</div>
+        <div id="teamWeekLabel" class="hint-text mt-8">Đang tải lịch tổng 21 PG...</div>
 
-        <input id="teamSearch" class="input-field mt-8" type="search" placeholder="🔍 Tìm nhanh theo tên hoặc bộ phận..." />
+        <input id="teamSearch" class="input-field mt-8" type="search" placeholder="🔍 Tìm nhanh theo tên PG hoặc ngành hàng..." />
 
         <div class="chip-wrap mt-8" id="teamDayChips">
           <button type="button" class="chip active" data-day="all">Cả tuần</button>
@@ -185,7 +180,7 @@
 
         <div id="teamHeadcount" class="headcount-bar mt-8 hidden"></div>
         <div id="teamScheduleContent" class="mt-8">
-          <div class="empty-state">Đang tải lịch tổng 21 nhân viên...</div>
+          <div class="empty-state">Đang tải lịch tổng 21 PG...</div>
         </div>
       </div>
     </section>

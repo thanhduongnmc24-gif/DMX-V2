@@ -20,10 +20,8 @@ const state = {
   history: [],
   schedule: null,
   pgWeeks: [],
-  nvSchedule: null,
   pgRegWeekKind: 'current',
   pgRegDraft: ['', '', '', '', '', '', ''],
-  teamMode: 'nv',
   teamPGWeekKind: 'current',
   teamDayFilter: 'all',
   teamSearchQuery: '',
@@ -372,7 +370,6 @@ async function loadInitData() {
     state.history = data.lichSu || [];
     state.schedule = data.lichPhanCong || null;
     state.pgWeeks = Array.isArray(data.pgHaiTuan) ? data.pgHaiTuan : [];
-    state.nvSchedule = data.lichTongNV || null;
     el('countPG').textContent = state.staff.pg.length;
     el('countNV').textContent = state.staff.nv.length;
     el('historyCount').textContent = state.history.length;
@@ -948,16 +945,8 @@ el('btnSavePGShift')?.addEventListener('click', async () => {
 });
 
 // ============================================================================
-// TAB 3: XEM LỊCH LÀM VIỆC TỔNG 21 NHÂN VIÊN (& 21 PG)
+// TAB 3: XEM LỊCH LÀM VIỆC TỔNG 21 PG (CHỈ HIỂN THỊ PG, KHÔNG HIỂN THỊ LỊCH NV)
 // ============================================================================
-
-function pillClassForNV(day) {
-  if (!day || day.off) return 'sp-off';
-  if (day.sang && day.chieu) return 'sp-full';
-  if (day.sang) return 'sp-sang';
-  if (day.chieu) return 'sp-chieu';
-  return 'sp-sang';
-}
 
 function pillInfoForPG(day) {
   const ca = normalizePGShiftVal(day && day.ca);
@@ -974,13 +963,7 @@ function renderTeamSchedule() {
   const box = el('teamScheduleContent');
   const labelEl = el('teamWeekLabel');
   const hcEl = el('teamHeadcount');
-  const pgWeekBar = el('teamPGWeekBar');
   if (!box || !labelEl || !hcEl) return;
-
-  document.querySelectorAll('#teamModeSelector .seg-btn').forEach((b) => {
-    b.classList.toggle('active', b.dataset.mode === state.teamMode);
-  });
-  pgWeekBar.classList.toggle('hidden', state.teamMode !== 'pg');
 
   const wCur = getPGWeekObj('current');
   const wNext = getPGWeekObj('next');
@@ -992,136 +975,68 @@ function renderTeamSchedule() {
   });
 
   const q = normVN(state.teamSearchQuery);
+  const wk = getPGWeekObj(state.teamPGWeekKind);
+  if (!wk || !Array.isArray(wk.rows) || !wk.rows.length) {
+    labelEl.textContent = 'Chưa tải được lịch 21 PG.';
+    hcEl.classList.add('hidden');
+    box.innerHTML = '<div class="empty-state">Bấm nút 🔄 ở góc trên phải để đồng bộ lịch 21 PG.</div>';
+    return;
+  }
 
-  if (state.teamMode === 'nv') {
-    const nv = state.nvSchedule;
-    if (!nv || !Array.isArray(nv.rows) || !nv.rows.length) {
-      labelEl.textContent = 'Chưa tải được dữ liệu lịch 21 Nhân viên từ sheet NV.';
-      hcEl.classList.add('hidden');
-      box.innerHTML = '<div class="empty-state">Bấm nút 🔄 ở góc trên phải để đồng bộ lịch 21 Nhân viên.</div>';
-      return;
+  const headers = (wk.ngayHeaders || []).map((h) => `${h.thu} (${h.ngay})`);
+  updateTeamDayChipLabels(headers);
+  labelEl.textContent = `📅 Lịch tổng ${wk.rows.length} PG • ${wk.label}`;
+
+  // Thống kê quân số Sáng / Tối mỗi ngày (đối chiếu min 10 bạn mỗi sáng & tối trên sheet PG)
+  hcEl.classList.remove('hidden');
+  hcEl.innerHTML = (wk.ngayHeaders || []).map((h, dIdx) => {
+    let s = 0, t = 0;
+    for (const r of wk.rows) {
+      const info = pillInfoForPG(r.days[dIdx]);
+      if (info.sang) s++;
+      if (info.chieu) t++;
     }
+    const clsS = s >= 10 ? 'hc-ok' : 'hc-warn';
+    const clsT = t >= 10 ? 'hc-ok' : 'hc-warn';
+    return `<div class="hc-cell"><div class="hc-day">${escapeHtml(h.thu)}</div><div class="${clsS}">S:${s}</div><div class="${clsT}">T:${t}</div></div>`;
+  }).join('');
 
-    const headers = nv.ngayHeaders || ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-    updateTeamDayChipLabels(headers);
-    labelEl.textContent = `📅 Lịch tổng ${nv.rows.length} Nhân viên siêu thị • ${nv.tuanLabel}`;
+  const filtered = wk.rows.filter((r) => !q || normVN(r.ten).includes(q) || normVN(r.nganh).includes(q));
+  if (!filtered.length) {
+    box.innerHTML = '<div class="empty-state">Không tìm thấy PG khớp từ khóa.</div>';
+    return;
+  }
 
-    // Thống kê quân số đi làm mỗi ngày
-    hcEl.classList.remove('hidden');
-    hcEl.innerHTML = headers.map((h, dIdx) => {
-      let lam = 0, sang = 0, chieu = 0;
-      for (const r of nv.rows) {
-        const dy = r.days[dIdx];
-        if (dy && !dy.off) {
-          lam++;
-          if (dy.sang) sang++;
-          if (dy.chieu) chieu++;
-        }
+  if (state.teamDayFilter === 'all') {
+    let html = '<div class="matrix-wrap"><table class="matrix-table"><thead><tr><th class="sticky-col">PG (' + filtered.length + ')</th>';
+    for (const h of headers) html += `<th>${escapeHtml(h)}</th>`;
+    html += '</tr></thead><tbody>';
+    for (let i = 0; i < filtered.length; i++) {
+      const r = filtered[i];
+      html += `<tr><td class="sticky-col"><div class="staff-cell-name">${i + 1}. ${escapeHtml(r.ten)}</div><div class="staff-cell-dept">${escapeHtml(r.nganh)}</div></td>`;
+      for (let d = 0; d < 7; d++) {
+        const info = pillInfoForPG(r.days[d]);
+        html += `<td><span class="shift-pill ${info.cls}">${escapeHtml(info.text)}</span>${info.gio ? `<span class="shift-subtime">${escapeHtml(info.gio)}</span>` : ''}</td>`;
       }
-      const shortD = String(h).split(' ')[0];
-      return `<div class="hc-cell"><div class="hc-day">${escapeHtml(shortD)}</div><div class="hc-ok">${lam} NV</div><div>S:${sang} T:${chieu}</div></div>`;
-    }).join('');
-
-    const filtered = nv.rows.filter((r) => !q || normVN(r.hoTen).includes(q) || normVN(r.boPhan).includes(q));
-    if (!filtered.length) {
-      box.innerHTML = '<div class="empty-state">Không tìm thấy nhân viên khớp từ khóa.</div>';
-      return;
+      html += '</tr>';
     }
-
-    if (state.teamDayFilter === 'all') {
-      let html = '<div class="matrix-wrap"><table class="matrix-table"><thead><tr><th class="sticky-col">Nhân viên (' + filtered.length + ')</th>';
-      for (const h of headers) html += `<th>${escapeHtml(h)}</th>`;
-      html += '<th>Tổng giờ</th></tr></thead><tbody>';
-      for (const r of filtered) {
-        html += `<tr><td class="sticky-col"><div class="staff-cell-name">${r.stt}. ${escapeHtml(r.hoTen)}</div><div class="staff-cell-dept">${escapeHtml(r.boPhan)}</div></td>`;
-        for (let d = 0; d < headers.length; d++) {
-          const dy = r.days[d] || { nhan: 'OFF', gio: '', off: true };
-          html += `<td><span class="shift-pill ${pillClassForNV(dy)}">${escapeHtml(dy.nhan)}</span>${dy.gio ? `<span class="shift-subtime">${escapeHtml(dy.gio)}</span>` : ''}</td>`;
-        }
-        html += `<td><strong>${escapeHtml(r.tongGio || '—')}</strong></td></tr>`;
-      }
-      html += '</tbody></table></div>';
-      box.innerHTML = html;
-    } else {
-      const dIdx = parseInt(state.teamDayFilter, 10);
-      const sorted = filtered.slice().sort((a, b) => Number(Boolean(a.days[dIdx]?.off)) - Number(Boolean(b.days[dIdx]?.off)));
-      let html = '<div class="day-card-list">';
-      for (const r of sorted) {
-        const dy = r.days[dIdx] || { nhan: 'OFF', gio: '', off: true };
-        html +=
-          `<div class="day-staff-row">` +
-            `<div class="day-staff-left"><div class="staff-cell-name">${r.stt}. ${escapeHtml(r.hoTen)}</div><div class="staff-cell-dept">${escapeHtml(r.boPhan)}</div></div>` +
-            `<div class="day-staff-right"><span class="shift-pill ${pillClassForNV(dy)}">${escapeHtml(dy.nhan)}</span>${dy.gio ? `<span class="shift-subtime">${escapeHtml(dy.gio)}</span>` : ''}</div>` +
-          `</div>`;
-      }
-      html += '</div>';
-      box.innerHTML = html;
-    }
+    html += '</tbody></table></div>';
+    box.innerHTML = html;
   } else {
-    // Chế độ xem lịch tổng 21 PG (Tuần hiện tại hoặc Tuần tiếp theo)
-    const wk = getPGWeekObj(state.teamPGWeekKind);
-    if (!wk || !Array.isArray(wk.rows) || !wk.rows.length) {
-      labelEl.textContent = 'Chưa tải được lịch 21 PG.';
-      hcEl.classList.add('hidden');
-      box.innerHTML = '<div class="empty-state">Bấm nút 🔄 ở góc trên phải để đồng bộ lịch 21 PG.</div>';
-      return;
+    const dIdx = parseInt(state.teamDayFilter, 10);
+    const sorted = filtered.slice().sort((a, b) => Number(pillInfoForPG(a.days[dIdx]).off) - Number(pillInfoForPG(b.days[dIdx]).off));
+    let html = '<div class="day-card-list">';
+    for (let i = 0; i < sorted.length; i++) {
+      const r = sorted[i];
+      const info = pillInfoForPG(r.days[dIdx]);
+      html +=
+        `<div class="day-staff-row">` +
+          `<div class="day-staff-left"><div class="staff-cell-name">${i + 1}. ${escapeHtml(r.ten)}</div><div class="staff-cell-dept">${escapeHtml(r.nganh)}</div></div>` +
+          `<div class="day-staff-right"><span class="shift-pill ${info.cls}">${escapeHtml(info.text)}</span>${info.gio ? `<span class="shift-subtime">${escapeHtml(info.gio)}</span>` : ''}</div>` +
+        `</div>`;
     }
-
-    const headers = (wk.ngayHeaders || []).map((h) => `${h.thu} (${h.ngay})`);
-    updateTeamDayChipLabels(headers);
-    labelEl.textContent = `📅 Lịch tổng ${wk.rows.length} PG • ${wk.label}`;
-
-    // Thống kê quân số Sáng / Tối mỗi ngày (đối chiếu min 10 bạn mỗi sáng & tối trên sheet PG!)
-    hcEl.classList.remove('hidden');
-    hcEl.innerHTML = (wk.ngayHeaders || []).map((h, dIdx) => {
-      let s = 0, t = 0;
-      for (const r of wk.rows) {
-        const info = pillInfoForPG(r.days[dIdx]);
-        if (info.sang) s++;
-        if (info.chieu) t++;
-      }
-      const clsS = s >= 10 ? 'hc-ok' : 'hc-warn';
-      const clsT = t >= 10 ? 'hc-ok' : 'hc-warn';
-      return `<div class="hc-cell"><div class="hc-day">${escapeHtml(h.thu)}</div><div class="${clsS}">S:${s}</div><div class="${clsT}">T:${t}</div></div>`;
-    }).join('');
-
-    const filtered = wk.rows.filter((r) => !q || normVN(r.ten).includes(q) || normVN(r.nganh).includes(q));
-    if (!filtered.length) {
-      box.innerHTML = '<div class="empty-state">Không tìm thấy PG khớp từ khóa.</div>';
-      return;
-    }
-
-    if (state.teamDayFilter === 'all') {
-      let html = '<div class="matrix-wrap"><table class="matrix-table"><thead><tr><th class="sticky-col">PG (' + filtered.length + ')</th>';
-      for (const h of headers) html += `<th>${escapeHtml(h)}</th>`;
-      html += '</tr></thead><tbody>';
-      for (let i = 0; i < filtered.length; i++) {
-        const r = filtered[i];
-        html += `<tr><td class="sticky-col"><div class="staff-cell-name">${i + 1}. ${escapeHtml(r.ten)}</div><div class="staff-cell-dept">${escapeHtml(r.nganh)}</div></td>`;
-        for (let d = 0; d < 7; d++) {
-          const info = pillInfoForPG(r.days[d]);
-          html += `<td><span class="shift-pill ${info.cls}">${escapeHtml(info.text)}</span>${info.gio ? `<span class="shift-subtime">${escapeHtml(info.gio)}</span>` : ''}</td>`;
-        }
-        html += '</tr>';
-      }
-      html += '</tbody></table></div>';
-      box.innerHTML = html;
-    } else {
-      const dIdx = parseInt(state.teamDayFilter, 10);
-      const sorted = filtered.slice().sort((a, b) => Number(pillInfoForPG(a.days[dIdx]).off) - Number(pillInfoForPG(b.days[dIdx]).off));
-      let html = '<div class="day-card-list">';
-      for (let i = 0; i < sorted.length; i++) {
-        const r = sorted[i];
-        const info = pillInfoForPG(r.days[dIdx]);
-        html +=
-          `<div class="day-staff-row">` +
-            `<div class="day-staff-left"><div class="staff-cell-name">${i + 1}. ${escapeHtml(r.ten)}</div><div class="staff-cell-dept">${escapeHtml(r.nganh)}</div></div>` +
-            `<div class="day-staff-right"><span class="shift-pill ${info.cls}">${escapeHtml(info.text)}</span>${info.gio ? `<span class="shift-subtime">${escapeHtml(info.gio)}</span>` : ''}</div>` +
-          `</div>`;
-      }
-      html += '</div>';
-      box.innerHTML = html;
-    }
+    html += '</div>';
+    box.innerHTML = html;
   }
 }
 
@@ -1133,13 +1048,6 @@ function updateTeamDayChipLabels(headers) {
     if (headers[idx]) chip.textContent = headers[idx];
   });
 }
-
-document.querySelectorAll('#teamModeSelector .seg-btn').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    state.teamMode = btn.dataset.mode;
-    renderTeamSchedule();
-  });
-});
 
 document.querySelectorAll('#teamPGWeekBar .seg-btn').forEach((btn) => {
   btn.addEventListener('click', () => {

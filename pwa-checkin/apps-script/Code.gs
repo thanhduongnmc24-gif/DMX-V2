@@ -1102,112 +1102,6 @@ function _dangKyCaLamViecPG(ss, payload) {
   };
 }
 
-function _docLichTong21NV(ss) {
-  const shNV = ss.getSheetByName(SHEET_NV);
-  if (!shNV) return null;
-
-  const lastRow = Math.min(Math.max(shNV.getLastRow(), 23), 60);
-  const lastCol = Math.min(Math.max(shNV.getLastColumn(), 46), 55);
-  if (lastRow < 3 || lastCol < 10) return null;
-
-  const vals = shNV.getRange(1, 1, lastRow, lastCol).getDisplayValues();
-  const row1 = vals[0];
-  const row2 = vals[1];
-
-  // Khung giờ mặc định Ca 1..Ca 6
-  const caGio = {
-    1: { s: "7h30", e: "9h", sang: true, chieu: false },
-    2: { s: "9h", e: "12h", sang: true, chieu: false },
-    3: { s: "12h", e: "15h", sang: false, chieu: false },
-    4: { s: "15h", e: "18h", sang: false, chieu: true },
-    5: { s: "18h", e: "21h", sang: false, chieu: true },
-    6: { s: "21h", e: "21h30", sang: false, chieu: true }
-  };
-
-  // Tìm vị trí cột đầu của 7 ngày T2..CN trên hàng 1
-  const dayCols = [];
-  for (let c = 4; c < row1.length; c++) {
-    const label = String(row1[c] || "").trim();
-    if (label && /^(T[2-7]|CN)\b/i.test(label)) {
-      dayCols.push({ label: label, colStart: c });
-    }
-  }
-  if (dayCols.length === 0) {
-    const macDinh = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-    for (let d = 0; d < 7; d++) {
-      dayCols.push({ label: macDinh[d], colStart: 4 + d * 6 });
-    }
-  }
-
-  function gopChuoiCa(cacCa) {
-    if (!cacCa.length) return { nhan: "OFF", gio: "", sang: false, chieu: false, off: true };
-    const nhom = [];
-    let s = cacCa[0], e = cacCa[0];
-    for (let i = 1; i < cacCa.length; i++) {
-      if (cacCa[i] === e + 1) e = cacCa[i];
-      else { nhom.push([s, e]); s = cacCa[i]; e = cacCa[i]; }
-    }
-    nhom.push([s, e]);
-    const nhan = "Ca " + nhom.map(function (p) { return p[0] === p[1] ? ("" + p[0]) : (p[0] + "-" + p[1]); }).join(",");
-    const gio = nhom.map(function (p) { return caGio[p[0]].s + "-" + caGio[p[1]].e; }).join(", ");
-    let sang = false, chieu = false;
-    for (let i = 0; i < cacCa.length; i++) {
-      if (caGio[cacCa[i]].sang) sang = true;
-      if (caGio[cacCa[i]].chieu) chieu = true;
-    }
-    return { nhan: nhan, gio: gio, sang: sang, chieu: chieu, off: false };
-  }
-
-  const rows = [];
-  let bpHienTai = "";
-  for (let r = 2; r < vals.length; r++) {
-    const row = vals[r];
-    const bp = String(row[0] || "").replace(/\s+/g, " ").trim();
-    const user = String(row[1] || "").trim();
-    const ten = String(row[2] || "").replace(/\s+/g, " ").trim();
-    const tong = String(row[3] || "").trim();
-    const bpLow = bp.toLowerCase();
-    if (bpLow.indexOf("note") === 0 || bpLow === "ca" || bpLow.indexOf("thời gian") === 0) break;
-    if (bp && bpLow.indexOf("bộ phận") === -1) bpHienTai = bp;
-    if (!ten || ten.toLowerCase().indexOf("họ tên") !== -1 || !isNaN(Number(ten))) continue;
-
-    const days = [];
-    for (let d = 0; d < dayCols.length; d++) {
-      const cStart = dayCols[d].colStart;
-      const cEnd = (d + 1 < dayCols.length) ? dayCols[d + 1].colStart : Math.min(cStart + 6, row.length);
-      const cacCa = [];
-      for (let c = cStart; c < cEnd && c < row.length; c++) {
-        const v = String(row[c] || "").trim();
-        if (!v) continue;
-        const vLow = v.toLowerCase();
-        if (vLow === "0" || vLow === "0.0" || vLow === "-" || vLow.indexOf("off") !== -1 || vLow.indexOf("nghỉ") !== -1) continue;
-        const sub = String(row2[c] || "");
-        const mCa = sub.match(/(\d)/);
-        const caSo = mCa ? parseInt(mCa[1], 10) : (c - cStart + 1);
-        if (caSo >= 1 && caSo <= 6) cacCa.push(caSo);
-      }
-      days.push(gopChuoiCa(cacCa));
-    }
-
-    rows.push({
-      stt: rows.length + 1,
-      boPhan: bpHienTai || "NV Siêu thị",
-      user: user,
-      hoTen: ten,
-      tongGio: tong,
-      days: days
-    });
-  }
-
-  const dau = dayCols[0] ? dayCols[0].label : "";
-  const cuoi = dayCols[dayCols.length - 1] ? dayCols[dayCols.length - 1].label : "";
-  return {
-    tuanLabel: dau && cuoi ? (dau + " – " + cuoi) : "Tuần hiện tại",
-    ngayHeaders: dayCols.map(function (d) { return d.label; }),
-    rows: rows
-  };
-}
-
 function doGet(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1230,8 +1124,7 @@ function doGet(e) {
     if (action === "schedules") {
       return _jsonOut({
         ok: true,
-        pgHaiTuan: _docHaiTuanPGDayDu(ss),
-        lichTongNV: _docLichTong21NV(ss)
+        pgHaiTuan: _docHaiTuanPGDayDu(ss)
       });
     }
 
@@ -1239,7 +1132,6 @@ function doGet(e) {
     const lichSu = _docCheckInGanNhat(ss, limit);
     const lichPhanCong = _docLichPhanCongPhatToRoi(ss);
     const pgHaiTuan = _docHaiTuanPGDayDu(ss);
-    const lichTongNV = _docLichTong21NV(ss);
 
     let tuanHienTai = "";
     const shPG = ss.getSheetByName(SHEET_PG);
@@ -1255,8 +1147,7 @@ function doGet(e) {
       nhanSu: nhanSu,
       lichSu: lichSu,
       lichPhanCong: lichPhanCong,
-      pgHaiTuan: pgHaiTuan,
-      lichTongNV: lichTongNV
+      pgHaiTuan: pgHaiTuan
     });
   } catch (err) {
     return _jsonOut({ ok: false, error: String(err && err.message ? err.message : err) });
