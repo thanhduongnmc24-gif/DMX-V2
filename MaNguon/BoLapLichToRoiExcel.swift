@@ -437,7 +437,8 @@ final class BoPhanTichLichCaExcel {
                 if tenLow.contains("muc luc") || tenLow.contains("dung cua") || tenLow.contains("bao cao")
                     || tenLow == "ict" || tenLow.contains("truyen thong")
                     || tenLow.contains("phat to roi") || tenLow.hasPrefix("bc-") || tenLow.hasPrefix("bc ")
-                    || tenLow.contains("check in") || tenLow.contains("checkin") {
+                    || tenLow.contains("check in") || tenLow.contains("checkin")
+                    || tenLow.contains("lichphat") || tenLow.contains("lich phat") {
                     continue
                 }
             }

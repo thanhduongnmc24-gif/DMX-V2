@@ -10,6 +10,7 @@
 const SHEET_PG = "PG";
 const SHEET_NV = "NV";
 const SHEET_CHECKIN = "BC-Phát tờ rơi";
+const SHEET_LICH_PHAT = "LichPhatToRoi";
 const DRIVE_ROOT_FOLDER = "DMX_Anh_CheckIn_PhatToRoi";
 
 const TIME_MAP = {
@@ -297,13 +298,46 @@ function _docDanhSachNhanSu(ss) {
   return { pg: dsPG, nv: dsNV };
 }
 
+function _trichToaDoTuChuoi(toaDoText, linkMaps) {
+  const sources = [String(toaDoText || ""), String(linkMaps || "")];
+  const patterns = [
+    /(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/,
+    /!3d(-?\d{1,2}\.\d{3,})!4d(-?\d{1,3}\.\d{3,})/,
+    /[?&](?:q|query|ll|center)=(-?\d{1,2}\.\d{3,})[,\s+]+(-?\d{1,3}\.\d{3,})/
+  ];
+  for (let s = 0; s < sources.length; s++) {
+    const txt = sources[s];
+    if (!txt) continue;
+    for (let p = 0; p < patterns.length; p++) {
+      const m = txt.match(patterns[p]);
+      if (m) {
+        const la = parseFloat(m[1]);
+        const lo = parseFloat(m[2]);
+        if (isFinite(la) && isFinite(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180 && (Math.abs(la) > 0.001 || Math.abs(lo) > 0.001)) {
+          return { lat: la, lng: lo };
+        }
+      }
+    }
+  }
+  return { lat: null, lng: null };
+}
+
+function _trichDriveFileId(url) {
+  const s = String(url || "");
+  const m1 = s.match(/\/d\/([a-zA-Z0-9_-]{15,})/);
+  if (m1) return m1[1];
+  const m2 = s.match(/[?&]id=([a-zA-Z0-9_-]{15,})/);
+  if (m2) return m2[1];
+  return "";
+}
+
 function _docCheckInGanNhat(ss, limit) {
   const sh = ss.getSheetByName(SHEET_CHECKIN);
   if (!sh) return [];
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
 
-  const count = Math.min(limit || 40, lastRow - 1);
+  const count = Math.min(limit || 100, lastRow - 1);
   const startRow = lastRow - count + 1;
   const vals = sh.getRange(startRow, 1, count, 13).getDisplayValues();
   const formulas = sh.getRange(startRow, 12, count, 1).getFormulas();
@@ -314,6 +348,9 @@ function _docCheckInGanNhat(ss, limit) {
     const f = String(formulas[i][0] || "");
     const imgMatch = f.match(/IMAGE\("([^"]+)"/i);
     const thumbUrl = imgMatch ? imgMatch[1] : "";
+    const fileId = _trichDriveFileId(thumbUrl || r[10]);
+    const imageUrlChuan = thumbUrl || (fileId ? ("https://drive.google.com/thumbnail?id=" + fileId + "&sz=w1000") : r[10]);
+    const coords = _trichToaDoTuChuoi(r[8], r[9]);
     kq.push({
       stt: r[0],
       thoiGian: r[1],
@@ -324,13 +361,115 @@ function _docCheckInGanNhat(ss, limit) {
       tuyen: r[6],
       diaDiem: r[7],
       toaDo: r[8],
+      lat: coords.lat,
+      lng: coords.lng,
       linkMaps: r[9],
       linkDrive: r[10],
-      linkAnh: thumbUrl || r[10],
+      linkAnh: imageUrlChuan,
+      fileId: fileId,
       ghiChu: r[12]
     });
   }
   return kq;
+}
+
+function _luuLichPhanCongPhatToRoi(ss, payload) {
+  let sh = ss.getSheetByName(SHEET_LICH_PHAT);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_LICH_PHAT);
+  }
+  const tz = Session.getScriptTimeZone() || "Asia/Ho_Chi_Minh";
+  const capNhatLuc = Utilities.formatDate(new Date(), tz, "HH:mm dd/MM/yyyy");
+  const tuan = String(payload.tuan || "").trim();
+  const cacTuyen = Array.isArray(payload.cacTuyen) ? payload.cacTuyen : [];
+  const cacPhanCong = Array.isArray(payload.cacPhanCong) ? payload.cacPhanCong : [];
+
+  sh.clearContents();
+  const headers = [
+    "Tuần",
+    "Thứ",
+    "Buổi",
+    "Tuyến",
+    "Điểm nóng / Quãng đường",
+    "PG phân công",
+    "NV phân công",
+    "Trạng thái",
+    "Link Google Maps",
+    "Cập nhật lúc"
+  ];
+  const tuyenMap = {};
+  for (let i = 0; i < cacTuyen.length; i++) {
+    tuyenMap[String(cacTuyen[i].id || "")] = cacTuyen[i];
+  }
+
+  const rows = [headers];
+  for (let i = 0; i < cacPhanCong.length; i++) {
+    const o = cacPhanCong[i] || {};
+    const t = tuyenMap[String(o.tuyenId || "")] || {};
+    const pgStr = Array.isArray(o.danhSachPG) ? o.danhSachPG.join(", ") : "";
+    const nvStr = Array.isArray(o.danhSachNV) ? o.danhSachNV.join(", ") : "";
+    rows.push([
+      tuan,
+      String(o.thuTen || ""),
+      String(o.buoi || ""),
+      String(o.tenTuyen || ""),
+      String(o.moTaTuyen || t.moTaDiemNong || ""),
+      pgStr,
+      nvStr,
+      o.daPhat ? "Đã phát" : "Chưa phát",
+      String(t.googleMapsUrl || ""),
+      "'" + capNhatLuc
+    ]);
+  }
+
+  sh.getRange(1, 1, rows.length, headers.length).setValues(rows);
+  const hdrRange = sh.getRange(1, 1, 1, headers.length);
+  hdrRange.setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF").setHorizontalAlignment("center");
+  sh.setFrozenRows(1);
+
+  // Lưu JSON cấu trúc đầy đủ vào cột L (L1..L5, mỗi ô tối đa 40.000 ký tự) để PWA đọc tức thì
+  const pack = JSON.stringify({
+    tuan: tuan,
+    capNhatLuc: capNhatLuc,
+    cacTuyen: cacTuyen,
+    cacPhanCong: cacPhanCong
+  });
+  const chunkSize = 40000;
+  const chunks = [];
+  for (let pos = 0; pos < pack.length; pos += chunkSize) {
+    chunks.push([pack.slice(pos, pos + chunkSize)]);
+  }
+  if (chunks.length > 0) {
+    sh.getRange(1, 12, chunks.length, 1).setValues(chunks);
+  }
+  sh.getRange(1, 11).setValue(chunks.length);
+
+  return {
+    ok: true,
+    action: "syncSchedule",
+    tuan: tuan,
+    soTuyen: cacTuyen.length,
+    soBuoi: cacPhanCong.length,
+    capNhatLuc: capNhatLuc
+  };
+}
+
+function _docLichPhanCongPhatToRoi(ss) {
+  const sh = ss.getSheetByName(SHEET_LICH_PHAT);
+  if (!sh) return null;
+  const numChunks = parseInt(sh.getRange(1, 11).getValue(), 10);
+  if (!numChunks || numChunks < 1 || numChunks > 20) return null;
+  const vals = sh.getRange(1, 12, numChunks, 1).getValues();
+  let raw = "";
+  for (let i = 0; i < vals.length; i++) {
+    raw += String(vals[i][0] || "");
+  }
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
 }
 
 function _layThuMucAnh(thangNam) {
@@ -344,13 +483,24 @@ function doGet(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const action = (e && e.parameter && e.parameter.action) ? String(e.parameter.action) : "init";
+    const limitParam = (e && e.parameter && e.parameter.limit) ? parseInt(e.parameter.limit, 10) : 100;
+    const limit = (isFinite(limitParam) && limitParam > 0 && limitParam <= 500) ? limitParam : 100;
 
     if (action === "ping") {
       return _jsonOut({ ok: true, time: new Date().toISOString(), sheetName: ss.getName() });
     }
 
+    if (action === "list") {
+      return _jsonOut({
+        ok: true,
+        lichSu: _docCheckInGanNhat(ss, limit),
+        lichPhanCong: _docLichPhanCongPhatToRoi(ss)
+      });
+    }
+
     const nhanSu = _docDanhSachNhanSu(ss);
-    const lichSu = _docCheckInGanNhat(ss, 40);
+    const lichSu = _docCheckInGanNhat(ss, limit);
+    const lichPhanCong = _docLichPhanCongPhatToRoi(ss);
 
     // Đọc thông tin tuần đang mở trên tab PG
     let tuanHienTai = "";
@@ -368,7 +518,8 @@ function doGet(e) {
       tenBangTinh: ss.getName(),
       tuanHienTai: tuanHienTai,
       nhanSu: nhanSu,
-      lichSu: lichSu
+      lichSu: lichSu,
+      lichPhanCong: lichPhanCong
     });
   } catch (err) {
     return _jsonOut({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -379,15 +530,23 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
     if (!lock.tryLock(20000)) {
-      return _jsonOut({ ok: false, error: "Hệ thống đang bận lưu lượt check-in khác, vui lòng bấm Gửi lại sau 2 giây." });
+      return _jsonOut({ ok: false, error: "Hệ thống đang bận lưu dữ liệu khác, vui lòng bấm thử lại sau 2 giây." });
     }
 
     const rawBody = (e && e.postData && e.postData.contents) ? e.postData.contents : "";
     if (!rawBody) {
-      return _jsonOut({ ok: false, error: "Không nhận được dữ liệu check-in." });
+      return _jsonOut({ ok: false, error: "Không nhận được dữ liệu gửi lên." });
     }
 
     const data = JSON.parse(rawBody);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // Nhánh 1: App DMX-V2 đồng bộ ma trận phân tuyến & lịch phát tờ rơi lên Sheet cho PWA đọc
+    if (String(data.action || "") === "syncSchedule") {
+      return _jsonOut(_luuLichPhanCongPhatToRoi(ss, data));
+    }
+
+    // Nhánh 2: Nhân viên / PG gửi check-in + ảnh minh chứng từ PWA
     const hoTen = String(data.hoTen || "").trim();
     const nhom = String(data.nhom || "PG").trim();
     const boPhan = String(data.boPhan || "").trim();
@@ -434,7 +593,6 @@ function doPost(e) {
     const imageThumbUrl = "https://drive.google.com/thumbnail?id=" + fileId + "&sz=w1000";
 
     // 2. Ghi dòng mới vào tab "BC-Phát tờ rơi"
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sh = _damBaoHeaderCheckIn(ss);
     const nextRow = Math.max(2, sh.getLastRow() + 1);
     const stt = nextRow - 1;
@@ -472,13 +630,16 @@ function doPost(e) {
       rowNumber: nextRow,
       thoiGian: thoiGian,
       ngay: ngay,
+      lat: coToaDo ? lat : null,
+      lng: coToaDo ? lng : null,
       toaDo: toaDoText,
       linkMaps: mapsUrl,
       linkDrive: driveViewUrl,
-      linkAnh: imageThumbUrl
+      linkAnh: imageThumbUrl,
+      fileId: fileId
     });
   } catch (err) {
-    return _jsonOut({ ok: false, error: "Lỗi lưu check-in: " + String(err && err.message ? err.message : err) });
+    return _jsonOut({ ok: false, error: "Lỗi lưu dữ liệu: " + String(err && err.message ? err.message : err) });
   } finally {
     lock.releaseLock();
   }

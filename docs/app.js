@@ -18,6 +18,7 @@ const state = {
   group: localStorage.getItem('dmx_checkin_group') || 'PG',
   staff: { pg: [], nv: [] },
   history: [],
+  schedule: null,
   historyFilter: 'all',
   selectedRoute: localStorage.getItem('dmx_checkin_route') || 'Tuyến 1',
   lat: null,
@@ -175,6 +176,153 @@ function renderStaffDropdown() {
   updateStaffMeta();
 }
 
+function normVN(s) {
+  return String(s || '')
+    .split('(')[0]
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim();
+}
+
+function selectRouteByName(routeName) {
+  if (!routeName) return;
+  const chips = Array.from(document.querySelectorAll('#routeChips .chip'));
+  let matched = chips.find((c) => normVN(c.dataset.route) === normVN(routeName));
+  if (!matched) {
+    const m = String(routeName).match(/tuy[eêế]n\s*(\d+)/i);
+    if (m) matched = chips.find((c) => c.dataset.route === 'Tuyến ' + m[1]);
+  }
+  if (matched) {
+    chips.forEach((c) => c.classList.remove('active'));
+    matched.classList.add('active');
+    state.selectedRoute = matched.dataset.route;
+    localStorage.setItem('dmx_checkin_route', state.selectedRoute);
+  }
+}
+
+function renderStaffSchedule(autoPickRoute = false) {
+  const box = el('staffScheduleBox');
+  if (!box) return;
+  const info = getSelectedStaffInfo();
+  const tenKey = normVN(info.hoTen);
+  if (!tenKey) {
+    box.classList.add('hidden');
+    box.innerHTML = '';
+    return;
+  }
+
+  box.classList.remove('hidden');
+  const sched = state.schedule;
+  if (!sched || !Array.isArray(sched.cacPhanCong) || !sched.cacPhanCong.length) {
+    box.innerHTML =
+      `<div class="schedule-head">📅 Lịch & Tuyến phát tờ rơi của ${escapeHtml(info.hoTen)}</div>` +
+      `<div class="schedule-empty">ℹ️ Quản lý chưa đồng bộ lịch chia tuyến tuần này lên Sheet. Khi quản lý bấm <strong>“⚡ Phân lịch xoay vòng”</strong> hoặc <strong>“☁️ Đồng bộ lịch lên PWA”</strong> trong app ĐMX, tuyến đường &amp; lịch phát riêng của bạn sẽ tự hiển thị tại đây.</div>`;
+    return;
+  }
+
+  const tuyenMap = {};
+  for (const t of (sched.cacTuyen || [])) {
+    tuyenMap[String(t.id || '')] = t;
+  }
+
+  const mySlots = sched.cacPhanCong.filter((o) => {
+    const allNames = [...(o.danhSachPG || []), ...(o.danhSachNV || [])];
+    return allNames.some((n) => {
+      const k = normVN(n);
+      return k && (k === tenKey || k.includes(tenKey) || tenKey.includes(k));
+    });
+  });
+
+  if (!mySlots.length) {
+    box.innerHTML =
+      `<div class="schedule-head">📅 Lịch phát tờ rơi (${escapeHtml(sched.tuan || 'Tuần này')})</div>` +
+      `<div class="schedule-empty">Tuần này <strong>${escapeHtml(info.hoTen)}</strong> chưa có buổi phân công trong ma trận. Nếu được điều động bổ sung, bạn vẫn có thể chọn tuyến bên dưới để check-in bình thường.</div>`;
+    return;
+  }
+
+  let html = `<div class="schedule-head">📅 Tuyến &amp; Lịch phát tờ rơi của ${escapeHtml(info.hoTen)} (${mySlots.length} buổi${sched.tuan ? ' • ' + escapeHtml(sched.tuan) : ''})</div>`;
+  let firstRouteToPick = '';
+
+  for (const slot of mySlots) {
+    const tuyenObj = tuyenMap[String(slot.tuyenId || '')] || {};
+    const routeTitle = slot.tenTuyen || tuyenObj.ten || 'Tuyến phát tờ rơi';
+    const soTuyenMatch = routeTitle.match(/tuy[eêế]n\s*(\d+)/i);
+    const shortRoute = soTuyenMatch ? ('Tuyến ' + soTuyenMatch[1]) : routeTitle;
+    if (!firstRouteToPick) firstRouteToPick = shortRoute;
+
+    const myCheckIn = state.history.find((h) => {
+      const hKey = normVN(h.hoTen);
+      const nameOk = hKey && (hKey === tenKey || hKey.includes(tenKey) || tenKey.includes(hKey));
+      if (!nameOk) return false;
+      if (!soTuyenMatch) return true;
+      const hRouteMatch = String(h.tuyen || '').match(/tuy[eêế]n\s*(\d+)/i);
+      return !hRouteMatch || hRouteMatch[1] === soTuyenMatch[1];
+    });
+
+    const isDone = Boolean(myCheckIn || slot.daPhat);
+    const badgeHtml = myCheckIn
+      ? `<span class="schedule-badge done">✅ Đã check-in (${escapeHtml(myCheckIn.thoiGian || '')})</span>`
+      : (slot.daPhat ? `<span class="schedule-badge done">✅ Đã hoàn thành</span>` : `<span class="schedule-badge pending">⏳ Chưa check-in</span>`);
+
+    const khungGio = slot.buoi === 'Sáng' ? '07:00–09:00' : '16:30–18:30';
+    const km = tuyenObj.tongQuangDuongMet ? (tuyenObj.tongQuangDuongMet >= 1000 ? (tuyenObj.tongQuangDuongMet / 1000).toFixed(2) + ' km' : Math.round(tuyenObj.tongQuangDuongMet) + ' m') : '';
+    const timeMeta = [];
+    if (km) timeMeta.push('📏 ' + km);
+    if (tuyenObj.thoiGianXeMayPhut) timeMeta.push('🛵 ~' + tuyenObj.thoiGianXeMayPhut + ' phút');
+    if (tuyenObj.thoiGianDiBoPhut) timeMeta.push('🚶 ~' + tuyenObj.thoiGianDiBoPhut + ' phút');
+
+    const diemList = Array.isArray(tuyenObj.cacDiemMucTieu) && tuyenObj.cacDiemMucTieu.length
+      ? tuyenObj.cacDiemMucTieu.map((d, idx) => `${idx + 1}. ${d.ten}`).join(' → ')
+      : (slot.moTaTuyen || tuyenObj.moTaDiemNong || '');
+
+    const dongHanh = [...(slot.danhSachPG || []), ...(slot.danhSachNV || [])]
+      .filter((n) => normVN(n) !== tenKey)
+      .map((n) => n.split('(')[0].trim());
+
+    const stepsHtml = Array.isArray(tuyenObj.chiDanTomTat) && tuyenObj.chiDanTomTat.length
+      ? `<div class="schedule-steps"><strong>🧭 Chỉ dẫn đường đi:</strong><br />${tuyenObj.chiDanTomTat.slice(0, 5).map((st) => '• ' + escapeHtml(st)).join('<br />')}</div>`
+      : '';
+
+    const firstStopName = (Array.isArray(tuyenObj.cacDiemMucTieu) && tuyenObj.cacDiemMucTieu[0]?.ten) || '';
+
+    html +=
+      `<div class="schedule-item">` +
+        `<div class="schedule-top">` +
+          `<span class="schedule-day">🗓️ ${escapeHtml(slot.thuTen || '')} • ${escapeHtml(slot.buoi || '')} (${khungGio})</span>` +
+          badgeHtml +
+        `</div>` +
+        `<div class="schedule-route">🛣️ ${escapeHtml(routeTitle)}${timeMeta.length ? ' (' + timeMeta.join(' • ') + ')' : ''}</div>` +
+        (diemList ? `<div class="schedule-detail">📍 Điểm phát: ${escapeHtml(diemList)}</div>` : '') +
+        (dongHanh.length ? `<div class="schedule-detail">👥 Đi cùng: ${escapeHtml(dongHanh.join(', '))}</div>` : '') +
+        stepsHtml +
+        `<div class="schedule-actions">` +
+          (tuyenObj.googleMapsUrl ? `<a class="schedule-btn-map" href="${escapeAttr(tuyenObj.googleMapsUrl)}" target="_blank" rel="noopener">🗺️ Dẫn đường GG Maps ↗</a>` : '') +
+          `<button type="button" class="schedule-btn-pick" data-pick-route="${escapeAttr(shortRoute)}" data-pick-stop="${escapeAttr(firstStopName)}">📍 Chọn ${escapeHtml(shortRoute)} check-in</button>` +
+        `</div>` +
+      `</div>`;
+  }
+
+  box.innerHTML = html;
+  box.querySelectorAll('.schedule-btn-pick').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const rName = btn.dataset.pickRoute;
+      const stopName = btn.dataset.pickStop;
+      selectRouteByName(rName);
+      if (stopName && !el('locationName').value.trim()) {
+        el('locationName').value = stopName;
+      }
+      el('locationName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
+
+  if (autoPickRoute && firstRouteToPick) {
+    selectRouteByName(firstRouteToPick);
+  }
+}
+
 function updateStaffMeta() {
   const info = getSelectedStaffInfo();
   if (info.hoTen) {
@@ -182,6 +330,7 @@ function updateStaffMeta() {
   } else {
     el('staffMeta').textContent = '';
   }
+  renderStaffSchedule(true);
 }
 
 el('staffSelect').addEventListener('change', () => {
@@ -213,6 +362,7 @@ async function loadInitData() {
     }
     state.staff = data.nhanSu || { pg: [], nv: [] };
     state.history = data.lichSu || [];
+    state.schedule = data.lichPhanCong || null;
     el('countPG').textContent = state.staff.pg.length;
     el('countNV').textContent = state.staff.nv.length;
     el('historyCount').textContent = state.history.length;
