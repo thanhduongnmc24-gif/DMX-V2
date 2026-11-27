@@ -16,7 +16,66 @@ const DRIVE_ROOT_FOLDER = "DMX_Anh_CheckIn_PhatToRoi";
 const PROP_ACTIVE_PG_KEY = "dmx_pg_active_week_key_v1";
 
 const PG_START_ROW = 7;
-const PG_NUM_ROWS = 21; // Dòng 7 -> 27
+const PG_MIN_ROWS = 21;   // Tối thiểu dòng 7 -> 27
+const PG_MAX_ROWS = 100;  // Hỗ trợ tự mở rộng tối đa 100 PG (dòng 7 -> 106)
+
+function _chuanHoaTenPG(s) {
+  return String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** Tự động đếm số dòng nhân sự PG thực tế trên sheet PG (cập nhật động khi thêm/bớt PG!) */
+function _laySoDongPG(sheetPG) {
+  if (!sheetPG) return PG_MIN_ROWS;
+  const maxScan = Math.min(Math.max(sheetPG.getLastRow(), PG_START_ROW + PG_MIN_ROWS - 1), PG_START_ROW + PG_MAX_ROWS - 1);
+  const scanCount = Math.max(PG_MIN_ROWS, maxScan - PG_START_ROW + 1);
+  const colB = sheetPG.getRange(PG_START_ROW, 2, scanCount, 1).getDisplayValues();
+  let lastValidOffset = -1;
+  for (let i = colB.length - 1; i >= 0; i--) {
+    const val = String(colB[i][0] || "").trim();
+    if (val && val.toLowerCase() !== "tên") {
+      lastValidOffset = i;
+      break;
+    }
+  }
+  return Math.max(PG_MIN_ROWS, lastValidOffset + 1);
+}
+
+/** Ánh xạ dữ liệu tuần đã lưu trong Data_PG sang danh sách PG hiện tại theo TÊN (không bao giờ lệch dòng khi thêm/xóa/chèn PG!) */
+function _anhXaLuoiTheoTenPG(savedGrid, nganhTenHienTai) {
+  const numRows = nganhTenHienTai.length;
+  const lichOut = [];
+  const diemDanhOut = [];
+
+  const mapTheoTen = {};
+  if (savedGrid && Array.isArray(savedGrid.lich)) {
+    const savedNames = Array.isArray(savedGrid.nganhTen) ? savedGrid.nganhTen : [];
+    const savedDD = Array.isArray(savedGrid.diemDanh) ? savedGrid.diemDanh : [];
+    for (let i = 0; i < savedGrid.lich.length; i++) {
+      const k = (savedNames[i] && savedNames[i][1]) ? _chuanHoaTenPG(savedNames[i][1]) : "";
+      if (k) {
+        mapTheoTen[k] = {
+          lich: savedGrid.lich[i],
+          dd: savedDD[i] ? (savedDD[i][0] || "") : ""
+        };
+      }
+    }
+  }
+
+  for (let r = 0; r < numRows; r++) {
+    const tenKey = _chuanHoaTenPG(nganhTenHienTai[r][1]);
+    let row14 = null;
+    let ddVal = "";
+    if (tenKey && mapTheoTen[tenKey] && Array.isArray(mapTheoTen[tenKey].lich) && mapTheoTen[tenKey].lich.length === 14) {
+      row14 = mapTheoTen[tenKey].lich.slice();
+      ddVal = mapTheoTen[tenKey].dd;
+    } else if (!tenKey && savedGrid && Array.isArray(savedGrid.lich) && savedGrid.lich[r] && savedGrid.lich[r].length === 14 && (!savedGrid.nganhTen || !savedGrid.nganhTen[r] || !savedGrid.nganhTen[r][1])) {
+      row14 = savedGrid.lich[r].slice();
+    }
+    lichOut.push(row14 || ["", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+    diemDanhOut.push([ddVal]);
+  }
+  return { lich: lichOut, diemDanh: diemDanhOut };
+}
 
 const TIME_MAP = {
   "SÁNG": "8h-16h",
@@ -175,12 +234,13 @@ function _luuTuanPGVaoKho(ss, sheetPG, metaOverride) {
   if (!meta.weekKey) return null;
 
   const shData = _damBaoSheetDataPG(ss);
-  const gridAP = sheetPG.getRange(PG_START_ROW, 1, PG_NUM_ROWS, 16).getDisplayValues();
-  const diemDanh = sheetPG.getRange(PG_START_ROW, 19, PG_NUM_ROWS, 1).getDisplayValues();
+  const numRows = _laySoDongPG(sheetPG);
+  const gridAP = sheetPG.getRange(PG_START_ROW, 1, numRows, 16).getDisplayValues();
+  const diemDanh = sheetPG.getRange(PG_START_ROW, 19, numRows, 1).getDisplayValues();
 
   const nganhTen = [];
   const lich = [];
-  for (let r = 0; r < PG_NUM_ROWS; r++) {
+  for (let r = 0; r < numRows; r++) {
     nganhTen.push([gridAP[r][0], gridAP[r][1]]);
     lich.push(gridAP[r].slice(2, 16));
   }
@@ -254,16 +314,16 @@ function _timDuLieuTuanTrongKho(ss, weekKey) {
 
 function _napTuanPGTuKho(ss, sheetPG, weekKey) {
   const saved = _timDuLieuTuanTrongKho(ss, weekKey);
-  if (saved && saved.grid && Array.isArray(saved.grid.lich) && saved.grid.lich.length === PG_NUM_ROWS) {
-    sheetPG.getRange(PG_START_ROW, 3, PG_NUM_ROWS, 14).setValues(saved.grid.lich);
-    if (Array.isArray(saved.grid.diemDanh) && saved.grid.diemDanh.length === PG_NUM_ROWS) {
-      sheetPG.getRange(PG_START_ROW, 19, PG_NUM_ROWS, 1).setValues(saved.grid.diemDanh);
-    } else {
-      sheetPG.getRange(PG_START_ROW, 19, PG_NUM_ROWS, 1).clearContent();
-    }
+  const numRows = _laySoDongPG(sheetPG);
+  const endRow = PG_START_ROW + numRows - 1;
+  if (saved && saved.grid && Array.isArray(saved.grid.lich)) {
+    const nganhTenHienTai = sheetPG.getRange(PG_START_ROW, 1, numRows, 2).getDisplayValues();
+    const mapped = _anhXaLuoiTheoTenPG(saved.grid, nganhTenHienTai);
+    sheetPG.getRange(PG_START_ROW, 3, numRows, 14).setValues(mapped.lich);
+    sheetPG.getRange(PG_START_ROW, 19, numRows, 1).setValues(mapped.diemDanh);
   } else {
     // Tuần mới chưa từng nhập lịch -> xóa sạch lưới CA/TIME để nhập mới hoàn toàn riêng biệt!
-    sheetPG.getRangeList(["C7:P27", "S7:S27"]).clearContent();
+    sheetPG.getRangeList(["C" + PG_START_ROW + ":P" + endRow, "S" + PG_START_ROW + ":S" + endRow]).clearContent();
   }
   PropertiesService.getDocumentProperties().setProperty(PROP_ACTIVE_PG_KEY, weekKey);
 }
@@ -373,7 +433,10 @@ function saoChepTuanTruocSangTuanNay() {
     SpreadsheetApp.getUi().alert("Chưa có dữ liệu tuần trước (" + _tinhKhoangNgayTuMonday(prevMonday) + ") trong kho để sao chép.");
     return;
   }
-  sheetPG.getRange(PG_START_ROW, 3, PG_NUM_ROWS, 14).setValues(saved.grid.lich);
+  const numRows = _laySoDongPG(sheetPG);
+  const nganhTenHienTai = sheetPG.getRange(PG_START_ROW, 1, numRows, 2).getDisplayValues();
+  const mapped = _anhXaLuoiTheoTenPG(saved.grid, nganhTenHienTai);
+  sheetPG.getRange(PG_START_ROW, 3, numRows, 14).setValues(mapped.lich);
   _luuTuanPGVaoKho(ss, sheetPG, meta);
   PropertiesService.getDocumentProperties().setProperty(PROP_ACTIVE_PG_KEY, meta.weekKey);
 }
@@ -386,7 +449,8 @@ function xoaLichLamViec() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = _laySheetPG(ss);
   if (!sheet) return;
-  sheet.getRangeList(["C7:P27", "S7:S27"]).clearContent();
+  const endRow = PG_START_ROW + _laySoDongPG(sheet) - 1;
+  sheet.getRangeList(["C" + PG_START_ROW + ":P" + endRow, "S" + PG_START_ROW + ":S" + endRow]).clearContent();
   const meta = _docThangNamVaTuan(sheet);
   if (meta.weekKey) {
     _luuTuanPGVaoKho(ss, sheet, meta);
@@ -538,8 +602,9 @@ function onEdit(e) {
     return;
   }
 
-  // Trường hợp B: Người dùng sửa ca/giờ (C7:P27) hoặc điểm danh (S7:S27)
-  if (endRow < PG_START_ROW || startRow > PG_START_ROW + PG_NUM_ROWS - 1) return;
+  // Trường hợp B: Người dùng sửa ca/giờ (C7:P...) hoặc tên/ngành (A7:B...) hoặc điểm danh (S7:S...)
+  const pgLastRow = PG_START_ROW + _laySoDongPG(sheet) - 1;
+  if (endRow < PG_START_ROW || startRow > pgLastRow) return;
 
   // 1. Tự điền khung giờ ở cột TIME khi sửa cột CA (cột lẻ 3..15)
   if (endCol >= 3 && startCol <= 15) {
@@ -550,7 +615,7 @@ function onEdit(e) {
       }
     } else {
       const validStartRow = Math.max(startRow, PG_START_ROW);
-      const validEndRow = Math.min(endRow, PG_START_ROW + PG_NUM_ROWS - 1);
+      const validEndRow = Math.min(endRow, pgLastRow);
       const validNumRows = validEndRow - validStartRow + 1;
       const rowOffset = validStartRow - startRow;
       const values = range.getValues();
@@ -635,8 +700,8 @@ function _docDanhSachNhanSu(ss) {
 
   const shPG = ss.getSheetByName(SHEET_PG);
   if (shPG) {
-    const lastRow = Math.min(Math.max(shPG.getLastRow(), 27), 50);
-    const vals = shPG.getRange(7, 1, lastRow - 6, 2).getValues();
+    const numRowsPG = _laySoDongPG(shPG);
+    const vals = shPG.getRange(PG_START_ROW, 1, numRowsPG, 2).getDisplayValues();
     let nganhHienTai = "";
     for (let i = 0; i < vals.length; i++) {
       const ng = String(vals[i][0] || "").replace(/\s+/g, " ").trim();
@@ -890,17 +955,20 @@ function _docHaiTuanPGDayDu(ss) {
   const shPG = ss.getSheetByName(SHEET_PG);
   if (!shPG) return [];
 
-  const gridAP = shPG.getRange(PG_START_ROW, 1, PG_NUM_ROWS, 16).getDisplayValues();
+  const numRows = _laySoDongPG(shPG);
+  const gridAP = shPG.getRange(PG_START_ROW, 1, numRows, 16).getDisplayValues();
   const curMeta = _docThangNamVaTuan(shPG);
 
-  // Đọc danh sách 21 PG chuẩn từ A7:B27
+  // Đọc danh sách PG ĐỘNG theo thực tế hiện có trên sheet PG (thêm/bớt dòng tự cập nhật ngay!)
   const dsTen = [];
+  const nganhTenHienTai = [];
   let nganhHienTai = "";
-  for (let r = 0; r < PG_NUM_ROWS; r++) {
+  for (let r = 0; r < numRows; r++) {
     const ng = String(gridAP[r][0] || "").replace(/\s+/g, " ").trim();
     const ten = String(gridAP[r][1] || "").replace(/\s+/g, " ").trim();
     if (ng && ng.toLowerCase().indexOf("ngành") === -1) nganhHienTai = ng;
     dsTen.push({ rowIndex: r, nganh: nganhHienTai || "PG", ten: ten });
+    nganhTenHienTai.push([gridAP[r][0], gridAP[r][1]]);
   }
 
   // Đọc toàn bộ Data_PG 1 lần duy nhất
@@ -932,23 +1000,23 @@ function _docHaiTuanPGDayDu(ss) {
   for (let k = 0; k < targets.length; k++) {
     const item = targets[k];
     const info = item.info;
-    let lich21x14 = null;
+    let lichMapped = null;
 
     // Nếu tab PG đang mở đúng tuần này -> lấy trực tiếp từ PG (mới nhất)
     if (curMeta.weekKey === info.weekKey) {
-      lich21x14 = [];
-      for (let r = 0; r < PG_NUM_ROWS; r++) {
-        lich21x14.push(gridAP[r].slice(2, 16));
+      lichMapped = [];
+      for (let r = 0; r < numRows; r++) {
+        lichMapped.push(gridAP[r].slice(2, 16));
       }
     } else if (mapKho[info.weekKey] && Array.isArray(mapKho[info.weekKey].lich)) {
-      lich21x14 = mapKho[info.weekKey].lich;
+      lichMapped = _anhXaLuoiTheoTenPG(mapKho[info.weekKey], nganhTenHienTai).lich;
     }
 
     const rows = [];
-    for (let r = 0; r < PG_NUM_ROWS; r++) {
+    for (let r = 0; r < numRows; r++) {
       const p = dsTen[r];
       if (!p.ten) continue;
-      const lichRow = (lich21x14 && lich21x14[r]) ? lich21x14[r] : [];
+      const lichRow = (lichMapped && lichMapped[r]) ? lichMapped[r] : [];
       const days = [];
       for (let d = 0; d < 7; d++) {
         const ca = String(lichRow[d * 2] || "").trim();
@@ -1001,19 +1069,19 @@ function _dangKyCaLamViecPG(ss, payload) {
   else if (weekKey === t2.weekKey) targetMeta = t2;
   else return { ok: false, error: "Chỉ hỗ trợ đăng ký ca cho Tuần hiện tại (" + t1.khoangNgay + ") hoặc Tuần tiếp theo (" + t2.khoangNgay + ")." };
 
-  // Tìm đúng dòng của PG trên PG!A7:B27
-  const nganhTenVals = shPG.getRange(PG_START_ROW, 1, PG_NUM_ROWS, 2).getDisplayValues();
-  const tenKey = hoTen.toLowerCase().replace(/\s+/g, " ").trim();
+  // Đọc động danh sách PG hiện tại trên sheet PG (không giới hạn 21 người!)
+  const numRows = _laySoDongPG(shPG);
+  const nganhTenVals = shPG.getRange(PG_START_ROW, 1, numRows, 2).getDisplayValues();
+  const tenKey = _chuanHoaTenPG(hoTen);
   let matchedIdx = -1;
-  for (let r = 0; r < PG_NUM_ROWS; r++) {
-    const t = String(nganhTenVals[r][1] || "").toLowerCase().replace(/\s+/g, " ").trim();
-    if (t === tenKey) {
+  for (let r = 0; r < numRows; r++) {
+    if (_chuanHoaTenPG(nganhTenVals[r][1]) === tenKey) {
       matchedIdx = r;
       break;
     }
   }
   if (matchedIdx < 0) {
-    return { ok: false, error: "Không tìm thấy PG \"" + hoTen + "\" trong danh sách 21 PG trên sheet PG." };
+    return { ok: false, error: "Không tìm thấy PG \"" + hoTen + "\" trong danh sách PG hiện tại trên sheet PG." };
   }
 
   // Chuẩn hóa 7 cặp [CA, TIME] khớp đúng DataValidation trên Google Sheet
@@ -1036,29 +1104,16 @@ function _dangKyCaLamViecPG(ss, payload) {
     shPG.getRange(PG_START_ROW + matchedIdx, 3, 1, 14).setValues([row14]);
     _luuTuanPGVaoKho(ss, shPG, curMeta);
   } else {
-    // Tuần đăng ký là tuần khác (VD Tuần tiếp theo) -> cập nhật thẳng vào kho Data_PG mà không làm xáo trộn tuần đang xem trên PG!
+    // Tuần đăng ký là tuần khác (VD Tuần tiếp theo) -> ánh xạ theo TÊN vào kho Data_PG
     const shData = _damBaoSheetDataPG(ss);
     const saved = _timDuLieuTuanTrongKho(ss, targetMeta.weekKey);
-    const lich = [];
-    const diemDanh = [];
-    for (let r = 0; r < PG_NUM_ROWS; r++) {
-      if (saved && saved.grid && Array.isArray(saved.grid.lich) && saved.grid.lich[r] && saved.grid.lich[r].length === 14) {
-        lich.push(saved.grid.lich[r].slice());
-      } else {
-        lich.push(["", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
-      }
-      if (saved && saved.grid && Array.isArray(saved.grid.diemDanh) && saved.grid.diemDanh[r]) {
-        diemDanh.push([saved.grid.diemDanh[r][0] || ""]);
-      } else {
-        diemDanh.push([""]);
-      }
-    }
-    lich[matchedIdx] = row14;
+    const mapped = _anhXaLuoiTheoTenPG(saved ? saved.grid : null, nganhTenVals);
+    mapped.lich[matchedIdx] = row14;
 
     const jsonStr = JSON.stringify({
       nganhTen: nganhTenVals,
-      lich: lich,
-      diemDanh: diemDanh
+      lich: mapped.lich,
+      diemDanh: mapped.diemDanh
     });
 
     const lastRow = shData.getLastRow();

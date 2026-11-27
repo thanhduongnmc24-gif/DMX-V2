@@ -748,7 +748,7 @@ function renderPGRegSection() {
     ? `Đang chọn: ${activeWeek.label}`
     : 'Chưa có dữ liệu 2 tuần PG từ Apps Script (bấm 🔄 đồng bộ lại).';
 
-  // Đổ danh sách 21 PG
+  // Đổ danh sách PG động từ Google Sheet
   const prevVal = sel.value || localStorage.getItem('dmx_pg_reg_name') || localStorage.getItem('dmx_checkin_name_PG') || '';
   const listPG = (activeWeek && activeWeek.rows && activeWeek.rows.length)
     ? activeWeek.rows.map((r) => ({ ten: r.ten, boPhan: r.nganh }))
@@ -945,7 +945,7 @@ el('btnSavePGShift')?.addEventListener('click', async () => {
 });
 
 // ============================================================================
-// TAB 3: XEM LỊCH LÀM VIỆC TỔNG 21 PG (CHỈ HIỂN THỊ PG, KHÔNG HIỂN THỊ LỊCH NV)
+// TAB 3: XEM LỊCH LÀM VIỆC TỔNG PG (TỰ CẬP NHẬT ĐỘNG THEO SHEET PG, KHÔNG HIỂN THỊ LỊCH NV)
 // ============================================================================
 
 function pillInfoForPG(day) {
@@ -976,10 +976,12 @@ function renderTeamSchedule() {
 
   const q = normVN(state.teamSearchQuery);
   const wk = getPGWeekObj(state.teamPGWeekKind);
+  const countEl = el('teamPGCount');
+  if (countEl) countEl.textContent = wk && Array.isArray(wk.rows) ? wk.rows.length : state.staff.pg.length;
   if (!wk || !Array.isArray(wk.rows) || !wk.rows.length) {
-    labelEl.textContent = 'Chưa tải được lịch 21 PG.';
+    labelEl.textContent = 'Chưa tải được lịch PG từ Google Sheet.';
     hcEl.classList.add('hidden');
-    box.innerHTML = '<div class="empty-state">Bấm nút 🔄 ở góc trên phải để đồng bộ lịch 21 PG.</div>';
+    box.innerHTML = '<div class="empty-state">Bấm nút 🔄 ở góc trên phải để đồng bộ lịch PG mới nhất.</div>';
     return;
   }
 

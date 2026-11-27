@@ -34,7 +34,7 @@
     <nav class="tab-bar tab-bar-4">
       <button class="tab-btn active" data-tab="checkin" type="button">📍 Check-in</button>
       <button class="tab-btn" data-tab="pgreg" type="button">🗓️ ĐK Ca PG</button>
-      <button class="tab-btn" data-tab="team" type="button">👥 Lịch 21 PG</button>
+      <button class="tab-btn" data-tab="team" type="button">👥 Lịch PG</button>
       <button class="tab-btn" data-tab="history" type="button">📋 Đã nộp (<span id="historyCount">0</span>)</button>
     </nav>
   </header>
@@ -133,7 +133,7 @@
 
         <label class="field-label mt-8" for="pgRegSelect">2. Chọn tên PG:</label>
         <select id="pgRegSelect" class="input-field">
-          <option value="">-- Đang tải danh sách 21 PG... --</option>
+          <option value="">-- Đang tải danh sách PG... --</option>
         </select>
 
         <div class="btn-row mt-8">
@@ -154,16 +154,16 @@
       </div>
     </section>
 
-    <!-- TAB 3: XEM LỊCH LÀM VIỆC TỔNG 21 PG (CHỈ HIỂN THỊ PG, KHÔNG HIỂN THỊ LỊCH NHÂN VIÊN) -->
+    <!-- TAB 3: XEM LỊCH LÀM VIỆC TỔNG PG (TỰ CẬP NHẬT ĐỘNG THEO SHEET PG, KHÔNG HIỂN THỊ LỊCH NHÂN VIÊN) -->
     <section id="tab-team" class="tab-panel">
       <div class="card">
-        <div class="card-title">👩‍💼 Lịch làm việc tổng 21 PG</div>
+        <div class="card-title">👩‍💼 Lịch làm việc tổng PG (<span id="teamPGCount">0</span> người)</div>
         <div id="teamPGWeekBar" class="seg-group">
           <button type="button" class="seg-btn active" data-tweek="current">📍 Tuần hiện tại</button>
           <button type="button" class="seg-btn" data-tweek="next">⏭️ Tuần tiếp theo</button>
         </div>
 
-        <div id="teamWeekLabel" class="hint-text mt-8">Đang tải lịch tổng 21 PG...</div>
+        <div id="teamWeekLabel" class="hint-text mt-8">Đang tải lịch tổng PG...</div>
 
         <input id="teamSearch" class="input-field mt-8" type="search" placeholder="🔍 Tìm nhanh theo tên PG hoặc ngành hàng..." />
 
@@ -180,7 +180,7 @@
 
         <div id="teamHeadcount" class="headcount-bar mt-8 hidden"></div>
         <div id="teamScheduleContent" class="mt-8">
-          <div class="empty-state">Đang tải lịch tổng 21 PG...</div>
+          <div class="empty-state">Đang tải lịch tổng PG...</div>
         </div>
       </div>
     </section>

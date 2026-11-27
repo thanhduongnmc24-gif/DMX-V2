@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dmx-checkin-pwa-v4';
+const CACHE_NAME = 'dmx-checkin-pwa-v5';
 const ASSETS = [
   './',
   './index.html',
