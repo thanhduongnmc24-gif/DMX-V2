@@ -3815,18 +3815,28 @@ final class ManHinhBanDoKhuVuc: UIViewController, MKMapViewDelegate, CLLocationM
     }
 
     private func capNhatMenuChonTuanPG() {
-        if danhSachKhoiPG.count > 1 {
+        if !danhSachKhoiPG.isEmpty {
             nutChonTuanPG.isHidden = false
             let dangChon = khoiLichPG?.tenTuan ?? danhSachKhoiPG.first?.tenTuan ?? "Chọn tuần"
-            nutChonTuanPG.setTitle("📅 Tuần PG: \(dangChon) ▾", for: .normal)
-            nutChonTuanPG.menu = UIMenu(title: "Chọn tuần trong bảng lịch PG", children: danhSachKhoiPG.map { khoi in
+            let slChon = khoiLichPG?.danhSachNguoi.count ?? 0
+            nutChonTuanPG.setTitle("📅 Tuần PG: \(dangChon) (\(slChon) PG) ▾", for: .normal)
+            nutChonTuanPG.menu = UIMenu(title: "Chọn tuần lịch PG (Tuần hiện tại / Tuần tiếp theo)", children: danhSachKhoiPG.map { khoi in
                 let isSelected = (khoi.id == khoiLichPG?.id)
-                let title = "\(khoi.tenTuan) (\(khoi.danhSachNguoi.count) PG)"
+                let moTaSL = khoi.danhSachNguoi.isEmpty ? "Chưa nhập lịch trên Sheet" : "\(khoi.danhSachNguoi.count) PG"
+                let title = "\(khoi.tenTuan) — \(moTaSL)"
                 return UIAction(title: title, state: isSelected ? .on : .off) { [weak self] _ in
                     guard let self else { return }
                     self.khoiLichPG = khoi
                     KhoMaTranPhatToRoi.dungChung.luuKhoiPG(khoi)
-                    self.bamTaoMaTranXoayVong()
+                    if khoi.danhSachNguoi.isEmpty {
+                        self.capNhatGiaoDienMaTran()
+                        self.hienThongBao(
+                            tieuDe: "Tuần này chưa có lịch trên Sheet",
+                            noiDung: "\(khoi.tenTuan) hiện chưa được nhập lịch trên tab PG của Google Trang tính.\n\nHãy chuyển sang tuần đó trên Google Trang tính để nhập lịch, sau đó bấm “🔄 Tải lịch PG & NV”."
+                        )
+                    } else {
+                        self.bamTaoMaTranXoayVong()
+                    }
                 }
             })
         } else {

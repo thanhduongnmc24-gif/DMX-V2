@@ -424,7 +424,156 @@ final class BoPhanTichLichCaExcel {
         if ketQua.dsKhoiPG.isEmpty && ketQua.dsKhoiNV.isEmpty {
             ketQua = docVaPhanLoaiSheets(sheets, boQuaSheetPhu: false)
         }
+
+        // Nếu Google Sheet có kho lưu nhiều tuần PG (tab ẩn "Data_PG"), tự động nạp ĐÚNG 2 tuần: Tuần hiện tại & Tuần tiếp theo!
+        if let sheetDataPG = sheets.first(where: { chuanHoa($0.tenSheet) == "data_pg" }) {
+            let haiTuan = ghepHaiTuanPGTuDataPG(sheetDataPG: sheetDataPG, dsPGHienTai: ketQua.dsKhoiPG)
+            if !haiTuan.isEmpty {
+                let pgMacDinh = haiTuan.first(where: { !$0.danhSachNguoi.isEmpty }) ?? haiTuan.first
+                return KetQuaPhanTichTrangTinhTongHop(
+                    dsKhoiPG: haiTuan,
+                    dsKhoiNV: ketQua.dsKhoiNV,
+                    khoiPGMacDinh: pgMacDinh,
+                    khoiNVMacDinh: ketQua.khoiNVMacDinh
+                )
+            }
+        }
         return ketQua
+    }
+
+    private struct LuoiDataPGJSON: Decodable {
+        let nganhTen: [[String]]?
+        let lich: [[String]]?
+    }
+
+    private static func tinhNgayThu2CuaTuan(ngay: Date) -> Date {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Ho_Chi_Minh") ?? .current
+        let comp = cal.dateComponents([.year, .month, .day, .weekday], from: ngay)
+        let weekday = comp.weekday ?? 2 // CN=1, T2=2 .. T7=7
+        let offset = (weekday == 1) ? -6 : (2 - weekday)
+        var noon = DateComponents()
+        noon.year = comp.year; noon.month = comp.month; noon.day = comp.day; noon.hour = 12
+        let base = cal.date(from: noon) ?? ngay
+        return cal.date(byAdding: .day, value: offset, to: base) ?? base
+    }
+
+    private static func dinhDangISO(_ d: Date) -> String {
+        let df = DateFormatter()
+        df.calendar = Calendar(identifier: .gregorian)
+        df.timeZone = TimeZone(identifier: "Asia/Ho_Chi_Minh") ?? .current
+        df.dateFormat = "yyyy-MM-dd"
+        return df.string(from: d)
+    }
+
+    private static func dinhDangKhoangNgayTuan(_ monday: Date) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Ho_Chi_Minh") ?? .current
+        let sunday = cal.date(byAdding: .day, value: 6, to: monday) ?? monday
+        let df = DateFormatter()
+        df.calendar = cal
+        df.timeZone = cal.timeZone
+        df.dateFormat = "dd/MM"
+        return "\(df.string(from: monday)) – \(df.string(from: sunday))"
+    }
+
+    private static func ghepHaiTuanPGTuDataPG(
+        sheetDataPG: BangSheetExcel,
+        dsPGHienTai: [KhoiLichTuanExcel]
+    ) -> [KhoiLichTuanExcel] {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Ho_Chi_Minh") ?? .current
+
+        // Đọc tất cả các tuần đã lưu trong tab ẩn Data_PG theo khóa ngày Thứ 2 (YYYY-MM-DD)
+        var mapTheoWeekKey: [String: [LichTuanMotNguoi]] = [:]
+        for rIdx in 1..<sheetDataPG.cacDong.count {
+            let row = sheetDataPG.cacDong[rIdx]
+            guard row.count >= 6 else { continue }
+            let weekKey = row[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let jsonRaw = row[5].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard weekKey.count == 10, let data = jsonRaw.data(using: .utf8),
+                  let luoi = try? JSONDecoder().decode(LuoiDataPGJSON.self, from: data),
+                  let lichRows = luoi.lich else { continue }
+
+            let tenRows = luoi.nganhTen ?? []
+            var nganhHienTai = ""
+            var dsNguoi: [LichTuanMotNguoi] = []
+            for i in 0..<lichRows.count {
+                let rowTen = (i < tenRows.count) ? tenRows[i] : []
+                let ng = gonKhoangTrang(rowTen.count > 0 ? rowTen[0] : "")
+                let tenRaw = gonKhoangTrang(rowTen.count > 1 ? rowTen[1] : "")
+                let ngLow = chuanHoa(ng)
+                if !ng.isEmpty && !ngLow.contains("nganh") { nganhHienTai = ng }
+                let tenLow = chuanHoa(tenRaw)
+                guard !tenRaw.isEmpty && tenLow != "ten" else { continue }
+
+                let cells = lichRows[i]
+                var lich7: [TrangThaiCaNgay] = []
+                var coLich = false
+                for thu in 0..<7 {
+                    let c1 = thu * 2
+                    let c2 = c1 + 1
+                    var cacO: [String] = []
+                    if c1 < cells.count {
+                        let s = gonKhoangTrang(cells[c1])
+                        if !s.isEmpty { cacO.append(s) }
+                    }
+                    if c2 < cells.count {
+                        let s = gonKhoangTrang(cells[c2])
+                        if !s.isEmpty { cacO.append(s) }
+                    }
+                    let tt = phanTichCaMotNgay(thu: thu, cacGiaTri: cacO)
+                    if !tt.nhanCaGoc.isEmpty || !tt.gioLamGoc.isEmpty { coLich = true }
+                    lich7.append(tt)
+                }
+                if coLich {
+                    dsNguoi.append(LichTuanMotNguoi(ten: tenRaw, nganhHang: nganhHienTai, nhom: .pg, lich7Ngay: lich7))
+                }
+            }
+            if !dsNguoi.isEmpty {
+                mapTheoWeekKey[weekKey] = dsNguoi
+            }
+        }
+
+        // Gộp thêm tuần đang mở trực tiếp trên tab PG (ưu tiên bản mới nhất đang hiển thị trên Sheet!)
+        let mondayHienTai = tinhNgayThu2CuaTuan(ngay: Date())
+        let mondayTiepTheo = cal.date(byAdding: .day, value: 7, to: mondayHienTai) ?? mondayHienTai
+        let keyHienTai = dinhDangISO(mondayHienTai)
+        let keyTiepTheo = dinhDangISO(mondayTiepTheo)
+        let khoangHienTai = dinhDangKhoangNgayTuan(mondayHienTai)
+        let khoangTiepTheo = dinhDangKhoangNgayTuan(mondayTiepTheo)
+
+        let ddDauHienTai = String(khoangHienTai.prefix(5))
+        let ddDauTiepTheo = String(khoangTiepTheo.prefix(5))
+        for khoi in dsPGHienTai {
+            if khoi.tenTuan.contains(ddDauHienTai) && !khoi.danhSachNguoi.isEmpty {
+                mapTheoWeekKey[keyHienTai] = khoi.danhSachNguoi
+            } else if khoi.tenTuan.contains(ddDauTiepTheo) && !khoi.danhSachNguoi.isEmpty {
+                mapTheoWeekKey[keyTiepTheo] = khoi.danhSachNguoi
+            }
+        }
+
+        let dsTuan1 = mapTheoWeekKey[keyHienTai] ?? []
+        let dsTuan2 = mapTheoWeekKey[keyTiepTheo] ?? []
+
+        // Luôn trả về đúng 2 tuần (Tuần hiện tại & Tuần tiếp theo) để người dùng chọn trong app
+        let khoiTuanHienTai = KhoiLichTuanExcel(
+            id: "PG_\(keyHienTai)",
+            tenSheet: "PG",
+            tenTuan: "📍 Tuần hiện tại (\(khoangHienTai))",
+            nhom: .pg,
+            danhSachNguoi: dsTuan1,
+            ngaySerialSapXep: tinhSerialExcel(tu: mondayHienTai)
+        )
+        let khoiTuanTiepTheo = KhoiLichTuanExcel(
+            id: "PG_\(keyTiepTheo)",
+            tenSheet: "PG",
+            tenTuan: "⏭️ Tuần tiếp theo (\(khoangTiepTheo))",
+            nhom: .pg,
+            danhSachNguoi: dsTuan2,
+            ngaySerialSapXep: tinhSerialExcel(tu: mondayTiepTheo)
+        )
+        return [khoiTuanHienTai, khoiTuanTiepTheo]
     }
 
     private static func docVaPhanLoaiSheets(_ sheets: [BangSheetExcel], boQuaSheetPhu: Bool) -> KetQuaPhanTichTrangTinhTongHop {
@@ -438,7 +587,8 @@ final class BoPhanTichLichCaExcel {
                     || tenLow == "ict" || tenLow.contains("truyen thong")
                     || tenLow.contains("phat to roi") || tenLow.hasPrefix("bc-") || tenLow.hasPrefix("bc ")
                     || tenLow.contains("check in") || tenLow.contains("checkin")
-                    || tenLow.contains("lichphat") || tenLow.contains("lich phat") {
+                    || tenLow.contains("lichphat") || tenLow.contains("lich phat")
+                    || tenLow == "data_pg" {
                     continue
                 }
             }

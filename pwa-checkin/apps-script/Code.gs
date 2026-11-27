@@ -1,17 +1,22 @@
 // ============================================================================
-// DMX-V2 — GOOGLE APPS SCRIPT TỔNG HỢP:
-// 1. Tối ưu tốc độ chuyển Tuần / Tháng trên sheet "PG" + Dropdown chọn tức thì
-// 2. Auto-fill giờ làm việc khi sửa cột CA (onEdit tối ưu)
-// 3. Web App API (doGet / doPost) cho ứng dụng PWA Nhân viên Check-in + Upload Ảnh
-//    -> Lưu ảnh vào Google Drive (DMX_Anh_CheckIn_PhatToRoi/YYYY-MM)
-//    -> Ghi lịch sử + ảnh xem nhanh (=IMAGE) vào tab "BC-Phát tờ rơi"
+// DMX-V2 — GOOGLE APPS SCRIPT TỔNG HỢP (V4):
+// 1. Lưu & nạp dữ liệu RIÊNG BIỆT cho từng Tuần / Tháng trên sheet "PG"
+//    qua kho ẩn "Data_PG" (chuyển tuần/tháng nào lưu & sửa đúng tuần đó!)
+// 2. Tối ưu tốc độ chuyển Tuần / Tháng + Dropdown chọn nhanh trên A2 / B2
+// 3. Auto-fill giờ làm việc khi sửa cột CA & tự lưu ngay vào kho tuần hiện tại
+// 4. Web App API (doGet / doPost) cho PWA Check-in + Upload Ảnh & đồng bộ 2 chiều DMX-V2
 // ============================================================================
 
 const SHEET_PG = "PG";
 const SHEET_NV = "NV";
 const SHEET_CHECKIN = "BC-Phát tờ rơi";
 const SHEET_LICH_PHAT = "LichPhatToRoi";
+const SHEET_DATA_PG = "Data_PG";
 const DRIVE_ROOT_FOLDER = "DMX_Anh_CheckIn_PhatToRoi";
+const PROP_ACTIVE_PG_KEY = "dmx_pg_active_week_key_v1";
+
+const PG_START_ROW = 7;
+const PG_NUM_ROWS = 21; // Dòng 7 -> 27
 
 const TIME_MAP = {
   "SÁNG": "8h-16h",
@@ -21,30 +26,214 @@ const TIME_MAP = {
   "GÃY": "8h-20h"
 };
 
-// Cache nội bộ giảm gọi getActiveSpreadsheet() lặp lại trong cùng lần chạy
-function _laySheetPG() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+// ============================================================================
+// 0. TIỆN ÍCH TÍNH NGÀY THỨ 2 & KHÓA TUẦN (KHỚP 100% CÔNG THỨC HÀNG 4 SHEET PG)
+// ============================================================================
+
+function _laySheetPG(ssOpt) {
+  const ss = ssOpt || SpreadsheetApp.getActiveSpreadsheet();
   const active = ss.getActiveSheet();
   if (active && active.getName() === SHEET_PG) return active;
   return ss.getSheetByName(SHEET_PG);
 }
 
+function _pad2(n) {
+  return n < 10 ? "0" + n : "" + n;
+}
+
+function _formatISODate(d) {
+  return d.getFullYear() + "-" + _pad2(d.getMonth() + 1) + "-" + _pad2(d.getDate());
+}
+
+function _formatDDMM(d) {
+  return _pad2(d.getDate()) + "/" + _pad2(d.getMonth() + 1);
+}
+
+function _tinhNgayThu2(thangNamStr, tuanSo) {
+  const parts = String(thangNamStr || "").trim().split("/");
+  if (parts.length !== 2) return null;
+  const month = parseInt(parts[0], 10);
+  const year = parseInt(parts[1], 10);
+  const week = parseInt(tuanSo, 10);
+  if (isNaN(month) || isNaN(year) || isNaN(week) || month < 1 || month > 12 || week < 1 || week > 6) {
+    return null;
+  }
+  const firstDay = new Date(year, month - 1, 1, 12, 0, 0);
+  const dow = firstDay.getDay() === 0 ? 7 : firstDay.getDay(); // T2=1 .. CN=7
+  return new Date(year, month - 1, 1 - dow + 1 + (week - 1) * 7, 12, 0, 0);
+}
+
+function _tinhKhoangNgayTuMonday(monday) {
+  if (!monday) return "";
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 12, 0, 0);
+  return _formatDDMM(monday) + " – " + _formatDDMM(sunday);
+}
+
+function _docThangNamVaTuan(sheetPG) {
+  const vals = sheetPG.getRange("A2:B2").getValues()[0];
+  const tuan = parseInt(vals[0], 10);
+  const rawB2 = vals[1];
+  let thangNam = "";
+  if (rawB2 instanceof Date) {
+    thangNam = Utilities.formatDate(rawB2, Session.getScriptTimeZone() || "Asia/Ho_Chi_Minh", "MM/yyyy");
+  } else {
+    thangNam = String(rawB2 || "").trim();
+  }
+  const monday = _tinhNgayThu2(thangNam, tuan);
+  const weekKey = monday ? _formatISODate(monday) : "";
+  const khoangNgay = monday ? _tinhKhoangNgayTuMonday(monday) : "";
+  return { tuan: isNaN(tuan) ? 1 : tuan, thangNam: thangNam, monday: monday, weekKey: weekKey, khoangNgay: khoangNgay };
+}
+
+function _damBaoSheetDataPG(ss) {
+  let sh = ss.getSheetByName(SHEET_DATA_PG);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_DATA_PG);
+  }
+  const firstVal = String(sh.getRange(1, 1).getValue() || "").trim();
+  if (!firstVal) {
+    sh.getRange(1, 1, 1, 6).setValues([[
+      "WeekKey", "KhoangNgay", "ThangNam", "Tuan", "CapNhatLuc", "GridJSON"
+    ]]);
+    sh.getRange(1, 1, 1, 6).setFontWeight("bold").setBackground("#1E3A8A").setFontColor("#FFFFFF");
+    sh.setFrozenRows(1);
+  }
+  if (!sh.isSheetHidden()) {
+    sh.hideSheet();
+  }
+  return sh;
+}
+
+function _coDuLieuTrongLuoi(lich21x14, diemDanh21x1) {
+  for (let r = 0; r < lich21x14.length; r++) {
+    for (let c = 0; c < lich21x14[r].length; c++) {
+      if (String(lich21x14[r][c] || "").trim() !== "") return true;
+    }
+  }
+  if (diemDanh21x1) {
+    for (let r = 0; r < diemDanh21x1.length; r++) {
+      if (String(diemDanh21x1[r][0] || "").trim() !== "") return true;
+    }
+  }
+  return false;
+}
+
+function _luuTuanPGVaoKho(ss, sheetPG, metaOverride) {
+  const meta = metaOverride || _docThangNamVaTuan(sheetPG);
+  if (!meta.weekKey) return null;
+
+  const shData = _damBaoSheetDataPG(ss);
+  const gridAP = sheetPG.getRange(PG_START_ROW, 1, PG_NUM_ROWS, 16).getDisplayValues();
+  const diemDanh = sheetPG.getRange(PG_START_ROW, 19, PG_NUM_ROWS, 1).getDisplayValues();
+
+  const nganhTen = [];
+  const lich = [];
+  for (let r = 0; r < PG_NUM_ROWS; r++) {
+    nganhTen.push([gridAP[r][0], gridAP[r][1]]);
+    lich.push(gridAP[r].slice(2, 16));
+  }
+
+  const tz = Session.getScriptTimeZone() || "Asia/Ho_Chi_Minh";
+  const capNhatLuc = Utilities.formatDate(new Date(), tz, "HH:mm dd/MM/yyyy");
+  const jsonStr = JSON.stringify({
+    nganhTen: nganhTen,
+    lich: lich,
+    diemDanh: diemDanh
+  });
+
+  const lastRow = shData.getLastRow();
+  let foundRow = -1;
+  if (lastRow >= 2) {
+    const keys = shData.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (let i = 0; i < keys.length; i++) {
+      if (String(keys[i][0] || "").trim() === meta.weekKey) {
+        foundRow = i + 2;
+        break;
+      }
+    }
+  }
+
+  const rowData = [[
+    "'" + meta.weekKey,
+    "'" + (meta.khoangNgay || ""),
+    "'" + (meta.thangNam || ""),
+    meta.tuan || "",
+    "'" + capNhatLuc,
+    jsonStr
+  ]];
+
+  if (foundRow >= 2) {
+    shData.getRange(foundRow, 1, 1, 6).setValues(rowData);
+  } else {
+    shData.getRange(Math.max(2, lastRow + 1), 1, 1, 6).setValues(rowData);
+  }
+
+  return meta.weekKey;
+}
+
+function _timDuLieuTuanTrongKho(ss, weekKey) {
+  if (!weekKey) return null;
+  const shData = ss.getSheetByName(SHEET_DATA_PG);
+  if (!shData) return null;
+  const lastRow = shData.getLastRow();
+  if (lastRow < 2) return null;
+
+  const vals = shData.getRange(2, 1, lastRow - 1, 6).getValues();
+  for (let i = 0; i < vals.length; i++) {
+    if (String(vals[i][0] || "").trim() === weekKey) {
+      const rawJson = String(vals[i][5] || "");
+      if (!rawJson) return null;
+      try {
+        return {
+          weekKey: weekKey,
+          khoangNgay: String(vals[i][1] || ""),
+          thangNam: String(vals[i][2] || ""),
+          tuan: vals[i][3],
+          capNhatLuc: String(vals[i][4] || ""),
+          grid: JSON.parse(rawJson)
+        };
+      } catch (e) {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+function _napTuanPGTuKho(ss, sheetPG, weekKey) {
+  const saved = _timDuLieuTuanTrongKho(ss, weekKey);
+  if (saved && saved.grid && Array.isArray(saved.grid.lich) && saved.grid.lich.length === PG_NUM_ROWS) {
+    sheetPG.getRange(PG_START_ROW, 3, PG_NUM_ROWS, 14).setValues(saved.grid.lich);
+    if (Array.isArray(saved.grid.diemDanh) && saved.grid.diemDanh.length === PG_NUM_ROWS) {
+      sheetPG.getRange(PG_START_ROW, 19, PG_NUM_ROWS, 1).setValues(saved.grid.diemDanh);
+    } else {
+      sheetPG.getRange(PG_START_ROW, 19, PG_NUM_ROWS, 1).clearContent();
+    }
+  } else {
+    // Tuần mới chưa từng nhập lịch -> xóa sạch lưới CA/TIME để nhập mới hoàn toàn riêng biệt!
+    sheetPG.getRangeList(["C7:P27", "S7:S27"]).clearContent();
+  }
+  PropertiesService.getDocumentProperties().setProperty(PROP_ACTIVE_PG_KEY, weekKey);
+}
+
 // ============================================================================
-// 1. MENU TIỆN ÍCH & KHỞI TẠO NHANH (DROPDOWN 0ms + HEADER BC-PHÁT TỜ RƠI)
+// 1. MENU TIỆN ÍCH & KHỞI TẠO NHANH (DROPDOWN + KHO TUẦN PG + HEADER CHECK-IN)
 // ============================================================================
 
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("⚡ DMX Tiện ích")
-    .addItem("🚀 Tối ưu chọn Tuần/Tháng tức thì + Tạo bảng Check-in", "khoiTaoNhanhBangTinh")
-    .addItem("🗑️ Xóa lịch làm việc tuần hiện tại (PG)", "xoaLichLamViec")
+    .addItem("🚀 Khởi tạo kho tuần PG + Dropdown nhanh + Bảng Check-in", "khoiTaoNhanhBangTinh")
+    .addItem("📋 Sao chép lịch tuần trước sang tuần đang mở", "saoChepTuanTruocSangTuanNay")
+    .addItem("💾 Lưu thủ công tuần PG hiện tại vào kho", "luuTuanPGHienTai")
+    .addItem("🗑️ Xóa lịch làm việc tuần đang mở (PG)", "xoaLichLamViec")
     .addToUi();
 }
 
 function khoiTaoNhanhBangTinh() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // 1. Gắn dropdown chọn nhanh trực tiếp trên PG!A2 (Tuần 1..6) và PG!B2 (Tháng/Năm) -> đổi 0ms không cần chờ Script!
+  // 1. Gắn dropdown chọn nhanh trên PG!A2 (Tuần 1..6) và PG!B2 (Tháng/Năm)
   const sheetPG = ss.getSheetByName(SHEET_PG);
   if (sheetPG) {
     const ruleTuan = SpreadsheetApp.newDataValidation()
@@ -57,7 +246,7 @@ function khoiTaoNhanhBangTinh() {
     const namHienTai = new Date().getFullYear();
     for (let y = namHienTai - 1; y <= namHienTai + 2; y++) {
       for (let m = 1; m <= 12; m++) {
-        dsThang.push((m < 10 ? "0" + m : "" + m) + "/" + y);
+        dsThang.push(_pad2(m) + "/" + y);
       }
     }
     const ruleThang = SpreadsheetApp.newDataValidation()
@@ -65,6 +254,13 @@ function khoiTaoNhanhBangTinh() {
       .setAllowInvalid(true)
       .build();
     sheetPG.getRange("B2").setNumberFormat("@").setDataValidation(ruleThang);
+
+    // Tạo kho Data_PG & lưu ngay tuần đang hiển thị để không bao giờ mất dữ liệu cũ
+    const meta = _docThangNamVaTuan(sheetPG);
+    if (meta.weekKey) {
+      _luuTuanPGVaoKho(ss, sheetPG, meta);
+      PropertiesService.getDocumentProperties().setProperty(PROP_ACTIVE_PG_KEY, meta.weekKey);
+    }
   }
 
   // 2. Đảm bảo sheet "BC-Phát tờ rơi" có đủ tiêu đề chuẩn đẹp
@@ -72,15 +268,50 @@ function khoiTaoNhanhBangTinh() {
   return "OK";
 }
 
+function luuTuanPGHienTai() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetPG = _laySheetPG(ss);
+  if (!sheetPG) return;
+  const meta = _docThangNamVaTuan(sheetPG);
+  if (meta.weekKey) {
+    _luuTuanPGVaoKho(ss, sheetPG, meta);
+    PropertiesService.getDocumentProperties().setProperty(PROP_ACTIVE_PG_KEY, meta.weekKey);
+  }
+}
+
+function saoChepTuanTruocSangTuanNay() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetPG = _laySheetPG(ss);
+  if (!sheetPG) return;
+  const meta = _docThangNamVaTuan(sheetPG);
+  if (!meta.monday) return;
+
+  const prevMonday = new Date(meta.monday.getFullYear(), meta.monday.getMonth(), meta.monday.getDate() - 7, 12, 0, 0);
+  const prevKey = _formatISODate(prevMonday);
+  const saved = _timDuLieuTuanTrongKho(ss, prevKey);
+  if (!saved || !saved.grid || !Array.isArray(saved.grid.lich)) {
+    SpreadsheetApp.getUi().alert("Chưa có dữ liệu tuần trước (" + _tinhKhoangNgayTuMonday(prevMonday) + ") trong kho để sao chép.");
+    return;
+  }
+  sheetPG.getRange(PG_START_ROW, 3, PG_NUM_ROWS, 14).setValues(saved.grid.lich);
+  _luuTuanPGVaoKho(ss, sheetPG, meta);
+  PropertiesService.getDocumentProperties().setProperty(PROP_ACTIVE_PG_KEY, meta.weekKey);
+}
+
 // ============================================================================
-// 2. XÓA LỊCH & CHUYỂN THÁNG / TUẦN (TỐI ƯU TỐC ĐỘ GẤP 2-3 LẦN)
+// 2. XÓA LỊCH & CHUYỂN THÁNG / TUẦN (TỰ LƯU TUẦN CŨ + TỰ NẠP TUẦN MỚI!)
 // ============================================================================
 
 function xoaLichLamViec() {
-  const sheet = _laySheetPG();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = _laySheetPG(ss);
   if (!sheet) return;
-  // Xóa hàng loạt 1 lần (dòng nhân viên 7 -> 27: cột CA/TIME C7:P27 và Điểm Danh S7:S27)
   sheet.getRangeList(["C7:P27", "S7:S27"]).clearContent();
+  const meta = _docThangNamVaTuan(sheet);
+  if (meta.weekKey) {
+    _luuTuanPGVaoKho(ss, sheet, meta);
+    PropertiesService.getDocumentProperties().setProperty(PROP_ACTIVE_PG_KEY, meta.weekKey);
+  }
 }
 
 function prevMonth() {
@@ -92,31 +323,22 @@ function nextMonth() {
 }
 
 function changeMonth(delta) {
-  const sheet = _laySheetPG();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = _laySheetPG(ss);
   if (!sheet) return;
 
-  const cell = sheet.getRange("B2");
-  const cache = CacheService.getDocumentCache();
-  const cacheKey = "dmx_pg_b2";
-
-  // Đọc trực tiếp ô B2 (chỉ 1 lần đọc getValue thay vì getDisplayValue + setNumberFormat)
-  const raw = cell.getValue();
-  let rawStr = "";
-  if (raw instanceof Date) {
-    rawStr = Utilities.formatDate(raw, Session.getScriptTimeZone(), "MM/yyyy");
-  } else {
-    rawStr = String(raw || "").trim();
-  }
-  if (!rawStr) {
-    rawStr = cache.get(cacheKey) || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MM/yyyy");
-  }
-
-  const parts = rawStr.split("/");
+  const curMeta = _docThangNamVaTuan(sheet);
+  const parts = String(curMeta.thangNam || "").split("/");
   if (parts.length !== 2) return;
 
   let month = parseInt(parts[0], 10);
   let year = parseInt(parts[1], 10);
   if (isNaN(month) || isNaN(year)) return;
+
+  // 1. Lưu tuần đang mở vào kho Data_PG trước khi chuyển tháng
+  if (curMeta.weekKey) {
+    _luuTuanPGVaoKho(ss, sheet, curMeta);
+  }
 
   month += delta;
   if (month < 1) {
@@ -127,10 +349,19 @@ function changeMonth(delta) {
     year += 1;
   }
 
-  const formatted = (month < 10 ? "0" + month : "" + month) + "/" + year;
-  // Dùng dấu nháy đơn "'" ở đầu để ép lưu văn bản MM/yyyy trong ĐÚNG 1 lần gọi setValue (bỏ RPC setNumberFormat thừa)
-  cell.setValue("'" + formatted);
-  cache.put(cacheKey, formatted, 300);
+  const formatted = _pad2(month) + "/" + year;
+  // 2. Cập nhật B2 (dùng "'" ép văn bản MM/yyyy trong 1 lần gọi)
+  sheet.getRange("B2").setValue("'" + formatted);
+  CacheService.getDocumentCache().put("dmx_pg_b2", formatted, 300);
+
+  // 3. Nạp dữ liệu riêng của tuần/tháng mới từ kho Data_PG (trống nếu chưa nhập!)
+  const newMonday = _tinhNgayThu2(formatted, curMeta.tuan);
+  if (newMonday) {
+    const newKey = _formatISODate(newMonday);
+    if (newKey !== curMeta.weekKey) {
+      _napTuanPGTuKho(ss, sheet, newKey);
+    }
+  }
 }
 
 function prevWeek() {
@@ -142,71 +373,118 @@ function nextWeek() {
 }
 
 function changeWeek(delta) {
-  const sheet = _laySheetPG();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = _laySheetPG(ss);
   if (!sheet) return;
 
-  const cell = sheet.getRange("A2");
-  const cur = parseInt(cell.getValue(), 10);
-  const oldWeek = isNaN(cur) ? 1 : cur;
+  const curMeta = _docThangNamVaTuan(sheet);
+  const oldWeek = curMeta.tuan;
   let newWeek = oldWeek + delta;
   if (newWeek < 1) newWeek = 1;
   if (newWeek > 6) newWeek = 6;
-
-  // Thoát ngay không ghi thừa nếu đã ở biên Tuần 1 hoặc Tuần 6
   if (newWeek === oldWeek) return;
-  cell.setValue(newWeek);
-}
 
-// ============================================================================
-// 3. TỰ ĐIỀN KHUNG GIỜ KHI SỬA CỘT CA TRÊN SHEET "PG"
-// ============================================================================
-
-function onEdit(e) {
-  if (!e || !e.range) return;
-  const range = e.range;
-  const startRow = range.getRow();
-  const numRows = range.getNumRows();
-  const endRow = startRow + numRows - 1;
-
-  if (endRow < 7 || startRow > 27) return;
-
-  const startCol = range.getColumn();
-  const numCols = range.getNumColumns();
-  const endCol = startCol + numCols - 1;
-
-  if (endCol < 3 || startCol > 15) return;
-  if (numCols === 1 && startCol % 2 === 0) return;
-
-  const sheet = range.getSheet();
-  if (sheet.getName() !== SHEET_PG) return;
-
-  if (numRows === 1 && numCols === 1) {
-    const ca = e.value ? String(e.value).trim().toUpperCase() : "";
-    range.offset(0, 1).setValue(TIME_MAP[ca] || "");
-    return;
+  // 1. Lưu tuần hiện tại vào kho Data_PG trước khi nhảy sang tuần khác
+  if (curMeta.weekKey) {
+    _luuTuanPGVaoKho(ss, sheet, curMeta);
   }
 
-  const validStartRow = Math.max(startRow, 7);
-  const validEndRow = Math.min(endRow, 27);
-  const validNumRows = validEndRow - validStartRow + 1;
-  const rowOffset = validStartRow - startRow;
-  const values = range.getValues();
+  // 2. Cập nhật ô A2 sang tuần mới
+  sheet.getRange("A2").setValue(newWeek);
 
-  for (let c = 0; c < numCols; c++) {
-    const currentCol = startCol + c;
-    if (currentCol >= 3 && currentCol <= 15 && currentCol % 2 === 1) {
-      const timeColValues = [];
-      for (let r = 0; r < validNumRows; r++) {
-        const ca = String(values[rowOffset + r][c] || "").trim().toUpperCase();
-        timeColValues.push([TIME_MAP[ca] || ""]);
-      }
-      sheet.getRange(validStartRow, currentCol + 1, validNumRows, 1).setValues(timeColValues);
+  // 3. Nạp dữ liệu riêng của tuần mới từ kho Data_PG (trống nếu chưa nhập!)
+  const newMonday = _tinhNgayThu2(curMeta.thangNam, newWeek);
+  if (newMonday) {
+    const newKey = _formatISODate(newMonday);
+    if (newKey !== curMeta.weekKey) {
+      _napTuanPGTuKho(ss, sheet, newKey);
     }
   }
 }
 
 // ============================================================================
-// 4. WEB APP API CHO PWA CHECK-IN & UPLOAD ẢNH PHÁT TỜ RƠI
+// 3. ONEDIT: ĐỔI TUẦN/THÁNG BẰNG DROPDOWN A2/B2 + TỰ ĐIỀN GIỜ + TỰ LƯU KHO TUẦN
+// ============================================================================
+
+function onEdit(e) {
+  if (!e || !e.range) return;
+  const range = e.range;
+  const sheet = range.getSheet();
+  if (sheet.getName() !== SHEET_PG) return;
+
+  const startRow = range.getRow();
+  const startCol = range.getColumn();
+  const numRows = range.getNumRows();
+  const numCols = range.getNumColumns();
+  const endRow = startRow + numRows - 1;
+  const endCol = startCol + numCols - 1;
+  const ss = sheet.getParent();
+
+  // Trường hợp A: Người dùng chọn trực tiếp Tuần (A2) hoặc Tháng/Năm (B2) bằng Dropdown hoặc gõ tay!
+  if (startRow <= 2 && endRow >= 2 && startCol <= 2) {
+    const props = PropertiesService.getDocumentProperties();
+    const oldKey = props.getProperty(PROP_ACTIVE_PG_KEY) || "";
+    const newMeta = _docThangNamVaTuan(sheet);
+    if (newMeta.weekKey && newMeta.weekKey !== oldKey) {
+      // Lưu lưới hiện tại vào đúng khóa tuần cũ trước khi nạp dữ liệu tuần mới
+      if (oldKey) {
+        const oldParts = oldKey.split("-");
+        const oldMonday = oldParts.length === 3 ? new Date(parseInt(oldParts[0], 10), parseInt(oldParts[1], 10) - 1, parseInt(oldParts[2], 10), 12, 0, 0) : null;
+        _luuTuanPGVaoKho(ss, sheet, {
+          weekKey: oldKey,
+          khoangNgay: oldMonday ? _tinhKhoangNgayTuMonday(oldMonday) : "",
+          thangNam: oldMonday ? (_pad2(oldMonday.getMonth() + 1) + "/" + oldMonday.getFullYear()) : "",
+          tuan: ""
+        });
+      }
+      _napTuanPGTuKho(ss, sheet, newMeta.weekKey);
+    }
+    return;
+  }
+
+  // Trường hợp B: Người dùng sửa ca/giờ (C7:P27) hoặc điểm danh (S7:S27)
+  if (endRow < PG_START_ROW || startRow > PG_START_ROW + PG_NUM_ROWS - 1) return;
+
+  // 1. Tự điền khung giờ ở cột TIME khi sửa cột CA (cột lẻ 3..15)
+  if (endCol >= 3 && startCol <= 15) {
+    if (numRows === 1 && numCols === 1) {
+      if (startCol % 2 === 1) {
+        const ca = e.value ? String(e.value).trim().toUpperCase() : "";
+        range.offset(0, 1).setValue(TIME_MAP[ca] || "");
+      }
+    } else {
+      const validStartRow = Math.max(startRow, PG_START_ROW);
+      const validEndRow = Math.min(endRow, PG_START_ROW + PG_NUM_ROWS - 1);
+      const validNumRows = validEndRow - validStartRow + 1;
+      const rowOffset = validStartRow - startRow;
+      const values = range.getValues();
+
+      for (let c = 0; c < numCols; c++) {
+        const currentCol = startCol + c;
+        if (currentCol >= 3 && currentCol <= 15 && currentCol % 2 === 1) {
+          const timeColValues = [];
+          for (let r = 0; r < validNumRows; r++) {
+            const ca = String(values[rowOffset + r][c] || "").trim().toUpperCase();
+            timeColValues.push([TIME_MAP[ca] || ""]);
+          }
+          sheet.getRange(validStartRow, currentCol + 1, validNumRows, 1).setValues(timeColValues);
+        }
+      }
+    }
+  }
+
+  // 2. Tự động lưu ngay thay đổi vào kho Data_PG cho đúng tuần đang mở
+  if ((endCol >= 1 && startCol <= 16) || (startCol <= 19 && endCol >= 19)) {
+    const meta = _docThangNamVaTuan(sheet);
+    if (meta.weekKey) {
+      _luuTuanPGVaoKho(ss, sheet, meta);
+      PropertiesService.getDocumentProperties().setProperty(PROP_ACTIVE_PG_KEY, meta.weekKey);
+    }
+  }
+}
+
+// ============================================================================
+// 4. WEB APP API CHO PWA CHECK-IN, UPLOAD ẢNH & ĐỒNG BỘ 2 TUẦN PG VỚI APP DMX-V2
 // ============================================================================
 
 function _jsonOut(obj) {
@@ -259,7 +537,6 @@ function _docDanhSachNhanSu(ss) {
   const dsPG = [];
   const dsNV = [];
 
-  // Đọc PG từ sheet "PG" (A7:B40)
   const shPG = ss.getSheetByName(SHEET_PG);
   if (shPG) {
     const lastRow = Math.min(Math.max(shPG.getLastRow(), 27), 50);
@@ -275,7 +552,6 @@ function _docDanhSachNhanSu(ss) {
     }
   }
 
-  // Đọc NV từ sheet "NV" (A3:C60)
   const shNV = ss.getSheetByName(SHEET_NV);
   if (shNV) {
     const lastRow = Math.min(Math.max(shNV.getLastRow(), 23), 80);
@@ -427,7 +703,6 @@ function _luuLichPhanCongPhatToRoi(ss, payload) {
   hdrRange.setFontWeight("bold").setBackground("#0D9488").setFontColor("#FFFFFF").setHorizontalAlignment("center");
   sh.setFrozenRows(1);
 
-  // Lưu JSON cấu trúc đầy đủ vào cột L (L1..L5, mỗi ô tối đa 40.000 ký tự) để PWA đọc tức thì
   const pack = JSON.stringify({
     tuan: tuan,
     capNhatLuc: capNhatLuc,
@@ -502,15 +777,11 @@ function doGet(e) {
     const lichSu = _docCheckInGanNhat(ss, limit);
     const lichPhanCong = _docLichPhanCongPhatToRoi(ss);
 
-    // Đọc thông tin tuần đang mở trên tab PG
     let tuanHienTai = "";
     const shPG = ss.getSheetByName(SHEET_PG);
     if (shPG) {
-      const a2 = shPG.getRange("A2").getDisplayValue();
-      const b2 = shPG.getRange("B2").getDisplayValue();
-      const d1 = shPG.getRange("C4").getDisplayValue();
-      const d2 = shPG.getRange("O4").getDisplayValue();
-      tuanHienTai = ("Tuần " + a2 + " • " + b2 + (d1 && d2 ? " (" + d1 + " – " + d2 + ")" : "")).trim();
+      const meta = _docThangNamVaTuan(shPG);
+      tuanHienTai = ("Tuần " + meta.tuan + " • " + meta.thangNam + (meta.khoangNgay ? " (" + meta.khoangNgay + ")" : "")).trim();
     }
 
     return _jsonOut({
@@ -577,7 +848,7 @@ function doPost(e) {
     const thangNam = Utilities.formatDate(now, tz, "yyyy-MM");
     const stampFile = Utilities.formatDate(now, tz, "yyyyMMdd_HHmmss");
 
-    // 1. Lưu ảnh vào Google Drive (thư mục DMX_Anh_CheckIn_PhatToRoi/YYYY-MM)
+    // 1. Lưu ảnh vào Google Drive (DMX_Anh_CheckIn_PhatToRoi/YYYY-MM)
     const cleanB64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
     const bytes = Utilities.base64Decode(cleanB64);
     const tenAnToan = hoTen.replace(/[^a-zA-Z0-9À-ỹ _-]/g, "").replace(/\s+/g, "_").slice(0, 32) || "NV";
